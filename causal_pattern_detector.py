@@ -1,10 +1,9 @@
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any
 import logging
-from scipy import stats
+import re
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import StandardScaler
 from sklearn.feature_selection import mutual_info_regression
 import networkx as nx
 
@@ -360,16 +359,12 @@ def create_pdet_causal_detector(municipalities_file: str = "pdet_municipalities.
 def integrate_with_miniminimoon():
     """Integration example with your main system"""
     detector = create_pdet_causal_detector()
-
-    # For each of the 170 development plans
+    # Definir la lista de archivos de planes de desarrollo
+    development_plan_files = []  # Rellena con la lista de archivos reales
     for plan_file in development_plan_files:
         with open(plan_file, 'r', encoding='utf-8') as f:
             plan_text = f.read()
-
         analysis = detector.analyze_development_plan(plan_text)
-
-        # Use analysis results to answer your 300 questions
-        # The analysis contains all the structured data needed
 
         print(f"Municipio: {analysis['municipality']}")
         print(f"Calidad general: {analysis['evaluation_scores']['overall_quality']:.2f}")
