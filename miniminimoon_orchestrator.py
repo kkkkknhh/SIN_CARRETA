@@ -34,7 +34,6 @@ from causal_pattern_detector import CausalPatternDetector
 # Import evaluation components
 from decalogo_loader import get_decalogo_industrial, load_decalogo_industrial
 from Decatalogo_principal import SistemaEvaluacionIndustrial, obtener_decalogo_contexto
-from Decatalogo_evaluador import IndustrialDecatalogoEvaluatorFull
 
 # Import validation and freezing components
 from miniminimoon_immutability import ImmutabilityContract
@@ -219,7 +218,6 @@ class MINIMINIMOONOrchestrator:
             # Evaluation components
             logger.info("Initializing evaluation components...")
             self.decalogo_context = obtener_decalogo_contexto()
-            self.decalogo_evaluator = IndustrialDecatalogoEvaluatorFull(self.decalogo_context)
             
             # Verify system components against immutability contract
             verification_level = self.config.get("verification_level", "normal")
@@ -230,7 +228,7 @@ class MINIMINIMOONOrchestrator:
                 "sanitizer", "processor", "segmenter", "embedding_model", 
                 "spacy_processor", "doc_mapper", "responsibility_detector",
                 "contradiction_detector", "monetary_detector", "feasibility_scorer",
-                "causal_detector", "dag_validator", "decalogo_evaluator"
+                "causal_detector", "dag_validator"
             ]:
                 self.context.component_status[component_name] = "initialized"
                 
@@ -313,10 +311,6 @@ class MINIMINIMOONOrchestrator:
             )
             teoria_validation = self._validate_teoria_cambio(teoria_cambio)
             results["teoria_cambio"] = teoria_validation
-            
-            # 11. Decalogo evaluation
-            evaluation = self._execute_decalogo_evaluation(sanitized_text, plan_name)
-            results["evaluation"] = evaluation
             
             # Add execution summary
             results["execution_summary"] = self.context.get_execution_summary()
@@ -527,111 +521,6 @@ class MINIMINIMOONOrchestrator:
             from_node, to_node = edge
             self.dag_validator.add_edge(from_node, to_node)
     
-    @component_execution("decalogo_evaluation")
-    def _execute_decalogo_evaluation(self, text: str, plan_name: str) -> Dict[str, Any]:
-        """Execute Decalogo evaluation"""
-        # Extract evidence for all dimensions
-        evidencias = {}
-        for dim_id in range(1, 11):
-            evidencias[dim_id] = self._extract_evidence(text, dim_id)
-        
-        # Generate evaluation report
-        reporte = self.decalogo_evaluator.generar_reporte_final(
-            evidencias, plan_name
-        )
-        
-        # Extract key results for the return value
-        return {
-            "global_score": reporte.resumen_ejecutivo["puntaje_global"],
-            "alignment_level": reporte.resumen_ejecutivo["nivel_alineacion"],
-            "recommendation": reporte.resumen_ejecutivo["recomendacion_estrategica_global"],
-            "confidence": reporte.resumen_ejecutivo["nivel_confianza_evaluacion"],
-            "dimension_scores": {
-                p.punto_id: p.puntaje_agregado_punto
-                for p in reporte.reporte_por_punto
-            },
-            "global_gaps": reporte.reporte_macro["brechas_globales"][:5],
-            "global_recommendations": reporte.reporte_macro["recomendaciones_globales"][:5],
-        }
-    
-    def _extract_evidence(self, text: str, dimension_id: int) -> Dict[str, List[Any]]:
-        """Extract structured evidence from text for evaluation"""
-        evidencia = {}
-        
-        # Basic text segments
-        text_segments = text.split("\n\n")
-        evidencia["texto_completo"] = [text]
-        evidencia["segmentos"] = text_segments[:20]
-        
-        # Extract indicators and targets from feasibility scoring
-        feasibility = self._execute_feasibility_scoring(text)
-        
-        # Organize by type
-        indicators = []
-        targets = []
-        baselines = []
-        for match in feasibility.get("detailed_matches", []):
-            if match["type"] == "INDICATOR":
-                indicators.append(match["text"])
-            elif match["type"] == "TARGET":
-                targets.append(match["text"])
-            elif match["type"] == "BASELINE":
-                baselines.append(match["text"])
-        
-        evidencia["indicadores"] = indicators
-        evidencia["metas"] = targets
-        evidencia["lineas_base"] = baselines
-        
-        # Extract responsible entities
-        responsibilities = self._execute_responsibility_detection(text)
-        evidencia["responsables"] = [r["text"] for r in responsibilities]
-        
-        # Extract monetary values
-        monetary = self._execute_monetary_detection(text)
-        evidencia["presupuesto"] = [m["text"] for m in monetary]
-        
-        # Extract contradictions
-        contradictions = self._execute_contradiction_detection(text)
-        if "matches" in contradictions:
-            evidencia["contradicciones"] = [c["text"] for c in contradictions["matches"]]
-        
-        # Extract dimension-specific evidence
-        keywords = self._get_dimension_keywords(dimension_id)
-        if keywords:
-            dimension_name = f"dimension_{dimension_id}"
-            evidencia[dimension_name] = self._extract_segments_with_keywords(text, keywords)
-        
-        return evidencia
-    
-    def _get_dimension_keywords(self, dimension_id: int) -> List[str]:
-        """Get keywords relevant to a specific dimension"""
-        # Maps dimension IDs to relevant keywords
-        dimension_keywords = {
-            1: ["género", "mujer", "igualdad", "equidad", "discriminación"],
-            2: ["seguridad", "paz", "conflicto", "violencia", "víctimas"],
-            3: ["ambiente", "clima", "sostenible", "ecológico", "biodiversidad"],
-            4: ["económico", "empleo", "productivo", "ingreso", "pobreza"],
-            5: ["víctimas", "reparación", "conflicto", "paz", "reconciliación"],
-            6: ["juventud", "niñez", "educación", "escuela", "adolescencia"],
-            7: ["tierra", "territorio", "rural", "agro", "campesino"],
-            8: ["líderes", "defensor", "derechos", "comunidad", "participación"],
-            9: ["libertad", "cárcel", "penitenciario", "delito", "reinserción"],
-            10: ["migración", "frontera", "migrante", "desplazamiento", "movilidad"]
-        }
-        
-        return dimension_keywords.get(dimension_id, [])
-    
-    def _extract_segments_with_keywords(self, text: str, keywords: List[str]) -> List[str]:
-        """Extract text segments containing specific keywords"""
-        segments = []
-        paragraphs = text.split("\n\n")
-        
-        for paragraph in paragraphs:
-            if any(keyword.lower() in paragraph.lower() for keyword in keywords):
-                segments.append(paragraph)
-        
-        return segments
-    
     def freeze_integration(self) -> Dict[str, Any]:
         """
         Freeze the current integration state, creating an immutability record
@@ -684,11 +573,6 @@ def main():
             print("\nFeasibility score:")
             feasibility = results.get("feasibility", {})
             print(f"  Score: {feasibility.get('score', 0):.2f}")
-            
-            print("\nEvaluation results:")
-            evaluation = results.get("evaluation", {})
-            print(f"  Global score: {evaluation.get('global_score', 0):.2f}")
-            print(f"  Alignment level: {evaluation.get('alignment_level', 'Unknown')}")
             
             print("\nExecution summary:")
             summary = results.get("execution_summary", {})
