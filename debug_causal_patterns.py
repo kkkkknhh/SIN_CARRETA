@@ -1,3 +1,4 @@
+# coding=utf-8
 from causal_pattern_detector import CausalPatternDetector
 
 detector = CausalPatternDetector()
