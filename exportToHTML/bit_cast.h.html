@@ -1,0 +1,67 @@
+<html>
+<head>
+<title>bit_cast.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #000080; font-weight: bold;}
+.s2 { color: #0086b3;}
+.s3 { color: #969896; font-style: italic;}
+.s4 { color: #660e7a; font-weight: bold;}
+.s5 { color: #183691; font-weight: bold;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+bit_cast.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#include </span><span class="s0">&lt;cstring&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">#include </span><span class="s0">&lt;type_traits&gt;</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s1">#if </span><span class="s0">__has_include(&lt;bit&gt;) &amp;&amp; (defined(__cpp_lib_bit_cast) &amp;&amp; __cpp_lib_bit_cast &gt;= </span><span class="s2">201806</span><span class="s0">L)</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">#include </span><span class="s0">&lt;bit&gt;</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s1">#define </span><span class="s0">C10_HAVE_STD_BIT_CAST </span><span class="s2">1</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">#else</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s1">#define </span><span class="s0">C10_HAVE_STD_BIT_CAST </span><span class="s2">0</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s1">#endif </span><span class="s3">// __has_include(&lt;bit&gt;) &amp;&amp; (__cplusplus &gt;= 202002L ||</span>
+<a name="l12"><span class="ln">12   </span></a>       <span class="s3">// (defined(__cpp_lib_bit_cast) &amp;&amp; __cpp_lib_bit_cast &gt;= 201806L))</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s4">namespace </span><span class="s0">c10 {</span>
+<a name="l15"><span class="ln">15   </span></a>
+<a name="l16"><span class="ln">16   </span></a><span class="s1">#if </span><span class="s0">C10_HAVE_STD_BIT_CAST</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s4">using </span><span class="s0">std::bit_cast;</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s1">#else</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s3">// Implementations of std::bit_cast() from C++ 20.</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s3">//</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s3">// This is a less sketchy version of reinterpret_cast.</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s3">//</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s3">// See https://en.cppreference.com/w/cpp/numeric/bit_cast for more</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s3">// information as well as the source of our implementations.</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s0">template &lt;</span><span class="s4">class </span><span class="s0">To, </span><span class="s4">class </span><span class="s0">From&gt;</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s0">std::enable_if_t&lt;</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s1">sizeof</span><span class="s0">(To) == </span><span class="s1">sizeof</span><span class="s0">(From) &amp;&amp; std::is_trivially_copyable_v&lt;From&gt; &amp;&amp;</span>
+<a name="l28"><span class="ln">28   </span></a>        <span class="s0">std::is_trivially_copyable_v&lt;To&gt;,</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s0">To&gt;</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s3">// constexpr support needs compiler magic</span>
+<a name="l31"><span class="ln">31   </span></a><span class="s0">bit_cast(</span><span class="s1">const </span><span class="s0">From&amp; src) noexcept {</span>
+<a name="l32"><span class="ln">32   </span></a>  <span class="s0">static_assert(</span>
+<a name="l33"><span class="ln">33   </span></a>      <span class="s0">std::is_trivially_constructible_v&lt;To&gt;,</span>
+<a name="l34"><span class="ln">34   </span></a>      <span class="s5">&quot;This implementation additionally requires &quot;</span>
+<a name="l35"><span class="ln">35   </span></a>      <span class="s5">&quot;destination type to be trivially constructible&quot;</span><span class="s0">);</span>
+<a name="l36"><span class="ln">36   </span></a>
+<a name="l37"><span class="ln">37   </span></a>  <span class="s0">To dst;</span>
+<a name="l38"><span class="ln">38   </span></a>  <span class="s0">std::memcpy(&amp;dst, &amp;src, </span><span class="s1">sizeof</span><span class="s0">(To));</span>
+<a name="l39"><span class="ln">39   </span></a>  <span class="s1">return </span><span class="s0">dst;</span>
+<a name="l40"><span class="ln">40   </span></a><span class="s0">}</span>
+<a name="l41"><span class="ln">41   </span></a><span class="s1">#endif </span><span class="s3">// C10_HAVE_STD_BIT_CAST</span>
+<a name="l42"><span class="ln">42   </span></a><span class="s1">#undef </span><span class="s0">C10_HAVE_STD_BIT_CAST</span>
+<a name="l43"><span class="ln">43   </span></a>
+<a name="l44"><span class="ln">44   </span></a><span class="s0">} </span><span class="s3">// namespace c10</span>
+<a name="l45"><span class="ln">45   </span></a></pre>
+</body>
+</html>

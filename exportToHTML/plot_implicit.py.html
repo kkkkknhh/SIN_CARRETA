@@ -1,0 +1,256 @@
+<html>
+<head>
+<title>plot_implicit.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+plot_implicit.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot;Implicit plotting module for SymPy. 
+<a name="l2"><span class="ln">2    </span></a> 
+<a name="l3"><span class="ln">3    </span></a>Explanation 
+<a name="l4"><span class="ln">4    </span></a>=========== 
+<a name="l5"><span class="ln">5    </span></a> 
+<a name="l6"><span class="ln">6    </span></a>The module implements a data series called ImplicitSeries which is used by 
+<a name="l7"><span class="ln">7    </span></a>``Plot`` class to plot implicit plots for different backends. The module, 
+<a name="l8"><span class="ln">8    </span></a>by default, implements plotting using interval arithmetic. It switches to a 
+<a name="l9"><span class="ln">9    </span></a>fall back algorithm if the expression cannot be plotted using interval arithmetic. 
+<a name="l10"><span class="ln">10   </span></a>It is also possible to specify to use the fall back algorithm for all plots. 
+<a name="l11"><span class="ln">11   </span></a> 
+<a name="l12"><span class="ln">12   </span></a>Boolean combinations of expressions cannot be plotted by the fall back 
+<a name="l13"><span class="ln">13   </span></a>algorithm. 
+<a name="l14"><span class="ln">14   </span></a> 
+<a name="l15"><span class="ln">15   </span></a>See Also 
+<a name="l16"><span class="ln">16   </span></a>======== 
+<a name="l17"><span class="ln">17   </span></a> 
+<a name="l18"><span class="ln">18   </span></a>sympy.plotting.plot 
+<a name="l19"><span class="ln">19   </span></a> 
+<a name="l20"><span class="ln">20   </span></a>References 
+<a name="l21"><span class="ln">21   </span></a>========== 
+<a name="l22"><span class="ln">22   </span></a> 
+<a name="l23"><span class="ln">23   </span></a>.. [1] Jeffrey Allen Tupper. Reliable Two-Dimensional Graphing Methods for 
+<a name="l24"><span class="ln">24   </span></a>Mathematical Formulae with Two Free Variables. 
+<a name="l25"><span class="ln">25   </span></a> 
+<a name="l26"><span class="ln">26   </span></a>.. [2] Jeffrey Allen Tupper. Graphing Equations with Generalized Interval 
+<a name="l27"><span class="ln">27   </span></a>Arithmetic. Master's thesis. University of Toronto, 1996 
+<a name="l28"><span class="ln">28   </span></a> 
+<a name="l29"><span class="ln">29   </span></a>&quot;&quot;&quot;</span>
+<a name="l30"><span class="ln">30   </span></a>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">containers </span><span class="s2">import </span><span class="s1">Tuple</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">symbol </span><span class="s2">import </span><span class="s3">(</span><span class="s1">Dummy</span><span class="s3">, </span><span class="s1">Symbol</span><span class="s3">)</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">polyutils </span><span class="s2">import </span><span class="s1">_sort_gens</span>
+<a name="l35"><span class="ln">35   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">plotting</span><span class="s3">.</span><span class="s1">series </span><span class="s2">import </span><span class="s1">ImplicitSeries</span><span class="s3">, </span><span class="s1">_set_discretization_points</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">plotting</span><span class="s3">.</span><span class="s1">plot </span><span class="s2">import </span><span class="s1">plot_factory</span>
+<a name="l37"><span class="ln">37   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities</span><span class="s3">.</span><span class="s1">decorator </span><span class="s2">import </span><span class="s1">doctest_depends_on</span>
+<a name="l38"><span class="ln">38   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities</span><span class="s3">.</span><span class="s1">iterables </span><span class="s2">import </span><span class="s1">flatten</span>
+<a name="l39"><span class="ln">39   </span></a>
+<a name="l40"><span class="ln">40   </span></a>
+<a name="l41"><span class="ln">41   </span></a><span class="s1">__doctest_requires__ </span><span class="s2">= </span><span class="s3">{</span><span class="s4">'plot_implicit'</span><span class="s2">: </span><span class="s3">[</span><span class="s4">'matplotlib'</span><span class="s3">]}</span>
+<a name="l42"><span class="ln">42   </span></a>
+<a name="l43"><span class="ln">43   </span></a>
+<a name="l44"><span class="ln">44   </span></a><span class="s2">@</span><span class="s1">doctest_depends_on</span><span class="s3">(</span><span class="s1">modules</span><span class="s2">=</span><span class="s3">(</span><span class="s4">'matplotlib'</span><span class="s3">,))</span>
+<a name="l45"><span class="ln">45   </span></a><span class="s2">def </span><span class="s1">plot_implicit</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">x_var</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">y_var</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">adaptive</span><span class="s2">=True</span><span class="s3">, </span><span class="s1">depth</span><span class="s2">=</span><span class="s5">0</span><span class="s3">,</span>
+<a name="l46"><span class="ln">46   </span></a>                  <span class="s1">n</span><span class="s2">=</span><span class="s5">300</span><span class="s3">, </span><span class="s1">line_color</span><span class="s2">=</span><span class="s4">&quot;blue&quot;</span><span class="s3">, </span><span class="s1">show</span><span class="s2">=True</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s0">&quot;&quot;&quot;A plot function to plot implicit equations / inequalities. 
+<a name="l48"><span class="ln">48   </span></a> 
+<a name="l49"><span class="ln">49   </span></a>    Arguments 
+<a name="l50"><span class="ln">50   </span></a>    ========= 
+<a name="l51"><span class="ln">51   </span></a> 
+<a name="l52"><span class="ln">52   </span></a>    - expr : The equation / inequality that is to be plotted. 
+<a name="l53"><span class="ln">53   </span></a>    - x_var (optional) : symbol to plot on x-axis or tuple giving symbol 
+<a name="l54"><span class="ln">54   </span></a>      and range as ``(symbol, xmin, xmax)`` 
+<a name="l55"><span class="ln">55   </span></a>    - y_var (optional) : symbol to plot on y-axis or tuple giving symbol 
+<a name="l56"><span class="ln">56   </span></a>      and range as ``(symbol, ymin, ymax)`` 
+<a name="l57"><span class="ln">57   </span></a> 
+<a name="l58"><span class="ln">58   </span></a>    If neither ``x_var`` nor ``y_var`` are given then the free symbols in the 
+<a name="l59"><span class="ln">59   </span></a>    expression will be assigned in the order they are sorted. 
+<a name="l60"><span class="ln">60   </span></a> 
+<a name="l61"><span class="ln">61   </span></a>    The following keyword arguments can also be used: 
+<a name="l62"><span class="ln">62   </span></a> 
+<a name="l63"><span class="ln">63   </span></a>    - ``adaptive`` Boolean. The default value is set to True. It has to be 
+<a name="l64"><span class="ln">64   </span></a>        set to False if you want to use a mesh grid. 
+<a name="l65"><span class="ln">65   </span></a> 
+<a name="l66"><span class="ln">66   </span></a>    - ``depth`` integer. The depth of recursion for adaptive mesh grid. 
+<a name="l67"><span class="ln">67   </span></a>        Default value is 0. Takes value in the range (0, 4). 
+<a name="l68"><span class="ln">68   </span></a> 
+<a name="l69"><span class="ln">69   </span></a>    - ``n`` integer. The number of points if adaptive mesh grid is not 
+<a name="l70"><span class="ln">70   </span></a>        used. Default value is 300. This keyword argument replaces ``points``, 
+<a name="l71"><span class="ln">71   </span></a>        which should be considered deprecated. 
+<a name="l72"><span class="ln">72   </span></a> 
+<a name="l73"><span class="ln">73   </span></a>    - ``show`` Boolean. Default value is True. If set to False, the plot will 
+<a name="l74"><span class="ln">74   </span></a>        not be shown. See ``Plot`` for further information. 
+<a name="l75"><span class="ln">75   </span></a> 
+<a name="l76"><span class="ln">76   </span></a>    - ``title`` string. The title for the plot. 
+<a name="l77"><span class="ln">77   </span></a> 
+<a name="l78"><span class="ln">78   </span></a>    - ``xlabel`` string. The label for the x-axis 
+<a name="l79"><span class="ln">79   </span></a> 
+<a name="l80"><span class="ln">80   </span></a>    - ``ylabel`` string. The label for the y-axis 
+<a name="l81"><span class="ln">81   </span></a> 
+<a name="l82"><span class="ln">82   </span></a>    Aesthetics options: 
+<a name="l83"><span class="ln">83   </span></a> 
+<a name="l84"><span class="ln">84   </span></a>    - ``line_color``: float or string. Specifies the color for the plot. 
+<a name="l85"><span class="ln">85   </span></a>        See ``Plot`` to see how to set color for the plots. 
+<a name="l86"><span class="ln">86   </span></a>        Default value is &quot;Blue&quot; 
+<a name="l87"><span class="ln">87   </span></a> 
+<a name="l88"><span class="ln">88   </span></a>    plot_implicit, by default, uses interval arithmetic to plot functions. If 
+<a name="l89"><span class="ln">89   </span></a>    the expression cannot be plotted using interval arithmetic, it defaults to 
+<a name="l90"><span class="ln">90   </span></a>    a generating a contour using a mesh grid of fixed number of points. By 
+<a name="l91"><span class="ln">91   </span></a>    setting adaptive to False, you can force plot_implicit to use the mesh 
+<a name="l92"><span class="ln">92   </span></a>    grid. The mesh grid method can be effective when adaptive plotting using 
+<a name="l93"><span class="ln">93   </span></a>    interval arithmetic, fails to plot with small line width. 
+<a name="l94"><span class="ln">94   </span></a> 
+<a name="l95"><span class="ln">95   </span></a>    Examples 
+<a name="l96"><span class="ln">96   </span></a>    ======== 
+<a name="l97"><span class="ln">97   </span></a> 
+<a name="l98"><span class="ln">98   </span></a>    Plot expressions: 
+<a name="l99"><span class="ln">99   </span></a> 
+<a name="l100"><span class="ln">100  </span></a>    .. plot:: 
+<a name="l101"><span class="ln">101  </span></a>        :context: reset 
+<a name="l102"><span class="ln">102  </span></a>        :format: doctest 
+<a name="l103"><span class="ln">103  </span></a>        :include-source: True 
+<a name="l104"><span class="ln">104  </span></a> 
+<a name="l105"><span class="ln">105  </span></a>        &gt;&gt;&gt; from sympy import plot_implicit, symbols, Eq, And 
+<a name="l106"><span class="ln">106  </span></a>        &gt;&gt;&gt; x, y = symbols('x y') 
+<a name="l107"><span class="ln">107  </span></a> 
+<a name="l108"><span class="ln">108  </span></a>    Without any ranges for the symbols in the expression: 
+<a name="l109"><span class="ln">109  </span></a> 
+<a name="l110"><span class="ln">110  </span></a>    .. plot:: 
+<a name="l111"><span class="ln">111  </span></a>        :context: close-figs 
+<a name="l112"><span class="ln">112  </span></a>        :format: doctest 
+<a name="l113"><span class="ln">113  </span></a>        :include-source: True 
+<a name="l114"><span class="ln">114  </span></a> 
+<a name="l115"><span class="ln">115  </span></a>        &gt;&gt;&gt; p1 = plot_implicit(Eq(x**2 + y**2, 5)) 
+<a name="l116"><span class="ln">116  </span></a> 
+<a name="l117"><span class="ln">117  </span></a>    With the range for the symbols: 
+<a name="l118"><span class="ln">118  </span></a> 
+<a name="l119"><span class="ln">119  </span></a>    .. plot:: 
+<a name="l120"><span class="ln">120  </span></a>        :context: close-figs 
+<a name="l121"><span class="ln">121  </span></a>        :format: doctest 
+<a name="l122"><span class="ln">122  </span></a>        :include-source: True 
+<a name="l123"><span class="ln">123  </span></a> 
+<a name="l124"><span class="ln">124  </span></a>        &gt;&gt;&gt; p2 = plot_implicit( 
+<a name="l125"><span class="ln">125  </span></a>        ...     Eq(x**2 + y**2, 3), (x, -3, 3), (y, -3, 3)) 
+<a name="l126"><span class="ln">126  </span></a> 
+<a name="l127"><span class="ln">127  </span></a>    With depth of recursion as argument: 
+<a name="l128"><span class="ln">128  </span></a> 
+<a name="l129"><span class="ln">129  </span></a>    .. plot:: 
+<a name="l130"><span class="ln">130  </span></a>        :context: close-figs 
+<a name="l131"><span class="ln">131  </span></a>        :format: doctest 
+<a name="l132"><span class="ln">132  </span></a>        :include-source: True 
+<a name="l133"><span class="ln">133  </span></a> 
+<a name="l134"><span class="ln">134  </span></a>        &gt;&gt;&gt; p3 = plot_implicit( 
+<a name="l135"><span class="ln">135  </span></a>        ...     Eq(x**2 + y**2, 5), (x, -4, 4), (y, -4, 4), depth = 2) 
+<a name="l136"><span class="ln">136  </span></a> 
+<a name="l137"><span class="ln">137  </span></a>    Using mesh grid and not using adaptive meshing: 
+<a name="l138"><span class="ln">138  </span></a> 
+<a name="l139"><span class="ln">139  </span></a>    .. plot:: 
+<a name="l140"><span class="ln">140  </span></a>        :context: close-figs 
+<a name="l141"><span class="ln">141  </span></a>        :format: doctest 
+<a name="l142"><span class="ln">142  </span></a>        :include-source: True 
+<a name="l143"><span class="ln">143  </span></a> 
+<a name="l144"><span class="ln">144  </span></a>        &gt;&gt;&gt; p4 = plot_implicit( 
+<a name="l145"><span class="ln">145  </span></a>        ...     Eq(x**2 + y**2, 5), (x, -5, 5), (y, -2, 2), 
+<a name="l146"><span class="ln">146  </span></a>        ...     adaptive=False) 
+<a name="l147"><span class="ln">147  </span></a> 
+<a name="l148"><span class="ln">148  </span></a>    Using mesh grid without using adaptive meshing with number of points 
+<a name="l149"><span class="ln">149  </span></a>    specified: 
+<a name="l150"><span class="ln">150  </span></a> 
+<a name="l151"><span class="ln">151  </span></a>    .. plot:: 
+<a name="l152"><span class="ln">152  </span></a>        :context: close-figs 
+<a name="l153"><span class="ln">153  </span></a>        :format: doctest 
+<a name="l154"><span class="ln">154  </span></a>        :include-source: True 
+<a name="l155"><span class="ln">155  </span></a> 
+<a name="l156"><span class="ln">156  </span></a>        &gt;&gt;&gt; p5 = plot_implicit( 
+<a name="l157"><span class="ln">157  </span></a>        ...     Eq(x**2 + y**2, 5), (x, -5, 5), (y, -2, 2), 
+<a name="l158"><span class="ln">158  </span></a>        ...     adaptive=False, n=400) 
+<a name="l159"><span class="ln">159  </span></a> 
+<a name="l160"><span class="ln">160  </span></a>    Plotting regions: 
+<a name="l161"><span class="ln">161  </span></a> 
+<a name="l162"><span class="ln">162  </span></a>    .. plot:: 
+<a name="l163"><span class="ln">163  </span></a>        :context: close-figs 
+<a name="l164"><span class="ln">164  </span></a>        :format: doctest 
+<a name="l165"><span class="ln">165  </span></a>        :include-source: True 
+<a name="l166"><span class="ln">166  </span></a> 
+<a name="l167"><span class="ln">167  </span></a>        &gt;&gt;&gt; p6 = plot_implicit(y &gt; x**2) 
+<a name="l168"><span class="ln">168  </span></a> 
+<a name="l169"><span class="ln">169  </span></a>    Plotting Using boolean conjunctions: 
+<a name="l170"><span class="ln">170  </span></a> 
+<a name="l171"><span class="ln">171  </span></a>    .. plot:: 
+<a name="l172"><span class="ln">172  </span></a>        :context: close-figs 
+<a name="l173"><span class="ln">173  </span></a>        :format: doctest 
+<a name="l174"><span class="ln">174  </span></a>        :include-source: True 
+<a name="l175"><span class="ln">175  </span></a> 
+<a name="l176"><span class="ln">176  </span></a>        &gt;&gt;&gt; p7 = plot_implicit(And(y &gt; x, y &gt; -x)) 
+<a name="l177"><span class="ln">177  </span></a> 
+<a name="l178"><span class="ln">178  </span></a>    When plotting an expression with a single variable (y - 1, for example), 
+<a name="l179"><span class="ln">179  </span></a>    specify the x or the y variable explicitly: 
+<a name="l180"><span class="ln">180  </span></a> 
+<a name="l181"><span class="ln">181  </span></a>    .. plot:: 
+<a name="l182"><span class="ln">182  </span></a>        :context: close-figs 
+<a name="l183"><span class="ln">183  </span></a>        :format: doctest 
+<a name="l184"><span class="ln">184  </span></a>        :include-source: True 
+<a name="l185"><span class="ln">185  </span></a> 
+<a name="l186"><span class="ln">186  </span></a>        &gt;&gt;&gt; p8 = plot_implicit(y - 1, y_var=y) 
+<a name="l187"><span class="ln">187  </span></a>        &gt;&gt;&gt; p9 = plot_implicit(x - 1, x_var=x) 
+<a name="l188"><span class="ln">188  </span></a>    &quot;&quot;&quot;</span>
+<a name="l189"><span class="ln">189  </span></a>
+<a name="l190"><span class="ln">190  </span></a>    <span class="s1">xyvar </span><span class="s2">= </span><span class="s3">[</span><span class="s1">i </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s3">(</span><span class="s1">x_var</span><span class="s3">, </span><span class="s1">y_var</span><span class="s3">) </span><span class="s2">if </span><span class="s1">i </span><span class="s2">is not None</span><span class="s3">]</span>
+<a name="l191"><span class="ln">191  </span></a>    <span class="s1">free_symbols </span><span class="s2">= </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">free_symbols</span>
+<a name="l192"><span class="ln">192  </span></a>    <span class="s1">range_symbols </span><span class="s2">= </span><span class="s1">Tuple</span><span class="s3">(</span><span class="s2">*</span><span class="s1">flatten</span><span class="s3">(</span><span class="s1">xyvar</span><span class="s3">)).</span><span class="s1">free_symbols</span>
+<a name="l193"><span class="ln">193  </span></a>    <span class="s1">undeclared </span><span class="s2">= </span><span class="s1">free_symbols </span><span class="s2">- </span><span class="s1">range_symbols</span>
+<a name="l194"><span class="ln">194  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">free_symbols </span><span class="s2">&amp; </span><span class="s1">range_symbols</span><span class="s3">) </span><span class="s2">&gt; </span><span class="s5">2</span><span class="s2">:</span>
+<a name="l195"><span class="ln">195  </span></a>        <span class="s2">raise </span><span class="s1">NotImplementedError</span><span class="s3">(</span><span class="s4">&quot;Implicit plotting is not implemented for &quot;</span>
+<a name="l196"><span class="ln">196  </span></a>                                  <span class="s4">&quot;more than 2 variables&quot;</span><span class="s3">)</span>
+<a name="l197"><span class="ln">197  </span></a>
+<a name="l198"><span class="ln">198  </span></a>    <span class="s0">#Create default ranges if the range is not provided.</span>
+<a name="l199"><span class="ln">199  </span></a>    <span class="s1">default_range </span><span class="s2">= </span><span class="s1">Tuple</span><span class="s3">(</span><span class="s2">-</span><span class="s5">5</span><span class="s3">, </span><span class="s5">5</span><span class="s3">)</span>
+<a name="l200"><span class="ln">200  </span></a>    <span class="s2">def </span><span class="s1">_range_tuple</span><span class="s3">(</span><span class="s1">s</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l201"><span class="ln">201  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">s</span><span class="s3">, </span><span class="s1">Symbol</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l202"><span class="ln">202  </span></a>            <span class="s2">return </span><span class="s1">Tuple</span><span class="s3">(</span><span class="s1">s</span><span class="s3">) </span><span class="s2">+ </span><span class="s1">default_range</span>
+<a name="l203"><span class="ln">203  </span></a>        <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">s</span><span class="s3">) </span><span class="s2">== </span><span class="s5">3</span><span class="s2">:</span>
+<a name="l204"><span class="ln">204  </span></a>            <span class="s2">return </span><span class="s1">Tuple</span><span class="s3">(</span><span class="s2">*</span><span class="s1">s</span><span class="s3">)</span>
+<a name="l205"><span class="ln">205  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">'symbol or `(symbol, min, max)` expected but got %s' </span><span class="s2">% </span><span class="s1">s</span><span class="s3">)</span>
+<a name="l206"><span class="ln">206  </span></a>
+<a name="l207"><span class="ln">207  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">xyvar</span><span class="s3">) </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l208"><span class="ln">208  </span></a>        <span class="s1">xyvar </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">_sort_gens</span><span class="s3">(</span><span class="s1">free_symbols</span><span class="s3">))</span>
+<a name="l209"><span class="ln">209  </span></a>    <span class="s1">var_start_end_x </span><span class="s2">= </span><span class="s1">_range_tuple</span><span class="s3">(</span><span class="s1">xyvar</span><span class="s3">[</span><span class="s5">0</span><span class="s3">])</span>
+<a name="l210"><span class="ln">210  </span></a>    <span class="s1">x </span><span class="s2">= </span><span class="s1">var_start_end_x</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l211"><span class="ln">211  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">xyvar</span><span class="s3">) </span><span class="s2">!= </span><span class="s5">2</span><span class="s2">:</span>
+<a name="l212"><span class="ln">212  </span></a>        <span class="s2">if </span><span class="s1">x </span><span class="s2">in </span><span class="s1">undeclared </span><span class="s2">or not </span><span class="s1">undeclared</span><span class="s2">:</span>
+<a name="l213"><span class="ln">213  </span></a>            <span class="s1">xyvar</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">Dummy</span><span class="s3">(</span><span class="s4">'f(%s)' </span><span class="s2">% </span><span class="s1">x</span><span class="s3">.</span><span class="s1">name</span><span class="s3">))</span>
+<a name="l214"><span class="ln">214  </span></a>        <span class="s2">else:</span>
+<a name="l215"><span class="ln">215  </span></a>            <span class="s1">xyvar</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">undeclared</span><span class="s3">.</span><span class="s1">pop</span><span class="s3">())</span>
+<a name="l216"><span class="ln">216  </span></a>    <span class="s1">var_start_end_y </span><span class="s2">= </span><span class="s1">_range_tuple</span><span class="s3">(</span><span class="s1">xyvar</span><span class="s3">[</span><span class="s5">1</span><span class="s3">])</span>
+<a name="l217"><span class="ln">217  </span></a>
+<a name="l218"><span class="ln">218  </span></a>    <span class="s1">kwargs </span><span class="s2">= </span><span class="s1">_set_discretization_points</span><span class="s3">(</span><span class="s1">kwargs</span><span class="s3">, </span><span class="s1">ImplicitSeries</span><span class="s3">)</span>
+<a name="l219"><span class="ln">219  </span></a>    <span class="s1">series_argument </span><span class="s2">= </span><span class="s1">ImplicitSeries</span><span class="s3">(</span>
+<a name="l220"><span class="ln">220  </span></a>        <span class="s1">expr</span><span class="s3">, </span><span class="s1">var_start_end_x</span><span class="s3">, </span><span class="s1">var_start_end_y</span><span class="s3">,</span>
+<a name="l221"><span class="ln">221  </span></a>        <span class="s1">adaptive</span><span class="s2">=</span><span class="s1">adaptive</span><span class="s3">, </span><span class="s1">depth</span><span class="s2">=</span><span class="s1">depth</span><span class="s3">,</span>
+<a name="l222"><span class="ln">222  </span></a>        <span class="s1">n</span><span class="s2">=</span><span class="s1">n</span><span class="s3">, </span><span class="s1">line_color</span><span class="s2">=</span><span class="s1">line_color</span><span class="s3">)</span>
+<a name="l223"><span class="ln">223  </span></a>
+<a name="l224"><span class="ln">224  </span></a>    <span class="s0">#set the x and y limits</span>
+<a name="l225"><span class="ln">225  </span></a>    <span class="s1">kwargs</span><span class="s3">[</span><span class="s4">'xlim'</span><span class="s3">] </span><span class="s2">= </span><span class="s1">tuple</span><span class="s3">(</span><span class="s1">float</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">var_start_end_x</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">])</span>
+<a name="l226"><span class="ln">226  </span></a>    <span class="s1">kwargs</span><span class="s3">[</span><span class="s4">'ylim'</span><span class="s3">] </span><span class="s2">= </span><span class="s1">tuple</span><span class="s3">(</span><span class="s1">float</span><span class="s3">(</span><span class="s1">y</span><span class="s3">) </span><span class="s2">for </span><span class="s1">y </span><span class="s2">in </span><span class="s1">var_start_end_y</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">])</span>
+<a name="l227"><span class="ln">227  </span></a>    <span class="s0"># set the x and y labels</span>
+<a name="l228"><span class="ln">228  </span></a>    <span class="s1">kwargs</span><span class="s3">.</span><span class="s1">setdefault</span><span class="s3">(</span><span class="s4">'xlabel'</span><span class="s3">, </span><span class="s1">var_start_end_x</span><span class="s3">[</span><span class="s5">0</span><span class="s3">])</span>
+<a name="l229"><span class="ln">229  </span></a>    <span class="s1">kwargs</span><span class="s3">.</span><span class="s1">setdefault</span><span class="s3">(</span><span class="s4">'ylabel'</span><span class="s3">, </span><span class="s1">var_start_end_y</span><span class="s3">[</span><span class="s5">0</span><span class="s3">])</span>
+<a name="l230"><span class="ln">230  </span></a>    <span class="s1">p </span><span class="s2">= </span><span class="s1">plot_factory</span><span class="s3">(</span><span class="s1">series_argument</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l231"><span class="ln">231  </span></a>    <span class="s2">if </span><span class="s1">show</span><span class="s2">:</span>
+<a name="l232"><span class="ln">232  </span></a>        <span class="s1">p</span><span class="s3">.</span><span class="s1">show</span><span class="s3">()</span>
+<a name="l233"><span class="ln">233  </span></a>    <span class="s2">return </span><span class="s1">p</span>
+<a name="l234"><span class="ln">234  </span></a></pre>
+</body>
+</html>

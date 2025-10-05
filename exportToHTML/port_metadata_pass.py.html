@@ -1,0 +1,241 @@
+<html>
+<head>
+<title>port_metadata_pass.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+port_metadata_pass.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: allow-untyped-defs</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s2">import </span><span class="s1">logging</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s2">from </span><span class="s1">typing </span><span class="s2">import </span><span class="s1">Optional</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s2">import </span><span class="s1">torch</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_export</span><span class="s3">.</span><span class="s1">error </span><span class="s2">import </span><span class="s1">InternalError</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">ao</span><span class="s3">.</span><span class="s1">quantization</span><span class="s3">.</span><span class="s1">pt2e</span><span class="s3">.</span><span class="s1">utils </span><span class="s2">import </span><span class="s3">(</span>
+<a name="l8"><span class="ln">8    </span></a>    <span class="s1">_filter_sym_size_users</span><span class="s3">,</span>
+<a name="l9"><span class="ln">9    </span></a>    <span class="s1">_find_q_dq_node_for_user</span><span class="s3">,</span>
+<a name="l10"><span class="ln">10   </span></a>    <span class="s1">_is_valid_annotation</span><span class="s3">,</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s3">)</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">ao</span><span class="s3">.</span><span class="s1">quantization</span><span class="s3">.</span><span class="s1">quantizer </span><span class="s2">import </span><span class="s1">QuantizationSpecBase</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">passes</span><span class="s3">.</span><span class="s1">infra</span><span class="s3">.</span><span class="s1">pass_base </span><span class="s2">import </span><span class="s1">PassBase</span><span class="s3">, </span><span class="s1">PassResult</span>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a>
+<a name="l16"><span class="ln">16   </span></a><span class="s1">logger </span><span class="s2">= </span><span class="s1">logging</span><span class="s3">.</span><span class="s1">getLogger</span><span class="s3">(</span><span class="s1">__name__</span><span class="s3">)</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s1">logger</span><span class="s3">.</span><span class="s1">setLevel</span><span class="s3">(</span><span class="s1">logging</span><span class="s3">.</span><span class="s1">ERROR</span><span class="s3">)</span>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">&quot;PortNodeMetaForQDQ&quot;</span><span class="s3">]</span>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s1">_METADATA_TO_PORT </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s4">&quot;stack_trace&quot;</span><span class="s3">,</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s4">&quot;quantization_tag&quot;</span><span class="s3">,</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s3">]</span>
+<a name="l25"><span class="ln">25   </span></a>
+<a name="l26"><span class="ln">26   </span></a><span class="s1">_QUANTIZE_OPS </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">quantized_decomposed</span><span class="s3">.</span><span class="s1">quantize_per_tensor</span><span class="s3">.</span><span class="s1">default</span><span class="s3">,</span>
+<a name="l28"><span class="ln">28   </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">quantized_decomposed</span><span class="s3">.</span><span class="s1">quantize_per_tensor</span><span class="s3">.</span><span class="s1">tensor</span><span class="s3">,</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">quantized_decomposed</span><span class="s3">.</span><span class="s1">quantize_per_channel</span><span class="s3">.</span><span class="s1">default</span><span class="s3">,</span>
+<a name="l30"><span class="ln">30   </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">pt2e_quant</span><span class="s3">.</span><span class="s1">quantize_affine</span><span class="s3">,</span>
+<a name="l31"><span class="ln">31   </span></a><span class="s3">]</span>
+<a name="l32"><span class="ln">32   </span></a>
+<a name="l33"><span class="ln">33   </span></a><span class="s1">_DEQUANTIZE_OPS </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l34"><span class="ln">34   </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">quantized_decomposed</span><span class="s3">.</span><span class="s1">dequantize_per_tensor</span><span class="s3">.</span><span class="s1">default</span><span class="s3">,</span>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">quantized_decomposed</span><span class="s3">.</span><span class="s1">dequantize_per_tensor</span><span class="s3">.</span><span class="s1">tensor</span><span class="s3">,</span>
+<a name="l36"><span class="ln">36   </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">quantized_decomposed</span><span class="s3">.</span><span class="s1">dequantize_per_channel</span><span class="s3">.</span><span class="s1">default</span><span class="s3">,</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">pt2e_quant</span><span class="s3">.</span><span class="s1">dequantize_affine</span><span class="s3">,</span>
+<a name="l38"><span class="ln">38   </span></a><span class="s3">]</span>
+<a name="l39"><span class="ln">39   </span></a>
+<a name="l40"><span class="ln">40   </span></a><span class="s1">_CHOOSE_QPARAMS_OPS </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">quantized_decomposed</span><span class="s3">.</span><span class="s1">choose_qparams</span><span class="s3">.</span><span class="s1">tensor</span><span class="s3">,</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">quantized_decomposed</span><span class="s3">.</span><span class="s1">choose_qparams_symmetric</span><span class="s3">.</span><span class="s1">tensor</span><span class="s3">,</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">pt2e_quant</span><span class="s3">.</span><span class="s1">choose_qparams_affine</span><span class="s3">,</span>
+<a name="l44"><span class="ln">44   </span></a><span class="s3">]</span>
+<a name="l45"><span class="ln">45   </span></a>
+<a name="l46"><span class="ln">46   </span></a>
+<a name="l47"><span class="ln">47   </span></a><span class="s2">def </span><span class="s1">_add_metadata</span><span class="s3">(</span><span class="s1">to_node</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">Node</span><span class="s3">, </span><span class="s1">from_node</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">Node</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l48"><span class="ln">48   </span></a>    <span class="s1">from_meta </span><span class="s2">= </span><span class="s1">from_node</span><span class="s3">.</span><span class="s1">meta</span>
+<a name="l49"><span class="ln">49   </span></a>    <span class="s2">for </span><span class="s1">meta_name </span><span class="s2">in </span><span class="s1">_METADATA_TO_PORT</span><span class="s2">:</span>
+<a name="l50"><span class="ln">50   </span></a>        <span class="s2">if </span><span class="s1">meta_name </span><span class="s2">in </span><span class="s1">from_meta</span><span class="s2">:</span>
+<a name="l51"><span class="ln">51   </span></a>            <span class="s1">to_node</span><span class="s3">.</span><span class="s1">meta</span><span class="s3">[</span><span class="s1">meta_name</span><span class="s3">] </span><span class="s2">= </span><span class="s1">from_meta</span><span class="s3">[</span><span class="s1">meta_name</span><span class="s3">]</span>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a>
+<a name="l54"><span class="ln">54   </span></a><span class="s2">def </span><span class="s1">_has_quant_annotation</span><span class="s3">(</span><span class="s1">node</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">Node</span><span class="s3">) </span><span class="s1">-&gt; bool</span><span class="s2">:</span>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s2">return </span><span class="s4">&quot;quantization_annotation&quot; </span><span class="s2">in </span><span class="s1">node</span><span class="s3">.</span><span class="s1">meta</span>
+<a name="l56"><span class="ln">56   </span></a>
+<a name="l57"><span class="ln">57   </span></a>
+<a name="l58"><span class="ln">58   </span></a><span class="s2">def </span><span class="s1">_find_choose_qparams_node</span><span class="s3">(</span><span class="s1">node</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">Node</span><span class="s3">) </span><span class="s1">-&gt; Optional</span><span class="s3">[</span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">Node</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l59"><span class="ln">59   </span></a>    <span class="s0"># BFS to look for choose qparams</span>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s2">from </span><span class="s1">collections </span><span class="s2">import </span><span class="s1">deque</span>
+<a name="l61"><span class="ln">61   </span></a>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s1">queue </span><span class="s2">= </span><span class="s1">deque</span><span class="s3">(</span><span class="s1">list</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">users</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">()))</span>
+<a name="l63"><span class="ln">63   </span></a>    <span class="s2">while </span><span class="s1">len</span><span class="s3">(</span><span class="s1">queue</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l64"><span class="ln">64   </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">queue</span><span class="s3">.</span><span class="s1">popleft</span><span class="s3">()</span>
+<a name="l65"><span class="ln">65   </span></a>        <span class="s2">if </span><span class="s1">n</span><span class="s3">.</span><span class="s1">op </span><span class="s2">== </span><span class="s4">&quot;output&quot;</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>            <span class="s2">continue</span>
+<a name="l67"><span class="ln">67   </span></a>        <span class="s2">if </span><span class="s1">n</span><span class="s3">.</span><span class="s1">op </span><span class="s2">== </span><span class="s4">&quot;call_function&quot; </span><span class="s2">and </span><span class="s1">n</span><span class="s3">.</span><span class="s1">target </span><span class="s2">in </span><span class="s1">_CHOOSE_QPARAMS_OPS</span><span class="s2">:</span>
+<a name="l68"><span class="ln">68   </span></a>            <span class="s2">return </span><span class="s1">n</span>
+<a name="l69"><span class="ln">69   </span></a>        <span class="s2">for </span><span class="s1">k </span><span class="s2">in </span><span class="s1">n</span><span class="s3">.</span><span class="s1">users</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l70"><span class="ln">70   </span></a>            <span class="s1">queue</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">k</span><span class="s3">)</span>
+<a name="l71"><span class="ln">71   </span></a>    <span class="s2">return None</span>
+<a name="l72"><span class="ln">72   </span></a>
+<a name="l73"><span class="ln">73   </span></a>
+<a name="l74"><span class="ln">74   </span></a><span class="s2">def </span><span class="s1">_port_metadata_for_input_quant_nodes</span><span class="s3">(</span>
+<a name="l75"><span class="ln">75   </span></a>    <span class="s1">input_node</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">Node</span><span class="s3">,</span>
+<a name="l76"><span class="ln">76   </span></a>    <span class="s1">node</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">Node</span><span class="s3">,</span>
+<a name="l77"><span class="ln">77   </span></a>    <span class="s1">qspec</span><span class="s2">: </span><span class="s1">Optional</span><span class="s3">[</span><span class="s1">QuantizationSpecBase</span><span class="s3">],</span>
+<a name="l78"><span class="ln">78   </span></a><span class="s3">)</span><span class="s2">:</span>
+<a name="l79"><span class="ln">79   </span></a>    <span class="s2">if </span><span class="s1">qspec </span><span class="s2">is None:</span>
+<a name="l80"><span class="ln">80   </span></a>        <span class="s2">return</span>
+<a name="l81"><span class="ln">81   </span></a>
+<a name="l82"><span class="ln">82   </span></a>    <span class="s1">is_dynamic_quant </span><span class="s2">= </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">qspec</span><span class="s3">, </span><span class="s4">&quot;is_dynamic&quot;</span><span class="s3">, </span><span class="s2">None</span><span class="s3">)</span>
+<a name="l83"><span class="ln">83   </span></a>    <span class="s2">if </span><span class="s1">is_dynamic_quant </span><span class="s2">is not None and </span><span class="s1">is_dynamic_quant </span><span class="s2">is True:</span>
+<a name="l84"><span class="ln">84   </span></a>        <span class="s1">choose_qparams_node </span><span class="s2">= </span><span class="s1">_find_choose_qparams_node</span><span class="s3">(</span><span class="s1">input_node</span><span class="s3">)</span>
+<a name="l85"><span class="ln">85   </span></a>        <span class="s2">if </span><span class="s1">choose_qparams_node </span><span class="s2">is None:</span>
+<a name="l86"><span class="ln">86   </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">f&quot;No chose qparams node found for {</span><span class="s1">node</span><span class="s4">}&quot;</span><span class="s3">)</span>
+<a name="l87"><span class="ln">87   </span></a>        <span class="s1">choose_qparam_users </span><span class="s2">= </span><span class="s1">_filter_sym_size_users</span><span class="s3">(</span><span class="s1">choose_qparams_node</span><span class="s3">)</span>
+<a name="l88"><span class="ln">88   </span></a>        <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">choose_qparam_users</span><span class="s3">) </span><span class="s2">!= </span><span class="s5">2</span><span class="s2">:</span>
+<a name="l89"><span class="ln">89   </span></a>            <span class="s2">raise </span><span class="s1">InternalError</span><span class="s3">(</span><span class="s4">f&quot;Expecting exactly two user for {</span><span class="s1">choose_qparams_node</span><span class="s4">}&quot;</span><span class="s3">)</span>
+<a name="l90"><span class="ln">90   </span></a>        <span class="s1">scale_node </span><span class="s2">= </span><span class="s1">choose_qparam_users</span><span class="s3">.</span><span class="s1">pop</span><span class="s3">()</span>
+<a name="l91"><span class="ln">91   </span></a>        <span class="s1">dynamic_q_node </span><span class="s2">= </span><span class="s1">next</span><span class="s3">(</span><span class="s1">iter</span><span class="s3">(</span><span class="s1">scale_node</span><span class="s3">.</span><span class="s1">users</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">()))</span>
+<a name="l92"><span class="ln">92   </span></a>        <span class="s1">dynamic_q_node_users </span><span class="s2">= </span><span class="s1">_filter_sym_size_users</span><span class="s3">(</span><span class="s1">dynamic_q_node</span><span class="s3">)</span>
+<a name="l93"><span class="ln">93   </span></a>        <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">dynamic_q_node_users</span><span class="s3">) </span><span class="s2">&gt; </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l94"><span class="ln">94   </span></a>            <span class="s2">raise </span><span class="s1">InternalError</span><span class="s3">(</span><span class="s4">f&quot;Expecting single user for {</span><span class="s1">dynamic_q_node</span><span class="s4">}&quot;</span><span class="s3">)</span>
+<a name="l95"><span class="ln">95   </span></a>        <span class="s1">dynamic_dq_node </span><span class="s2">= </span><span class="s1">dynamic_q_node_users</span><span class="s3">.</span><span class="s1">pop</span><span class="s3">()</span>
+<a name="l96"><span class="ln">96   </span></a>        <span class="s1">_add_metadata</span><span class="s3">(</span><span class="s1">choose_qparams_node</span><span class="s3">, </span><span class="s1">node</span><span class="s3">)</span>
+<a name="l97"><span class="ln">97   </span></a>        <span class="s1">_add_metadata</span><span class="s3">(</span><span class="s1">dynamic_q_node</span><span class="s3">, </span><span class="s1">node</span><span class="s3">)</span>
+<a name="l98"><span class="ln">98   </span></a>        <span class="s1">_add_metadata</span><span class="s3">(</span><span class="s1">dynamic_dq_node</span><span class="s3">, </span><span class="s1">node</span><span class="s3">)</span>
+<a name="l99"><span class="ln">99   </span></a>    <span class="s2">else:</span>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s1">q_node</span><span class="s3">, </span><span class="s1">dq_node </span><span class="s2">= </span><span class="s1">_find_q_dq_node_for_user</span><span class="s3">(</span><span class="s1">input_node</span><span class="s3">, </span><span class="s1">node</span><span class="s3">)</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s2">if </span><span class="s1">q_node </span><span class="s2">is None or </span><span class="s1">dq_node </span><span class="s2">is None:</span>
+<a name="l102"><span class="ln">102  </span></a>            <span class="s2">return</span>
+<a name="l103"><span class="ln">103  </span></a>        <span class="s0"># add metadata for all the node between q_node and get_attr node</span>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s0"># if the q_node can be traced back to get_attr node</span>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s1">q_to_get_attr_nodes </span><span class="s2">= </span><span class="s3">[</span><span class="s1">q_node</span><span class="s3">]</span>
+<a name="l106"><span class="ln">106  </span></a>        <span class="s1">q_node_input </span><span class="s2">= </span><span class="s1">q_node</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l107"><span class="ln">107  </span></a>        <span class="s2">while </span><span class="s3">(</span>
+<a name="l108"><span class="ln">108  </span></a>            <span class="s1">isinstance</span><span class="s3">(</span><span class="s1">q_node_input</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">Node</span><span class="s3">)</span>
+<a name="l109"><span class="ln">109  </span></a>            <span class="s2">and </span><span class="s1">q_node_input</span><span class="s3">.</span><span class="s1">op </span><span class="s2">== </span><span class="s4">&quot;call_function&quot;</span>
+<a name="l110"><span class="ln">110  </span></a>            <span class="s2">and </span><span class="s1">q_node_input</span><span class="s3">.</span><span class="s1">target</span>
+<a name="l111"><span class="ln">111  </span></a>            <span class="s2">in </span><span class="s3">[</span>
+<a name="l112"><span class="ln">112  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">aten</span><span class="s3">.</span><span class="s1">flatten</span><span class="s3">.</span><span class="s1">using_ints</span><span class="s3">,</span>
+<a name="l113"><span class="ln">113  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">aten</span><span class="s3">.</span><span class="s1">permute</span><span class="s3">.</span><span class="s1">default</span><span class="s3">,</span>
+<a name="l114"><span class="ln">114  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">aten</span><span class="s3">.</span><span class="s1">permute_copy</span><span class="s3">.</span><span class="s1">default</span><span class="s3">,</span>
+<a name="l115"><span class="ln">115  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">aten</span><span class="s3">.</span><span class="s1">slice_copy</span><span class="s3">.</span><span class="s1">Tensor</span><span class="s3">,</span>
+<a name="l116"><span class="ln">116  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">aten</span><span class="s3">.</span><span class="s1">squeeze</span><span class="s3">.</span><span class="s1">dim</span><span class="s3">,</span>
+<a name="l117"><span class="ln">117  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">aten</span><span class="s3">.</span><span class="s1">squeeze_copy</span><span class="s3">.</span><span class="s1">dim</span><span class="s3">,</span>
+<a name="l118"><span class="ln">118  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">aten</span><span class="s3">.</span><span class="s1">transpose</span><span class="s3">.</span><span class="s1">Dimname</span><span class="s3">,</span>
+<a name="l119"><span class="ln">119  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">aten</span><span class="s3">.</span><span class="s1">transpose</span><span class="s3">.</span><span class="s1">int</span><span class="s3">,</span>
+<a name="l120"><span class="ln">120  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">aten</span><span class="s3">.</span><span class="s1">transpose_</span><span class="s3">,</span>
+<a name="l121"><span class="ln">121  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">aten</span><span class="s3">.</span><span class="s1">view_copy</span><span class="s3">.</span><span class="s1">default</span><span class="s3">,</span>
+<a name="l122"><span class="ln">122  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">aten</span><span class="s3">.</span><span class="s1">view</span><span class="s3">.</span><span class="s1">default</span><span class="s3">,</span>
+<a name="l123"><span class="ln">123  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">.</span><span class="s1">aten</span><span class="s3">.</span><span class="s1">_mkldnn_transpose</span><span class="s3">,</span>
+<a name="l124"><span class="ln">124  </span></a>            <span class="s3">]</span>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s3">)</span><span class="s2">:</span>
+<a name="l126"><span class="ln">126  </span></a>            <span class="s1">q_to_get_attr_nodes</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">q_node_input</span><span class="s3">)</span>
+<a name="l127"><span class="ln">127  </span></a>            <span class="s1">q_node_input </span><span class="s2">= </span><span class="s1">q_node_input</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l128"><span class="ln">128  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">q_node_input</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">Node</span><span class="s3">) </span><span class="s2">and </span><span class="s1">q_node_input</span><span class="s3">.</span><span class="s1">op </span><span class="s2">== </span><span class="s4">&quot;get_attr&quot;</span><span class="s2">:</span>
+<a name="l129"><span class="ln">129  </span></a>            <span class="s2">for </span><span class="s1">n </span><span class="s2">in </span><span class="s1">q_to_get_attr_nodes</span><span class="s2">:</span>
+<a name="l130"><span class="ln">130  </span></a>                <span class="s1">_add_metadata</span><span class="s3">(</span><span class="s1">n</span><span class="s3">, </span><span class="s1">q_node_input</span><span class="s3">)</span>
+<a name="l131"><span class="ln">131  </span></a>        <span class="s1">_add_metadata</span><span class="s3">(</span><span class="s1">dq_node</span><span class="s3">, </span><span class="s1">node</span><span class="s3">)</span>
+<a name="l132"><span class="ln">132  </span></a>
+<a name="l133"><span class="ln">133  </span></a>
+<a name="l134"><span class="ln">134  </span></a><span class="s2">def </span><span class="s1">_port_metadata_for_output_quant_nodes</span><span class="s3">(</span>
+<a name="l135"><span class="ln">135  </span></a>    <span class="s1">node</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">Node</span><span class="s3">, </span><span class="s1">qspec</span><span class="s2">: </span><span class="s1">Optional</span><span class="s3">[</span><span class="s1">QuantizationSpecBase</span><span class="s3">]</span>
+<a name="l136"><span class="ln">136  </span></a><span class="s3">)</span><span class="s2">:</span>
+<a name="l137"><span class="ln">137  </span></a>    <span class="s2">if </span><span class="s1">qspec </span><span class="s2">is None:</span>
+<a name="l138"><span class="ln">138  </span></a>        <span class="s2">return</span>
+<a name="l139"><span class="ln">139  </span></a>
+<a name="l140"><span class="ln">140  </span></a>    <span class="s1">node_users </span><span class="s2">= </span><span class="s1">_filter_sym_size_users</span><span class="s3">(</span><span class="s1">node</span><span class="s3">)</span>
+<a name="l141"><span class="ln">141  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">users</span><span class="s3">) </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s2">return</span>
+<a name="l143"><span class="ln">143  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">node_users</span><span class="s3">) </span><span class="s2">!= </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l144"><span class="ln">144  </span></a>        <span class="s1">logger</span><span class="s3">.</span><span class="s1">warning</span><span class="s3">(</span><span class="s4">f&quot;Expecting {</span><span class="s1">node</span><span class="s4">} to have single user&quot;</span><span class="s3">)  </span><span class="s0"># noqa: G004</span>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s1">q_node </span><span class="s2">= </span><span class="s1">node_users</span><span class="s3">.</span><span class="s1">pop</span><span class="s3">()</span>
+<a name="l146"><span class="ln">146  </span></a>    <span class="s2">if </span><span class="s1">q_node</span><span class="s3">.</span><span class="s1">op </span><span class="s2">!= </span><span class="s4">&quot;call_function&quot; </span><span class="s2">or </span><span class="s1">q_node</span><span class="s3">.</span><span class="s1">target </span><span class="s2">not in </span><span class="s1">_QUANTIZE_OPS</span><span class="s2">:</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s1">logger</span><span class="s3">.</span><span class="s1">warning</span><span class="s3">(</span>
+<a name="l148"><span class="ln">148  </span></a>            <span class="s4">f&quot;Expecting {</span><span class="s1">node</span><span class="s4">} user to be a quantized op but got {</span><span class="s1">q_node</span><span class="s4">}&quot;  </span><span class="s0"># noqa: G004</span>
+<a name="l149"><span class="ln">149  </span></a>        <span class="s3">)  </span><span class="s0"># noqa: G004</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s2">return</span>
+<a name="l151"><span class="ln">151  </span></a>
+<a name="l152"><span class="ln">152  </span></a>    <span class="s1">_add_metadata</span><span class="s3">(</span><span class="s1">q_node</span><span class="s3">, </span><span class="s1">node</span><span class="s3">)</span>
+<a name="l153"><span class="ln">153  </span></a>
+<a name="l154"><span class="ln">154  </span></a>
+<a name="l155"><span class="ln">155  </span></a><span class="s2">class </span><span class="s1">PortNodeMetaForQDQ</span><span class="s3">(</span><span class="s1">PassBase</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l156"><span class="ln">156  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l157"><span class="ln">157  </span></a>    Port metadata for nodes added by quantization flow. 
+<a name="l158"><span class="ln">158  </span></a>    For static quant these are: 
+<a name="l159"><span class="ln">159  </span></a>    - quantizer_per_tensor.default, dequantize_per_tensor.default 
+<a name="l160"><span class="ln">160  </span></a>    - quantizer_per_channel.default, dequantize_per_channel.default 
+<a name="l161"><span class="ln">161  </span></a>    For dynamic quant these are: 
+<a name="l162"><span class="ln">162  </span></a>    - choose_qparams.tensor 
+<a name="l163"><span class="ln">163  </span></a>    - quantizer_per_tensor.tensor, dequantize_per_tensor.tensor 
+<a name="l164"><span class="ln">164  </span></a>    - quantizer_per_channel.default, dequantize_per_channel.default 
+<a name="l165"><span class="ln">165  </span></a> 
+<a name="l166"><span class="ln">166  </span></a>    Rules of porting metadata: 
+<a name="l167"><span class="ln">167  </span></a>    - Metadata to be ported: 
+<a name="l168"><span class="ln">168  </span></a>      - nn_module_stack 
+<a name="l169"><span class="ln">169  </span></a>      - stack_trace 
+<a name="l170"><span class="ln">170  </span></a>      - quantization_tag 
+<a name="l171"><span class="ln">171  </span></a>    - Metadata to NOT be ported: 
+<a name="l172"><span class="ln">172  </span></a>      - Everything else 
+<a name="l173"><span class="ln">173  </span></a>    - Rules: 
+<a name="l174"><span class="ln">174  </span></a>      - Statically quantized patterns: 
+<a name="l175"><span class="ln">175  </span></a>        - Dequantize nodes on the inputs to be quantized inherit metadata of the consumer node. 
+<a name="l176"><span class="ln">176  </span></a>        - Quantize nodes on the outputs inherit metadata of the producer node. 
+<a name="l177"><span class="ln">177  </span></a>        - Example 1: 
+<a name="l178"><span class="ln">178  </span></a>          - Original: [Conv -&gt; AvgPool -&gt; Linear] 
+<a name="l179"><span class="ln">179  </span></a>          - Quantized [Q-&gt; DQ -&gt; Conv -&gt; Q -&gt; DQ -&gt; AvgPool -&gt; Q -&gt; DQ -&gt; Linear -&gt; Q -&gt; DQ] 
+<a name="l180"><span class="ln">180  </span></a>          - Inner brackets specify which nodes Q/DQ inherit metdata from 
+<a name="l181"><span class="ln">181  </span></a>          - [Q-&gt; [DQ -&gt; Conv -&gt; Q] -&gt; [DQ -&gt; AvgPool -&gt; Q] -&gt; [DQ -&gt; Linear -&gt; Q] -&gt; DQ] 
+<a name="l182"><span class="ln">182  </span></a>          - Note first Q and last DQ do not inherit metadata from any nodes 
+<a name="l183"><span class="ln">183  </span></a>        - Example 2: 
+<a name="l184"><span class="ln">184  </span></a>          - Original: [Conv -&gt; AvgPool -&gt; Linear] 
+<a name="l185"><span class="ln">185  </span></a>          - AvgPool is not quantized 
+<a name="l186"><span class="ln">186  </span></a>          - Quantized [Q-&gt; DQ -&gt; Conv -&gt; Q -&gt; DQ -&gt; AvgPool -&gt; Q -&gt; DQ -&gt; Linear -&gt; Q -&gt; DQ] 
+<a name="l187"><span class="ln">187  </span></a>          - Inner brackets specify which nodes Q/DQ inherit metdata from 
+<a name="l188"><span class="ln">188  </span></a>          - [Q-&gt; [DQ -&gt; Conv -&gt; Q] -&gt; DQ -&gt; [AvgPool] -&gt; Q -&gt; [DQ -&gt; Linear -&gt; Q] -&gt; DQ] 
+<a name="l189"><span class="ln">189  </span></a>          - Note DQ and Q nodes around AvgPool do not inherit metadata from AvgPool because 
+<a name="l190"><span class="ln">190  </span></a>            AvgPool was not supposed to be quantized. Metadata porting relies on quantization_annotation 
+<a name="l191"><span class="ln">191  </span></a>            on the nodes (in this case AvgPool node) to conclude if the node or patter was 
+<a name="l192"><span class="ln">192  </span></a>            supposed to be quantized. And subsequntly decide if the preceding Q, if any, should 
+<a name="l193"><span class="ln">193  </span></a>            inherit metadata from AvgPool. 
+<a name="l194"><span class="ln">194  </span></a>      - Dynamically quantized patterns: 
+<a name="l195"><span class="ln">195  </span></a>        - Input that are dynamically quantized have choose_qparams, quantize and dequantize nodes 
+<a name="l196"><span class="ln">196  </span></a>        - For example, below linear is dynamically quantized while rest statically: 
+<a name="l197"><span class="ln">197  </span></a>          - Original: [Conv -&gt; AvgPool -&gt; Linear] 
+<a name="l198"><span class="ln">198  </span></a>          - Quantized [Q-&gt; DQ -&gt; Conv -&gt; Q -&gt; DQ -&gt; AvgPool -&gt; Q -&gt; DQ -&gt; choose_params -&gt; Q -&gt; DQ -&gt; Linear] 
+<a name="l199"><span class="ln">199  </span></a>          - Quantized [Q-&gt; [DQ -&gt; Conv -&gt; Q] -&gt; [DQ -&gt; AvgPool -&gt; Q] -&gt; DQ -&gt; [choose_params -&gt; Q -&gt; DQ -&gt; Linear]] 
+<a name="l200"><span class="ln">200  </span></a>          - Note first Q does not inherit metadata from any nodes 
+<a name="l201"><span class="ln">201  </span></a>    NB: 
+<a name="l202"><span class="ln">202  </span></a>    - The best place for porting metadata is during observer conversion to q/dq. This is because it precisely 
+<a name="l203"><span class="ln">203  </span></a>      knows which quantization spec is converted to q/dq and thus from where the metadata should be ported. 
+<a name="l204"><span class="ln">204  </span></a>      However, since FX and PT2E quant workflow are on a common code-base, this hurts readability quite a bit. 
+<a name="l205"><span class="ln">205  </span></a>      Doing it via a separate pass, helps readability of the code. Once we are able to refactor PT2E quant 
+<a name="l206"><span class="ln">206  </span></a>      code, this pass should like to be integrated in the refactored variant of &quot;convert&quot; step. 
+<a name="l207"><span class="ln">207  </span></a>    &quot;&quot;&quot;</span>
+<a name="l208"><span class="ln">208  </span></a>
+<a name="l209"><span class="ln">209  </span></a>    <span class="s2">def </span><span class="s1">call</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">graph_module</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">GraphModule</span><span class="s3">) </span><span class="s1">-&gt; PassResult</span><span class="s2">:</span>
+<a name="l210"><span class="ln">210  </span></a>        <span class="s2">for </span><span class="s1">node </span><span class="s2">in </span><span class="s1">graph_module</span><span class="s3">.</span><span class="s1">graph</span><span class="s3">.</span><span class="s1">nodes</span><span class="s2">:</span>
+<a name="l211"><span class="ln">211  </span></a>            <span class="s1">annotation </span><span class="s2">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">meta</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;quantization_annotation&quot;</span><span class="s3">, </span><span class="s2">None</span><span class="s3">)</span>
+<a name="l212"><span class="ln">212  </span></a>            <span class="s2">if </span><span class="s1">_is_valid_annotation</span><span class="s3">(</span><span class="s1">annotation</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l213"><span class="ln">213  </span></a>                <span class="s1">input_qspec_map </span><span class="s2">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">meta</span><span class="s3">[</span><span class="s4">&quot;quantization_annotation&quot;</span><span class="s3">].</span><span class="s1">input_qspec_map</span>
+<a name="l214"><span class="ln">214  </span></a>                <span class="s1">output_qspec </span><span class="s2">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">meta</span><span class="s3">[</span><span class="s4">&quot;quantization_annotation&quot;</span><span class="s3">].</span><span class="s1">output_qspec</span>
+<a name="l215"><span class="ln">215  </span></a>                <span class="s2">for </span><span class="s1">input_node</span><span class="s3">, </span><span class="s1">qspec </span><span class="s2">in </span><span class="s1">input_qspec_map</span><span class="s3">.</span><span class="s1">items</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l216"><span class="ln">216  </span></a>                    <span class="s1">_port_metadata_for_input_quant_nodes</span><span class="s3">(</span><span class="s1">input_node</span><span class="s3">, </span><span class="s1">node</span><span class="s3">, </span><span class="s1">qspec</span><span class="s3">)</span>
+<a name="l217"><span class="ln">217  </span></a>                <span class="s1">_port_metadata_for_output_quant_nodes</span><span class="s3">(</span><span class="s1">node</span><span class="s3">, </span><span class="s1">output_qspec</span><span class="s3">)</span>
+<a name="l218"><span class="ln">218  </span></a>        <span class="s2">return </span><span class="s1">PassResult</span><span class="s3">(</span><span class="s1">graph_module</span><span class="s3">, </span><span class="s2">True</span><span class="s3">)</span>
+<a name="l219"><span class="ln">219  </span></a></pre>
+</body>
+</html>

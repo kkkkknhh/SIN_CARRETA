@@ -1,0 +1,380 @@
+<html>
+<head>
+<title>testutil.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #969896;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+testutil.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">combinatorics </span><span class="s0">import </span><span class="s1">Permutation</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">combinatorics</span><span class="s2">.</span><span class="s1">util </span><span class="s0">import </span><span class="s1">_distribute_gens_by_base</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">rmul </span><span class="s0">= </span><span class="s1">Permutation</span><span class="s2">.</span><span class="s1">rmul</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">def </span><span class="s1">_cmp_perm_lists</span><span class="s2">(</span><span class="s1">first</span><span class="s2">, </span><span class="s1">second</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l8"><span class="ln">8    </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l9"><span class="ln">9    </span></a>    Compare two lists of permutations as sets. 
+<a name="l10"><span class="ln">10   </span></a> 
+<a name="l11"><span class="ln">11   </span></a>    Explanation 
+<a name="l12"><span class="ln">12   </span></a>    =========== 
+<a name="l13"><span class="ln">13   </span></a> 
+<a name="l14"><span class="ln">14   </span></a>    This is used for testing purposes. Since the array form of a 
+<a name="l15"><span class="ln">15   </span></a>    permutation is currently a list, Permutation is not hashable 
+<a name="l16"><span class="ln">16   </span></a>    and cannot be put into a set. 
+<a name="l17"><span class="ln">17   </span></a> 
+<a name="l18"><span class="ln">18   </span></a>    Examples 
+<a name="l19"><span class="ln">19   </span></a>    ======== 
+<a name="l20"><span class="ln">20   </span></a> 
+<a name="l21"><span class="ln">21   </span></a>    &gt;&gt;&gt; from sympy.combinatorics.permutations import Permutation 
+<a name="l22"><span class="ln">22   </span></a>    &gt;&gt;&gt; from sympy.combinatorics.testutil import _cmp_perm_lists 
+<a name="l23"><span class="ln">23   </span></a>    &gt;&gt;&gt; a = Permutation([0, 2, 3, 4, 1]) 
+<a name="l24"><span class="ln">24   </span></a>    &gt;&gt;&gt; b = Permutation([1, 2, 0, 4, 3]) 
+<a name="l25"><span class="ln">25   </span></a>    &gt;&gt;&gt; c = Permutation([3, 4, 0, 1, 2]) 
+<a name="l26"><span class="ln">26   </span></a>    &gt;&gt;&gt; ls1 = [a, b, c] 
+<a name="l27"><span class="ln">27   </span></a>    &gt;&gt;&gt; ls2 = [b, c, a] 
+<a name="l28"><span class="ln">28   </span></a>    &gt;&gt;&gt; _cmp_perm_lists(ls1, ls2) 
+<a name="l29"><span class="ln">29   </span></a>    True 
+<a name="l30"><span class="ln">30   </span></a> 
+<a name="l31"><span class="ln">31   </span></a>    &quot;&quot;&quot;</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s0">return </span><span class="s2">{</span><span class="s1">tuple</span><span class="s2">(</span><span class="s1">a</span><span class="s2">) </span><span class="s0">for </span><span class="s1">a </span><span class="s0">in </span><span class="s1">first</span><span class="s2">} </span><span class="s0">== </span><span class="s1">\</span>
+<a name="l33"><span class="ln">33   </span></a>           <span class="s2">{</span><span class="s1">tuple</span><span class="s2">(</span><span class="s1">a</span><span class="s2">) </span><span class="s0">for </span><span class="s1">a </span><span class="s0">in </span><span class="s1">second</span><span class="s2">}</span>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a><span class="s0">def </span><span class="s1">_naive_list_centralizer</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">other</span><span class="s2">, </span><span class="s1">af</span><span class="s0">=False</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">combinatorics</span><span class="s2">.</span><span class="s1">perm_groups </span><span class="s0">import </span><span class="s1">PermutationGroup</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l39"><span class="ln">39   </span></a>    Return a list of elements for the centralizer of a subgroup/set/element. 
+<a name="l40"><span class="ln">40   </span></a> 
+<a name="l41"><span class="ln">41   </span></a>    Explanation 
+<a name="l42"><span class="ln">42   </span></a>    =========== 
+<a name="l43"><span class="ln">43   </span></a> 
+<a name="l44"><span class="ln">44   </span></a>    This is a brute force implementation that goes over all elements of the 
+<a name="l45"><span class="ln">45   </span></a>    group and checks for membership in the centralizer. It is used to 
+<a name="l46"><span class="ln">46   </span></a>    test ``.centralizer()`` from ``sympy.combinatorics.perm_groups``. 
+<a name="l47"><span class="ln">47   </span></a> 
+<a name="l48"><span class="ln">48   </span></a>    Examples 
+<a name="l49"><span class="ln">49   </span></a>    ======== 
+<a name="l50"><span class="ln">50   </span></a> 
+<a name="l51"><span class="ln">51   </span></a>    &gt;&gt;&gt; from sympy.combinatorics.testutil import _naive_list_centralizer 
+<a name="l52"><span class="ln">52   </span></a>    &gt;&gt;&gt; from sympy.combinatorics.named_groups import DihedralGroup 
+<a name="l53"><span class="ln">53   </span></a>    &gt;&gt;&gt; D = DihedralGroup(4) 
+<a name="l54"><span class="ln">54   </span></a>    &gt;&gt;&gt; _naive_list_centralizer(D, D) 
+<a name="l55"><span class="ln">55   </span></a>    [Permutation([0, 1, 2, 3]), Permutation([2, 3, 0, 1])] 
+<a name="l56"><span class="ln">56   </span></a> 
+<a name="l57"><span class="ln">57   </span></a>    See Also 
+<a name="l58"><span class="ln">58   </span></a>    ======== 
+<a name="l59"><span class="ln">59   </span></a> 
+<a name="l60"><span class="ln">60   </span></a>    sympy.combinatorics.perm_groups.centralizer 
+<a name="l61"><span class="ln">61   </span></a> 
+<a name="l62"><span class="ln">62   </span></a>    &quot;&quot;&quot;</span>
+<a name="l63"><span class="ln">63   </span></a>    <span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">combinatorics</span><span class="s2">.</span><span class="s1">permutations </span><span class="s0">import </span><span class="s1">_af_commutes_with</span>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s0">if </span><span class="s1">hasattr</span><span class="s2">(</span><span class="s1">other</span><span class="s2">, </span><span class="s4">'generators'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l65"><span class="ln">65   </span></a>        <span class="s1">elements </span><span class="s0">= </span><span class="s1">list</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">generate_dimino</span><span class="s2">(</span><span class="s1">af</span><span class="s0">=True</span><span class="s2">))</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s1">gens </span><span class="s0">= </span><span class="s2">[</span><span class="s1">x</span><span class="s2">.</span><span class="s1">_array_form </span><span class="s0">for </span><span class="s1">x </span><span class="s0">in </span><span class="s1">other</span><span class="s2">.</span><span class="s1">generators</span><span class="s2">]</span>
+<a name="l67"><span class="ln">67   </span></a>        <span class="s1">commutes_with_gens </span><span class="s0">= lambda </span><span class="s1">x</span><span class="s0">: </span><span class="s1">all</span><span class="s2">(</span><span class="s1">_af_commutes_with</span><span class="s2">(</span><span class="s1">x</span><span class="s2">, </span><span class="s1">gen</span><span class="s2">) </span><span class="s0">for </span><span class="s1">gen </span><span class="s0">in </span><span class="s1">gens</span><span class="s2">)</span>
+<a name="l68"><span class="ln">68   </span></a>        <span class="s1">centralizer_list </span><span class="s0">= </span><span class="s2">[]</span>
+<a name="l69"><span class="ln">69   </span></a>        <span class="s0">if not </span><span class="s1">af</span><span class="s0">:</span>
+<a name="l70"><span class="ln">70   </span></a>            <span class="s0">for </span><span class="s1">element </span><span class="s0">in </span><span class="s1">elements</span><span class="s0">:</span>
+<a name="l71"><span class="ln">71   </span></a>                <span class="s0">if </span><span class="s1">commutes_with_gens</span><span class="s2">(</span><span class="s1">element</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l72"><span class="ln">72   </span></a>                    <span class="s1">centralizer_list</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">Permutation</span><span class="s2">.</span><span class="s1">_af_new</span><span class="s2">(</span><span class="s1">element</span><span class="s2">))</span>
+<a name="l73"><span class="ln">73   </span></a>        <span class="s0">else:</span>
+<a name="l74"><span class="ln">74   </span></a>            <span class="s0">for </span><span class="s1">element </span><span class="s0">in </span><span class="s1">elements</span><span class="s0">:</span>
+<a name="l75"><span class="ln">75   </span></a>                <span class="s0">if </span><span class="s1">commutes_with_gens</span><span class="s2">(</span><span class="s1">element</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l76"><span class="ln">76   </span></a>                    <span class="s1">centralizer_list</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">element</span><span class="s2">)</span>
+<a name="l77"><span class="ln">77   </span></a>        <span class="s0">return </span><span class="s1">centralizer_list</span>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s0">elif </span><span class="s1">hasattr</span><span class="s2">(</span><span class="s1">other</span><span class="s2">, </span><span class="s4">'getitem'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l79"><span class="ln">79   </span></a>        <span class="s0">return </span><span class="s1">_naive_list_centralizer</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">PermutationGroup</span><span class="s2">(</span><span class="s1">other</span><span class="s2">), </span><span class="s1">af</span><span class="s2">)</span>
+<a name="l80"><span class="ln">80   </span></a>    <span class="s0">elif </span><span class="s1">hasattr</span><span class="s2">(</span><span class="s1">other</span><span class="s2">, </span><span class="s4">'array_form'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l81"><span class="ln">81   </span></a>        <span class="s0">return </span><span class="s1">_naive_list_centralizer</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">PermutationGroup</span><span class="s2">([</span><span class="s1">other</span><span class="s2">]), </span><span class="s1">af</span><span class="s2">)</span>
+<a name="l82"><span class="ln">82   </span></a>
+<a name="l83"><span class="ln">83   </span></a>
+<a name="l84"><span class="ln">84   </span></a><span class="s0">def </span><span class="s1">_verify_bsgs</span><span class="s2">(</span><span class="s1">group</span><span class="s2">, </span><span class="s1">base</span><span class="s2">, </span><span class="s1">gens</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l85"><span class="ln">85   </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l86"><span class="ln">86   </span></a>    Verify the correctness of a base and strong generating set. 
+<a name="l87"><span class="ln">87   </span></a> 
+<a name="l88"><span class="ln">88   </span></a>    Explanation 
+<a name="l89"><span class="ln">89   </span></a>    =========== 
+<a name="l90"><span class="ln">90   </span></a> 
+<a name="l91"><span class="ln">91   </span></a>    This is a naive implementation using the definition of a base and a strong 
+<a name="l92"><span class="ln">92   </span></a>    generating set relative to it. There are other procedures for 
+<a name="l93"><span class="ln">93   </span></a>    verifying a base and strong generating set, but this one will 
+<a name="l94"><span class="ln">94   </span></a>    serve for more robust testing. 
+<a name="l95"><span class="ln">95   </span></a> 
+<a name="l96"><span class="ln">96   </span></a>    Examples 
+<a name="l97"><span class="ln">97   </span></a>    ======== 
+<a name="l98"><span class="ln">98   </span></a> 
+<a name="l99"><span class="ln">99   </span></a>    &gt;&gt;&gt; from sympy.combinatorics.named_groups import AlternatingGroup 
+<a name="l100"><span class="ln">100  </span></a>    &gt;&gt;&gt; from sympy.combinatorics.testutil import _verify_bsgs 
+<a name="l101"><span class="ln">101  </span></a>    &gt;&gt;&gt; A = AlternatingGroup(4) 
+<a name="l102"><span class="ln">102  </span></a>    &gt;&gt;&gt; A.schreier_sims() 
+<a name="l103"><span class="ln">103  </span></a>    &gt;&gt;&gt; _verify_bsgs(A, A.base, A.strong_gens) 
+<a name="l104"><span class="ln">104  </span></a>    True 
+<a name="l105"><span class="ln">105  </span></a> 
+<a name="l106"><span class="ln">106  </span></a>    See Also 
+<a name="l107"><span class="ln">107  </span></a>    ======== 
+<a name="l108"><span class="ln">108  </span></a> 
+<a name="l109"><span class="ln">109  </span></a>    sympy.combinatorics.perm_groups.PermutationGroup.schreier_sims 
+<a name="l110"><span class="ln">110  </span></a> 
+<a name="l111"><span class="ln">111  </span></a>    &quot;&quot;&quot;</span>
+<a name="l112"><span class="ln">112  </span></a>    <span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">combinatorics</span><span class="s2">.</span><span class="s1">perm_groups </span><span class="s0">import </span><span class="s1">PermutationGroup</span>
+<a name="l113"><span class="ln">113  </span></a>    <span class="s1">strong_gens_distr </span><span class="s0">= </span><span class="s1">_distribute_gens_by_base</span><span class="s2">(</span><span class="s1">base</span><span class="s2">, </span><span class="s1">gens</span><span class="s2">)</span>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s1">current_stabilizer </span><span class="s0">= </span><span class="s1">group</span>
+<a name="l115"><span class="ln">115  </span></a>    <span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">range</span><span class="s2">(</span><span class="s1">len</span><span class="s2">(</span><span class="s1">base</span><span class="s2">))</span><span class="s0">:</span>
+<a name="l116"><span class="ln">116  </span></a>        <span class="s1">candidate </span><span class="s0">= </span><span class="s1">PermutationGroup</span><span class="s2">(</span><span class="s1">strong_gens_distr</span><span class="s2">[</span><span class="s1">i</span><span class="s2">])</span>
+<a name="l117"><span class="ln">117  </span></a>        <span class="s0">if </span><span class="s1">current_stabilizer</span><span class="s2">.</span><span class="s1">order</span><span class="s2">() </span><span class="s0">!= </span><span class="s1">candidate</span><span class="s2">.</span><span class="s1">order</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l118"><span class="ln">118  </span></a>            <span class="s0">return False</span>
+<a name="l119"><span class="ln">119  </span></a>        <span class="s1">current_stabilizer </span><span class="s0">= </span><span class="s1">current_stabilizer</span><span class="s2">.</span><span class="s1">stabilizer</span><span class="s2">(</span><span class="s1">base</span><span class="s2">[</span><span class="s1">i</span><span class="s2">])</span>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s0">if </span><span class="s1">current_stabilizer</span><span class="s2">.</span><span class="s1">order</span><span class="s2">() </span><span class="s0">!= </span><span class="s5">1</span><span class="s0">:</span>
+<a name="l121"><span class="ln">121  </span></a>        <span class="s0">return False</span>
+<a name="l122"><span class="ln">122  </span></a>    <span class="s0">return True</span>
+<a name="l123"><span class="ln">123  </span></a>
+<a name="l124"><span class="ln">124  </span></a>
+<a name="l125"><span class="ln">125  </span></a><span class="s0">def </span><span class="s1">_verify_centralizer</span><span class="s2">(</span><span class="s1">group</span><span class="s2">, </span><span class="s1">arg</span><span class="s2">, </span><span class="s1">centr</span><span class="s0">=None</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l126"><span class="ln">126  </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l127"><span class="ln">127  </span></a>    Verify the centralizer of a group/set/element inside another group. 
+<a name="l128"><span class="ln">128  </span></a> 
+<a name="l129"><span class="ln">129  </span></a>    This is used for testing ``.centralizer()`` from 
+<a name="l130"><span class="ln">130  </span></a>    ``sympy.combinatorics.perm_groups`` 
+<a name="l131"><span class="ln">131  </span></a> 
+<a name="l132"><span class="ln">132  </span></a>    Examples 
+<a name="l133"><span class="ln">133  </span></a>    ======== 
+<a name="l134"><span class="ln">134  </span></a> 
+<a name="l135"><span class="ln">135  </span></a>    &gt;&gt;&gt; from sympy.combinatorics.named_groups import (SymmetricGroup, 
+<a name="l136"><span class="ln">136  </span></a>    ... AlternatingGroup) 
+<a name="l137"><span class="ln">137  </span></a>    &gt;&gt;&gt; from sympy.combinatorics.perm_groups import PermutationGroup 
+<a name="l138"><span class="ln">138  </span></a>    &gt;&gt;&gt; from sympy.combinatorics.permutations import Permutation 
+<a name="l139"><span class="ln">139  </span></a>    &gt;&gt;&gt; from sympy.combinatorics.testutil import _verify_centralizer 
+<a name="l140"><span class="ln">140  </span></a>    &gt;&gt;&gt; S = SymmetricGroup(5) 
+<a name="l141"><span class="ln">141  </span></a>    &gt;&gt;&gt; A = AlternatingGroup(5) 
+<a name="l142"><span class="ln">142  </span></a>    &gt;&gt;&gt; centr = PermutationGroup([Permutation([0, 1, 2, 3, 4])]) 
+<a name="l143"><span class="ln">143  </span></a>    &gt;&gt;&gt; _verify_centralizer(S, A, centr) 
+<a name="l144"><span class="ln">144  </span></a>    True 
+<a name="l145"><span class="ln">145  </span></a> 
+<a name="l146"><span class="ln">146  </span></a>    See Also 
+<a name="l147"><span class="ln">147  </span></a>    ======== 
+<a name="l148"><span class="ln">148  </span></a> 
+<a name="l149"><span class="ln">149  </span></a>    _naive_list_centralizer, 
+<a name="l150"><span class="ln">150  </span></a>    sympy.combinatorics.perm_groups.PermutationGroup.centralizer, 
+<a name="l151"><span class="ln">151  </span></a>    _cmp_perm_lists 
+<a name="l152"><span class="ln">152  </span></a> 
+<a name="l153"><span class="ln">153  </span></a>    &quot;&quot;&quot;</span>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s0">if </span><span class="s1">centr </span><span class="s0">is None:</span>
+<a name="l155"><span class="ln">155  </span></a>        <span class="s1">centr </span><span class="s0">= </span><span class="s1">group</span><span class="s2">.</span><span class="s1">centralizer</span><span class="s2">(</span><span class="s1">arg</span><span class="s2">)</span>
+<a name="l156"><span class="ln">156  </span></a>    <span class="s1">centr_list </span><span class="s0">= </span><span class="s1">list</span><span class="s2">(</span><span class="s1">centr</span><span class="s2">.</span><span class="s1">generate_dimino</span><span class="s2">(</span><span class="s1">af</span><span class="s0">=True</span><span class="s2">))</span>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s1">centr_list_naive </span><span class="s0">= </span><span class="s1">_naive_list_centralizer</span><span class="s2">(</span><span class="s1">group</span><span class="s2">, </span><span class="s1">arg</span><span class="s2">, </span><span class="s1">af</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l158"><span class="ln">158  </span></a>    <span class="s0">return </span><span class="s1">_cmp_perm_lists</span><span class="s2">(</span><span class="s1">centr_list</span><span class="s2">, </span><span class="s1">centr_list_naive</span><span class="s2">)</span>
+<a name="l159"><span class="ln">159  </span></a>
+<a name="l160"><span class="ln">160  </span></a>
+<a name="l161"><span class="ln">161  </span></a><span class="s0">def </span><span class="s1">_verify_normal_closure</span><span class="s2">(</span><span class="s1">group</span><span class="s2">, </span><span class="s1">arg</span><span class="s2">, </span><span class="s1">closure</span><span class="s0">=None</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l162"><span class="ln">162  </span></a>    <span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">combinatorics</span><span class="s2">.</span><span class="s1">perm_groups </span><span class="s0">import </span><span class="s1">PermutationGroup</span>
+<a name="l163"><span class="ln">163  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l164"><span class="ln">164  </span></a>    Verify the normal closure of a subgroup/subset/element in a group. 
+<a name="l165"><span class="ln">165  </span></a> 
+<a name="l166"><span class="ln">166  </span></a>    This is used to test 
+<a name="l167"><span class="ln">167  </span></a>    sympy.combinatorics.perm_groups.PermutationGroup.normal_closure 
+<a name="l168"><span class="ln">168  </span></a> 
+<a name="l169"><span class="ln">169  </span></a>    Examples 
+<a name="l170"><span class="ln">170  </span></a>    ======== 
+<a name="l171"><span class="ln">171  </span></a> 
+<a name="l172"><span class="ln">172  </span></a>    &gt;&gt;&gt; from sympy.combinatorics.named_groups import (SymmetricGroup, 
+<a name="l173"><span class="ln">173  </span></a>    ... AlternatingGroup) 
+<a name="l174"><span class="ln">174  </span></a>    &gt;&gt;&gt; from sympy.combinatorics.testutil import _verify_normal_closure 
+<a name="l175"><span class="ln">175  </span></a>    &gt;&gt;&gt; S = SymmetricGroup(3) 
+<a name="l176"><span class="ln">176  </span></a>    &gt;&gt;&gt; A = AlternatingGroup(3) 
+<a name="l177"><span class="ln">177  </span></a>    &gt;&gt;&gt; _verify_normal_closure(S, A, closure=A) 
+<a name="l178"><span class="ln">178  </span></a>    True 
+<a name="l179"><span class="ln">179  </span></a> 
+<a name="l180"><span class="ln">180  </span></a>    See Also 
+<a name="l181"><span class="ln">181  </span></a>    ======== 
+<a name="l182"><span class="ln">182  </span></a> 
+<a name="l183"><span class="ln">183  </span></a>    sympy.combinatorics.perm_groups.PermutationGroup.normal_closure 
+<a name="l184"><span class="ln">184  </span></a> 
+<a name="l185"><span class="ln">185  </span></a>    &quot;&quot;&quot;</span>
+<a name="l186"><span class="ln">186  </span></a>    <span class="s0">if </span><span class="s1">closure </span><span class="s0">is None:</span>
+<a name="l187"><span class="ln">187  </span></a>        <span class="s1">closure </span><span class="s0">= </span><span class="s1">group</span><span class="s2">.</span><span class="s1">normal_closure</span><span class="s2">(</span><span class="s1">arg</span><span class="s2">)</span>
+<a name="l188"><span class="ln">188  </span></a>    <span class="s1">conjugates </span><span class="s0">= </span><span class="s1">set</span><span class="s2">()</span>
+<a name="l189"><span class="ln">189  </span></a>    <span class="s0">if </span><span class="s1">hasattr</span><span class="s2">(</span><span class="s1">arg</span><span class="s2">, </span><span class="s4">'generators'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l190"><span class="ln">190  </span></a>        <span class="s1">subgr_gens </span><span class="s0">= </span><span class="s1">arg</span><span class="s2">.</span><span class="s1">generators</span>
+<a name="l191"><span class="ln">191  </span></a>    <span class="s0">elif </span><span class="s1">hasattr</span><span class="s2">(</span><span class="s1">arg</span><span class="s2">, </span><span class="s4">'__getitem__'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l192"><span class="ln">192  </span></a>        <span class="s1">subgr_gens </span><span class="s0">= </span><span class="s1">arg</span>
+<a name="l193"><span class="ln">193  </span></a>    <span class="s0">elif </span><span class="s1">hasattr</span><span class="s2">(</span><span class="s1">arg</span><span class="s2">, </span><span class="s4">'array_form'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l194"><span class="ln">194  </span></a>        <span class="s1">subgr_gens </span><span class="s0">= </span><span class="s2">[</span><span class="s1">arg</span><span class="s2">]</span>
+<a name="l195"><span class="ln">195  </span></a>    <span class="s0">for </span><span class="s1">el </span><span class="s0">in </span><span class="s1">group</span><span class="s2">.</span><span class="s1">generate_dimino</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l196"><span class="ln">196  </span></a>        <span class="s1">conjugates</span><span class="s2">.</span><span class="s1">update</span><span class="s2">(</span><span class="s1">gen </span><span class="s0">^ </span><span class="s1">el </span><span class="s0">for </span><span class="s1">gen </span><span class="s0">in </span><span class="s1">subgr_gens</span><span class="s2">)</span>
+<a name="l197"><span class="ln">197  </span></a>    <span class="s1">naive_closure </span><span class="s0">= </span><span class="s1">PermutationGroup</span><span class="s2">(</span><span class="s1">list</span><span class="s2">(</span><span class="s1">conjugates</span><span class="s2">))</span>
+<a name="l198"><span class="ln">198  </span></a>    <span class="s0">return </span><span class="s1">closure</span><span class="s2">.</span><span class="s1">is_subgroup</span><span class="s2">(</span><span class="s1">naive_closure</span><span class="s2">)</span>
+<a name="l199"><span class="ln">199  </span></a>
+<a name="l200"><span class="ln">200  </span></a>
+<a name="l201"><span class="ln">201  </span></a><span class="s0">def </span><span class="s1">canonicalize_naive</span><span class="s2">(</span><span class="s1">g</span><span class="s2">, </span><span class="s1">dummies</span><span class="s2">, </span><span class="s1">sym</span><span class="s2">, </span><span class="s0">*</span><span class="s1">v</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l202"><span class="ln">202  </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l203"><span class="ln">203  </span></a>    Canonicalize tensor formed by tensors of the different types. 
+<a name="l204"><span class="ln">204  </span></a> 
+<a name="l205"><span class="ln">205  </span></a>    Explanation 
+<a name="l206"><span class="ln">206  </span></a>    =========== 
+<a name="l207"><span class="ln">207  </span></a> 
+<a name="l208"><span class="ln">208  </span></a>    sym_i symmetry under exchange of two component tensors of type `i` 
+<a name="l209"><span class="ln">209  </span></a>          None  no symmetry 
+<a name="l210"><span class="ln">210  </span></a>          0     commuting 
+<a name="l211"><span class="ln">211  </span></a>          1     anticommuting 
+<a name="l212"><span class="ln">212  </span></a> 
+<a name="l213"><span class="ln">213  </span></a>    Parameters 
+<a name="l214"><span class="ln">214  </span></a>    ========== 
+<a name="l215"><span class="ln">215  </span></a> 
+<a name="l216"><span class="ln">216  </span></a>    g : Permutation representing the tensor. 
+<a name="l217"><span class="ln">217  </span></a>    dummies : List of dummy indices. 
+<a name="l218"><span class="ln">218  </span></a>    msym : Symmetry of the metric. 
+<a name="l219"><span class="ln">219  </span></a>    v : A list of (base_i, gens_i, n_i, sym_i) for tensors of type `i`. 
+<a name="l220"><span class="ln">220  </span></a>        base_i, gens_i BSGS for tensors of this type 
+<a name="l221"><span class="ln">221  </span></a>        n_i  number of tensors of type `i` 
+<a name="l222"><span class="ln">222  </span></a> 
+<a name="l223"><span class="ln">223  </span></a>    Returns 
+<a name="l224"><span class="ln">224  </span></a>    ======= 
+<a name="l225"><span class="ln">225  </span></a> 
+<a name="l226"><span class="ln">226  </span></a>    Returns 0 if the tensor is zero, else returns the array form of 
+<a name="l227"><span class="ln">227  </span></a>    the permutation representing the canonical form of the tensor. 
+<a name="l228"><span class="ln">228  </span></a> 
+<a name="l229"><span class="ln">229  </span></a>    Examples 
+<a name="l230"><span class="ln">230  </span></a>    ======== 
+<a name="l231"><span class="ln">231  </span></a> 
+<a name="l232"><span class="ln">232  </span></a>    &gt;&gt;&gt; from sympy.combinatorics.testutil import canonicalize_naive 
+<a name="l233"><span class="ln">233  </span></a>    &gt;&gt;&gt; from sympy.combinatorics.tensor_can import get_symmetric_group_sgs 
+<a name="l234"><span class="ln">234  </span></a>    &gt;&gt;&gt; from sympy.combinatorics import Permutation 
+<a name="l235"><span class="ln">235  </span></a>    &gt;&gt;&gt; g = Permutation([1, 3, 2, 0, 4, 5]) 
+<a name="l236"><span class="ln">236  </span></a>    &gt;&gt;&gt; base2, gens2 = get_symmetric_group_sgs(2) 
+<a name="l237"><span class="ln">237  </span></a>    &gt;&gt;&gt; canonicalize_naive(g, [2, 3], 0, (base2, gens2, 2, 0)) 
+<a name="l238"><span class="ln">238  </span></a>    [0, 2, 1, 3, 4, 5] 
+<a name="l239"><span class="ln">239  </span></a>    &quot;&quot;&quot;</span>
+<a name="l240"><span class="ln">240  </span></a>    <span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">combinatorics</span><span class="s2">.</span><span class="s1">perm_groups </span><span class="s0">import </span><span class="s1">PermutationGroup</span>
+<a name="l241"><span class="ln">241  </span></a>    <span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">combinatorics</span><span class="s2">.</span><span class="s1">tensor_can </span><span class="s0">import </span><span class="s1">gens_products</span><span class="s2">, </span><span class="s1">dummy_sgs</span>
+<a name="l242"><span class="ln">242  </span></a>    <span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">combinatorics</span><span class="s2">.</span><span class="s1">permutations </span><span class="s0">import </span><span class="s1">_af_rmul</span>
+<a name="l243"><span class="ln">243  </span></a>    <span class="s1">v1 </span><span class="s0">= </span><span class="s2">[]</span>
+<a name="l244"><span class="ln">244  </span></a>    <span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">range</span><span class="s2">(</span><span class="s1">len</span><span class="s2">(</span><span class="s1">v</span><span class="s2">))</span><span class="s0">:</span>
+<a name="l245"><span class="ln">245  </span></a>        <span class="s1">base_i</span><span class="s2">, </span><span class="s1">gens_i</span><span class="s2">, </span><span class="s1">n_i</span><span class="s2">, </span><span class="s1">sym_i </span><span class="s0">= </span><span class="s1">v</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]</span>
+<a name="l246"><span class="ln">246  </span></a>        <span class="s1">v1</span><span class="s2">.</span><span class="s1">append</span><span class="s2">((</span><span class="s1">base_i</span><span class="s2">, </span><span class="s1">gens_i</span><span class="s2">, [[]]</span><span class="s0">*</span><span class="s1">n_i</span><span class="s2">, </span><span class="s1">sym_i</span><span class="s2">))</span>
+<a name="l247"><span class="ln">247  </span></a>    <span class="s1">size</span><span class="s2">, </span><span class="s1">sbase</span><span class="s2">, </span><span class="s1">sgens </span><span class="s0">= </span><span class="s1">gens_products</span><span class="s2">(</span><span class="s0">*</span><span class="s1">v1</span><span class="s2">)</span>
+<a name="l248"><span class="ln">248  </span></a>    <span class="s1">dgens </span><span class="s0">= </span><span class="s1">dummy_sgs</span><span class="s2">(</span><span class="s1">dummies</span><span class="s2">, </span><span class="s1">sym</span><span class="s2">, </span><span class="s1">size</span><span class="s0">-</span><span class="s5">2</span><span class="s2">)</span>
+<a name="l249"><span class="ln">249  </span></a>    <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">int</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l250"><span class="ln">250  </span></a>        <span class="s1">num_types </span><span class="s0">= </span><span class="s5">1</span>
+<a name="l251"><span class="ln">251  </span></a>        <span class="s1">dummies </span><span class="s0">= </span><span class="s2">[</span><span class="s1">dummies</span><span class="s2">]</span>
+<a name="l252"><span class="ln">252  </span></a>        <span class="s1">sym </span><span class="s0">= </span><span class="s2">[</span><span class="s1">sym</span><span class="s2">]</span>
+<a name="l253"><span class="ln">253  </span></a>    <span class="s0">else:</span>
+<a name="l254"><span class="ln">254  </span></a>        <span class="s1">num_types </span><span class="s0">= </span><span class="s1">len</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">)</span>
+<a name="l255"><span class="ln">255  </span></a>    <span class="s1">dgens </span><span class="s0">= </span><span class="s2">[]</span>
+<a name="l256"><span class="ln">256  </span></a>    <span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">range</span><span class="s2">(</span><span class="s1">num_types</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l257"><span class="ln">257  </span></a>        <span class="s1">dgens</span><span class="s2">.</span><span class="s1">extend</span><span class="s2">(</span><span class="s1">dummy_sgs</span><span class="s2">(</span><span class="s1">dummies</span><span class="s2">[</span><span class="s1">i</span><span class="s2">], </span><span class="s1">sym</span><span class="s2">[</span><span class="s1">i</span><span class="s2">], </span><span class="s1">size </span><span class="s0">- </span><span class="s5">2</span><span class="s2">))</span>
+<a name="l258"><span class="ln">258  </span></a>    <span class="s1">S </span><span class="s0">= </span><span class="s1">PermutationGroup</span><span class="s2">(</span><span class="s1">sgens</span><span class="s2">)</span>
+<a name="l259"><span class="ln">259  </span></a>    <span class="s1">D </span><span class="s0">= </span><span class="s1">PermutationGroup</span><span class="s2">([</span><span class="s1">Permutation</span><span class="s2">(</span><span class="s1">x</span><span class="s2">) </span><span class="s0">for </span><span class="s1">x </span><span class="s0">in </span><span class="s1">dgens</span><span class="s2">])</span>
+<a name="l260"><span class="ln">260  </span></a>    <span class="s1">dlist </span><span class="s0">= </span><span class="s1">list</span><span class="s2">(</span><span class="s1">D</span><span class="s2">.</span><span class="s1">generate</span><span class="s2">(</span><span class="s1">af</span><span class="s0">=True</span><span class="s2">))</span>
+<a name="l261"><span class="ln">261  </span></a>    <span class="s1">g </span><span class="s0">= </span><span class="s1">g</span><span class="s2">.</span><span class="s1">array_form</span>
+<a name="l262"><span class="ln">262  </span></a>    <span class="s1">st </span><span class="s0">= </span><span class="s1">set</span><span class="s2">()</span>
+<a name="l263"><span class="ln">263  </span></a>    <span class="s0">for </span><span class="s1">s </span><span class="s0">in </span><span class="s1">S</span><span class="s2">.</span><span class="s1">generate</span><span class="s2">(</span><span class="s1">af</span><span class="s0">=True</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l264"><span class="ln">264  </span></a>        <span class="s1">h </span><span class="s0">= </span><span class="s1">_af_rmul</span><span class="s2">(</span><span class="s1">g</span><span class="s2">, </span><span class="s1">s</span><span class="s2">)</span>
+<a name="l265"><span class="ln">265  </span></a>        <span class="s0">for </span><span class="s1">d </span><span class="s0">in </span><span class="s1">dlist</span><span class="s0">:</span>
+<a name="l266"><span class="ln">266  </span></a>            <span class="s1">q </span><span class="s0">= </span><span class="s1">tuple</span><span class="s2">(</span><span class="s1">_af_rmul</span><span class="s2">(</span><span class="s1">d</span><span class="s2">, </span><span class="s1">h</span><span class="s2">))</span>
+<a name="l267"><span class="ln">267  </span></a>            <span class="s1">st</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">q</span><span class="s2">)</span>
+<a name="l268"><span class="ln">268  </span></a>    <span class="s1">a </span><span class="s0">= </span><span class="s1">list</span><span class="s2">(</span><span class="s1">st</span><span class="s2">)</span>
+<a name="l269"><span class="ln">269  </span></a>    <span class="s1">a</span><span class="s2">.</span><span class="s1">sort</span><span class="s2">()</span>
+<a name="l270"><span class="ln">270  </span></a>    <span class="s1">prev </span><span class="s0">= </span><span class="s2">(</span><span class="s5">0</span><span class="s2">,)</span><span class="s0">*</span><span class="s1">size</span>
+<a name="l271"><span class="ln">271  </span></a>    <span class="s0">for </span><span class="s1">h </span><span class="s0">in </span><span class="s1">a</span><span class="s0">:</span>
+<a name="l272"><span class="ln">272  </span></a>        <span class="s0">if </span><span class="s1">h</span><span class="s2">[</span><span class="s0">:-</span><span class="s5">2</span><span class="s2">] </span><span class="s0">== </span><span class="s1">prev</span><span class="s2">[</span><span class="s0">:-</span><span class="s5">2</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l273"><span class="ln">273  </span></a>            <span class="s0">if </span><span class="s1">h</span><span class="s2">[</span><span class="s0">-</span><span class="s5">1</span><span class="s2">] </span><span class="s0">!= </span><span class="s1">prev</span><span class="s2">[</span><span class="s0">-</span><span class="s5">1</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l274"><span class="ln">274  </span></a>                <span class="s0">return </span><span class="s5">0</span>
+<a name="l275"><span class="ln">275  </span></a>        <span class="s1">prev </span><span class="s0">= </span><span class="s1">h</span>
+<a name="l276"><span class="ln">276  </span></a>    <span class="s0">return </span><span class="s1">list</span><span class="s2">(</span><span class="s1">a</span><span class="s2">[</span><span class="s5">0</span><span class="s2">])</span>
+<a name="l277"><span class="ln">277  </span></a>
+<a name="l278"><span class="ln">278  </span></a>
+<a name="l279"><span class="ln">279  </span></a><span class="s0">def </span><span class="s1">graph_certificate</span><span class="s2">(</span><span class="s1">gr</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l280"><span class="ln">280  </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l281"><span class="ln">281  </span></a>    Return a certificate for the graph 
+<a name="l282"><span class="ln">282  </span></a> 
+<a name="l283"><span class="ln">283  </span></a>    Parameters 
+<a name="l284"><span class="ln">284  </span></a>    ========== 
+<a name="l285"><span class="ln">285  </span></a> 
+<a name="l286"><span class="ln">286  </span></a>    gr : adjacency list 
+<a name="l287"><span class="ln">287  </span></a> 
+<a name="l288"><span class="ln">288  </span></a>    Explanation 
+<a name="l289"><span class="ln">289  </span></a>    =========== 
+<a name="l290"><span class="ln">290  </span></a> 
+<a name="l291"><span class="ln">291  </span></a>    The graph is assumed to be unoriented and without 
+<a name="l292"><span class="ln">292  </span></a>    external lines. 
+<a name="l293"><span class="ln">293  </span></a> 
+<a name="l294"><span class="ln">294  </span></a>    Associate to each vertex of the graph a symmetric tensor with 
+<a name="l295"><span class="ln">295  </span></a>    number of indices equal to the degree of the vertex; indices 
+<a name="l296"><span class="ln">296  </span></a>    are contracted when they correspond to the same line of the graph. 
+<a name="l297"><span class="ln">297  </span></a>    The canonical form of the tensor gives a certificate for the graph. 
+<a name="l298"><span class="ln">298  </span></a> 
+<a name="l299"><span class="ln">299  </span></a>    This is not an efficient algorithm to get the certificate of a graph. 
+<a name="l300"><span class="ln">300  </span></a> 
+<a name="l301"><span class="ln">301  </span></a>    Examples 
+<a name="l302"><span class="ln">302  </span></a>    ======== 
+<a name="l303"><span class="ln">303  </span></a> 
+<a name="l304"><span class="ln">304  </span></a>    &gt;&gt;&gt; from sympy.combinatorics.testutil import graph_certificate 
+<a name="l305"><span class="ln">305  </span></a>    &gt;&gt;&gt; gr1 = {0:[1, 2, 3, 5], 1:[0, 2, 4], 2:[0, 1, 3, 4], 3:[0, 2, 4], 4:[1, 2, 3, 5], 5:[0, 4]} 
+<a name="l306"><span class="ln">306  </span></a>    &gt;&gt;&gt; gr2 = {0:[1, 5], 1:[0, 2, 3, 4], 2:[1, 3, 5], 3:[1, 2, 4, 5], 4:[1, 3, 5], 5:[0, 2, 3, 4]} 
+<a name="l307"><span class="ln">307  </span></a>    &gt;&gt;&gt; c1 = graph_certificate(gr1) 
+<a name="l308"><span class="ln">308  </span></a>    &gt;&gt;&gt; c2 = graph_certificate(gr2) 
+<a name="l309"><span class="ln">309  </span></a>    &gt;&gt;&gt; c1 
+<a name="l310"><span class="ln">310  </span></a>    [0, 2, 4, 6, 1, 8, 10, 12, 3, 14, 16, 18, 5, 9, 15, 7, 11, 17, 13, 19, 20, 21] 
+<a name="l311"><span class="ln">311  </span></a>    &gt;&gt;&gt; c1 == c2 
+<a name="l312"><span class="ln">312  </span></a>    True 
+<a name="l313"><span class="ln">313  </span></a>    &quot;&quot;&quot;</span>
+<a name="l314"><span class="ln">314  </span></a>    <span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">combinatorics</span><span class="s2">.</span><span class="s1">permutations </span><span class="s0">import </span><span class="s1">_af_invert</span>
+<a name="l315"><span class="ln">315  </span></a>    <span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">combinatorics</span><span class="s2">.</span><span class="s1">tensor_can </span><span class="s0">import </span><span class="s1">get_symmetric_group_sgs</span><span class="s2">, </span><span class="s1">canonicalize</span>
+<a name="l316"><span class="ln">316  </span></a>    <span class="s1">items </span><span class="s0">= </span><span class="s1">list</span><span class="s2">(</span><span class="s1">gr</span><span class="s2">.</span><span class="s1">items</span><span class="s2">())</span>
+<a name="l317"><span class="ln">317  </span></a>    <span class="s1">items</span><span class="s2">.</span><span class="s1">sort</span><span class="s2">(</span><span class="s1">key</span><span class="s0">=lambda </span><span class="s1">x</span><span class="s0">: </span><span class="s1">len</span><span class="s2">(</span><span class="s1">x</span><span class="s2">[</span><span class="s5">1</span><span class="s2">]), </span><span class="s1">reverse</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l318"><span class="ln">318  </span></a>    <span class="s1">pvert </span><span class="s0">= </span><span class="s2">[</span><span class="s1">x</span><span class="s2">[</span><span class="s5">0</span><span class="s2">] </span><span class="s0">for </span><span class="s1">x </span><span class="s0">in </span><span class="s1">items</span><span class="s2">]</span>
+<a name="l319"><span class="ln">319  </span></a>    <span class="s1">pvert </span><span class="s0">= </span><span class="s1">_af_invert</span><span class="s2">(</span><span class="s1">pvert</span><span class="s2">)</span>
+<a name="l320"><span class="ln">320  </span></a>
+<a name="l321"><span class="ln">321  </span></a>    <span class="s3"># the indices of the tensor are twice the number of lines of the graph</span>
+<a name="l322"><span class="ln">322  </span></a>    <span class="s1">num_indices </span><span class="s0">= </span><span class="s5">0</span>
+<a name="l323"><span class="ln">323  </span></a>    <span class="s0">for </span><span class="s1">v</span><span class="s2">, </span><span class="s1">neigh </span><span class="s0">in </span><span class="s1">items</span><span class="s0">:</span>
+<a name="l324"><span class="ln">324  </span></a>        <span class="s1">num_indices </span><span class="s0">+= </span><span class="s1">len</span><span class="s2">(</span><span class="s1">neigh</span><span class="s2">)</span>
+<a name="l325"><span class="ln">325  </span></a>    <span class="s3"># associate to each vertex its indices; for each line</span>
+<a name="l326"><span class="ln">326  </span></a>    <span class="s3"># between two vertices assign the</span>
+<a name="l327"><span class="ln">327  </span></a>    <span class="s3"># even index to the vertex which comes first in items,</span>
+<a name="l328"><span class="ln">328  </span></a>    <span class="s3"># the odd index to the other vertex</span>
+<a name="l329"><span class="ln">329  </span></a>    <span class="s1">vertices </span><span class="s0">= </span><span class="s2">[[] </span><span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">items</span><span class="s2">]</span>
+<a name="l330"><span class="ln">330  </span></a>    <span class="s1">i </span><span class="s0">= </span><span class="s5">0</span>
+<a name="l331"><span class="ln">331  </span></a>    <span class="s0">for </span><span class="s1">v</span><span class="s2">, </span><span class="s1">neigh </span><span class="s0">in </span><span class="s1">items</span><span class="s0">:</span>
+<a name="l332"><span class="ln">332  </span></a>        <span class="s0">for </span><span class="s1">v2 </span><span class="s0">in </span><span class="s1">neigh</span><span class="s0">:</span>
+<a name="l333"><span class="ln">333  </span></a>            <span class="s0">if </span><span class="s1">pvert</span><span class="s2">[</span><span class="s1">v</span><span class="s2">] </span><span class="s0">&lt; </span><span class="s1">pvert</span><span class="s2">[</span><span class="s1">v2</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l334"><span class="ln">334  </span></a>                <span class="s1">vertices</span><span class="s2">[</span><span class="s1">pvert</span><span class="s2">[</span><span class="s1">v</span><span class="s2">]].</span><span class="s1">append</span><span class="s2">(</span><span class="s1">i</span><span class="s2">)</span>
+<a name="l335"><span class="ln">335  </span></a>                <span class="s1">vertices</span><span class="s2">[</span><span class="s1">pvert</span><span class="s2">[</span><span class="s1">v2</span><span class="s2">]].</span><span class="s1">append</span><span class="s2">(</span><span class="s1">i</span><span class="s0">+</span><span class="s5">1</span><span class="s2">)</span>
+<a name="l336"><span class="ln">336  </span></a>                <span class="s1">i </span><span class="s0">+= </span><span class="s5">2</span>
+<a name="l337"><span class="ln">337  </span></a>    <span class="s1">g </span><span class="s0">= </span><span class="s2">[]</span>
+<a name="l338"><span class="ln">338  </span></a>    <span class="s0">for </span><span class="s1">v </span><span class="s0">in </span><span class="s1">vertices</span><span class="s0">:</span>
+<a name="l339"><span class="ln">339  </span></a>        <span class="s1">g</span><span class="s2">.</span><span class="s1">extend</span><span class="s2">(</span><span class="s1">v</span><span class="s2">)</span>
+<a name="l340"><span class="ln">340  </span></a>    <span class="s0">assert </span><span class="s1">len</span><span class="s2">(</span><span class="s1">g</span><span class="s2">) </span><span class="s0">== </span><span class="s1">num_indices</span>
+<a name="l341"><span class="ln">341  </span></a>    <span class="s1">g </span><span class="s0">+= </span><span class="s2">[</span><span class="s1">num_indices</span><span class="s2">, </span><span class="s1">num_indices </span><span class="s0">+ </span><span class="s5">1</span><span class="s2">]</span>
+<a name="l342"><span class="ln">342  </span></a>    <span class="s1">size </span><span class="s0">= </span><span class="s1">num_indices </span><span class="s0">+ </span><span class="s5">2</span>
+<a name="l343"><span class="ln">343  </span></a>    <span class="s0">assert </span><span class="s1">sorted</span><span class="s2">(</span><span class="s1">g</span><span class="s2">) </span><span class="s0">== </span><span class="s1">list</span><span class="s2">(</span><span class="s1">range</span><span class="s2">(</span><span class="s1">size</span><span class="s2">))</span>
+<a name="l344"><span class="ln">344  </span></a>    <span class="s1">g </span><span class="s0">= </span><span class="s1">Permutation</span><span class="s2">(</span><span class="s1">g</span><span class="s2">)</span>
+<a name="l345"><span class="ln">345  </span></a>    <span class="s1">vlen </span><span class="s0">= </span><span class="s2">[</span><span class="s5">0</span><span class="s2">]</span><span class="s0">*</span><span class="s2">(</span><span class="s1">len</span><span class="s2">(</span><span class="s1">vertices</span><span class="s2">[</span><span class="s5">0</span><span class="s2">])</span><span class="s0">+</span><span class="s5">1</span><span class="s2">)</span>
+<a name="l346"><span class="ln">346  </span></a>    <span class="s0">for </span><span class="s1">neigh </span><span class="s0">in </span><span class="s1">vertices</span><span class="s0">:</span>
+<a name="l347"><span class="ln">347  </span></a>        <span class="s1">vlen</span><span class="s2">[</span><span class="s1">len</span><span class="s2">(</span><span class="s1">neigh</span><span class="s2">)] </span><span class="s0">+= </span><span class="s5">1</span>
+<a name="l348"><span class="ln">348  </span></a>    <span class="s1">v </span><span class="s0">= </span><span class="s2">[]</span>
+<a name="l349"><span class="ln">349  </span></a>    <span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">range</span><span class="s2">(</span><span class="s1">len</span><span class="s2">(</span><span class="s1">vlen</span><span class="s2">))</span><span class="s0">:</span>
+<a name="l350"><span class="ln">350  </span></a>        <span class="s1">n </span><span class="s0">= </span><span class="s1">vlen</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]</span>
+<a name="l351"><span class="ln">351  </span></a>        <span class="s0">if </span><span class="s1">n</span><span class="s0">:</span>
+<a name="l352"><span class="ln">352  </span></a>            <span class="s1">base</span><span class="s2">, </span><span class="s1">gens </span><span class="s0">= </span><span class="s1">get_symmetric_group_sgs</span><span class="s2">(</span><span class="s1">i</span><span class="s2">)</span>
+<a name="l353"><span class="ln">353  </span></a>            <span class="s1">v</span><span class="s2">.</span><span class="s1">append</span><span class="s2">((</span><span class="s1">base</span><span class="s2">, </span><span class="s1">gens</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s5">0</span><span class="s2">))</span>
+<a name="l354"><span class="ln">354  </span></a>    <span class="s1">v</span><span class="s2">.</span><span class="s1">reverse</span><span class="s2">()</span>
+<a name="l355"><span class="ln">355  </span></a>    <span class="s1">dummies </span><span class="s0">= </span><span class="s1">list</span><span class="s2">(</span><span class="s1">range</span><span class="s2">(</span><span class="s1">num_indices</span><span class="s2">))</span>
+<a name="l356"><span class="ln">356  </span></a>    <span class="s1">can </span><span class="s0">= </span><span class="s1">canonicalize</span><span class="s2">(</span><span class="s1">g</span><span class="s2">, </span><span class="s1">dummies</span><span class="s2">, </span><span class="s5">0</span><span class="s2">, </span><span class="s0">*</span><span class="s1">v</span><span class="s2">)</span>
+<a name="l357"><span class="ln">357  </span></a>    <span class="s0">return </span><span class="s1">can</span>
+<a name="l358"><span class="ln">358  </span></a></pre>
+</body>
+</html>

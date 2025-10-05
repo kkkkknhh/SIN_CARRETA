@@ -1,0 +1,90 @@
+<html>
+<head>
+<title>HIPHooksInterface.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #000080; font-weight: bold;}
+.s2 { color: #969896; font-style: italic;}
+.s3 { color: #660e7a; font-weight: bold;}
+.s4 { color: #183691; font-weight: bold;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+HIPHooksInterface.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/Allocator.h&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/Exception.h&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/Registry.h&gt;</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/detail/AcceleratorHooksInterface.h&gt;</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s2">// NB: Class must live in `at` due to limitations of Registry.h.</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s3">namespace </span><span class="s0">at {</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">// The HIPHooksInterface is an omnibus interface for any HIP functionality</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">// which we may want to call into from CPU code (and thus must be dynamically</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">// dispatched, to allow for separate compilation of HIP code).  See</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">// CUDAHooksInterface for more detailed motivation.</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s1">struct </span><span class="s0">TORCH_API HIPHooksInterface : AcceleratorHooksInterface {</span>
+<a name="l17"><span class="ln">17   </span></a>  <span class="s2">// This should never actually be implemented, but it is used to</span>
+<a name="l18"><span class="ln">18   </span></a>  <span class="s2">// squelch -Werror=non-virtual-dtor</span>
+<a name="l19"><span class="ln">19   </span></a>  <span class="s0">~HIPHooksInterface() override = </span><span class="s1">default</span><span class="s0">;</span>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a>  <span class="s1">void </span><span class="s0">init() </span><span class="s1">const </span><span class="s0">override {</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s0">TORCH_CHECK(</span><span class="s1">false</span><span class="s0">, </span><span class="s4">&quot;Cannot initialize HIP without ATen_hip library.&quot;</span><span class="s0">);</span>
+<a name="l23"><span class="ln">23   </span></a>  <span class="s0">}</span>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a>  <span class="s1">const </span><span class="s0">Generator&amp; getDefaultGenerator(</span>
+<a name="l26"><span class="ln">26   </span></a>      <span class="s0">[[maybe_unused]] DeviceIndex device_index = -</span><span class="s5">1</span><span class="s0">) </span><span class="s1">const </span><span class="s0">override {</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s0">TORCH_CHECK(</span><span class="s1">false</span><span class="s0">, </span><span class="s4">&quot;Cannot initialize HIP without ATen_hip library.&quot;</span><span class="s0">);</span>
+<a name="l28"><span class="ln">28   </span></a>  <span class="s0">}</span>
+<a name="l29"><span class="ln">29   </span></a>
+<a name="l30"><span class="ln">30   </span></a>  <span class="s3">virtual </span><span class="s1">bool </span><span class="s0">hasHIP() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s1">return false</span><span class="s0">;</span>
+<a name="l32"><span class="ln">32   </span></a>  <span class="s0">}</span>
+<a name="l33"><span class="ln">33   </span></a>
+<a name="l34"><span class="ln">34   </span></a>  <span class="s3">virtual </span><span class="s0">c10::DeviceIndex current_device() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s1">return </span><span class="s0">-</span><span class="s5">1</span><span class="s0">;</span>
+<a name="l36"><span class="ln">36   </span></a>  <span class="s0">}</span>
+<a name="l37"><span class="ln">37   </span></a>
+<a name="l38"><span class="ln">38   </span></a>  <span class="s1">bool </span><span class="s0">isPinnedPtr(</span><span class="s1">const void</span><span class="s0">* </span><span class="s2">/*data*/ </span><span class="s0">) </span><span class="s1">const </span><span class="s0">override {</span>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s1">return false</span><span class="s0">;</span>
+<a name="l40"><span class="ln">40   </span></a>  <span class="s0">}</span>
+<a name="l41"><span class="ln">41   </span></a>
+<a name="l42"><span class="ln">42   </span></a>  <span class="s0">Allocator* getPinnedMemoryAllocator() </span><span class="s1">const </span><span class="s0">override {</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s0">TORCH_CHECK(</span><span class="s1">false</span><span class="s0">, </span><span class="s4">&quot;Pinned memory requires HIP.&quot;</span><span class="s0">);</span>
+<a name="l44"><span class="ln">44   </span></a>  <span class="s0">}</span>
+<a name="l45"><span class="ln">45   </span></a>
+<a name="l46"><span class="ln">46   </span></a>  <span class="s3">virtual </span><span class="s1">int </span><span class="s0">getNumGPUs() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s1">return </span><span class="s5">0</span><span class="s0">;</span>
+<a name="l48"><span class="ln">48   </span></a>  <span class="s0">}</span>
+<a name="l49"><span class="ln">49   </span></a>
+<a name="l50"><span class="ln">50   </span></a>  <span class="s1">bool </span><span class="s0">hasPrimaryContext(DeviceIndex </span><span class="s2">/*device_index*/ </span><span class="s0">) </span><span class="s1">const </span><span class="s0">override {</span>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s0">TORCH_CHECK(</span><span class="s1">false</span><span class="s0">, </span><span class="s4">&quot;Cannot check primary context without ATen_hip library.&quot;</span><span class="s0">);</span>
+<a name="l52"><span class="ln">52   </span></a>  <span class="s0">}</span>
+<a name="l53"><span class="ln">53   </span></a><span class="s0">};</span>
+<a name="l54"><span class="ln">54   </span></a>
+<a name="l55"><span class="ln">55   </span></a><span class="s2">// NB: dummy argument to suppress &quot;ISO C++11 requires at least one argument</span>
+<a name="l56"><span class="ln">56   </span></a><span class="s2">// for the &quot;...&quot; in a variadic macro&quot;</span>
+<a name="l57"><span class="ln">57   </span></a><span class="s1">struct </span><span class="s0">TORCH_API HIPHooksArgs {};</span>
+<a name="l58"><span class="ln">58   </span></a>
+<a name="l59"><span class="ln">59   </span></a><span class="s0">TORCH_DECLARE_REGISTRY(HIPHooksRegistry, HIPHooksInterface, HIPHooksArgs);</span>
+<a name="l60"><span class="ln">60   </span></a><span class="s1">#define </span><span class="s0">REGISTER_HIP_HOOKS(clsname) \</span>
+<a name="l61"><span class="ln">61   </span></a>  <span class="s0">C10_REGISTER_CLASS(HIPHooksRegistry, clsname, clsname)</span>
+<a name="l62"><span class="ln">62   </span></a>
+<a name="l63"><span class="ln">63   </span></a><span class="s3">namespace </span><span class="s0">detail {</span>
+<a name="l64"><span class="ln">64   </span></a><span class="s0">TORCH_API </span><span class="s1">const </span><span class="s0">HIPHooksInterface&amp; getHIPHooks();</span>
+<a name="l65"><span class="ln">65   </span></a>
+<a name="l66"><span class="ln">66   </span></a><span class="s0">} </span><span class="s2">// namespace detail</span>
+<a name="l67"><span class="ln">67   </span></a><span class="s0">} </span><span class="s2">// namespace at</span>
+<a name="l68"><span class="ln">68   </span></a></pre>
+</body>
+</html>

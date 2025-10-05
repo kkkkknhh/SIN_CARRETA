@@ -1,0 +1,162 @@
+<html>
+<head>
+<title>UniqueVoidPtr.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #000080; font-weight: bold;}
+.s2 { color: #660e7a; font-weight: bold;}
+.s3 { color: #969896; font-style: italic;}
+.s4 { color: #006666; font-weight: bold;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+UniqueVoidPtr.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s1">#include </span><span class="s0">&lt;cstddef&gt;</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#include </span><span class="s0">&lt;memory&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">#include </span><span class="s0">&lt;utility&gt;</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/macros/Export.h&gt;</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/macros/Macros.h&gt;</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s2">namespace </span><span class="s0">c10 {</span>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">using </span><span class="s0">DeleterFnPtr = </span><span class="s1">void </span><span class="s0">(*)(</span><span class="s1">void</span><span class="s0">*);</span>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">namespace </span><span class="s0">detail {</span>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s3">// Does not delete anything</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s0">C10_API </span><span class="s1">void </span><span class="s0">deleteNothing(</span><span class="s1">void</span><span class="s0">*);</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a><span class="s3">// A detail::UniqueVoidPtr is an owning smart pointer like unique_ptr, but</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s3">// with three major differences:</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s3">//</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s3">//    1) It is specialized to void</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s3">//</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s3">//    2) It is specialized for a function pointer deleter</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s3">//       void(void* ctx); i.e., the deleter doesn't take a</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s3">//       reference to the data, just to a context pointer</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s3">//       (erased as void*).  In fact, internally, this pointer</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s3">//       is implemented as having an owning reference to</span>
+<a name="l28"><span class="ln">28   </span></a><span class="s3">//       context, and a non-owning reference to data; this is why</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s3">//       you release_context(), not release() (the conventional</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s3">//       API for release() wouldn't give you enough information</span>
+<a name="l31"><span class="ln">31   </span></a><span class="s3">//       to properly dispose of the object later.)</span>
+<a name="l32"><span class="ln">32   </span></a><span class="s3">//</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s3">//    3) The deleter is guaranteed to be called when the unique</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s3">//       pointer is destructed and the context is non-null; this is different</span>
+<a name="l35"><span class="ln">35   </span></a><span class="s3">//       from std::unique_ptr where the deleter is not called if the</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s3">//       data pointer is null.</span>
+<a name="l37"><span class="ln">37   </span></a><span class="s3">//</span>
+<a name="l38"><span class="ln">38   </span></a><span class="s3">// Some of the methods have slightly different types than std::unique_ptr</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s3">// to reflect this.</span>
+<a name="l40"><span class="ln">40   </span></a><span class="s3">//</span>
+<a name="l41"><span class="ln">41   </span></a><span class="s2">class </span><span class="s0">UniqueVoidPtr {</span>
+<a name="l42"><span class="ln">42   </span></a> <span class="s2">private</span><span class="s0">:</span>
+<a name="l43"><span class="ln">43   </span></a>  <span class="s3">// Lifetime tied to ctx_</span>
+<a name="l44"><span class="ln">44   </span></a>  <span class="s1">void</span><span class="s0">* data_;</span>
+<a name="l45"><span class="ln">45   </span></a>  <span class="s0">std::unique_ptr&lt;</span><span class="s1">void</span><span class="s0">, DeleterFnPtr&gt; ctx_;</span>
+<a name="l46"><span class="ln">46   </span></a>
+<a name="l47"><span class="ln">47   </span></a> <span class="s2">public</span><span class="s0">:</span>
+<a name="l48"><span class="ln">48   </span></a>  <span class="s0">UniqueVoidPtr() : data_(nullptr), ctx_(nullptr, &amp;deleteNothing) {}</span>
+<a name="l49"><span class="ln">49   </span></a>  <span class="s2">explicit </span><span class="s0">UniqueVoidPtr(</span><span class="s1">void</span><span class="s0">* data)</span>
+<a name="l50"><span class="ln">50   </span></a>      <span class="s0">: data_(data), ctx_(nullptr, &amp;deleteNothing) {}</span>
+<a name="l51"><span class="ln">51   </span></a>  <span class="s0">UniqueVoidPtr(</span><span class="s1">void</span><span class="s0">* data, </span><span class="s1">void</span><span class="s0">* ctx, DeleterFnPtr ctx_deleter)</span>
+<a name="l52"><span class="ln">52   </span></a>      <span class="s0">: data_(data), ctx_(ctx, ctx_deleter ? ctx_deleter : &amp;deleteNothing) {}</span>
+<a name="l53"><span class="ln">53   </span></a>  <span class="s1">void</span><span class="s0">* </span><span class="s2">operator</span><span class="s4">-&gt;</span><span class="s0">() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l54"><span class="ln">54   </span></a>    <span class="s1">return </span><span class="s0">data_;</span>
+<a name="l55"><span class="ln">55   </span></a>  <span class="s0">}</span>
+<a name="l56"><span class="ln">56   </span></a>  <span class="s1">void </span><span class="s0">clear() {</span>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s0">ctx_ = nullptr;</span>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s0">data_ = nullptr;</span>
+<a name="l59"><span class="ln">59   </span></a>  <span class="s0">}</span>
+<a name="l60"><span class="ln">60   </span></a>  <span class="s1">void</span><span class="s0">* get() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s1">return </span><span class="s0">data_;</span>
+<a name="l62"><span class="ln">62   </span></a>  <span class="s0">}</span>
+<a name="l63"><span class="ln">63   </span></a>
+<a name="l64"><span class="ln">64   </span></a>  <span class="s1">bool </span><span class="s3">/* success */ </span><span class="s0">unsafe_reset_data_and_ctx(</span><span class="s1">void</span><span class="s0">* new_data_and_ctx) {</span>
+<a name="l65"><span class="ln">65   </span></a>    <span class="s1">if </span><span class="s0">(C10_UNLIKELY(ctx_.get_deleter() != &amp;deleteNothing)) {</span>
+<a name="l66"><span class="ln">66   </span></a>      <span class="s1">return false</span><span class="s0">;</span>
+<a name="l67"><span class="ln">67   </span></a>    <span class="s0">}</span>
+<a name="l68"><span class="ln">68   </span></a>    <span class="s3">// seems quicker than calling the no-op deleter when we reset</span>
+<a name="l69"><span class="ln">69   </span></a>    <span class="s3">// NOLINTNEXTLINE(bugprone-unused-return-value)</span>
+<a name="l70"><span class="ln">70   </span></a>    <span class="s0">ctx_.release();</span>
+<a name="l71"><span class="ln">71   </span></a>    <span class="s0">ctx_.reset(new_data_and_ctx);</span>
+<a name="l72"><span class="ln">72   </span></a>    <span class="s0">data_ = new_data_and_ctx;</span>
+<a name="l73"><span class="ln">73   </span></a>    <span class="s1">return </span><span class="s2">true</span><span class="s0">;</span>
+<a name="l74"><span class="ln">74   </span></a>  <span class="s0">}</span>
+<a name="l75"><span class="ln">75   </span></a>
+<a name="l76"><span class="ln">76   </span></a>  <span class="s1">void</span><span class="s0">* get_context() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l77"><span class="ln">77   </span></a>    <span class="s1">return </span><span class="s0">ctx_.get();</span>
+<a name="l78"><span class="ln">78   </span></a>  <span class="s0">}</span>
+<a name="l79"><span class="ln">79   </span></a>  <span class="s1">void</span><span class="s0">* release_context() {</span>
+<a name="l80"><span class="ln">80   </span></a>    <span class="s1">return </span><span class="s0">ctx_.release();</span>
+<a name="l81"><span class="ln">81   </span></a>  <span class="s0">}</span>
+<a name="l82"><span class="ln">82   </span></a>  <span class="s0">std::unique_ptr&lt;</span><span class="s1">void</span><span class="s0">, DeleterFnPtr&gt;&amp;&amp; move_context() {</span>
+<a name="l83"><span class="ln">83   </span></a>    <span class="s1">return </span><span class="s0">std::move(ctx_);</span>
+<a name="l84"><span class="ln">84   </span></a>  <span class="s0">}</span>
+<a name="l85"><span class="ln">85   </span></a>  <span class="s0">[[nodiscard]] </span><span class="s1">bool </span><span class="s0">compare_exchange_deleter(</span>
+<a name="l86"><span class="ln">86   </span></a>      <span class="s0">DeleterFnPtr expected_deleter,</span>
+<a name="l87"><span class="ln">87   </span></a>      <span class="s0">DeleterFnPtr new_deleter) {</span>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s1">if </span><span class="s0">(get_deleter() != expected_deleter)</span>
+<a name="l89"><span class="ln">89   </span></a>      <span class="s1">return false</span><span class="s0">;</span>
+<a name="l90"><span class="ln">90   </span></a>    <span class="s0">ctx_ = std::unique_ptr&lt;</span><span class="s1">void</span><span class="s0">, DeleterFnPtr&gt;(ctx_.release(), new_deleter);</span>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s1">return </span><span class="s2">true</span><span class="s0">;</span>
+<a name="l92"><span class="ln">92   </span></a>  <span class="s0">}</span>
+<a name="l93"><span class="ln">93   </span></a>
+<a name="l94"><span class="ln">94   </span></a>  <span class="s0">template &lt;</span><span class="s2">typename </span><span class="s0">T&gt;</span>
+<a name="l95"><span class="ln">95   </span></a>  <span class="s0">T* cast_context(DeleterFnPtr expected_deleter) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s1">if </span><span class="s0">(get_deleter() != expected_deleter)</span>
+<a name="l97"><span class="ln">97   </span></a>      <span class="s1">return </span><span class="s0">nullptr;</span>
+<a name="l98"><span class="ln">98   </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;T*&gt;(get_context());</span>
+<a name="l99"><span class="ln">99   </span></a>  <span class="s0">}</span>
+<a name="l100"><span class="ln">100  </span></a>  <span class="s2">operator </span><span class="s1">bool</span><span class="s0">() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l101"><span class="ln">101  </span></a>    <span class="s1">return </span><span class="s0">data_ || ctx_;</span>
+<a name="l102"><span class="ln">102  </span></a>  <span class="s0">}</span>
+<a name="l103"><span class="ln">103  </span></a>  <span class="s0">DeleterFnPtr get_deleter() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l104"><span class="ln">104  </span></a>    <span class="s1">return </span><span class="s0">ctx_.get_deleter();</span>
+<a name="l105"><span class="ln">105  </span></a>  <span class="s0">}</span>
+<a name="l106"><span class="ln">106  </span></a><span class="s0">};</span>
+<a name="l107"><span class="ln">107  </span></a>
+<a name="l108"><span class="ln">108  </span></a><span class="s3">// Note [How UniqueVoidPtr is implemented]</span>
+<a name="l109"><span class="ln">109  </span></a><span class="s3">// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span>
+<a name="l110"><span class="ln">110  </span></a><span class="s3">// UniqueVoidPtr solves a common problem for allocators of tensor data, which</span>
+<a name="l111"><span class="ln">111  </span></a><span class="s3">// is that the data pointer (e.g., float*) which you are interested in, is not</span>
+<a name="l112"><span class="ln">112  </span></a><span class="s3">// the same as the context pointer (e.g., DLManagedTensor) which you need</span>
+<a name="l113"><span class="ln">113  </span></a><span class="s3">// to actually deallocate the data.  Under a conventional deleter design, you</span>
+<a name="l114"><span class="ln">114  </span></a><span class="s3">// have to store extra context in the deleter itself so that you can actually</span>
+<a name="l115"><span class="ln">115  </span></a><span class="s3">// delete the right thing.  Implementing this with standard C++ is somewhat</span>
+<a name="l116"><span class="ln">116  </span></a><span class="s3">// error-prone: if you use a std::unique_ptr to manage tensors, the deleter will</span>
+<a name="l117"><span class="ln">117  </span></a><span class="s3">// not be called if the data pointer is nullptr, which can cause a leak if the</span>
+<a name="l118"><span class="ln">118  </span></a><span class="s3">// context pointer is non-null (and the deleter is responsible for freeing both</span>
+<a name="l119"><span class="ln">119  </span></a><span class="s3">// the data pointer and the context pointer).</span>
+<a name="l120"><span class="ln">120  </span></a><span class="s3">//</span>
+<a name="l121"><span class="ln">121  </span></a><span class="s3">// So, in our reimplementation of unique_ptr, which just store the context</span>
+<a name="l122"><span class="ln">122  </span></a><span class="s3">// directly in the unique pointer, and attach the deleter to the context</span>
+<a name="l123"><span class="ln">123  </span></a><span class="s3">// pointer itself.  In simple cases, the context pointer is just the pointer</span>
+<a name="l124"><span class="ln">124  </span></a><span class="s3">// itself.</span>
+<a name="l125"><span class="ln">125  </span></a>
+<a name="l126"><span class="ln">126  </span></a><span class="s2">inline </span><span class="s1">bool </span><span class="s2">operator</span><span class="s0">==(</span><span class="s1">const </span><span class="s0">UniqueVoidPtr&amp; sp, std::nullptr_t) noexcept {</span>
+<a name="l127"><span class="ln">127  </span></a>  <span class="s1">return </span><span class="s0">!sp;</span>
+<a name="l128"><span class="ln">128  </span></a><span class="s0">}</span>
+<a name="l129"><span class="ln">129  </span></a><span class="s2">inline </span><span class="s1">bool </span><span class="s2">operator</span><span class="s0">==(std::nullptr_t, </span><span class="s1">const </span><span class="s0">UniqueVoidPtr&amp; sp) noexcept {</span>
+<a name="l130"><span class="ln">130  </span></a>  <span class="s1">return </span><span class="s0">!sp;</span>
+<a name="l131"><span class="ln">131  </span></a><span class="s0">}</span>
+<a name="l132"><span class="ln">132  </span></a><span class="s2">inline </span><span class="s1">bool </span><span class="s2">operator</span><span class="s0">!=(</span><span class="s1">const </span><span class="s0">UniqueVoidPtr&amp; sp, std::nullptr_t) noexcept {</span>
+<a name="l133"><span class="ln">133  </span></a>  <span class="s1">return </span><span class="s0">sp;</span>
+<a name="l134"><span class="ln">134  </span></a><span class="s0">}</span>
+<a name="l135"><span class="ln">135  </span></a><span class="s2">inline </span><span class="s1">bool </span><span class="s2">operator</span><span class="s0">!=(std::nullptr_t, </span><span class="s1">const </span><span class="s0">UniqueVoidPtr&amp; sp) noexcept {</span>
+<a name="l136"><span class="ln">136  </span></a>  <span class="s1">return </span><span class="s0">sp;</span>
+<a name="l137"><span class="ln">137  </span></a><span class="s0">}</span>
+<a name="l138"><span class="ln">138  </span></a>
+<a name="l139"><span class="ln">139  </span></a><span class="s0">} </span><span class="s3">// namespace detail</span>
+<a name="l140"><span class="ln">140  </span></a><span class="s0">} </span><span class="s3">// namespace c10</span>
+<a name="l141"><span class="ln">141  </span></a></pre>
+</body>
+</html>

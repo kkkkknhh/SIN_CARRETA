@@ -1,0 +1,51 @@
+<html>
+<head>
+<title>DeviceArray.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #000080; font-weight: bold;}
+.s1 { color: #333333;}
+.s2 { color: #660e7a; font-weight: bold;}
+.s3 { color: #183691; font-weight: bold;}
+.s4 { color: #0086b3;}
+.s5 { color: #969896; font-style: italic;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+DeviceArray.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#include </span><span class="s1">&lt;c10/core/Allocator.h&gt;</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">#include </span><span class="s1">&lt;c10/util/Exception.h&gt;</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">#include </span><span class="s1">&lt;cstddef&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">#include </span><span class="s1">&lt;cstdint&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">#include </span><span class="s1">&lt;type_traits&gt;</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">namespace </span><span class="s1">c10 {</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">template &lt;</span><span class="s2">typename </span><span class="s1">T&gt;</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">class </span><span class="s1">DeviceArray {</span>
+<a name="l11"><span class="ln">11   </span></a> <span class="s2">public</span><span class="s1">:</span>
+<a name="l12"><span class="ln">12   </span></a>  <span class="s1">DeviceArray(c10::Allocator&amp; allocator, size_t size)</span>
+<a name="l13"><span class="ln">13   </span></a>      <span class="s1">: data_ptr_(allocator.allocate(size * </span><span class="s0">sizeof</span><span class="s1">(T))) {</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s1">static_assert(std::is_trivial_v&lt;T&gt;, </span><span class="s3">&quot;T must be a trivial type&quot;</span><span class="s1">);</span>
+<a name="l15"><span class="ln">15   </span></a>    <span class="s1">TORCH_INTERNAL_ASSERT(</span>
+<a name="l16"><span class="ln">16   </span></a>        <span class="s4">0 </span><span class="s1">== (</span><span class="s2">reinterpret_cast</span><span class="s1">&lt;intptr_t&gt;(data_ptr_.get()) % alignof(T)),</span>
+<a name="l17"><span class="ln">17   </span></a>        <span class="s3">&quot;c10::DeviceArray: Allocated memory is not aligned for this data type&quot;</span><span class="s1">);</span>
+<a name="l18"><span class="ln">18   </span></a>  <span class="s1">}</span>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a>  <span class="s1">T* get() {</span>
+<a name="l21"><span class="ln">21   </span></a>    <span class="s0">return </span><span class="s2">static_cast</span><span class="s1">&lt;T*&gt;(data_ptr_.get());</span>
+<a name="l22"><span class="ln">22   </span></a>  <span class="s1">}</span>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a> <span class="s2">private</span><span class="s1">:</span>
+<a name="l25"><span class="ln">25   </span></a>  <span class="s1">c10::DataPtr data_ptr_;</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s1">};</span>
+<a name="l27"><span class="ln">27   </span></a>
+<a name="l28"><span class="ln">28   </span></a><span class="s1">} </span><span class="s5">// namespace c10</span>
+<a name="l29"><span class="ln">29   </span></a></pre>
+</body>
+</html>

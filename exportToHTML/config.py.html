@@ -1,0 +1,654 @@
+<html>
+<head>
+<title>config.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+config.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: allow-untyped-defs</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l4"><span class="ln">4    </span></a>Configuration module for TorchDynamo compiler and optimization settings. 
+<a name="l5"><span class="ln">5    </span></a> 
+<a name="l6"><span class="ln">6    </span></a>This module contains various configuration flags and settings that control TorchDynamo's 
+<a name="l7"><span class="ln">7    </span></a>behavior, including: 
+<a name="l8"><span class="ln">8    </span></a>- Runtime behavior flags (e.g., guard settings, specialization options) 
+<a name="l9"><span class="ln">9    </span></a>- Debugging and development options 
+<a name="l10"><span class="ln">10   </span></a>- Performance tuning parameters 
+<a name="l11"><span class="ln">11   </span></a>- Feature toggles for experimental features 
+<a name="l12"><span class="ln">12   </span></a>&quot;&quot;&quot;</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">import </span><span class="s1">getpass</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">import </span><span class="s1">os</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">import </span><span class="s1">sys</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">import </span><span class="s1">tempfile</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s2">from </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path </span><span class="s2">import </span><span class="s1">abspath</span><span class="s3">, </span><span class="s1">dirname</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">from </span><span class="s1">typing </span><span class="s2">import </span><span class="s1">Any</span><span class="s3">, </span><span class="s1">Callable</span><span class="s3">, </span><span class="s1">Literal</span><span class="s3">, </span><span class="s1">Optional</span><span class="s3">, </span><span class="s1">TYPE_CHECKING</span><span class="s3">, </span><span class="s1">Union</span>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_environment </span><span class="s2">import </span><span class="s1">is_fbcode</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">utils</span><span class="s3">.</span><span class="s1">_config_module </span><span class="s2">import </span><span class="s1">Config</span><span class="s3">, </span><span class="s1">get_tristate_env</span><span class="s3">, </span><span class="s1">install_config_module</span>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a><span class="s0"># to configure logging for dynamo, aot, and inductor</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s0"># use the following API in the torch._logging module</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s0"># torch._logging.set_logs(dynamo=&lt;level&gt;, aot=&lt;level&gt;, inductor&lt;level&gt;)</span>
+<a name="l28"><span class="ln">28   </span></a><span class="s0"># or use the environment variable TORCH_LOGS=&quot;dynamo,aot,inductor&quot; (use a prefix + to indicate higher verbosity)</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s0"># see this design doc for more detailed info</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s0"># Design doc: https://docs.google.com/document/d/1ZRfTWKa8eaPq1AxaiHrq4ASTPouzzlPiuquSBEJYwS8/edit#</span>
+<a name="l31"><span class="ln">31   </span></a><span class="s0"># the name of a file to write the logs to</span>
+<a name="l32"><span class="ln">32   </span></a><span class="s0"># [@compile_ignored: debug]</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s1">log_file_name</span><span class="s2">: </span><span class="s1">Optional</span><span class="s3">[</span><span class="s1">str</span><span class="s3">] </span><span class="s2">= None</span>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a><span class="s0"># [@compile_ignored: debug] Verbose will print full stack traces on warnings and errors</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s1">verbose </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCHDYNAMO_VERBOSE&quot;</span><span class="s3">, </span><span class="s4">&quot;0&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l37"><span class="ln">37   </span></a>
+<a name="l38"><span class="ln">38   </span></a><span class="s0"># [@compile_ignored: runtime_behaviour] verify the correctness of optimized backend</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s1">verify_correctness </span><span class="s2">= False</span>
+<a name="l40"><span class="ln">40   </span></a>
+<a name="l41"><span class="ln">41   </span></a><span class="s0"># need this many ops to create an FX graph (deprecated: not used)</span>
+<a name="l42"><span class="ln">42   </span></a><span class="s1">minimum_call_count </span><span class="s2">= </span><span class="s5">1</span>
+<a name="l43"><span class="ln">43   </span></a>
+<a name="l44"><span class="ln">44   </span></a><span class="s0"># turn on/off DCE pass (deprecated: always true)</span>
+<a name="l45"><span class="ln">45   </span></a><span class="s1">dead_code_elimination </span><span class="s2">= True</span>
+<a name="l46"><span class="ln">46   </span></a>
+<a name="l47"><span class="ln">47   </span></a><span class="s0"># disable (for a function) when cache reaches this size</span>
+<a name="l48"><span class="ln">48   </span></a>
+<a name="l49"><span class="ln">49   </span></a><span class="s0"># controls the maximum number of cache entries with a guard on same ID_MATCH'd</span>
+<a name="l50"><span class="ln">50   </span></a><span class="s0"># object. It also controls the maximum size of cache entries if they don't have</span>
+<a name="l51"><span class="ln">51   </span></a><span class="s0"># any ID_MATCH'd guards.</span>
+<a name="l52"><span class="ln">52   </span></a><span class="s0"># [@compile_ignored: runtime_behaviour]</span>
+<a name="l53"><span class="ln">53   </span></a><span class="s1">recompile_limit </span><span class="s2">= </span><span class="s5">8</span>
+<a name="l54"><span class="ln">54   </span></a>
+<a name="l55"><span class="ln">55   </span></a><span class="s0"># [@compile_ignored: runtime_behaviour] safeguarding to prevent horrible recomps</span>
+<a name="l56"><span class="ln">56   </span></a><span class="s1">accumulated_recompile_limit </span><span class="s2">= </span><span class="s5">256</span>
+<a name="l57"><span class="ln">57   </span></a>
+<a name="l58"><span class="ln">58   </span></a><span class="s0"># [@compile_ignored: runtime_behaviour] skip tracing recursively if cache limit is hit (deprecated: does not do anything)</span>
+<a name="l59"><span class="ln">59   </span></a><span class="s1">skip_code_recursive_on_recompile_limit_hit </span><span class="s2">= True</span>
+<a name="l60"><span class="ln">60   </span></a>
+<a name="l61"><span class="ln">61   </span></a><span class="s0"># raise a hard error if cache limit is hit.  If you are on a model where you</span>
+<a name="l62"><span class="ln">62   </span></a><span class="s0"># know you've sized the cache correctly, this can help detect problems when</span>
+<a name="l63"><span class="ln">63   </span></a><span class="s0"># you regress guards/specialization.  This works best when recompile_limit = 1.</span>
+<a name="l64"><span class="ln">64   </span></a><span class="s0"># This flag is incompatible with: suppress_errors.</span>
+<a name="l65"><span class="ln">65   </span></a><span class="s0"># [@compile_ignored: runtime_behaviour]</span>
+<a name="l66"><span class="ln">66   </span></a><span class="s1">fail_on_recompile_limit_hit </span><span class="s2">= False</span>
+<a name="l67"><span class="ln">67   </span></a>
+<a name="l68"><span class="ln">68   </span></a><span class="s1">cache_size_limit</span><span class="s2">: </span><span class="s1">int </span><span class="s2">= </span><span class="s1">Config</span><span class="s3">(</span><span class="s1">alias</span><span class="s2">=</span><span class="s4">&quot;torch._dynamo.config.recompile_limit&quot;</span><span class="s3">)</span>
+<a name="l69"><span class="ln">69   </span></a><span class="s1">accumulated_cache_size_limit</span><span class="s2">: </span><span class="s1">int </span><span class="s2">= </span><span class="s1">Config</span><span class="s3">(</span>
+<a name="l70"><span class="ln">70   </span></a>    <span class="s1">alias</span><span class="s2">=</span><span class="s4">&quot;torch._dynamo.config.accumulated_recompile_limit&quot;</span>
+<a name="l71"><span class="ln">71   </span></a><span class="s3">)</span>
+<a name="l72"><span class="ln">72   </span></a>
+<a name="l73"><span class="ln">73   </span></a><span class="s0"># (deprecated: does not do anything)</span>
+<a name="l74"><span class="ln">74   </span></a><span class="s1">skip_code_recursive_on_cache_limit_hit</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= </span><span class="s1">Config</span><span class="s3">(</span>
+<a name="l75"><span class="ln">75   </span></a>    <span class="s1">alias</span><span class="s2">=</span><span class="s4">&quot;torch._dynamo.config.skip_code_recursive_on_recompile_limit_hit&quot;</span>
+<a name="l76"><span class="ln">76   </span></a><span class="s3">)</span>
+<a name="l77"><span class="ln">77   </span></a><span class="s1">fail_on_cache_limit_hit</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= </span><span class="s1">Config</span><span class="s3">(</span>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s1">alias</span><span class="s2">=</span><span class="s4">&quot;torch._dynamo.config.fail_on_recompile_limit_hit&quot;</span>
+<a name="l79"><span class="ln">79   </span></a><span class="s3">)</span>
+<a name="l80"><span class="ln">80   </span></a>
+<a name="l81"><span class="ln">81   </span></a><span class="s0"># whether or not to specialize on int inputs.  This only has an effect with</span>
+<a name="l82"><span class="ln">82   </span></a><span class="s0"># dynamic_shapes; when dynamic_shapes is False, we ALWAYS specialize on int</span>
+<a name="l83"><span class="ln">83   </span></a><span class="s0"># inputs.  Note that assume_static_by_default will also cause ints to get</span>
+<a name="l84"><span class="ln">84   </span></a><span class="s0"># specialized, so this is mostly useful for export, where we want inputs</span>
+<a name="l85"><span class="ln">85   </span></a><span class="s0"># to be dynamic, but accesses to ints should NOT get promoted into inputs.</span>
+<a name="l86"><span class="ln">86   </span></a><span class="s1">specialize_int </span><span class="s2">= False</span>
+<a name="l87"><span class="ln">87   </span></a>
+<a name="l88"><span class="ln">88   </span></a><span class="s0"># Whether or not to specialize on float inputs.  Dynamo will always promote</span>
+<a name="l89"><span class="ln">89   </span></a><span class="s0"># float inputs into Tensor inputs, but at the moment, backends inconsistently</span>
+<a name="l90"><span class="ln">90   </span></a><span class="s0"># support codegen on float (this is to be fixed).</span>
+<a name="l91"><span class="ln">91   </span></a><span class="s1">specialize_float </span><span class="s2">= False</span>
+<a name="l92"><span class="ln">92   </span></a>
+<a name="l93"><span class="ln">93   </span></a><span class="s0"># legacy config, does nothing now!</span>
+<a name="l94"><span class="ln">94   </span></a><span class="s1">dynamic_shapes </span><span class="s2">= True</span>
+<a name="l95"><span class="ln">95   </span></a>
+<a name="l96"><span class="ln">96   </span></a><span class="s1">use_lazy_graph_module </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCH_COMPILE_USE_LAZY_GRAPH_MODULE&quot;</span><span class="s3">, </span><span class="s4">&quot;1&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l98"><span class="ln">98   </span></a><span class="s3">)</span>
+<a name="l99"><span class="ln">99   </span></a>
+<a name="l100"><span class="ln">100  </span></a><span class="s0"># This is a temporarily flag, which changes the behavior of dynamic_shapes=True.</span>
+<a name="l101"><span class="ln">101  </span></a><span class="s0"># When assume_static_by_default is True, we only allocate symbols for shapes marked dynamic via mark_dynamic.</span>
+<a name="l102"><span class="ln">102  </span></a><span class="s0"># NOTE - this flag can be removed once we can run dynamic_shapes=False w/ the mark_dynamic API</span>
+<a name="l103"><span class="ln">103  </span></a><span class="s0"># see [Note - on the state of mark_dynamic]</span>
+<a name="l104"><span class="ln">104  </span></a><span class="s1">assume_static_by_default </span><span class="s2">= True</span>
+<a name="l105"><span class="ln">105  </span></a>
+<a name="l106"><span class="ln">106  </span></a><span class="s0"># This flag changes how dynamic_shapes=True works, and is meant to be used in conjunction</span>
+<a name="l107"><span class="ln">107  </span></a><span class="s0"># with assume_static_by_default=True.</span>
+<a name="l108"><span class="ln">108  </span></a><span class="s0"># With this flag enabled, we always compile a frame as fully static for the first time, and, if we fail</span>
+<a name="l109"><span class="ln">109  </span></a><span class="s0"># any guards due to wobbles in shape, we recompile with *all* the wobbled shapes as being marked dynamic.</span>
+<a name="l110"><span class="ln">110  </span></a><span class="s1">automatic_dynamic_shapes </span><span class="s2">= True</span>
+<a name="l111"><span class="ln">111  </span></a>
+<a name="l112"><span class="ln">112  </span></a><span class="s0"># Valid options: &quot;dynamic&quot;, &quot;unbacked&quot;</span>
+<a name="l113"><span class="ln">113  </span></a><span class="s1">automatic_dynamic_shapes_mark_as</span><span class="s2">: </span><span class="s1">Literal</span><span class="s3">[</span><span class="s4">&quot;dynamic&quot;</span><span class="s3">, </span><span class="s4">&quot;unbacked&quot;</span><span class="s3">] </span><span class="s2">= </span><span class="s4">&quot;dynamic&quot;</span>
+<a name="l114"><span class="ln">114  </span></a>
+<a name="l115"><span class="ln">115  </span></a><span class="s0"># This flag changes how the shapes of parameters are treated.</span>
+<a name="l116"><span class="ln">116  </span></a><span class="s0"># If this flag is set to True, then the shapes of torch.nn.Parameter as well as of torch.Tensor are attempted to be dynamic</span>
+<a name="l117"><span class="ln">117  </span></a><span class="s0"># If this flag is set to False, then the shapes of torch.nn.Parameter are assumed to be static,</span>
+<a name="l118"><span class="ln">118  </span></a><span class="s0"># while the shapes of torch.Tensor are assumed to be dynamic.</span>
+<a name="l119"><span class="ln">119  </span></a><span class="s1">force_parameter_static_shapes </span><span class="s2">= True</span>
+<a name="l120"><span class="ln">120  </span></a>
+<a name="l121"><span class="ln">121  </span></a><span class="s0"># This flag ensures that the shapes of a nn module are always assumed to be static</span>
+<a name="l122"><span class="ln">122  </span></a><span class="s0"># If the flag is set to True, then the shapes of a nn.module are assumed to be static</span>
+<a name="l123"><span class="ln">123  </span></a><span class="s0"># If the flag is set to False, then the shapes of a nn.module can be dynamic</span>
+<a name="l124"><span class="ln">124  </span></a><span class="s1">force_nn_module_property_static_shapes </span><span class="s2">= True</span>
+<a name="l125"><span class="ln">125  </span></a>
+<a name="l126"><span class="ln">126  </span></a><span class="s0"># Typically, if you mark_dynamic a dimension, we will error if the dimension</span>
+<a name="l127"><span class="ln">127  </span></a><span class="s0"># actually ended up getting specialized.  This knob changes the behavior so</span>
+<a name="l128"><span class="ln">128  </span></a><span class="s0"># that we don't error at all.  This is helpful for our CI where I'm using a</span>
+<a name="l129"><span class="ln">129  </span></a><span class="s0"># heuristic to mark batch dimensions as dynamic and the heuristic may get it</span>
+<a name="l130"><span class="ln">130  </span></a><span class="s0"># wrong.</span>
+<a name="l131"><span class="ln">131  </span></a><span class="s1">allow_ignore_mark_dynamic </span><span class="s2">= False</span>
+<a name="l132"><span class="ln">132  </span></a>
+<a name="l133"><span class="ln">133  </span></a><span class="s0"># Set this to False to assume nn.Modules() contents are immutable (similar assumption as freezing)</span>
+<a name="l134"><span class="ln">134  </span></a><span class="s1">guard_nn_modules </span><span class="s2">= True</span>
+<a name="l135"><span class="ln">135  </span></a>
+<a name="l136"><span class="ln">136  </span></a><span class="s0"># Uses CPython internal dictionary tags to detect mutation. There is some</span>
+<a name="l137"><span class="ln">137  </span></a><span class="s0"># overlap between guard_nn_modules_using_dict_tags and guard_nn_modules flag.</span>
+<a name="l138"><span class="ln">138  </span></a><span class="s0"># guard_nn_modules unspecializes the nn module instance and adds guard for each</span>
+<a name="l139"><span class="ln">139  </span></a><span class="s0"># relevant member of the nn modules. On the other hand,</span>
+<a name="l140"><span class="ln">140  </span></a><span class="s0"># guard_nn_modules_using_dict_tags specializes on each nn module instance but</span>
+<a name="l141"><span class="ln">141  </span></a><span class="s0"># uses low overhead dict version matching to detect mutations, obviating the</span>
+<a name="l142"><span class="ln">142  </span></a><span class="s0"># need to guard on members of the nn modules. With</span>
+<a name="l143"><span class="ln">143  </span></a><span class="s0"># guard_nn_modules_using_dict_tags, the guard_nn_modules is not really required</span>
+<a name="l144"><span class="ln">144  </span></a><span class="s0"># but kept around for debugging and discussing unspecializing nn module</span>
+<a name="l145"><span class="ln">145  </span></a><span class="s0"># variables.</span>
+<a name="l146"><span class="ln">146  </span></a><span class="s0"># TODO(janimesh, voz): Remove both of these flags (or at least guard_nn_modules)</span>
+<a name="l147"><span class="ln">147  </span></a><span class="s0"># once we have reached stability for the guard_nn_modules_using_dict_tags.</span>
+<a name="l148"><span class="ln">148  </span></a><span class="s1">guard_nn_modules_using_dict_tags </span><span class="s2">= True</span>
+<a name="l149"><span class="ln">149  </span></a>
+<a name="l150"><span class="ln">150  </span></a><span class="s0"># Flag to enable preparation for graph freezing, so that the named parameters and</span>
+<a name="l151"><span class="ln">151  </span></a><span class="s0"># buffers are passed as params_flat in tracing context by AOT autograd.</span>
+<a name="l152"><span class="ln">152  </span></a><span class="s0"># Non-Inductor backends can use this list for graph freezing.</span>
+<a name="l153"><span class="ln">153  </span></a><span class="s1">prepare_freezing </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCHDYNAMO_PREPARE_FREEZING&quot;</span><span class="s3">, </span><span class="s4">&quot;0&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l154"><span class="ln">154  </span></a>
+<a name="l155"><span class="ln">155  </span></a><span class="s0"># NOTE this has been deprecated, it does nothing now.</span>
+<a name="l156"><span class="ln">156  </span></a><span class="s1">traceable_tensor_subclasses</span><span class="s2">: </span><span class="s1">set</span><span class="s3">[</span><span class="s1">type</span><span class="s3">[</span><span class="s1">Any</span><span class="s3">]] </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l157"><span class="ln">157  </span></a>
+<a name="l158"><span class="ln">158  </span></a><span class="s0"># If a tensor subclass is put into this set, Dynamo will model its instasnces in</span>
+<a name="l159"><span class="ln">159  </span></a><span class="s0"># a very conservative and limited way (most likely causing lots of graph breaks</span>
+<a name="l160"><span class="ln">160  </span></a><span class="s0"># if one apply tensor ops on these instances). This is useful if you encounter</span>
+<a name="l161"><span class="ln">161  </span></a><span class="s0"># internal compiler errors from Dynamo which are caused by tensor subclasses,</span>
+<a name="l162"><span class="ln">162  </span></a><span class="s0"># and you are willing to tolerate potential graph breaks rather than hard error.</span>
+<a name="l163"><span class="ln">163  </span></a><span class="s1">nontraceable_tensor_subclasses</span><span class="s2">: </span><span class="s1">set</span><span class="s3">[</span><span class="s1">type</span><span class="s3">[</span><span class="s1">Any</span><span class="s3">]] </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l164"><span class="ln">164  </span></a>
+<a name="l165"><span class="ln">165  </span></a><span class="s0"># Suppress errors in torch._dynamo.optimize, instead forcing a fallback to eager.</span>
+<a name="l166"><span class="ln">166  </span></a><span class="s0"># This is a good way to get your model to work one way or another, but you may</span>
+<a name="l167"><span class="ln">167  </span></a><span class="s0"># lose optimization opportunities this way.  Devs, if your benchmark model is failing</span>
+<a name="l168"><span class="ln">168  </span></a><span class="s0"># this way, you should figure out why instead of suppressing it.</span>
+<a name="l169"><span class="ln">169  </span></a><span class="s0"># This flag is incompatible with: fail_on_recompile_limit_hit.</span>
+<a name="l170"><span class="ln">170  </span></a><span class="s1">suppress_errors </span><span class="s2">= </span><span class="s1">bool</span><span class="s3">(</span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCHDYNAMO_SUPPRESS_ERRORS&quot;</span><span class="s3">, </span><span class="s2">False</span><span class="s3">))</span>
+<a name="l171"><span class="ln">171  </span></a>
+<a name="l172"><span class="ln">172  </span></a><span class="s0"># Record and write an execution record of the current frame to a file</span>
+<a name="l173"><span class="ln">173  </span></a><span class="s0"># if an exception is encountered</span>
+<a name="l174"><span class="ln">174  </span></a><span class="s0"># @compile_ignored[debug]</span>
+<a name="l175"><span class="ln">175  </span></a><span class="s1">replay_record_enabled </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCH_COMPILE_REPLAY_RECORD&quot;</span><span class="s3">, </span><span class="s4">&quot;0&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l176"><span class="ln">176  </span></a>
+<a name="l177"><span class="ln">177  </span></a><span class="s0"># Rewrite assert statement in python with torch._assert</span>
+<a name="l178"><span class="ln">178  </span></a><span class="s1">rewrite_assert_with_torch_assert </span><span class="s2">= True</span>
+<a name="l179"><span class="ln">179  </span></a>
+<a name="l180"><span class="ln">180  </span></a><span class="s0"># Disable dynamo</span>
+<a name="l181"><span class="ln">181  </span></a><span class="s1">disable </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCH_COMPILE_DISABLE&quot;</span><span class="s3">, </span><span class="s4">&quot;0&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l182"><span class="ln">182  </span></a>
+<a name="l183"><span class="ln">183  </span></a><span class="s0"># [@compile_ignored: runtime_behaviour] Get a cprofile trace of Dynamo</span>
+<a name="l184"><span class="ln">184  </span></a><span class="s1">cprofile </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCH_COMPILE_CPROFILE&quot;</span><span class="s3">, </span><span class="s2">False</span><span class="s3">)</span>
+<a name="l185"><span class="ln">185  </span></a>
+<a name="l186"><span class="ln">186  </span></a><span class="s0"># legacy config, does nothing now!</span>
+<a name="l187"><span class="ln">187  </span></a><span class="s1">skipfiles_inline_module_allowlist</span><span class="s2">: </span><span class="s1">dict</span><span class="s3">[</span><span class="s1">Any</span><span class="s3">, </span><span class="s1">Any</span><span class="s3">] </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l188"><span class="ln">188  </span></a>
+<a name="l189"><span class="ln">189  </span></a><span class="s0"># If a string representing a PyTorch module is in this ignorelist,</span>
+<a name="l190"><span class="ln">190  </span></a><span class="s0"># the `allowed_functions.is_allowed` function will not consider it</span>
+<a name="l191"><span class="ln">191  </span></a><span class="s0"># when creating a list of PyTorch functions that will appear in</span>
+<a name="l192"><span class="ln">192  </span></a><span class="s0"># FX IR.</span>
+<a name="l193"><span class="ln">193  </span></a><span class="s1">allowed_functions_module_string_ignorelist </span><span class="s2">= </span><span class="s3">{</span>
+<a name="l194"><span class="ln">194  </span></a>    <span class="s4">&quot;torch.distributions&quot;</span><span class="s3">,</span>
+<a name="l195"><span class="ln">195  </span></a>    <span class="s4">&quot;torch.testing&quot;</span><span class="s3">,</span>
+<a name="l196"><span class="ln">196  </span></a>    <span class="s4">&quot;torch._refs&quot;</span><span class="s3">,</span>
+<a name="l197"><span class="ln">197  </span></a>    <span class="s4">&quot;torch._prims&quot;</span><span class="s3">,</span>
+<a name="l198"><span class="ln">198  </span></a>    <span class="s4">&quot;torch._decomp&quot;</span><span class="s3">,</span>
+<a name="l199"><span class="ln">199  </span></a><span class="s3">}</span>
+<a name="l200"><span class="ln">200  </span></a>
+<a name="l201"><span class="ln">201  </span></a><span class="s0"># Debug Flag to try minifier at different stages. Possible values are {None, &quot;aot&quot;, &quot;dynamo&quot;}</span>
+<a name="l202"><span class="ln">202  </span></a><span class="s0"># None - Minifier is switched off</span>
+<a name="l203"><span class="ln">203  </span></a><span class="s0"># dynamo - Runs minifier on the TorchDynamo produced graphs, if compilation fails</span>
+<a name="l204"><span class="ln">204  </span></a><span class="s0"># aot - Runs minifier on the Aot Autograd produced graphs, if compilation fails</span>
+<a name="l205"><span class="ln">205  </span></a><span class="s0"># [@compile_ignored: debug]</span>
+<a name="l206"><span class="ln">206  </span></a><span class="s1">repro_after </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCHDYNAMO_REPRO_AFTER&quot;</span><span class="s3">, </span><span class="s2">None</span><span class="s3">)</span>
+<a name="l207"><span class="ln">207  </span></a>
+<a name="l208"><span class="ln">208  </span></a><span class="s0"># Compiler compilation debug info</span>
+<a name="l209"><span class="ln">209  </span></a><span class="s0"># 1: Dumps the original graph out to repro.py if compilation fails</span>
+<a name="l210"><span class="ln">210  </span></a><span class="s0"># 2: Dumps a minifier_launcher.py if compilation fails.</span>
+<a name="l211"><span class="ln">211  </span></a><span class="s0"># 3: Always dumps a minifier_launcher.py. Good for segfaults.</span>
+<a name="l212"><span class="ln">212  </span></a><span class="s0"># 4: Dumps a minifier_launcher.py if the accuracy fails.</span>
+<a name="l213"><span class="ln">213  </span></a><span class="s0"># [@compile_ignored: debug]</span>
+<a name="l214"><span class="ln">214  </span></a><span class="s1">repro_level </span><span class="s2">= </span><span class="s1">int</span><span class="s3">(</span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCHDYNAMO_REPRO_LEVEL&quot;</span><span class="s3">, </span><span class="s5">2</span><span class="s3">))</span>
+<a name="l215"><span class="ln">215  </span></a>
+<a name="l216"><span class="ln">216  </span></a><span class="s0"># By default, we try to detect accuracy failure by running both forward</span>
+<a name="l217"><span class="ln">217  </span></a><span class="s0"># and backward of a torchdynamo produced graph (if you are using repro_after</span>
+<a name="l218"><span class="ln">218  </span></a><span class="s0"># 'dynamo').  This setting forces us to only test the forward graph and</span>
+<a name="l219"><span class="ln">219  </span></a><span class="s0"># not the backward graph.  This can be helpful if you're trying to debug</span>
+<a name="l220"><span class="ln">220  </span></a><span class="s0"># an inference only problem, but the minifier seems to be choking on the</span>
+<a name="l221"><span class="ln">221  </span></a><span class="s0"># backwards step</span>
+<a name="l222"><span class="ln">222  </span></a><span class="s0"># TODO: Detect this situation automatically so the user doesn't need</span>
+<a name="l223"><span class="ln">223  </span></a><span class="s0"># to manually configure this</span>
+<a name="l224"><span class="ln">224  </span></a><span class="s0"># [@compile_ignored: debug]</span>
+<a name="l225"><span class="ln">225  </span></a><span class="s1">repro_forward_only </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCHDYNAMO_REPRO_FORWARD_ONLY&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l226"><span class="ln">226  </span></a>
+<a name="l227"><span class="ln">227  </span></a><span class="s0"># The tolerance we should use when testing if a compiled graph</span>
+<a name="l228"><span class="ln">228  </span></a><span class="s0"># has diverged so that we should treat it as an accuracy failure</span>
+<a name="l229"><span class="ln">229  </span></a><span class="s0"># [@compile_ignored: debug]</span>
+<a name="l230"><span class="ln">230  </span></a><span class="s1">repro_tolerance </span><span class="s2">= </span><span class="s5">1e-3</span>
+<a name="l231"><span class="ln">231  </span></a>
+<a name="l232"><span class="ln">232  </span></a>
+<a name="l233"><span class="ln">233  </span></a><span class="s0"># Whether to ignore non-floating point values when checking accuracy.</span>
+<a name="l234"><span class="ln">234  </span></a><span class="s0"># Checking accuracy of non-floating point values such as boolean tensors</span>
+<a name="l235"><span class="ln">235  </span></a><span class="s0"># can lead to false positives.</span>
+<a name="l236"><span class="ln">236  </span></a><span class="s0"># [@compile_ignored: debug]</span>
+<a name="l237"><span class="ln">237  </span></a><span class="s1">repro_ignore_non_fp </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCHDYNAMO_REPRO_IGNORE_NON_FP&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l238"><span class="ln">238  </span></a>
+<a name="l239"><span class="ln">239  </span></a><span class="s0"># If True, when testing if two models are the same, we will test them against</span>
+<a name="l240"><span class="ln">240  </span></a><span class="s0"># a third fp64 reference and only report a problem if the RMSE relative to the</span>
+<a name="l241"><span class="ln">241  </span></a><span class="s0"># fp64 is greater.  However, this will use more memory; you may disable this</span>
+<a name="l242"><span class="ln">242  </span></a><span class="s0"># if memory usage is too high.</span>
+<a name="l243"><span class="ln">243  </span></a><span class="s0"># [@compile_ignored: runtime_behaviour]</span>
+<a name="l244"><span class="ln">244  </span></a><span class="s1">same_two_models_use_fp64 </span><span class="s2">= True</span>
+<a name="l245"><span class="ln">245  </span></a>
+<a name="l246"><span class="ln">246  </span></a><span class="s0"># Not all backends support scalars. Some calls on torch.Tensor (like .item()) return a scalar type.</span>
+<a name="l247"><span class="ln">247  </span></a><span class="s0"># When this flag is set to False, we introduce a graph break instead of capturing.</span>
+<a name="l248"><span class="ln">248  </span></a><span class="s0"># This requires dynamic_shapes to be True.</span>
+<a name="l249"><span class="ln">249  </span></a><span class="s1">capture_scalar_outputs </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l250"><span class="ln">250  </span></a>
+<a name="l251"><span class="ln">251  </span></a><span class="s0"># Not all backends support operators that have dynamic output shape (e.g.,</span>
+<a name="l252"><span class="ln">252  </span></a><span class="s0"># nonzero, unique).  When this flag is set to False, we introduce a graph</span>
+<a name="l253"><span class="ln">253  </span></a><span class="s0"># break instead of capturing.  This requires dynamic_shapes to be True.</span>
+<a name="l254"><span class="ln">254  </span></a><span class="s0"># If you set this to True, you probably also want capture_scalar_outputs</span>
+<a name="l255"><span class="ln">255  </span></a><span class="s0"># (these are separated for historical reasons).</span>
+<a name="l256"><span class="ln">256  </span></a><span class="s1">capture_dynamic_output_shape_ops </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l257"><span class="ln">257  </span></a>    <span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCHDYNAMO_CAPTURE_DYNAMIC_OUTPUT_SHAPE_OPS&quot;</span><span class="s3">, </span><span class="s4">&quot;0&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l258"><span class="ln">258  </span></a><span class="s3">)</span>
+<a name="l259"><span class="ln">259  </span></a>
+<a name="l260"><span class="ln">260  </span></a><span class="s0"># hybrid backed unbacked symints</span>
+<a name="l261"><span class="ln">261  </span></a><span class="s1">prefer_deferred_runtime_asserts_over_guards </span><span class="s2">= False</span>
+<a name="l262"><span class="ln">262  </span></a>
+<a name="l263"><span class="ln">263  </span></a><span class="s0"># For complex dynamic shapes guards that we're unable to specify with dynamo/export's</span>
+<a name="l264"><span class="ln">264  </span></a><span class="s0"># range constraints + dims + derived dims language, we raise constraint violation</span>
+<a name="l265"><span class="ln">265  </span></a><span class="s0"># errors or specialize by default. If set to True, this flag avoids crashing/specialization,</span>
+<a name="l266"><span class="ln">266  </span></a><span class="s0"># and allows complex guards as runtime assertions in the graph.</span>
+<a name="l267"><span class="ln">267  </span></a><span class="s1">allow_complex_guards_as_runtime_asserts </span><span class="s2">= False</span>
+<a name="l268"><span class="ln">268  </span></a>
+<a name="l269"><span class="ln">269  </span></a><span class="s0"># By default, dynamo will treat all ints as backed SymInts, which means (1) it</span>
+<a name="l270"><span class="ln">270  </span></a><span class="s0"># will wait to see the int change over multiple runs before generalizing and</span>
+<a name="l271"><span class="ln">271  </span></a><span class="s0"># (2) it will still always 0/1 specialize an int.  When true, this knob</span>
+<a name="l272"><span class="ln">272  </span></a><span class="s0"># forces dynamo to treat _length_per_key and _offset_per_key on</span>
+<a name="l273"><span class="ln">273  </span></a><span class="s0"># KeyedJaggedTensor from torchrec as size-like unbacked SymInts, so that</span>
+<a name="l274"><span class="ln">274  </span></a><span class="s0"># they (1) generalize immediately and (2) unsoundly never compare equal to</span>
+<a name="l275"><span class="ln">275  </span></a><span class="s0"># 0/1.  This is not on by default as AOTAutograd/Inductor cannot currently</span>
+<a name="l276"><span class="ln">276  </span></a><span class="s0"># compile this code; however, this can be useful for export.</span>
+<a name="l277"><span class="ln">277  </span></a><span class="s1">force_unspec_int_unbacked_size_like_on_torchrec_kjt </span><span class="s2">= False</span>
+<a name="l278"><span class="ln">278  </span></a>
+<a name="l279"><span class="ln">279  </span></a><span class="s0"># Currently, Dynamo will always specialize on int members of NN module.</span>
+<a name="l280"><span class="ln">280  </span></a><span class="s0"># However, there could be cases where this is undesirable, e.g., when tracking</span>
+<a name="l281"><span class="ln">281  </span></a><span class="s0"># step count leading to constant recompilation and eventually eager fallback.</span>
+<a name="l282"><span class="ln">282  </span></a><span class="s0"># Setting this flag to True will allow int members to be potentially unspecialized</span>
+<a name="l283"><span class="ln">283  </span></a><span class="s0"># through dynamic shape mechanism.</span>
+<a name="l284"><span class="ln">284  </span></a><span class="s0"># Defaults to False for BC.</span>
+<a name="l285"><span class="ln">285  </span></a><span class="s1">allow_unspec_int_on_nn_module </span><span class="s2">= False</span>
+<a name="l286"><span class="ln">286  </span></a>
+<a name="l287"><span class="ln">287  </span></a><span class="s0"># Specify how to optimize a compiled DDP module. The flag accepts a boolean</span>
+<a name="l288"><span class="ln">288  </span></a><span class="s0"># value or a string. There are 3 modes.</span>
+<a name="l289"><span class="ln">289  </span></a><span class="s0"># 1. &quot;ddp_optimizer&quot; (or True): with &quot;ddp_optimizer&quot;, Dynamo will automatically</span>
+<a name="l290"><span class="ln">290  </span></a><span class="s0"># split model graph into pieces to match DDP bucket sizes to allow DDP</span>
+<a name="l291"><span class="ln">291  </span></a><span class="s0"># comm/compute overlap.</span>
+<a name="l292"><span class="ln">292  </span></a><span class="s0"># 2. &quot;python_reducer&quot; (experimental): this optimization requires the usage</span>
+<a name="l293"><span class="ln">293  </span></a><span class="s0"># of compiled_autograd. With &quot;python_reducer&quot;, DDP will disable the C++ reducer</span>
+<a name="l294"><span class="ln">294  </span></a><span class="s0"># and use the Python reducer to allow compiled_autograd to trace the</span>
+<a name="l295"><span class="ln">295  </span></a><span class="s0"># communication and allow comm/compute overlap without graph-breaks.</span>
+<a name="l296"><span class="ln">296  </span></a><span class="s0"># 3. &quot;no_optimization&quot; (or False): Dynamo won't split the model graph, nor</span>
+<a name="l297"><span class="ln">297  </span></a><span class="s0"># will Python reducer be used. With this mode, there will be no graph-breaks</span>
+<a name="l298"><span class="ln">298  </span></a><span class="s0"># and the original DDP C++ reducer will be used. There will no comm/compute</span>
+<a name="l299"><span class="ln">299  </span></a><span class="s0"># overlap. This mode CANNOT be used with compiled_autograd.</span>
+<a name="l300"><span class="ln">300  </span></a><span class="s0"># Note that to avoid breaking the existing usage, mode 1 and mode 4 can be</span>
+<a name="l301"><span class="ln">301  </span></a><span class="s0"># specified with a boolean value. True is using ddp_optimizer and False is</span>
+<a name="l302"><span class="ln">302  </span></a><span class="s0"># no optimization.</span>
+<a name="l303"><span class="ln">303  </span></a><span class="s1">optimize_ddp</span><span class="s2">: </span><span class="s1">Union</span><span class="s3">[</span>
+<a name="l304"><span class="ln">304  </span></a>    <span class="s1">bool</span><span class="s3">,</span>
+<a name="l305"><span class="ln">305  </span></a>    <span class="s1">Literal</span><span class="s3">[</span>
+<a name="l306"><span class="ln">306  </span></a>        <span class="s4">&quot;ddp_optimizer&quot;</span><span class="s3">,</span>
+<a name="l307"><span class="ln">307  </span></a>        <span class="s4">&quot;python_reducer&quot;</span><span class="s3">,</span>
+<a name="l308"><span class="ln">308  </span></a>        <span class="s4">&quot;python_reducer_without_compiled_forward&quot;</span><span class="s3">,</span>
+<a name="l309"><span class="ln">309  </span></a>        <span class="s4">&quot;no_optimization&quot;</span><span class="s3">,</span>
+<a name="l310"><span class="ln">310  </span></a>    <span class="s3">],</span>
+<a name="l311"><span class="ln">311  </span></a><span class="s3">] </span><span class="s2">= True</span>
+<a name="l312"><span class="ln">312  </span></a>
+<a name="l313"><span class="ln">313  </span></a><span class="s0"># By default, Dynamo emits runtime asserts (e.g. torch._check, torch._check_is_size) in the graph.</span>
+<a name="l314"><span class="ln">314  </span></a><span class="s0"># In some cases those asserts could be performance costly</span>
+<a name="l315"><span class="ln">315  </span></a><span class="s0"># E.g. torch._check(tensor[0].item() &gt; 2) for tensor on cuda will require cuda sync.</span>
+<a name="l316"><span class="ln">316  </span></a><span class="s0"># Setting this to True keeps them hinting to symbolic shapes engine,</span>
+<a name="l317"><span class="ln">317  </span></a><span class="s0"># but not be emitted in the graph.</span>
+<a name="l318"><span class="ln">318  </span></a><span class="s1">do_not_emit_runtime_asserts</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l319"><span class="ln">319  </span></a>    <span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCH_DYNAMO_DO_NOT_EMIT_RUNTIME_ASSERTS&quot;</span><span class="s3">, </span><span class="s4">&quot;0&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l320"><span class="ln">320  </span></a><span class="s3">)</span>
+<a name="l321"><span class="ln">321  </span></a>
+<a name="l322"><span class="ln">322  </span></a><span class="s0"># Skip tracing the torchrec files added to trace_rules.FBCODE_SKIP_DIRS</span>
+<a name="l323"><span class="ln">323  </span></a><span class="s1">skip_torchrec </span><span class="s2">= True</span>
+<a name="l324"><span class="ln">324  </span></a>
+<a name="l325"><span class="ln">325  </span></a><span class="s0"># Don't apply most trace_rules.py rules</span>
+<a name="l326"><span class="ln">326  </span></a><span class="s1">dont_skip_tracing </span><span class="s2">= False</span>
+<a name="l327"><span class="ln">327  </span></a>
+<a name="l328"><span class="ln">328  </span></a><span class="s0"># No longer used</span>
+<a name="l329"><span class="ln">329  </span></a><span class="s1">optimize_ddp_lazy_compile </span><span class="s2">= False</span>
+<a name="l330"><span class="ln">330  </span></a>
+<a name="l331"><span class="ln">331  </span></a><span class="s0"># Whether to skip guarding on FSDP-managed modules</span>
+<a name="l332"><span class="ln">332  </span></a><span class="s1">skip_fsdp_guards </span><span class="s2">= True</span>
+<a name="l333"><span class="ln">333  </span></a><span class="s0"># Whether to apply torch._dynamo.disable() to FSDP2 hooks.</span>
+<a name="l334"><span class="ln">334  </span></a><span class="s0"># Defaults to True. If Traceable FSDP2 is used, set this to False.</span>
+<a name="l335"><span class="ln">335  </span></a><span class="s1">skip_fsdp_hooks </span><span class="s2">= True</span>
+<a name="l336"><span class="ln">336  </span></a>
+<a name="l337"><span class="ln">337  </span></a><span class="s0"># Make dynamo skip guarding on hooks on nn modules</span>
+<a name="l338"><span class="ln">338  </span></a><span class="s0"># Note: unsafe: if your model actually has hooks and you remove them, or doesn't and  you add them,</span>
+<a name="l339"><span class="ln">339  </span></a><span class="s0"># dynamo will not notice and will execute whichever version you first compiled.</span>
+<a name="l340"><span class="ln">340  </span></a><span class="s1">skip_nnmodule_hook_guards </span><span class="s2">= True</span>
+<a name="l341"><span class="ln">341  </span></a>
+<a name="l342"><span class="ln">342  </span></a><span class="s0"># Make dynamo skip no tensor aliasing guard on parameters</span>
+<a name="l343"><span class="ln">343  </span></a><span class="s0"># Note: unsafe: if you compile a function with different parameters as inputs,</span>
+<a name="l344"><span class="ln">344  </span></a><span class="s0"># and then later pass on the same parameter as two inputs, dynamo will not</span>
+<a name="l345"><span class="ln">345  </span></a><span class="s0"># notice and lead to incorrect result.</span>
+<a name="l346"><span class="ln">346  </span></a><span class="s1">skip_no_tensor_aliasing_guards_on_parameters </span><span class="s2">= True</span>
+<a name="l347"><span class="ln">347  </span></a>
+<a name="l348"><span class="ln">348  </span></a><span class="s0"># Considers a tensor immutable if it is one of the values of a dictionary, and</span>
+<a name="l349"><span class="ln">349  </span></a><span class="s0"># the dictionary tag is same across invocation calls.</span>
+<a name="l350"><span class="ln">350  </span></a><span class="s1">skip_tensor_guards_with_matching_dict_tags </span><span class="s2">= True</span>
+<a name="l351"><span class="ln">351  </span></a>
+<a name="l352"><span class="ln">352  </span></a><span class="s0"># If True, raises exception if TorchDynamo is called with a context manager</span>
+<a name="l353"><span class="ln">353  </span></a><span class="s1">raise_on_ctx_manager_usage </span><span class="s2">= True</span>
+<a name="l354"><span class="ln">354  </span></a>
+<a name="l355"><span class="ln">355  </span></a><span class="s0"># If True, raise when aot autograd is unsafe to use</span>
+<a name="l356"><span class="ln">356  </span></a><span class="s1">raise_on_unsafe_aot_autograd </span><span class="s2">= False</span>
+<a name="l357"><span class="ln">357  </span></a>
+<a name="l358"><span class="ln">358  </span></a><span class="s0"># This flag is ignored and maintained for backwards compatibility.</span>
+<a name="l359"><span class="ln">359  </span></a><span class="s1">error_on_nested_jit_trace </span><span class="s2">= True</span>
+<a name="l360"><span class="ln">360  </span></a>
+<a name="l361"><span class="ln">361  </span></a><span class="s0"># If true, error with a better message if we symbolically trace over a</span>
+<a name="l362"><span class="ln">362  </span></a><span class="s0"># dynamo-optimized function. If false, silently suppress dynamo.</span>
+<a name="l363"><span class="ln">363  </span></a><span class="s1">error_on_nested_fx_trace </span><span class="s2">= True</span>
+<a name="l364"><span class="ln">364  </span></a>
+<a name="l365"><span class="ln">365  </span></a><span class="s0"># Disables graph breaking on rnn. YMMV with backends.</span>
+<a name="l366"><span class="ln">366  </span></a><span class="s1">allow_rnn </span><span class="s2">= False</span>
+<a name="l367"><span class="ln">367  </span></a>
+<a name="l368"><span class="ln">368  </span></a><span class="s0"># If true, enables feature that captures PyTorch sparsity in the</span>
+<a name="l369"><span class="ln">369  </span></a><span class="s0"># exported FX graph. This flag should become the default eventually</span>
+<a name="l370"><span class="ln">370  </span></a><span class="s0"># and be removed, but currently provides a way to fall back to old</span>
+<a name="l371"><span class="ln">371  </span></a><span class="s0"># graph breaking behavior.</span>
+<a name="l372"><span class="ln">372  </span></a><span class="s1">capture_sparse_compute </span><span class="s2">= False if </span><span class="s1">is_fbcode</span><span class="s3">() </span><span class="s2">else True</span>
+<a name="l373"><span class="ln">373  </span></a>
+<a name="l374"><span class="ln">374  </span></a><span class="s0"># If true, error if we try to compile a function that has</span>
+<a name="l375"><span class="ln">375  </span></a><span class="s0"># been seen before.</span>
+<a name="l376"><span class="ln">376  </span></a><span class="s0"># [@compile_ignored: runtime_behaviour]</span>
+<a name="l377"><span class="ln">377  </span></a><span class="s1">error_on_recompile </span><span class="s2">= False</span>
+<a name="l378"><span class="ln">378  </span></a>
+<a name="l379"><span class="ln">379  </span></a><span class="s0"># [@compile_ignored: debug] Whether to report any guard failures (deprecated: does not do anything)</span>
+<a name="l380"><span class="ln">380  </span></a><span class="s1">report_guard_failures </span><span class="s2">= True</span>
+<a name="l381"><span class="ln">381  </span></a>
+<a name="l382"><span class="ln">382  </span></a><span class="s0"># [@compile_ignored: debug] root folder of the project</span>
+<a name="l383"><span class="ln">383  </span></a><span class="s1">base_dir </span><span class="s2">= </span><span class="s1">dirname</span><span class="s3">(</span><span class="s1">dirname</span><span class="s3">(</span><span class="s1">dirname</span><span class="s3">(</span><span class="s1">abspath</span><span class="s3">(</span><span class="s1">__file__</span><span class="s3">))))</span>
+<a name="l384"><span class="ln">384  </span></a>
+<a name="l385"><span class="ln">385  </span></a><span class="s0"># Trace through NumPy or graphbreak</span>
+<a name="l386"><span class="ln">386  </span></a><span class="s1">trace_numpy </span><span class="s2">= True</span>
+<a name="l387"><span class="ln">387  </span></a>
+<a name="l388"><span class="ln">388  </span></a><span class="s0"># Default NumPy dtypes when tracing with torch.compile</span>
+<a name="l389"><span class="ln">389  </span></a><span class="s0"># We default to 64bits. For efficiency, one may want to change these to float32</span>
+<a name="l390"><span class="ln">390  </span></a><span class="s1">numpy_default_float </span><span class="s2">= </span><span class="s4">&quot;float64&quot;</span>
+<a name="l391"><span class="ln">391  </span></a><span class="s1">numpy_default_complex </span><span class="s2">= </span><span class="s4">&quot;complex128&quot;</span>
+<a name="l392"><span class="ln">392  </span></a><span class="s1">numpy_default_int </span><span class="s2">= </span><span class="s4">&quot;int64&quot;</span>
+<a name="l393"><span class="ln">393  </span></a>
+<a name="l394"><span class="ln">394  </span></a><span class="s0"># use numpy's PRNG if True, pytorch otherwise</span>
+<a name="l395"><span class="ln">395  </span></a><span class="s1">use_numpy_random_stream </span><span class="s2">= False</span>
+<a name="l396"><span class="ln">396  </span></a>
+<a name="l397"><span class="ln">397  </span></a><span class="s0"># Use C++ guard manager (deprecated: always true)</span>
+<a name="l398"><span class="ln">398  </span></a><span class="s1">enable_cpp_guard_manager </span><span class="s2">= True</span>
+<a name="l399"><span class="ln">399  </span></a>
+<a name="l400"><span class="ln">400  </span></a><span class="s0"># Use C++ guard manager for symbolic shapes</span>
+<a name="l401"><span class="ln">401  </span></a><span class="s1">enable_cpp_symbolic_shape_guards </span><span class="s2">= False</span>
+<a name="l402"><span class="ln">402  </span></a>
+<a name="l403"><span class="ln">403  </span></a><span class="s0"># Enable tracing through contextlib.contextmanager</span>
+<a name="l404"><span class="ln">404  </span></a><span class="s1">enable_trace_contextlib </span><span class="s2">= True</span>
+<a name="l405"><span class="ln">405  </span></a>
+<a name="l406"><span class="ln">406  </span></a><span class="s0"># Enable tracing through unittest</span>
+<a name="l407"><span class="ln">407  </span></a><span class="s1">enable_trace_unittest </span><span class="s2">= False</span>
+<a name="l408"><span class="ln">408  </span></a>
+<a name="l409"><span class="ln">409  </span></a><span class="s0"># Enable tracing generator functions lazily. If False, Dynamo will exhaust</span>
+<a name="l410"><span class="ln">410  </span></a><span class="s0"># generators upon first execution. And if True, the generator will be accessed lazily</span>
+<a name="l411"><span class="ln">411  </span></a><span class="s1">enable_faithful_generator_behavior </span><span class="s2">= True</span>
+<a name="l412"><span class="ln">412  </span></a>
+<a name="l413"><span class="ln">413  </span></a><span class="s0"># Inline inbuilt nn modules</span>
+<a name="l414"><span class="ln">414  </span></a><span class="s1">inline_inbuilt_nn_modules </span><span class="s2">= </span><span class="s1">Config</span><span class="s3">(  </span><span class="s0"># type: ignore[var-annotated]</span>
+<a name="l415"><span class="ln">415  </span></a>    <span class="s1">default</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l416"><span class="ln">416  </span></a>    <span class="s1">justknob</span><span class="s2">=</span><span class="s4">&quot;pytorch/compiler:inline_inbuilt_nn_modules&quot;</span><span class="s3">,</span>
+<a name="l417"><span class="ln">417  </span></a><span class="s3">)</span>
+<a name="l418"><span class="ln">418  </span></a>
+<a name="l419"><span class="ln">419  </span></a><span class="s0"># Install &quot;free&quot; tensor variables (globals, non-locals, nn module attributes)</span>
+<a name="l420"><span class="ln">420  </span></a><span class="s0"># as graph attributes.  This is useful for export, as it</span>
+<a name="l421"><span class="ln">421  </span></a><span class="s0"># produces a consistent number of inputs to the graph.</span>
+<a name="l422"><span class="ln">422  </span></a><span class="s1">install_free_tensors </span><span class="s2">= False</span>
+<a name="l423"><span class="ln">423  </span></a>
+<a name="l424"><span class="ln">424  </span></a><span class="s0"># Use C++ FrameLocalsMapping (raw array view of Python frame fastlocals) (deprecated: always True)</span>
+<a name="l425"><span class="ln">425  </span></a><span class="s1">enable_cpp_framelocals_guard_eval </span><span class="s2">= True</span>
+<a name="l426"><span class="ln">426  </span></a>
+<a name="l427"><span class="ln">427  </span></a><span class="s0"># Whether to automatically find and replace identical graph</span>
+<a name="l428"><span class="ln">428  </span></a><span class="s0"># regions with a call to invoke_subgraph</span>
+<a name="l429"><span class="ln">429  </span></a><span class="s1">use_graph_deduplication </span><span class="s2">= False</span>
+<a name="l430"><span class="ln">430  </span></a>
+<a name="l431"><span class="ln">431  </span></a><span class="s0"># Whether to track nodes for deduplication (testing only)</span>
+<a name="l432"><span class="ln">432  </span></a><span class="s0"># This flag is ignored if use_graph_deduplication is True</span>
+<a name="l433"><span class="ln">433  </span></a><span class="s1">track_nodes_for_deduplication </span><span class="s2">= False</span>
+<a name="l434"><span class="ln">434  </span></a>
+<a name="l435"><span class="ln">435  </span></a><span class="s0"># Whether to lint the graph after each region is replaced</span>
+<a name="l436"><span class="ln">436  </span></a><span class="s0"># (Debug)</span>
+<a name="l437"><span class="ln">437  </span></a><span class="s1">graph_deduplication_lint </span><span class="s2">= False</span>
+<a name="l438"><span class="ln">438  </span></a>
+<a name="l439"><span class="ln">439  </span></a><span class="s0"># Issues a warning in Python 3.13.0 for possibly slower guard evaluation and</span>
+<a name="l440"><span class="ln">440  </span></a><span class="s0"># instructs user to attempt using 3.13.1+, where the CPython bug is fixed.</span>
+<a name="l441"><span class="ln">441  </span></a><span class="s0"># Should be disabled in dynamo-wrapped tests since some tests check that no warnings are issued.</span>
+<a name="l442"><span class="ln">442  </span></a><span class="s1">issue_3_13_0_warning </span><span class="s2">= True</span>
+<a name="l443"><span class="ln">443  </span></a>
+<a name="l444"><span class="ln">444  </span></a><span class="s0"># If False, skip frame (and future calls to the same code object) if we determine that the</span>
+<a name="l445"><span class="ln">445  </span></a><span class="s0"># traced FX graph is empty when RETURN_* is traced.</span>
+<a name="l446"><span class="ln">446  </span></a><span class="s1">allow_empty_graphs </span><span class="s2">= False</span>
+<a name="l447"><span class="ln">447  </span></a>
+<a name="l448"><span class="ln">448  </span></a><span class="s0"># When set, total compile time instruction count is recorded using</span>
+<a name="l449"><span class="ln">449  </span></a><span class="s0"># torch._dynamo.utilsCompileTimeInstructionCounter.</span>
+<a name="l450"><span class="ln">450  </span></a><span class="s1">record_compile_time_instruction_count </span><span class="s2">= False</span>
+<a name="l451"><span class="ln">451  </span></a>
+<a name="l452"><span class="ln">452  </span></a>
+<a name="l453"><span class="ln">453  </span></a><span class="s2">def </span><span class="s1">default_debug_dir_root</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l454"><span class="ln">454  </span></a>    <span class="s0"># [@compile_ignored: debug]</span>
+<a name="l455"><span class="ln">455  </span></a>    <span class="s1">DEBUG_DIR_VAR_NAME </span><span class="s2">= </span><span class="s4">&quot;TORCH_COMPILE_DEBUG_DIR&quot;</span>
+<a name="l456"><span class="ln">456  </span></a>    <span class="s2">if </span><span class="s1">DEBUG_DIR_VAR_NAME </span><span class="s2">in </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s2">:</span>
+<a name="l457"><span class="ln">457  </span></a>        <span class="s2">return </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">[</span><span class="s1">DEBUG_DIR_VAR_NAME</span><span class="s3">], </span><span class="s4">&quot;torch_compile_debug&quot;</span><span class="s3">)</span>
+<a name="l458"><span class="ln">458  </span></a>    <span class="s2">elif </span><span class="s1">is_fbcode</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l459"><span class="ln">459  </span></a>        <span class="s2">return </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span>
+<a name="l460"><span class="ln">460  </span></a>            <span class="s1">tempfile</span><span class="s3">.</span><span class="s1">gettempdir</span><span class="s3">(), </span><span class="s1">getpass</span><span class="s3">.</span><span class="s1">getuser</span><span class="s3">(), </span><span class="s4">&quot;torch_compile_debug&quot;</span>
+<a name="l461"><span class="ln">461  </span></a>        <span class="s3">)</span>
+<a name="l462"><span class="ln">462  </span></a>    <span class="s2">else:</span>
+<a name="l463"><span class="ln">463  </span></a>        <span class="s2">return </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">os</span><span class="s3">.</span><span class="s1">getcwd</span><span class="s3">(), </span><span class="s4">&quot;torch_compile_debug&quot;</span><span class="s3">)</span>
+<a name="l464"><span class="ln">464  </span></a>
+<a name="l465"><span class="ln">465  </span></a>
+<a name="l466"><span class="ln">466  </span></a><span class="s0"># [@compile_ignored: debug]</span>
+<a name="l467"><span class="ln">467  </span></a><span class="s1">debug_dir_root </span><span class="s2">= </span><span class="s1">default_debug_dir_root</span><span class="s3">()</span>
+<a name="l468"><span class="ln">468  </span></a>
+<a name="l469"><span class="ln">469  </span></a><span class="s0"># [@compile_ignored: debug]</span>
+<a name="l470"><span class="ln">470  </span></a><span class="s1">_save_config_ignore </span><span class="s2">= </span><span class="s3">{</span>
+<a name="l471"><span class="ln">471  </span></a>    <span class="s4">&quot;repro_after&quot;</span><span class="s3">,</span>
+<a name="l472"><span class="ln">472  </span></a>    <span class="s4">&quot;repro_level&quot;</span><span class="s3">,</span>
+<a name="l473"><span class="ln">473  </span></a>    <span class="s0"># workaround: &quot;cannot pickle PyCapsule&quot;</span>
+<a name="l474"><span class="ln">474  </span></a>    <span class="s4">&quot;constant_functions&quot;</span><span class="s3">,</span>
+<a name="l475"><span class="ln">475  </span></a>    <span class="s0"># workaround: &quot;cannot pickle module&quot;</span>
+<a name="l476"><span class="ln">476  </span></a>    <span class="s4">&quot;skipfiles_inline_module_allowlist&quot;</span><span class="s3">,</span>
+<a name="l477"><span class="ln">477  </span></a><span class="s3">}</span>
+<a name="l478"><span class="ln">478  </span></a>
+<a name="l479"><span class="ln">479  </span></a><span class="s0"># for backend=&quot;cudagraphs&quot;, mutations on input be sent to the cudagraph backend</span>
+<a name="l480"><span class="ln">480  </span></a><span class="s0"># or replayed in aot_autograd epilogue. default is False because mutation on inputs</span>
+<a name="l481"><span class="ln">481  </span></a><span class="s0"># can prevent cudagraphing.</span>
+<a name="l482"><span class="ln">482  </span></a><span class="s1">cudagraph_backend_keep_input_mutation </span><span class="s2">= False</span>
+<a name="l483"><span class="ln">483  </span></a>
+<a name="l484"><span class="ln">484  </span></a><span class="s0"># enable cudagraph support for mutated inputs from prior cudagraph pool</span>
+<a name="l485"><span class="ln">485  </span></a><span class="s1">cudagraph_backend_support_input_mutation </span><span class="s2">= False</span>
+<a name="l486"><span class="ln">486  </span></a>
+<a name="l487"><span class="ln">487  </span></a><span class="s0"># When True, only ops that have the torch.Tag.pt2_compliant tag</span>
+<a name="l488"><span class="ln">488  </span></a><span class="s0"># will be allowed into the graph; all other ops will be disallowed</span>
+<a name="l489"><span class="ln">489  </span></a><span class="s0"># and will fall back to eager-mode PyTorch. Useful to ensure</span>
+<a name="l490"><span class="ln">490  </span></a><span class="s0"># correctness of custom ops.</span>
+<a name="l491"><span class="ln">491  </span></a><span class="s1">only_allow_pt2_compliant_ops </span><span class="s2">= False</span>
+<a name="l492"><span class="ln">492  </span></a>
+<a name="l493"><span class="ln">493  </span></a><span class="s0"># This flag is ignored and maintained for backwards compatibility.</span>
+<a name="l494"><span class="ln">494  </span></a><span class="s1">capture_autograd_function </span><span class="s2">= True</span>
+<a name="l495"><span class="ln">495  </span></a>
+<a name="l496"><span class="ln">496  </span></a><span class="s0"># This flag is ignored and maintained for backwards compatibility.</span>
+<a name="l497"><span class="ln">497  </span></a><span class="s1">capture_func_transforms </span><span class="s2">= True</span>
+<a name="l498"><span class="ln">498  </span></a>
+<a name="l499"><span class="ln">499  </span></a><span class="s0"># If to log Dynamo compilation metrics into log files (for OSS) and Scuba tables (for fbcode).</span>
+<a name="l500"><span class="ln">500  </span></a><span class="s1">log_compilation_metrics </span><span class="s2">= True</span>
+<a name="l501"><span class="ln">501  </span></a>
+<a name="l502"><span class="ln">502  </span></a><span class="s0"># A set of logging functions which will be reordered to the end of graph breaks,</span>
+<a name="l503"><span class="ln">503  </span></a><span class="s0"># allowing dynamo to construct large graph. Note that there are some</span>
+<a name="l504"><span class="ln">504  </span></a><span class="s0"># limitations to this, such as how it does not correctly print objects that were</span>
+<a name="l505"><span class="ln">505  </span></a><span class="s0"># mutated after the print statement.</span>
+<a name="l506"><span class="ln">506  </span></a><span class="s1">reorderable_logging_functions</span><span class="s2">: </span><span class="s1">set</span><span class="s3">[</span><span class="s1">Callable</span><span class="s3">[[</span><span class="s1">Any</span><span class="s3">], </span><span class="s2">None</span><span class="s3">]] </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l507"><span class="ln">507  </span></a>
+<a name="l508"><span class="ln">508  </span></a><span class="s0"># A set of methods that will be ignored while tracing,</span>
+<a name="l509"><span class="ln">509  </span></a><span class="s0"># to prevent graph breaks.</span>
+<a name="l510"><span class="ln">510  </span></a><span class="s0"># Add logging.Logger.&lt;method&gt; to ignore all calls for method,</span>
+<a name="l511"><span class="ln">511  </span></a><span class="s0"># or logger.&lt;method&gt; to ignore calls for method from this logger instance only.</span>
+<a name="l512"><span class="ln">512  </span></a><span class="s1">ignore_logger_methods</span><span class="s2">: </span><span class="s1">set</span><span class="s3">[</span><span class="s1">Callable</span><span class="s3">[..., </span><span class="s1">Any</span><span class="s3">]] </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l513"><span class="ln">513  </span></a>
+<a name="l514"><span class="ln">514  </span></a><span class="s0"># simulates what would happen if we didn't have support for BUILD_SET opcode,</span>
+<a name="l515"><span class="ln">515  </span></a><span class="s0"># used for testing</span>
+<a name="l516"><span class="ln">516  </span></a><span class="s1">inject_BUILD_SET_unimplemented_TESTING_ONLY </span><span class="s2">= False</span>
+<a name="l517"><span class="ln">517  </span></a>
+<a name="l518"><span class="ln">518  </span></a><span class="s1">_autograd_backward_strict_mode_banned_ops </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l519"><span class="ln">519  </span></a>    <span class="s4">&quot;layout&quot;</span><span class="s3">,</span>
+<a name="l520"><span class="ln">520  </span></a>    <span class="s4">&quot;is_neg&quot;</span><span class="s3">,</span>
+<a name="l521"><span class="ln">521  </span></a>    <span class="s4">&quot;is_conj&quot;</span><span class="s3">,</span>
+<a name="l522"><span class="ln">522  </span></a>    <span class="s4">&quot;is_pinned&quot;</span><span class="s3">,</span>
+<a name="l523"><span class="ln">523  </span></a><span class="s3">]</span>
+<a name="l524"><span class="ln">524  </span></a>
+<a name="l525"><span class="ln">525  </span></a><span class="s1">_autograd_backward_strict_mode_conditional_banned_ops </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l526"><span class="ln">526  </span></a>    <span class="s4">&quot;stride&quot;</span><span class="s3">,</span>
+<a name="l527"><span class="ln">527  </span></a>    <span class="s4">&quot;storage_offset&quot;</span><span class="s3">,</span>
+<a name="l528"><span class="ln">528  </span></a>    <span class="s4">&quot;is_contiguous&quot;</span><span class="s3">,</span>
+<a name="l529"><span class="ln">529  </span></a><span class="s3">]</span>
+<a name="l530"><span class="ln">530  </span></a>
+<a name="l531"><span class="ln">531  </span></a><span class="s0"># Enables caching of dispatches to fake tensors.</span>
+<a name="l532"><span class="ln">532  </span></a><span class="s1">fake_tensor_cache_enabled </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l533"><span class="ln">533  </span></a>    <span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCH_FAKE_TENSOR_DISPATCH_CACHE&quot;</span><span class="s3">, </span><span class="s4">&quot;1&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l534"><span class="ln">534  </span></a><span class="s3">)</span>
+<a name="l535"><span class="ln">535  </span></a>
+<a name="l536"><span class="ln">536  </span></a><span class="s0"># Enables cross checking between the fake tensor cache and dispatch.</span>
+<a name="l537"><span class="ln">537  </span></a><span class="s1">fake_tensor_cache_crosscheck_enabled </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l538"><span class="ln">538  </span></a>    <span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCH_FAKE_TENSOR_DISPATCH_CACHE_CROSSCHECK&quot;</span><span class="s3">, </span><span class="s4">&quot;0&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l539"><span class="ln">539  </span></a><span class="s3">)</span>
+<a name="l540"><span class="ln">540  </span></a>
+<a name="l541"><span class="ln">541  </span></a><span class="s0"># Disables inference mode for fake tensor prop during compilation. At runtime,</span>
+<a name="l542"><span class="ln">542  </span></a><span class="s0"># the inference_mode is still respected.</span>
+<a name="l543"><span class="ln">543  </span></a><span class="s1">fake_tensor_disable_inference_mode </span><span class="s2">= True</span>
+<a name="l544"><span class="ln">544  </span></a>
+<a name="l545"><span class="ln">545  </span></a><span class="s0"># Enables the Compiled Autograd engine to trace autograd calls made under torch.compile().</span>
+<a name="l546"><span class="ln">546  </span></a><span class="s0"># Note: AOTAutograd will still trace and partition an AOT backward graph local to that</span>
+<a name="l547"><span class="ln">547  </span></a><span class="s0"># compiled region. But AOTAutograd traces without knowledge of backward hooks which are</span>
+<a name="l548"><span class="ln">548  </span></a><span class="s0"># coordinated by the Autograd engine, and under the hood, it uses the torch.autograd.grad</span>
+<a name="l549"><span class="ln">549  </span></a><span class="s0"># API, so it cannot capture gradient accumulation operations (AccumulateGrad).</span>
+<a name="l550"><span class="ln">550  </span></a><span class="s0">#</span>
+<a name="l551"><span class="ln">551  </span></a><span class="s0"># Compiled Autograd will trace all autograd operations as seen by the Autograd engine.</span>
+<a name="l552"><span class="ln">552  </span></a><span class="s0"># This flag will also lift certain restrictions during the forward trace such as</span>
+<a name="l553"><span class="ln">553  </span></a><span class="s0"># registering backward hooks on tensors contained within the compiled region.</span>
+<a name="l554"><span class="ln">554  </span></a><span class="s1">compiled_autograd </span><span class="s2">= False</span>
+<a name="l555"><span class="ln">555  </span></a>
+<a name="l556"><span class="ln">556  </span></a><span class="s0"># Overrides torch.compile() kwargs for Compiled Autograd:</span>
+<a name="l557"><span class="ln">557  </span></a><span class="s1">compiled_autograd_kwargs_override</span><span class="s2">: </span><span class="s1">dict</span><span class="s3">[</span><span class="s1">str</span><span class="s3">, </span><span class="s1">Any</span><span class="s3">] </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l558"><span class="ln">558  </span></a>
+<a name="l559"><span class="ln">559  </span></a><span class="s0"># Enables use of collectives *during* compilation to synchronize behavior</span>
+<a name="l560"><span class="ln">560  </span></a><span class="s0"># across ranks.  Today, this is used solely to modify automatic_dynamic_shapes</span>
+<a name="l561"><span class="ln">561  </span></a><span class="s0"># behavior, making it so that we infer that if an input is dynamic by</span>
+<a name="l562"><span class="ln">562  </span></a><span class="s0"># inspecting whether or not its input size varies across ranks.  Because</span>
+<a name="l563"><span class="ln">563  </span></a><span class="s0"># this synchronization uses collectives, all ranks must run compilation at</span>
+<a name="l564"><span class="ln">564  </span></a><span class="s0"># the same time; ranks must not diverge with graph breaks.  This can be most</span>
+<a name="l565"><span class="ln">565  </span></a><span class="s0"># reliably achieved by ensuring PT2 only is run on SPMD programs.  If this</span>
+<a name="l566"><span class="ln">566  </span></a><span class="s0"># invariant is inviolated, you will likely deadlock NCCL and encounter a</span>
+<a name="l567"><span class="ln">567  </span></a><span class="s0"># NCCL timeout.</span>
+<a name="l568"><span class="ln">568  </span></a><span class="s1">enable_compiler_collectives </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TORCH_COMPILER_COLLECTIVES&quot;</span><span class="s3">, </span><span class="s4">&quot;0&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l569"><span class="ln">569  </span></a>
+<a name="l570"><span class="ln">570  </span></a><span class="s0"># Enables a local, filesystem &quot;profile&quot; which can be used for automatic</span>
+<a name="l571"><span class="ln">571  </span></a><span class="s0"># dynamic decisions, analogous to profile-guided optimization.  This config</span>
+<a name="l572"><span class="ln">572  </span></a><span class="s0"># ONLY has an effect if torch.compiler.config.workflow_id is specified,</span>
+<a name="l573"><span class="ln">573  </span></a><span class="s0"># which specifies the name of the profile we will save/load.</span>
+<a name="l574"><span class="ln">574  </span></a><span class="s0">#</span>
+<a name="l575"><span class="ln">575  </span></a><span class="s0"># The idea is that if we observe that a particular input is dynamic over</span>
+<a name="l576"><span class="ln">576  </span></a><span class="s0"># multiple iterations on one run, we can save a profile with this information</span>
+<a name="l577"><span class="ln">577  </span></a><span class="s0"># so the next time we run we can just make it dynamic the first time around,</span>
+<a name="l578"><span class="ln">578  </span></a><span class="s0"># skipping an unnecessary static compilation.  The profile can be soundly</span>
+<a name="l579"><span class="ln">579  </span></a><span class="s0"># stale, if it is wrong, it just means we may make more things dynamic than</span>
+<a name="l580"><span class="ln">580  </span></a><span class="s0"># was actually necessary (NB: this /can/ cause a failure if making something</span>
+<a name="l581"><span class="ln">581  </span></a><span class="s0"># dynamic causes the compiler to stop working because you tickled a latent</span>
+<a name="l582"><span class="ln">582  </span></a><span class="s0"># bug.)</span>
+<a name="l583"><span class="ln">583  </span></a><span class="s0">#</span>
+<a name="l584"><span class="ln">584  </span></a><span class="s0"># The profile is ONLY guaranteed to work if the user source code is 100%</span>
+<a name="l585"><span class="ln">585  </span></a><span class="s0"># unchanged.  Applying the profile if there are user code changes is only</span>
+<a name="l586"><span class="ln">586  </span></a><span class="s0"># best effort otherwise.  In particular, we identify particular code objects</span>
+<a name="l587"><span class="ln">587  </span></a><span class="s0"># by filename, line number and name of their function, so adding/removing newlines</span>
+<a name="l588"><span class="ln">588  </span></a><span class="s0"># will typically cause cache misses.  We continuously update the profile,</span>
+<a name="l589"><span class="ln">589  </span></a><span class="s0"># so if we only discover something is dynamic on the second run, we will update</span>
+<a name="l590"><span class="ln">590  </span></a><span class="s0"># the profile for subsequent runs.</span>
+<a name="l591"><span class="ln">591  </span></a><span class="s1">automatic_dynamic_local_pgo</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= </span><span class="s1">Config</span><span class="s3">(</span>
+<a name="l592"><span class="ln">592  </span></a>    <span class="s1">justknob</span><span class="s2">=</span><span class="s4">&quot;pytorch/remote_cache:enable_local_automatic_dynamic_pgo&quot;</span><span class="s3">,</span>
+<a name="l593"><span class="ln">593  </span></a>    <span class="s1">env_name_force</span><span class="s2">=</span><span class="s4">&quot;TORCH_DYNAMO_AUTOMATIC_DYNAMIC_LOCAL_PGO&quot;</span><span class="s3">,</span>
+<a name="l594"><span class="ln">594  </span></a>    <span class="s1">default</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l595"><span class="ln">595  </span></a><span class="s3">)</span>
+<a name="l596"><span class="ln">596  </span></a>
+<a name="l597"><span class="ln">597  </span></a><span class="s0"># Like above, but using remote cache</span>
+<a name="l598"><span class="ln">598  </span></a><span class="s1">automatic_dynamic_remote_pgo</span><span class="s2">: </span><span class="s1">Optional</span><span class="s3">[</span><span class="s1">bool</span><span class="s3">] </span><span class="s2">= </span><span class="s1">get_tristate_env</span><span class="s3">(</span>
+<a name="l599"><span class="ln">599  </span></a>    <span class="s4">&quot;TORCH_DYNAMO_AUTOMATIC_DYNAMIC_REMOTE_PGO&quot;</span>
+<a name="l600"><span class="ln">600  </span></a><span class="s3">)</span>
+<a name="l601"><span class="ln">601  </span></a>
+<a name="l602"><span class="ln">602  </span></a><span class="s0"># temporary config to kill later</span>
+<a name="l603"><span class="ln">603  </span></a><span class="s1">_unsafe_skip_fsdp_module_guards </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l604"><span class="ln">604  </span></a>    <span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;UNSAFE_SKIP_FSDP_MODULE_GUARDS&quot;</span><span class="s3">, </span><span class="s4">&quot;0&quot;</span><span class="s3">) </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span>
+<a name="l605"><span class="ln">605  </span></a><span class="s3">)</span>
+<a name="l606"><span class="ln">606  </span></a>
+<a name="l607"><span class="ln">607  </span></a><span class="s0"># Run GC at the end of compilation</span>
+<a name="l608"><span class="ln">608  </span></a><span class="s1">run_gc_after_compile </span><span class="s2">= </span><span class="s1">Config</span><span class="s3">(  </span><span class="s0"># type: ignore[var-annotated]</span>
+<a name="l609"><span class="ln">609  </span></a>    <span class="s1">default</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l610"><span class="ln">610  </span></a>    <span class="s1">justknob</span><span class="s2">=</span><span class="s4">&quot;pytorch/compiler:enable_run_gc_after_compile&quot;</span><span class="s3">,</span>
+<a name="l611"><span class="ln">611  </span></a>    <span class="s1">env_name_default</span><span class="s2">=</span><span class="s4">&quot;TORCH_DYNAMO_RUN_GC_AFTER_COMPILE&quot;</span><span class="s3">,</span>
+<a name="l612"><span class="ln">612  </span></a><span class="s3">)</span>
+<a name="l613"><span class="ln">613  </span></a>
+<a name="l614"><span class="ln">614  </span></a><span class="s0"># Takes the function/module decorated with torch.compile and passes it through a</span>
+<a name="l615"><span class="ln">615  </span></a><span class="s0"># wrapper. This ensures that nn.module hooks are also compiled in the same frame.</span>
+<a name="l616"><span class="ln">616  </span></a><span class="s1">wrap_top_frame </span><span class="s2">= False</span>
+<a name="l617"><span class="ln">617  </span></a>
+<a name="l618"><span class="ln">618  </span></a><span class="s0"># Flag to record runtime overhead in profile traces. Used for pre-graph bytecode</span>
+<a name="l619"><span class="ln">619  </span></a><span class="s0"># and AOTAutograd runtime wrapper.</span>
+<a name="l620"><span class="ln">620  </span></a><span class="s1">record_runtime_overhead </span><span class="s2">= True</span>
+<a name="l621"><span class="ln">621  </span></a>
+<a name="l622"><span class="ln">622  </span></a><span class="s0"># HACK: this is for testing custom ops profiling only</span>
+<a name="l623"><span class="ln">623  </span></a><span class="s1">_custom_ops_profile</span><span class="s2">: </span><span class="s1">Optional</span><span class="s3">[</span><span class="s1">Any</span><span class="s3">] </span><span class="s2">= None</span>
+<a name="l624"><span class="ln">624  </span></a>
+<a name="l625"><span class="ln">625  </span></a><span class="s2">if </span><span class="s1">TYPE_CHECKING</span><span class="s2">:</span>
+<a name="l626"><span class="ln">626  </span></a>    <span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">utils</span><span class="s3">.</span><span class="s1">_config_typing </span><span class="s2">import *  </span><span class="s0"># noqa: F401, F403</span>
+<a name="l627"><span class="ln">627  </span></a>
+<a name="l628"><span class="ln">628  </span></a>    <span class="s2">def </span><span class="s1">_make_closure_patcher</span><span class="s3">(</span><span class="s2">**</span><span class="s1">changes</span><span class="s3">)</span><span class="s2">: </span><span class="s3">...</span>
+<a name="l629"><span class="ln">629  </span></a>
+<a name="l630"><span class="ln">630  </span></a>
+<a name="l631"><span class="ln">631  </span></a><span class="s1">install_config_module</span><span class="s3">(</span><span class="s1">sys</span><span class="s3">.</span><span class="s1">modules</span><span class="s3">[</span><span class="s1">__name__</span><span class="s3">])</span>
+<a name="l632"><span class="ln">632  </span></a></pre>
+</body>
+</html>

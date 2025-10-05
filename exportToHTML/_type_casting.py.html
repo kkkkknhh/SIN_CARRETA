@@ -1,0 +1,54 @@
+<html>
+<head>
+<title>_type_casting.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #969896;}
+.s4 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_type_casting.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">import </span><span class="s1">numpy </span><span class="s0">as </span><span class="s1">np</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">import </span><span class="s1">torch</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">def </span><span class="s1">unpack_float4x2_as_uint8</span><span class="s2">(</span><span class="s1">tensor</span><span class="s0">: </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">Tensor</span><span class="s2">) </span><span class="s1">-&gt; np</span><span class="s2">.</span><span class="s1">ndarray</span><span class="s0">:</span>
+<a name="l7"><span class="ln">7    </span></a>    <span class="s3">&quot;&quot;&quot;Convert a float4x2 tensor to unpacked uint8 np array.&quot;&quot;&quot;</span>
+<a name="l8"><span class="ln">8    </span></a>    <span class="s0">assert </span><span class="s1">tensor</span><span class="s2">.</span><span class="s1">dtype </span><span class="s0">== </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">float4_e2m1fn_x2</span>
+<a name="l9"><span class="ln">9    </span></a>    <span class="s1">data </span><span class="s0">= </span><span class="s1">tensor</span><span class="s2">.</span><span class="s1">view</span><span class="s2">(</span><span class="s1">torch</span><span class="s2">.</span><span class="s1">uint8</span><span class="s2">).</span><span class="s1">numpy</span><span class="s2">(</span><span class="s1">force</span><span class="s0">=True</span><span class="s2">).</span><span class="s1">flatten</span><span class="s2">()</span>
+<a name="l10"><span class="ln">10   </span></a>    <span class="s1">result_size </span><span class="s0">= </span><span class="s1">tensor</span><span class="s2">.</span><span class="s1">numel</span><span class="s2">() </span><span class="s0">* </span><span class="s4">2</span>
+<a name="l11"><span class="ln">11   </span></a>    <span class="s1">result </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">empty</span><span class="s2">([</span><span class="s1">result_size</span><span class="s2">], </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">np</span><span class="s2">.</span><span class="s1">uint8</span><span class="s2">)</span>
+<a name="l12"><span class="ln">12   </span></a>    <span class="s1">array_low </span><span class="s0">= </span><span class="s1">data </span><span class="s0">&amp; </span><span class="s1">np</span><span class="s2">.</span><span class="s1">uint8</span><span class="s2">(</span><span class="s4">0x0F</span><span class="s2">)</span>
+<a name="l13"><span class="ln">13   </span></a>    <span class="s1">array_high </span><span class="s0">= </span><span class="s1">data </span><span class="s0">&amp; </span><span class="s1">np</span><span class="s2">.</span><span class="s1">uint8</span><span class="s2">(</span><span class="s4">0xF0</span><span class="s2">)</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s1">array_high </span><span class="s0">&gt;&gt;= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">uint8</span><span class="s2">(</span><span class="s4">4</span><span class="s2">)</span>
+<a name="l15"><span class="ln">15   </span></a>    <span class="s1">result</span><span class="s2">[</span><span class="s4">0</span><span class="s0">::</span><span class="s4">2</span><span class="s2">] </span><span class="s0">= </span><span class="s1">array_low</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s1">result</span><span class="s2">[</span><span class="s4">1</span><span class="s0">::</span><span class="s4">2</span><span class="s2">] </span><span class="s0">= </span><span class="s1">array_high</span>
+<a name="l17"><span class="ln">17   </span></a>    <span class="s1">result</span><span class="s2">.</span><span class="s1">resize</span><span class="s2">(</span><span class="s1">get_float4_shape</span><span class="s2">(</span><span class="s1">tensor</span><span class="s2">), </span><span class="s1">refcheck</span><span class="s0">=False</span><span class="s2">)</span>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s0">return </span><span class="s1">result</span>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s0">def </span><span class="s1">get_float4_shape</span><span class="s2">(</span><span class="s1">tensor</span><span class="s0">: </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">Tensor</span><span class="s2">) </span><span class="s1">-&gt; tuple</span><span class="s2">[</span><span class="s1">int</span><span class="s2">, ...]</span><span class="s0">:</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s3">&quot;&quot;&quot;Get the shape of an unpacked float4 tensor. 
+<a name="l23"><span class="ln">23   </span></a> 
+<a name="l24"><span class="ln">24   </span></a>    The float4_e2m1fn_x2 type is a shell type described in 
+<a name="l25"><span class="ln">25   </span></a>    https://github.com/pytorch/pytorch/issues/146414. 
+<a name="l26"><span class="ln">26   </span></a> 
+<a name="l27"><span class="ln">27   </span></a>    the shell dtype is takes up 1 byte per element and semantically represents 
+<a name="l28"><span class="ln">28   </span></a>    two fp4 values packed into 1 byte. Semantically it represents (*tensor.shape[:-1], tensor.shape[-1]*2) 
+<a name="l29"><span class="ln">29   </span></a>    fp4 elements. 
+<a name="l30"><span class="ln">30   </span></a>    &quot;&quot;&quot;</span>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s0">assert </span><span class="s1">tensor</span><span class="s2">.</span><span class="s1">dtype </span><span class="s0">== </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">float4_e2m1fn_x2</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s0">return </span><span class="s2">(</span><span class="s0">*</span><span class="s1">tensor</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s0">:-</span><span class="s4">1</span><span class="s2">], </span><span class="s1">tensor</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s0">-</span><span class="s4">1</span><span class="s2">] </span><span class="s0">* </span><span class="s4">2</span><span class="s2">)</span>
+<a name="l33"><span class="ln">33   </span></a></pre>
+</body>
+</html>

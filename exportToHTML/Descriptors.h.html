@@ -1,0 +1,191 @@
+<html>
+<head>
+<title>Descriptors.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #000080; font-weight: bold;}
+.s2 { color: #660e7a; font-weight: bold;}
+.s3 { color: #0086b3;}
+.s4 { color: #969896; font-style: italic;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+Descriptors.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/miopen/Exceptions.h&gt;</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/miopen/miopen-wrapper.h&gt;</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/core/Tensor.h&gt;</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/TensorUtils.h&gt;</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/macros/Export.h&gt;</span>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">namespace </span><span class="s0">at { </span><span class="s2">namespace </span><span class="s0">native {</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">inline </span><span class="s1">int </span><span class="s0">dataSize(miopenDataType_t dataType)</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s0">{</span>
+<a name="l14"><span class="ln">14   </span></a>  <span class="s1">switch </span><span class="s0">(dataType) {</span>
+<a name="l15"><span class="ln">15   </span></a>    <span class="s1">case </span><span class="s0">miopenHalf: </span><span class="s1">return </span><span class="s3">2</span><span class="s0">;</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s1">case </span><span class="s0">miopenFloat: </span><span class="s1">return </span><span class="s3">4</span><span class="s0">;</span>
+<a name="l17"><span class="ln">17   </span></a>    <span class="s1">case </span><span class="s0">miopenBFloat16: </span><span class="s1">return </span><span class="s3">2</span><span class="s0">;</span>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s1">default</span><span class="s0">: </span><span class="s1">return </span><span class="s3">8</span><span class="s0">;</span>
+<a name="l19"><span class="ln">19   </span></a>  <span class="s0">}</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s0">}</span>
+<a name="l21"><span class="ln">21   </span></a>
+<a name="l22"><span class="ln">22   </span></a><span class="s0">template &lt;</span><span class="s2">typename </span><span class="s0">T, miopenStatus_t (*dtor)(T*)&gt;</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s1">struct </span><span class="s0">DescriptorDeleter {</span>
+<a name="l24"><span class="ln">24   </span></a>  <span class="s1">void </span><span class="s2">operator</span><span class="s0">()(T* x) {</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s1">if </span><span class="s0">(x != nullptr) {</span>
+<a name="l26"><span class="ln">26   </span></a>      <span class="s0">MIOPEN_CHECK(dtor(x));</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s0">}</span>
+<a name="l28"><span class="ln">28   </span></a>  <span class="s0">}</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s0">};</span>
+<a name="l30"><span class="ln">30   </span></a>
+<a name="l31"><span class="ln">31   </span></a><span class="s4">// A generic class for wrapping MIOpen descriptor types.  All you need</span>
+<a name="l32"><span class="ln">32   </span></a><span class="s4">// is to give the underlying type the Descriptor_t points to (usually,</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s4">// if it's miopenTensorDescriptor_t it points to miopenTensorStruct),</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s4">// the constructor and the destructor.  Subclasses are responsible</span>
+<a name="l35"><span class="ln">35   </span></a><span class="s4">// for defining a set() function to actually set the descriptor.</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s4">//</span>
+<a name="l37"><span class="ln">37   </span></a><span class="s4">// Descriptors default construct to a nullptr, and have a descriptor</span>
+<a name="l38"><span class="ln">38   </span></a><span class="s4">// initialized the first time you call set() or any other initializing</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s4">// function.</span>
+<a name="l40"><span class="ln">40   </span></a><span class="s0">template &lt;</span><span class="s2">typename </span><span class="s0">T, miopenStatus_t (*ctor)(T**), miopenStatus_t (*dtor)(T*)&gt;</span>
+<a name="l41"><span class="ln">41   </span></a><span class="s4">// NOLINTNEXTLINE(bugprone-exception-escape)</span>
+<a name="l42"><span class="ln">42   </span></a><span class="s2">class </span><span class="s0">TORCH_CUDA_CPP_API Descriptor {</span>
+<a name="l43"><span class="ln">43   </span></a> <span class="s2">public</span><span class="s0">:</span>
+<a name="l44"><span class="ln">44   </span></a>  <span class="s4">// Use desc() to access the underlying descriptor pointer in</span>
+<a name="l45"><span class="ln">45   </span></a>  <span class="s4">// a read-only fashion.  Most client code should use this.</span>
+<a name="l46"><span class="ln">46   </span></a>  <span class="s4">// If the descriptor was never initialized, this will return</span>
+<a name="l47"><span class="ln">47   </span></a>  <span class="s4">// nullptr.</span>
+<a name="l48"><span class="ln">48   </span></a>  <span class="s0">T* desc() </span><span class="s1">const </span><span class="s0">{ </span><span class="s1">return </span><span class="s0">desc_.get(); }</span>
+<a name="l49"><span class="ln">49   </span></a>  <span class="s0">T* desc() { </span><span class="s1">return </span><span class="s0">desc_.get(); }</span>
+<a name="l50"><span class="ln">50   </span></a>
+<a name="l51"><span class="ln">51   </span></a>  <span class="s4">// Use mut_desc() to access the underlying descriptor pointer</span>
+<a name="l52"><span class="ln">52   </span></a>  <span class="s4">// if you intend to modify what it points to (e.g., using</span>
+<a name="l53"><span class="ln">53   </span></a>  <span class="s4">// miopenSetFooDescriptor).  This will ensure that the descriptor</span>
+<a name="l54"><span class="ln">54   </span></a>  <span class="s4">// is initialized.  Code in this file will use this function.</span>
+<a name="l55"><span class="ln">55   </span></a>  <span class="s0">T* mut_desc() { init(); </span><span class="s1">return </span><span class="s0">desc_.get(); }</span>
+<a name="l56"><span class="ln">56   </span></a><span class="s2">protected</span><span class="s0">:</span>
+<a name="l57"><span class="ln">57   </span></a>  <span class="s1">void </span><span class="s0">init() {</span>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s1">if </span><span class="s0">(desc_ == nullptr) {</span>
+<a name="l59"><span class="ln">59   </span></a>      <span class="s0">T* raw_desc = nullptr;</span>
+<a name="l60"><span class="ln">60   </span></a>      <span class="s0">MIOPEN_CHECK(ctor(&amp;raw_desc));</span>
+<a name="l61"><span class="ln">61   </span></a>      <span class="s0">desc_.reset(raw_desc);</span>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s0">}</span>
+<a name="l63"><span class="ln">63   </span></a>  <span class="s0">}</span>
+<a name="l64"><span class="ln">64   </span></a><span class="s2">private</span><span class="s0">:</span>
+<a name="l65"><span class="ln">65   </span></a>  <span class="s0">std::unique_ptr&lt;T, DescriptorDeleter&lt;T, dtor&gt;&gt; desc_;</span>
+<a name="l66"><span class="ln">66   </span></a><span class="s0">};</span>
+<a name="l67"><span class="ln">67   </span></a>
+<a name="l68"><span class="ln">68   </span></a><span class="s2">class </span><span class="s0">TORCH_CUDA_CPP_API TensorDescriptor : </span><span class="s2">public </span><span class="s0">Descriptor&lt;</span>
+<a name="l69"><span class="ln">69   </span></a>                                               <span class="s0">miopenTensorDescriptor,</span>
+<a name="l70"><span class="ln">70   </span></a>                                               <span class="s0">&amp;miopenCreateTensorDescriptor,</span>
+<a name="l71"><span class="ln">71   </span></a>                                               <span class="s0">&amp;miopenDestroyTensorDescriptor&gt; {</span>
+<a name="l72"><span class="ln">72   </span></a> <span class="s2">public</span><span class="s0">:</span>
+<a name="l73"><span class="ln">73   </span></a>  <span class="s0">TensorDescriptor() = </span><span class="s1">default</span><span class="s0">;</span>
+<a name="l74"><span class="ln">74   </span></a>  <span class="s2">explicit </span><span class="s0">TensorDescriptor(</span><span class="s1">const </span><span class="s0">at::Tensor &amp;t, size_t pad = </span><span class="s3">0</span><span class="s0">) {</span>
+<a name="l75"><span class="ln">75   </span></a>    <span class="s0">set(t, pad);</span>
+<a name="l76"><span class="ln">76   </span></a>  <span class="s0">}</span>
+<a name="l77"><span class="ln">77   </span></a>
+<a name="l78"><span class="ln">78   </span></a>  <span class="s1">void </span><span class="s0">set(</span><span class="s1">const </span><span class="s0">at::Tensor &amp;t, size_t pad = </span><span class="s3">0</span><span class="s0">);</span>
+<a name="l79"><span class="ln">79   </span></a>  <span class="s1">void </span><span class="s0">set(miopenDataType_t dataType, IntArrayRef sizes, IntArrayRef strides, size_t pad = </span><span class="s3">0</span><span class="s0">);</span>
+<a name="l80"><span class="ln">80   </span></a>
+<a name="l81"><span class="ln">81   </span></a>  <span class="s1">void </span><span class="s0">print();</span>
+<a name="l82"><span class="ln">82   </span></a>
+<a name="l83"><span class="ln">83   </span></a><span class="s2">private</span><span class="s0">:</span>
+<a name="l84"><span class="ln">84   </span></a>  <span class="s1">void </span><span class="s0">set(miopenDataType_t dataType, </span><span class="s1">int </span><span class="s0">dim, </span><span class="s1">int</span><span class="s0">* size, </span><span class="s1">int</span><span class="s0">* stride) {</span>
+<a name="l85"><span class="ln">85   </span></a>    <span class="s0">MIOPEN_CHECK(miopenSetTensorDescriptor(mut_desc(), dataType, dim, size, stride));</span>
+<a name="l86"><span class="ln">86   </span></a>  <span class="s0">}</span>
+<a name="l87"><span class="ln">87   </span></a><span class="s0">};</span>
+<a name="l88"><span class="ln">88   </span></a>
+<a name="l89"><span class="ln">89   </span></a><span class="s0">std::ostream&amp; </span><span class="s2">operator</span><span class="s0">&lt;&lt;(std::ostream &amp; out, </span><span class="s1">const </span><span class="s0">TensorDescriptor&amp; d);</span>
+<a name="l90"><span class="ln">90   </span></a>
+<a name="l91"><span class="ln">91   </span></a><span class="s2">class </span><span class="s0">TORCH_CUDA_CPP_API FilterDescriptor : </span><span class="s2">public </span><span class="s0">Descriptor&lt;</span>
+<a name="l92"><span class="ln">92   </span></a>                                               <span class="s0">miopenTensorDescriptor,</span>
+<a name="l93"><span class="ln">93   </span></a>                                               <span class="s0">&amp;miopenCreateTensorDescriptor,</span>
+<a name="l94"><span class="ln">94   </span></a>                                               <span class="s0">&amp;miopenDestroyTensorDescriptor&gt; {</span>
+<a name="l95"><span class="ln">95   </span></a> <span class="s2">public</span><span class="s0">:</span>
+<a name="l96"><span class="ln">96   </span></a>  <span class="s1">void </span><span class="s0">set(</span><span class="s1">const </span><span class="s0">at::Tensor &amp;t, int64_t pad = </span><span class="s3">0</span><span class="s0">) {</span>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s0">set(t, at::MemoryFormat::Contiguous, pad);</span>
+<a name="l98"><span class="ln">98   </span></a>  <span class="s0">}</span>
+<a name="l99"><span class="ln">99   </span></a>
+<a name="l100"><span class="ln">100  </span></a>  <span class="s1">void </span><span class="s0">set(</span><span class="s1">const </span><span class="s0">at::Tensor &amp;t, </span><span class="s1">const </span><span class="s0">at::MemoryFormat memory_format, int64_t pad = </span><span class="s3">0</span><span class="s0">);</span>
+<a name="l101"><span class="ln">101  </span></a>
+<a name="l102"><span class="ln">102  </span></a><span class="s2">private</span><span class="s0">:</span>
+<a name="l103"><span class="ln">103  </span></a>  <span class="s1">void </span><span class="s0">set(miopenDataType_t dataType, </span><span class="s1">int </span><span class="s0">dim, </span><span class="s1">int</span><span class="s0">* size, </span><span class="s1">int</span><span class="s0">* stride) {</span>
+<a name="l104"><span class="ln">104  </span></a>    <span class="s0">MIOPEN_CHECK(miopenSetTensorDescriptor(mut_desc(), dataType, dim, size, stride));</span>
+<a name="l105"><span class="ln">105  </span></a>  <span class="s0">}</span>
+<a name="l106"><span class="ln">106  </span></a><span class="s0">};</span>
+<a name="l107"><span class="ln">107  </span></a>
+<a name="l108"><span class="ln">108  </span></a><span class="s1">struct </span><span class="s0">TORCH_CUDA_CPP_API ConvolutionDescriptor</span>
+<a name="l109"><span class="ln">109  </span></a>    <span class="s0">: </span><span class="s2">public </span><span class="s0">Descriptor&lt;</span>
+<a name="l110"><span class="ln">110  </span></a>          <span class="s0">miopenConvolutionDescriptor,</span>
+<a name="l111"><span class="ln">111  </span></a>          <span class="s0">&amp;miopenCreateConvolutionDescriptor,</span>
+<a name="l112"><span class="ln">112  </span></a>          <span class="s0">&amp;miopenDestroyConvolutionDescriptor&gt; {</span>
+<a name="l113"><span class="ln">113  </span></a>  <span class="s1">void </span><span class="s0">set(miopenDataType_t dataType, miopenConvolutionMode_t c_mode,  </span><span class="s1">int </span><span class="s0">dim, </span><span class="s1">int</span><span class="s0">* pad, </span><span class="s1">int</span><span class="s0">* stride, </span><span class="s1">int </span><span class="s0">* upscale </span><span class="s4">/* aka dilation */</span><span class="s0">, </span><span class="s1">int </span><span class="s0">groups, </span><span class="s1">bool </span><span class="s0">benchmark, </span><span class="s1">bool </span><span class="s0">deterministic) {</span>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s0">MIOPEN_CHECK(miopenInitConvolutionNdDescriptor(mut_desc(), dim, pad, stride, upscale, c_mode));</span>
+<a name="l115"><span class="ln">115  </span></a>    <span class="s0">MIOPEN_CHECK(miopenSetConvolutionGroupCount(mut_desc(), groups));</span>
+<a name="l116"><span class="ln">116  </span></a>    <span class="s0">MIOPEN_CHECK(miopenSetConvolutionAttribute(mut_desc(), MIOPEN_CONVOLUTION_ATTRIB_DETERMINISTIC, deterministic ? </span><span class="s3">1 </span><span class="s0">: </span><span class="s3">0</span><span class="s0">));</span>
+<a name="l117"><span class="ln">117  </span></a>    <span class="s1">if </span><span class="s0">(benchmark) {</span>
+<a name="l118"><span class="ln">118  </span></a>      <span class="s0">MIOPEN_CHECK(miopenSetConvolutionFindMode(mut_desc(), miopenConvolutionFindModeNormal));</span>
+<a name="l119"><span class="ln">119  </span></a>    <span class="s0">}</span>
+<a name="l120"><span class="ln">120  </span></a>  <span class="s0">}</span>
+<a name="l121"><span class="ln">121  </span></a><span class="s0">};</span>
+<a name="l122"><span class="ln">122  </span></a>
+<a name="l123"><span class="ln">123  </span></a><span class="s4">// NOLINTNEXTLINE(bugprone-exception-escape)</span>
+<a name="l124"><span class="ln">124  </span></a><span class="s1">struct </span><span class="s0">TORCH_CUDA_CPP_API DropoutDescriptor</span>
+<a name="l125"><span class="ln">125  </span></a>    <span class="s0">: </span><span class="s2">public </span><span class="s0">Descriptor&lt;</span>
+<a name="l126"><span class="ln">126  </span></a>          <span class="s0">miopenDropoutDescriptor,</span>
+<a name="l127"><span class="ln">127  </span></a>          <span class="s0">&amp;miopenCreateDropoutDescriptor,</span>
+<a name="l128"><span class="ln">128  </span></a>          <span class="s0">&amp;miopenDestroyDropoutDescriptor&gt; {</span>
+<a name="l129"><span class="ln">129  </span></a>    <span class="s1">void </span><span class="s0">set(miopenHandle_t handle, </span><span class="s1">float </span><span class="s0">dropout, </span><span class="s1">void</span><span class="s0">* states, size_t stateSizeInBytes,</span>
+<a name="l130"><span class="ln">130  </span></a>             <span class="s1">unsigned long long </span><span class="s0">seed, </span><span class="s1">bool </span><span class="s0">use_mask, </span><span class="s1">bool </span><span class="s0">state_evo, miopenRNGType_t rng_mode) {</span>
+<a name="l131"><span class="ln">131  </span></a>      <span class="s0">MIOPEN_CHECK(miopenSetDropoutDescriptor(mut_desc(), handle, dropout, states, stateSizeInBytes, seed, use_mask, state_evo, rng_mode));</span>
+<a name="l132"><span class="ln">132  </span></a>    <span class="s0">}</span>
+<a name="l133"><span class="ln">133  </span></a>
+<a name="l134"><span class="ln">134  </span></a>    <span class="s1">void </span><span class="s0">restore(miopenHandle_t handle, </span><span class="s1">float </span><span class="s0">dropout, </span><span class="s1">void</span><span class="s0">* states, size_t stateSizeInBytes,</span>
+<a name="l135"><span class="ln">135  </span></a>      <span class="s1">unsigned long long </span><span class="s0">seed, </span><span class="s1">bool </span><span class="s0">use_mask, </span><span class="s1">bool </span><span class="s0">state_evo, miopenRNGType_t rng_mode) {</span>
+<a name="l136"><span class="ln">136  </span></a>      <span class="s0">MIOPEN_CHECK(miopenRestoreDropoutDescriptor(mut_desc(), handle, dropout, states, stateSizeInBytes, seed, use_mask, state_evo, rng_mode));</span>
+<a name="l137"><span class="ln">137  </span></a>    <span class="s0">}</span>
+<a name="l138"><span class="ln">138  </span></a><span class="s0">};</span>
+<a name="l139"><span class="ln">139  </span></a>
+<a name="l140"><span class="ln">140  </span></a><span class="s1">struct </span><span class="s0">TORCH_CUDA_CPP_API RNNDescriptor</span>
+<a name="l141"><span class="ln">141  </span></a>  <span class="s0">: </span><span class="s2">public </span><span class="s0">Descriptor&lt;miopenRNNDescriptor,</span>
+<a name="l142"><span class="ln">142  </span></a>                      <span class="s0">&amp;miopenCreateRNNDescriptor,</span>
+<a name="l143"><span class="ln">143  </span></a>                      <span class="s0">&amp;miopenDestroyRNNDescriptor&gt;</span>
+<a name="l144"><span class="ln">144  </span></a><span class="s0">{</span>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s1">void </span><span class="s0">set(int64_t hidden_size, int64_t num_layers, miopenRNNInputMode_t input_mode, miopenRNNDirectionMode_t direction, miopenRNNMode_t rnn_mode,</span>
+<a name="l146"><span class="ln">146  </span></a>             <span class="s0">miopenRNNBiasMode_t bias_mode, miopenRNNAlgo_t algorithm, miopenDataType_t datatype) {</span>
+<a name="l147"><span class="ln">147  </span></a>      <span class="s0">MIOPEN_CHECK(miopenSetRNNDescriptor(mut_desc(), hidden_size, num_layers, input_mode, direction, rnn_mode, bias_mode, algorithm, datatype));</span>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s0">}</span>
+<a name="l149"><span class="ln">149  </span></a>
+<a name="l150"><span class="ln">150  </span></a>    <span class="s1">void </span><span class="s0">setWithDropout(DropoutDescriptor&amp; dropout_desc, int64_t hidden_size, int64_t num_layers, miopenRNNInputMode_t input_mode, miopenRNNDirectionMode_t direction,</span>
+<a name="l151"><span class="ln">151  </span></a>                        <span class="s0">miopenRNNMode_t rnn_mode, miopenRNNBiasMode_t bias_mode, miopenRNNAlgo_t algorithm, miopenDataType_t datatype) {</span>
+<a name="l152"><span class="ln">152  </span></a>      <span class="s0">MIOPEN_CHECK(miopenSetRNNDescriptor_V2(mut_desc(), hidden_size, num_layers, dropout_desc.mut_desc(), input_mode, direction, rnn_mode, bias_mode, algorithm, datatype));</span>
+<a name="l153"><span class="ln">153  </span></a>    <span class="s0">}</span>
+<a name="l154"><span class="ln">154  </span></a><span class="s0">};</span>
+<a name="l155"><span class="ln">155  </span></a>
+<a name="l156"><span class="ln">156  </span></a><span class="s1">union </span><span class="s0">Constant</span>
+<a name="l157"><span class="ln">157  </span></a><span class="s0">{</span>
+<a name="l158"><span class="ln">158  </span></a>  <span class="s1">float </span><span class="s0">f;</span>
+<a name="l159"><span class="ln">159  </span></a>  <span class="s1">double </span><span class="s0">d;</span>
+<a name="l160"><span class="ln">160  </span></a>  <span class="s0">Constant(miopenDataType_t dataType, </span><span class="s1">double </span><span class="s0">value) {</span>
+<a name="l161"><span class="ln">161  </span></a>    <span class="s1">if </span><span class="s0">(dataType == miopenHalf || dataType == miopenFloat || dataType == miopenBFloat16) {</span>
+<a name="l162"><span class="ln">162  </span></a>      <span class="s0">f = </span><span class="s2">static_cast</span><span class="s0">&lt;</span><span class="s1">float</span><span class="s0">&gt;(value);</span>
+<a name="l163"><span class="ln">163  </span></a>    <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l164"><span class="ln">164  </span></a>      <span class="s0">d = value;</span>
+<a name="l165"><span class="ln">165  </span></a>    <span class="s0">}</span>
+<a name="l166"><span class="ln">166  </span></a>  <span class="s0">}</span>
+<a name="l167"><span class="ln">167  </span></a><span class="s0">};</span>
+<a name="l168"><span class="ln">168  </span></a>
+<a name="l169"><span class="ln">169  </span></a><span class="s0">}}  </span><span class="s4">// namespace</span>
+<a name="l170"><span class="ln">170  </span></a></pre>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<html>
+<head>
+<title>overflows.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #000080; font-weight: bold;}
+.s2 { color: #660e7a; font-weight: bold;}
+.s3 { color: #969896; font-style: italic;}
+.s4 { color: #0086b3;}
+.s5 { color: #183691; font-weight: bold;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+overflows.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/macros/Macros.h&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/TypeSafeSignMath.h&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/complex.h&gt;</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">#include </span><span class="s0">&lt;cmath&gt;</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s1">#include </span><span class="s0">&lt;limits&gt;</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">#include </span><span class="s0">&lt;type_traits&gt;</span>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">namespace </span><span class="s0">c10 {</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s3">// In some versions of MSVC, there will be a compiler error when building.</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s3">// C4146: unary minus operator applied to unsigned type, result still unsigned</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s3">// C4804: unsafe use of type 'bool' in operation</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s3">// It can be addressed by disabling the following warning.</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s1">#ifdef </span><span class="s0">_MSC_VER</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s0">#pragma warning(push)</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s0">#pragma warning(disable : </span><span class="s4">4146</span><span class="s0">)</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s0">#pragma warning(disable : </span><span class="s4">4804</span><span class="s0">)</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s0">#pragma warning(disable : </span><span class="s4">4018</span><span class="s0">)</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s1">#endif</span>
+<a name="l22"><span class="ln">22   </span></a>
+<a name="l23"><span class="ln">23   </span></a><span class="s3">// The overflow checks may involve float to int conversion which may</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s3">// trigger precision loss warning. Re-enable the warning once the code</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s3">// is fixed. See T58053069.</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s0">C10_CLANG_DIAGNOSTIC_PUSH()</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s1">#if </span><span class="s0">C10_CLANG_HAS_WARNING(</span><span class="s5">&quot;-Wimplicit-float-conversion&quot;</span><span class="s0">)</span>
+<a name="l28"><span class="ln">28   </span></a><span class="s0">C10_CLANG_DIAGNOSTIC_IGNORE(</span><span class="s5">&quot;-Wimplicit-float-conversion&quot;</span><span class="s0">)</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s1">#endif</span>
+<a name="l30"><span class="ln">30   </span></a>
+<a name="l31"><span class="ln">31   </span></a><span class="s3">// bool can be converted to any type.</span>
+<a name="l32"><span class="ln">32   </span></a><span class="s3">// Without specializing on bool, in pytorch_linux_trusty_py2_7_9_build:</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s3">// `error: comparison of constant '255' with boolean expression is always false`</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s3">// for `f &gt; limit::max()` below</span>
+<a name="l35"><span class="ln">35   </span></a><span class="s0">template &lt;</span><span class="s2">typename </span><span class="s0">To, </span><span class="s2">typename </span><span class="s0">From&gt;</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s0">std::enable_if_t&lt;std::is_same_v&lt;From, </span><span class="s1">bool</span><span class="s0">&gt;, </span><span class="s1">bool</span><span class="s0">&gt; overflows(</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s0">From </span><span class="s3">/*f*/</span><span class="s0">,</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s1">bool </span><span class="s0">strict_unsigned [[maybe_unused]] = </span><span class="s1">false</span><span class="s0">) {</span>
+<a name="l39"><span class="ln">39   </span></a>  <span class="s1">return false</span><span class="s0">;</span>
+<a name="l40"><span class="ln">40   </span></a><span class="s0">}</span>
+<a name="l41"><span class="ln">41   </span></a>
+<a name="l42"><span class="ln">42   </span></a><span class="s3">// skip isnan and isinf check for integral types</span>
+<a name="l43"><span class="ln">43   </span></a><span class="s0">template &lt;</span><span class="s2">typename </span><span class="s0">To, </span><span class="s2">typename </span><span class="s0">From&gt;</span>
+<a name="l44"><span class="ln">44   </span></a><span class="s0">std::enable_if_t&lt;std::is_integral_v&lt;From&gt; &amp;&amp; !std::is_same_v&lt;From, </span><span class="s1">bool</span><span class="s0">&gt;, </span><span class="s1">bool</span><span class="s0">&gt;</span>
+<a name="l45"><span class="ln">45   </span></a><span class="s0">overflows(From f, </span><span class="s1">bool </span><span class="s0">strict_unsigned = </span><span class="s1">false</span><span class="s0">) {</span>
+<a name="l46"><span class="ln">46   </span></a>  <span class="s2">using </span><span class="s0">limit = std::numeric_limits&lt;</span><span class="s2">typename </span><span class="s0">scalar_value_type&lt;To&gt;::type&gt;;</span>
+<a name="l47"><span class="ln">47   </span></a>  <span class="s1">if </span><span class="s0">constexpr (!limit::is_signed &amp;&amp; std::numeric_limits&lt;From&gt;::is_signed) {</span>
+<a name="l48"><span class="ln">48   </span></a>    <span class="s3">// allow for negative numbers to wrap using two's complement arithmetic.</span>
+<a name="l49"><span class="ln">49   </span></a>    <span class="s3">// For example, with uint8, this allows for `a - b` to be treated as</span>
+<a name="l50"><span class="ln">50   </span></a>    <span class="s3">// `a + 255 * b`.</span>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s1">if </span><span class="s0">(!strict_unsigned) {</span>
+<a name="l52"><span class="ln">52   </span></a>      <span class="s1">return </span><span class="s0">greater_than_max&lt;To&gt;(f) ||</span>
+<a name="l53"><span class="ln">53   </span></a>          <span class="s0">(c10::is_negative(f) &amp;&amp;</span>
+<a name="l54"><span class="ln">54   </span></a>           <span class="s0">-</span><span class="s2">static_cast</span><span class="s0">&lt;uint64_t&gt;(f) &gt; </span><span class="s2">static_cast</span><span class="s0">&lt;uint64_t&gt;(limit::max()));</span>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s0">}</span>
+<a name="l56"><span class="ln">56   </span></a>  <span class="s0">}</span>
+<a name="l57"><span class="ln">57   </span></a>  <span class="s1">return </span><span class="s0">c10::less_than_lowest&lt;To&gt;(f) || greater_than_max&lt;To&gt;(f);</span>
+<a name="l58"><span class="ln">58   </span></a><span class="s0">}</span>
+<a name="l59"><span class="ln">59   </span></a>
+<a name="l60"><span class="ln">60   </span></a><span class="s0">template &lt;</span><span class="s2">typename </span><span class="s0">To, </span><span class="s2">typename </span><span class="s0">From&gt;</span>
+<a name="l61"><span class="ln">61   </span></a><span class="s0">std::enable_if_t&lt;std::is_floating_point_v&lt;From&gt;, </span><span class="s1">bool</span><span class="s0">&gt; overflows(</span>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s0">From f,</span>
+<a name="l63"><span class="ln">63   </span></a>    <span class="s1">bool </span><span class="s0">strict_unsigned [[maybe_unused]] = </span><span class="s1">false</span><span class="s0">) {</span>
+<a name="l64"><span class="ln">64   </span></a>  <span class="s2">using </span><span class="s0">limit = std::numeric_limits&lt;</span><span class="s2">typename </span><span class="s0">scalar_value_type&lt;To&gt;::type&gt;;</span>
+<a name="l65"><span class="ln">65   </span></a>  <span class="s1">if </span><span class="s0">(limit::has_infinity &amp;&amp; std::isinf(</span><span class="s2">static_cast</span><span class="s0">&lt;</span><span class="s1">double</span><span class="s0">&gt;(f))) {</span>
+<a name="l66"><span class="ln">66   </span></a>    <span class="s1">return false</span><span class="s0">;</span>
+<a name="l67"><span class="ln">67   </span></a>  <span class="s0">}</span>
+<a name="l68"><span class="ln">68   </span></a>  <span class="s1">if </span><span class="s0">(!limit::has_quiet_NaN &amp;&amp; (f != f)) {</span>
+<a name="l69"><span class="ln">69   </span></a>    <span class="s1">return </span><span class="s2">true</span><span class="s0">;</span>
+<a name="l70"><span class="ln">70   </span></a>  <span class="s0">}</span>
+<a name="l71"><span class="ln">71   </span></a>  <span class="s1">return </span><span class="s0">f &lt; limit::lowest() || f &gt; limit::max();</span>
+<a name="l72"><span class="ln">72   </span></a><span class="s0">}</span>
+<a name="l73"><span class="ln">73   </span></a>
+<a name="l74"><span class="ln">74   </span></a><span class="s0">C10_CLANG_DIAGNOSTIC_POP()</span>
+<a name="l75"><span class="ln">75   </span></a>
+<a name="l76"><span class="ln">76   </span></a><span class="s1">#ifdef </span><span class="s0">_MSC_VER</span>
+<a name="l77"><span class="ln">77   </span></a><span class="s0">#pragma warning(pop)</span>
+<a name="l78"><span class="ln">78   </span></a><span class="s1">#endif</span>
+<a name="l79"><span class="ln">79   </span></a>
+<a name="l80"><span class="ln">80   </span></a><span class="s0">template &lt;</span><span class="s2">typename </span><span class="s0">To, </span><span class="s2">typename </span><span class="s0">From&gt;</span>
+<a name="l81"><span class="ln">81   </span></a><span class="s0">std::enable_if_t&lt;is_complex&lt;From&gt;::value, </span><span class="s1">bool</span><span class="s0">&gt; overflows(</span>
+<a name="l82"><span class="ln">82   </span></a>    <span class="s0">From f,</span>
+<a name="l83"><span class="ln">83   </span></a>    <span class="s1">bool </span><span class="s0">strict_unsigned = </span><span class="s1">false</span><span class="s0">) {</span>
+<a name="l84"><span class="ln">84   </span></a>  <span class="s3">// casts from complex to real are considered to overflow if the</span>
+<a name="l85"><span class="ln">85   </span></a>  <span class="s3">// imaginary component is non-zero</span>
+<a name="l86"><span class="ln">86   </span></a>  <span class="s1">if </span><span class="s0">(!is_complex&lt;To&gt;::value &amp;&amp; f.imag() != </span><span class="s4">0</span><span class="s0">) {</span>
+<a name="l87"><span class="ln">87   </span></a>    <span class="s1">return </span><span class="s2">true</span><span class="s0">;</span>
+<a name="l88"><span class="ln">88   </span></a>  <span class="s0">}</span>
+<a name="l89"><span class="ln">89   </span></a>  <span class="s3">// Check for overflow componentwise</span>
+<a name="l90"><span class="ln">90   </span></a>  <span class="s3">// (Technically, the imag overflow check is guaranteed to be false</span>
+<a name="l91"><span class="ln">91   </span></a>  <span class="s3">// when !is_complex&lt;To&gt;, but any optimizer worth its salt will be</span>
+<a name="l92"><span class="ln">92   </span></a>  <span class="s3">// able to figure it out.)</span>
+<a name="l93"><span class="ln">93   </span></a>  <span class="s1">return </span><span class="s0">overflows&lt;</span>
+<a name="l94"><span class="ln">94   </span></a>             <span class="s2">typename </span><span class="s0">scalar_value_type&lt;To&gt;::type,</span>
+<a name="l95"><span class="ln">95   </span></a>             <span class="s2">typename </span><span class="s0">From::value_type&gt;(f.real(), strict_unsigned) ||</span>
+<a name="l96"><span class="ln">96   </span></a>      <span class="s0">overflows&lt;</span>
+<a name="l97"><span class="ln">97   </span></a>             <span class="s2">typename </span><span class="s0">scalar_value_type&lt;To&gt;::type,</span>
+<a name="l98"><span class="ln">98   </span></a>             <span class="s2">typename </span><span class="s0">From::value_type&gt;(f.imag(), strict_unsigned);</span>
+<a name="l99"><span class="ln">99   </span></a><span class="s0">}</span>
+<a name="l100"><span class="ln">100  </span></a><span class="s0">} </span><span class="s3">// namespace c10</span>
+<a name="l101"><span class="ln">101  </span></a></pre>
+</body>
+</html>

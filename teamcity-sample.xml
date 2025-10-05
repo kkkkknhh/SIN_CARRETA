@@ -1,0 +1,496 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<build-type xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+            xsi:noNamespaceSchemaLocation="https://www.jetbrains.com/teamcity/schemas/2021.1/project-config.xsd" 
+            uuid="FeasibilityScorer_PythonCI" 
+            id="FeasibilityScorer_PythonCI" 
+            name="Feasibility Scorer - Python CI Pipeline">
+    
+    <description>
+        Production-ready Python CI pipeline with virtual environment isolation,
+        pip caching, and comprehensive testing for the Feasibility Scorer project.
+    </description>
+    
+    <settings>
+        <!-- Environment Variables for Python Isolation -->
+        <parameters>
+            <param name="env.PYTHONNOUSERSITE" value="1" spec="text description='Prevents user site-packages interference' display='normal' label='Python No User Site'" />
+            <param name="env.PIP_CACHE_DIR" value="%agent.work.dir%/.pip-cache" spec="text description='Centralized pip cache location' display='normal' label='Pip Cache Directory'" />
+            <param name="env.VIRTUAL_ENV" value="%agent.work.dir%/.venv" spec="text description='Virtual environment path' display='normal' label='Virtual Environment Path'" />
+            <param name="env.PATH" value="%agent.work.dir%/.venv/bin:%env.PATH%" spec="text description='Updated PATH with virtual environment' display='normal' label='Updated PATH'" />
+        </parameters>
+        
+        <build-runners>
+            <!-- Step 1: Setup Virtual Environment -->
+            <runner id="setup_venv" name="Setup Virtual Environment" type="simpleRunner">
+                <parameters>
+                    <param name="script.content"><![CDATA[
+#!/bin/bash
+set -euo pipefail
+
+echo "=== Python Virtual Environment Setup ==="
+echo "Timestamp: $(date)"
+echo "Agent work folder: %agent.work.dir%"
+echo "Build number: %build.number%"
+
+# Check Python availability
+if ! command -v python3 &> /dev/null; then
+    echo "ERROR: python3 not found on build agent"
+    exit 1
+fi
+
+echo "Python version: $(python3 --version)"
+echo "Python location: $(which python3)"
+
+# Remove existing virtual environment
+if [ -d "%agent.work.dir%/.venv" ]; then
+    echo "Removing existing virtual environment..."
+    rm -rf %agent.work.dir%/.venv
+fi
+
+# Create fresh virtual environment
+echo "Creating new virtual environment..."
+python3 -m venv %agent.work.dir%/.venv
+
+# Verify virtual environment creation
+if [ ! -f "%agent.work.dir%/.venv/bin/python" ]; then
+    echo "ERROR: Failed to create virtual environment"
+    exit 1
+fi
+
+# Activate and upgrade core packages
+echo "Upgrading core packages..."
+source %agent.work.dir%/.venv/bin/activate
+pip install --quiet --upgrade pip setuptools wheel
+
+# Verify virtual environment
+echo "=== Virtual Environment Verification ==="
+echo "Virtual environment created at: %agent.work.dir%/.venv"
+echo "Virtual Python version: $(%agent.work.dir%/.venv/bin/python --version)"
+echo "Virtual pip version: $(%agent.work.dir%/.venv/bin/pip --version)"
+
+# Create pip cache directory
+mkdir -p %agent.work.dir%/.pip-cache
+echo "Pip cache directory created: %agent.work.dir%/.pip-cache"
+
+echo "✓ Virtual environment setup completed successfully"
+                    ]]></param>
+                    <param name="teamcity.step.mode">default</param>
+                    <param name="use.custom.script">true</param>
+                </parameters>
+            </runner>
+            
+            <!-- Step 2: Install Project Dependencies -->
+            <runner id="install_dependencies" name="Install Dependencies" type="simpleRunner">
+                <parameters>
+                    <param name="script.content"><![CDATA[
+#!/bin/bash
+set -euo pipefail
+
+echo "=== Dependency Installation ==="
+echo "Timestamp: $(date)"
+
+# Define executables
+PYTHON_EXEC="%agent.work.dir%/.venv/bin/python"
+PIP_EXEC="%agent.work.dir%/.venv/bin/pip"
+
+# Verify executables exist
+if [ ! -f "$PYTHON_EXEC" ]; then
+    echo "ERROR: Virtual environment Python not found at $PYTHON_EXEC"
+    exit 1
+fi
+
+# Display pip cache information
+echo "Pip cache directory: %agent.work.dir%/.pip-cache"
+echo "Current cache size: $(du -sh %agent.work.dir%/.pip-cache 2>/dev/null || echo '0B (new cache)')"
+
+# Install dependencies with caching
+echo "Installing project dependencies..."
+if [ -f "requirements.txt" ]; then
+    $PIP_EXEC install --cache-dir %agent.work.dir%/.pip-cache --requirement requirements.txt
+    echo "✓ Dependencies installed from requirements.txt"
+else
+    echo "WARNING: requirements.txt not found, proceeding without external dependencies"
+fi
+
+# Verify installation
+echo "=== Installation Verification ==="
+echo "Installed packages:"
+$PIP_EXEC list --format=columns
+
+# Python environment verification
+echo "=== Python Environment Status ==="
+$PYTHON_EXEC -c "
+import sys, os
+print(f'Python executable: {sys.executable}')
+print(f'Python version: {sys.version_info}')
+print(f'Python path (first 3): {sys.path[:3]}')
+print(f'PYTHONNOUSERSITE: {os.environ.get(\"PYTHONNOUSERSITE\", \"Not set\")}')
+print(f'PIP_CACHE_DIR: {os.environ.get(\"PIP_CACHE_DIR\", \"Not set\")}')
+print(f'VIRTUAL_ENV: {os.environ.get(\"VIRTUAL_ENV\", \"Not set\")}')
+print(f'In virtual environment: {hasattr(sys, \"real_prefix\") or (hasattr(sys, \"base_prefix\") and sys.base_prefix != sys.prefix)}')
+"
+
+echo "Cache size after installation: $(du -sh %agent.work.dir%/.pip-cache 2>/dev/null || echo '0B')"
+echo "✓ Dependency installation completed successfully"
+                    ]]></param>
+                    <param name="teamcity.step.mode">default</param>
+                    <param name="use.custom.script">true</param>
+                </parameters>
+            </runner>
+            
+            <!-- Step 3: Build Validation -->
+            <runner id="build_validation" name="Build Validation" type="simpleRunner">
+                <parameters>
+                    <param name="script.content"><![CDATA[
+#!/bin/bash
+set -euo pipefail
+
+echo "=== Build Validation ==="
+echo "Timestamp: $(date)"
+
+PYTHON_EXEC="%agent.work.dir%/.venv/bin/python"
+
+# Verify Python executable
+if [ ! -f "$PYTHON_EXEC" ]; then
+    echo "ERROR: Virtual environment Python not found"
+    exit 1
+fi
+
+# Test main module import
+echo "Testing main module import..."
+$PYTHON_EXEC -c "
+try:
+    import feasibility_scorer
+    print('✓ feasibility_scorer module imported successfully')
+except ImportError as e:
+    print(f'ERROR: Failed to import feasibility_scorer: {e}')
+    exit(1)
+"
+
+# Test module functionality
+echo "Testing module functionality..."
+$PYTHON_EXEC -c "
+try:
+    from feasibility_scorer import FeasibilityScorer
+    scorer = FeasibilityScorer()
+    
+    # Test basic functionality
+    test_input = 'línea base 50% meta 80% año 2025'
+    result = scorer.calculate_feasibility_score(test_input)
+    
+    print(f'✓ Functional test passed:')
+    print(f'  Input: {test_input}')
+    print(f'  Score: {result.feasibility_score}')
+    print(f'  Quality Tier: {result.quality_tier}')
+    
+    # Verify result structure
+    assert hasattr(result, 'feasibility_score')
+    assert hasattr(result, 'quality_tier')
+    assert isinstance(result.feasibility_score, (int, float))
+    print('✓ Result structure validation passed')
+    
+except Exception as e:
+    print(f'ERROR: Functional test failed: {e}')
+    exit(1)
+"
+
+# Test batch processing
+echo "Testing batch processing..."
+$PYTHON_EXEC -c "
+try:
+    from feasibility_scorer import FeasibilityScorer
+    scorer = FeasibilityScorer()
+    
+    test_indicators = [
+        'línea base 65% meta 85% año 2025',
+        'baseline 40% target 70% timeline 2024',
+        'mejorar situación actual'
+    ]
+    
+    results = scorer.batch_score(test_indicators)
+    print(f'✓ Batch processing test passed: processed {len(results)} indicators')
+    
+    for i, result in enumerate(results):
+        print(f'  Result {i+1}: score={result.feasibility_score}, tier={result.quality_tier}')
+        
+except Exception as e:
+    print(f'ERROR: Batch processing test failed: {e}')
+    exit(1)
+"
+
+echo "✓ Build validation completed successfully"
+                    ]]></param>
+                    <param name="teamcity.step.mode">default</param>
+                    <param name="use.custom.script">true</param>
+                </parameters>
+            </runner>
+            
+            <!-- Step 4: Code Quality Checks -->
+            <runner id="code_quality" name="Code Quality Checks" type="simpleRunner">
+                <parameters>
+                    <param name="script.content"><![CDATA[
+#!/bin/bash
+set -euo pipefail
+
+echo "=== Code Quality Checks ==="
+echo "Timestamp: $(date)"
+
+PYTHON_EXEC="%agent.work.dir%/.venv/bin/python"
+
+# Syntax validation through compilation
+echo "Running syntax validation..."
+python_files=("feasibility_scorer.py" "test_feasibility_scorer.py" "run_tests.py" "demo.py")
+
+for file in "${python_files[@]}"; do
+    if [ -f "$file" ]; then
+        echo "Checking syntax: $file"
+        $PYTHON_EXEC -c "
+import py_compile
+try:
+    py_compile.compile('$file', doraise=True)
+    print('✓ $file - syntax valid')
+except py_compile.PyCompileError as e:
+    print(f'ERROR: $file - syntax error: {e}')
+    exit(1)
+"
+    else
+        echo "WARNING: $file not found, skipping"
+    fi
+done
+
+# Import validation for all modules
+echo "Running import validation..."
+$PYTHON_EXEC -c "
+import sys
+modules_to_test = [
+    'feasibility_scorer',
+    'test_feasibility_scorer', 
+    'run_tests'
+]
+
+for module_name in modules_to_test:
+    try:
+        __import__(module_name)
+        print(f'✓ {module_name} - imports successfully')
+    except ImportError as e:
+        print(f'WARNING: {module_name} - import failed: {e}')
+    except Exception as e:
+        print(f'ERROR: {module_name} - unexpected error: {e}')
+        sys.exit(1)
+"
+
+# Documentation validation
+echo "Validating documentation methods..."
+$PYTHON_EXEC -c "
+try:
+    from feasibility_scorer import FeasibilityScorer
+    scorer = FeasibilityScorer()
+    
+    # Test documentation method
+    docs = scorer.get_detection_rules_documentation()
+    assert isinstance(docs, str) and len(docs) > 100
+    print('✓ Documentation method validation passed')
+    
+except Exception as e:
+    print(f'ERROR: Documentation validation failed: {e}')
+    exit(1)
+"
+
+echo "✓ Code quality checks completed successfully"
+                    ]]></param>
+                    <param name="teamcity.step.mode">default</param>
+                    <param name="use.custom.script">true</param>
+                </parameters>
+            </runner>
+            
+            <!-- Step 5: Comprehensive Testing -->
+            <runner id="run_tests" name="Run Test Suite" type="simpleRunner">
+                <parameters>
+                    <param name="script.content"><![CDATA[
+#!/bin/bash
+set -euo pipefail
+
+echo "=== Test Suite Execution ==="
+echo "Timestamp: $(date)"
+
+PYTHON_EXEC="%agent.work.dir%/.venv/bin/python"
+
+# Check available test runners
+echo "Checking available test runners..."
+
+# Try pytest first (preferred)
+if $PYTHON_EXEC -m pytest --version > /dev/null 2>&1; then
+    echo "✓ pytest available - using pytest for testing"
+    
+    # Run tests with pytest
+    echo "Running pytest test suite..."
+    $PYTHON_EXEC -m pytest test_feasibility_scorer.py -v --tb=short --strict-markers
+    
+    # Additional pytest with coverage info if available
+    if $PYTHON_EXEC -c "import pytest_cov" > /dev/null 2>&1; then
+        echo "Running pytest with coverage..."
+        $PYTHON_EXEC -m pytest test_feasibility_scorer.py --cov=feasibility_scorer --cov-report=term-missing
+    fi
+    
+elif [ -f "run_tests.py" ]; then
+    echo "✓ Custom test runner available - using run_tests.py"
+    
+    # Run custom test runner
+    echo "Running custom test suite..."
+    $PYTHON_EXEC run_tests.py
+    
+else
+    echo "ERROR: No test runner available (neither pytest nor run_tests.py found)"
+    exit 1
+fi
+
+# Run demo script as integration test
+if [ -f "demo.py" ]; then
+    echo "Running integration test via demo script..."
+    $PYTHON_EXEC demo.py > /dev/null 2>&1 && echo "✓ Demo script integration test passed" || {
+        echo "WARNING: Demo script failed - this may be expected for interactive scripts"
+    }
+fi
+
+# Performance sanity check
+echo "Running performance sanity check..."
+$PYTHON_EXEC -c "
+import time
+from feasibility_scorer import FeasibilityScorer
+
+scorer = FeasibilityScorer()
+test_indicators = [
+    'línea base 50% meta 80% año 2025',
+    'baseline 30% target 60% timeline 2024',
+    'objetivo mejorar del 45% al 75% para 2023'
+] * 10  # 30 indicators total
+
+start_time = time.time()
+results = scorer.batch_score(test_indicators)
+end_time = time.time()
+
+processing_time = end_time - start_time
+print(f'✓ Performance check: processed {len(test_indicators)} indicators in {processing_time:.3f}s')
+print(f'  Average: {processing_time/len(test_indicators)*1000:.2f}ms per indicator')
+
+if processing_time > 5.0:
+    print('WARNING: Performance may be degraded - consider optimization')
+"
+
+echo "✓ Test suite execution completed successfully"
+                    ]]></param>
+                    <param name="teamcity.step.mode">default</param>
+                    <param name="use.custom.script">true</param>
+                </parameters>
+            </runner>
+            
+            <!-- Step 6: Environment Cleanup & Reporting -->
+            <runner id="cleanup_reporting" name="Cleanup & Reporting" type="simpleRunner">
+                <parameters>
+                    <param name="script.content"><![CDATA[
+#!/bin/bash
+set -euo pipefail
+
+echo "=== Build Summary & Cleanup ==="
+echo "Timestamp: $(date)"
+
+# Build summary
+echo "=== Build Summary ==="
+echo "Build number: %build.number%"
+echo "VCS revision: %build.vcs.number%"
+echo "Agent: %agent.name%"
+echo "Python executable used: %agent.work.dir%/.venv/bin/python"
+
+# Environment summary
+if [ -f "%agent.work.dir%/.venv/bin/python" ]; then
+    PYTHON_EXEC="%agent.work.dir%/.venv/bin/python"
+    echo "Python version: $($PYTHON_EXEC --version)"
+    echo "Virtual environment: %agent.work.dir%/.venv"
+    echo "Installed packages: $($PYTHON_EXEC -m pip list --format=freeze | wc -l) packages"
+fi
+
+# Cache statistics
+if [ -d "%agent.work.dir%/.pip-cache" ]; then
+    cache_size=$(du -sh %agent.work.dir%/.pip-cache 2>/dev/null | cut -f1 || echo "unknown")
+    cache_files=$(find %agent.work.dir%/.pip-cache -type f 2>/dev/null | wc -l || echo "unknown")
+    echo "Pip cache size: $cache_size ($cache_files files)"
+fi
+
+# Disk usage summary
+echo "=== Disk Usage Summary ==="
+if [ -d "%agent.work.dir%/.venv" ]; then
+    venv_size=$(du -sh %agent.work.dir%/.venv 2>/dev/null | cut -f1 || echo "unknown")
+    echo "Virtual environment size: $venv_size"
+fi
+
+workspace_size=$(du -sh . 2>/dev/null | cut -f1 || echo "unknown")
+echo "Workspace size: $workspace_size"
+
+# Optional: Clean up virtual environment (uncomment if desired)
+# echo "Cleaning up virtual environment..."
+# rm -rf %agent.work.dir%/.venv
+
+# Pip cache maintenance (keep last 30 days, limit to 500MB)
+if [ -d "%agent.work.dir%/.pip-cache" ]; then
+    echo "Performing pip cache maintenance..."
+    
+    # Remove old cache files (older than 30 days)
+    find %agent.work.dir%/.pip-cache -type f -mtime +30 -delete 2>/dev/null || echo "Cache cleanup skipped"
+    
+    # Check cache size and warn if too large
+    cache_size_mb=$(du -sm %agent.work.dir%/.pip-cache 2>/dev/null | cut -f1 || echo "0")
+    if [ "$cache_size_mb" -gt 500 ]; then
+        echo "WARNING: Pip cache is ${cache_size_mb}MB, consider manual cleanup"
+    fi
+fi
+
+echo "✓ Build completed successfully!"
+echo "=== End of Build ==="
+                    ]]></param>
+                    <param name="teamcity.step.mode">default</param>
+                    <param name="use.custom.script">true</param>
+                </parameters>
+            </runner>
+        </build-runners>
+        
+        <!-- VCS Settings -->
+        <vcs-settings>
+            <!-- Replace with your actual VCS root configuration -->
+            <vcs-entry-ref root-id="FeasibilityScorer_GitRoot" />
+        </vcs-settings>
+        
+        <!-- Build Triggers -->
+        <build-triggers>
+            <!-- Trigger on VCS changes -->
+            <build-trigger id="vcsTrigger" type="vcsTrigger">
+                <parameters>
+                    <param name="quietPeriodMode">USE_DEFAULT</param>
+                    <param name="triggerFilters">+:*</param>
+                </parameters>
+            </build-trigger>
+        </build-triggers>
+        
+        <!-- Build Features -->
+        <build-features>
+            <!-- Build cache for pip -->
+            <build-feature id="buildCache" type="buildCache">
+                <parameters>
+                    <param name="rules">%agent.work.dir%/.pip-cache/**</param>
+                </parameters>
+            </build-feature>
+        </build-features>
+        
+        <!-- Cleanup Policy -->
+        <cleanup />
+    </settings>
+    
+    <!-- Agent Requirements -->
+    <requirements>
+        <equals name="system.python3" value="" />
+    </requirements>
+    
+    <!-- Build Parameters -->
+    <parameters>
+        <param name="system.FeasibilityScorer.build.python.version" value="3.7+" spec="text description='Minimum Python version required' display='normal' label='Python Version Requirement'" />
+    </parameters>
+</build-type>

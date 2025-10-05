@@ -1,0 +1,411 @@
+<html>
+<head>
+<title>_add_newdocs_scalars.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_add_newdocs_scalars.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>This file is separate from ``_add_newdocs.py`` so that it can be mocked out by 
+<a name="l3"><span class="ln">3    </span></a>our sphinx ``conf.py`` during doc builds, where we want to avoid showing 
+<a name="l4"><span class="ln">4    </span></a>platform-dependent information. 
+<a name="l5"><span class="ln">5    </span></a>&quot;&quot;&quot;</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s2">import </span><span class="s1">sys</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">import </span><span class="s1">os</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s2">from </span><span class="s1">numpy</span><span class="s3">.</span><span class="s1">_core </span><span class="s2">import </span><span class="s1">dtype</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s2">from </span><span class="s1">numpy</span><span class="s3">.</span><span class="s1">_core </span><span class="s2">import </span><span class="s1">numerictypes </span><span class="s2">as </span><span class="s1">_numerictypes</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">from </span><span class="s1">numpy</span><span class="s3">.</span><span class="s1">_core</span><span class="s3">.</span><span class="s1">function_base </span><span class="s2">import </span><span class="s1">add_newdoc</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s0">##############################################################################</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s0">#</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s0"># Documentation for concrete scalar classes</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s0">#</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s0">##############################################################################</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a><span class="s2">def </span><span class="s1">numeric_type_aliases</span><span class="s3">(</span><span class="s1">aliases</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s2">def </span><span class="s1">type_aliases_gen</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l20"><span class="ln">20   </span></a>        <span class="s2">for </span><span class="s1">alias</span><span class="s3">, </span><span class="s1">doc </span><span class="s2">in </span><span class="s1">aliases</span><span class="s2">:</span>
+<a name="l21"><span class="ln">21   </span></a>            <span class="s2">try:</span>
+<a name="l22"><span class="ln">22   </span></a>                <span class="s1">alias_type </span><span class="s2">= </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">_numerictypes</span><span class="s3">, </span><span class="s1">alias</span><span class="s3">)</span>
+<a name="l23"><span class="ln">23   </span></a>            <span class="s2">except </span><span class="s1">AttributeError</span><span class="s2">:</span>
+<a name="l24"><span class="ln">24   </span></a>                <span class="s0"># The set of aliases that actually exist varies between platforms</span>
+<a name="l25"><span class="ln">25   </span></a>                <span class="s2">pass</span>
+<a name="l26"><span class="ln">26   </span></a>            <span class="s2">else:</span>
+<a name="l27"><span class="ln">27   </span></a>                <span class="s2">yield </span><span class="s3">(</span><span class="s1">alias_type</span><span class="s3">, </span><span class="s1">alias</span><span class="s3">, </span><span class="s1">doc</span><span class="s3">)</span>
+<a name="l28"><span class="ln">28   </span></a>    <span class="s2">return </span><span class="s1">list</span><span class="s3">(</span><span class="s1">type_aliases_gen</span><span class="s3">())</span>
+<a name="l29"><span class="ln">29   </span></a>
+<a name="l30"><span class="ln">30   </span></a>
+<a name="l31"><span class="ln">31   </span></a><span class="s1">possible_aliases </span><span class="s2">= </span><span class="s1">numeric_type_aliases</span><span class="s3">([</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s3">(</span><span class="s4">'int8'</span><span class="s3">, </span><span class="s4">'8-bit signed integer (``-128`` to ``127``)'</span><span class="s3">),</span>
+<a name="l33"><span class="ln">33   </span></a>    <span class="s3">(</span><span class="s4">'int16'</span><span class="s3">, </span><span class="s4">'16-bit signed integer (``-32_768`` to ``32_767``)'</span><span class="s3">),</span>
+<a name="l34"><span class="ln">34   </span></a>    <span class="s3">(</span><span class="s4">'int32'</span><span class="s3">, </span><span class="s4">'32-bit signed integer (``-2_147_483_648`` to ``2_147_483_647``)'</span><span class="s3">),</span>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s3">(</span><span class="s4">'int64'</span><span class="s3">, </span><span class="s4">'64-bit signed integer (``-9_223_372_036_854_775_808`` to ``9_223_372_036_854_775_807``)'</span><span class="s3">),</span>
+<a name="l36"><span class="ln">36   </span></a>    <span class="s3">(</span><span class="s4">'intp'</span><span class="s3">, </span><span class="s4">'Signed integer large enough to fit pointer, compatible with C ``intptr_t``'</span><span class="s3">),</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s3">(</span><span class="s4">'uint8'</span><span class="s3">, </span><span class="s4">'8-bit unsigned integer (``0`` to ``255``)'</span><span class="s3">),</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s3">(</span><span class="s4">'uint16'</span><span class="s3">, </span><span class="s4">'16-bit unsigned integer (``0`` to ``65_535``)'</span><span class="s3">),</span>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s3">(</span><span class="s4">'uint32'</span><span class="s3">, </span><span class="s4">'32-bit unsigned integer (``0`` to ``4_294_967_295``)'</span><span class="s3">),</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s3">(</span><span class="s4">'uint64'</span><span class="s3">, </span><span class="s4">'64-bit unsigned integer (``0`` to ``18_446_744_073_709_551_615``)'</span><span class="s3">),</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s3">(</span><span class="s4">'uintp'</span><span class="s3">, </span><span class="s4">'Unsigned integer large enough to fit pointer, compatible with C ``uintptr_t``'</span><span class="s3">),</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s3">(</span><span class="s4">'float16'</span><span class="s3">, </span><span class="s4">'16-bit-precision floating-point number type: sign bit, 5 bits exponent, 10 bits mantissa'</span><span class="s3">),</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s3">(</span><span class="s4">'float32'</span><span class="s3">, </span><span class="s4">'32-bit-precision floating-point number type: sign bit, 8 bits exponent, 23 bits mantissa'</span><span class="s3">),</span>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s3">(</span><span class="s4">'float64'</span><span class="s3">, </span><span class="s4">'64-bit precision floating-point number type: sign bit, 11 bits exponent, 52 bits mantissa'</span><span class="s3">),</span>
+<a name="l45"><span class="ln">45   </span></a>    <span class="s3">(</span><span class="s4">'float96'</span><span class="s3">, </span><span class="s4">'96-bit extended-precision floating-point number type'</span><span class="s3">),</span>
+<a name="l46"><span class="ln">46   </span></a>    <span class="s3">(</span><span class="s4">'float128'</span><span class="s3">, </span><span class="s4">'128-bit extended-precision floating-point number type'</span><span class="s3">),</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s3">(</span><span class="s4">'complex64'</span><span class="s3">, </span><span class="s4">'Complex number type composed of 2 32-bit-precision floating-point numbers'</span><span class="s3">),</span>
+<a name="l48"><span class="ln">48   </span></a>    <span class="s3">(</span><span class="s4">'complex128'</span><span class="s3">, </span><span class="s4">'Complex number type composed of 2 64-bit-precision floating-point numbers'</span><span class="s3">),</span>
+<a name="l49"><span class="ln">49   </span></a>    <span class="s3">(</span><span class="s4">'complex192'</span><span class="s3">, </span><span class="s4">'Complex number type composed of 2 96-bit extended-precision floating-point numbers'</span><span class="s3">),</span>
+<a name="l50"><span class="ln">50   </span></a>    <span class="s3">(</span><span class="s4">'complex256'</span><span class="s3">, </span><span class="s4">'Complex number type composed of 2 128-bit extended-precision floating-point numbers'</span><span class="s3">),</span>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s3">])</span>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a>
+<a name="l54"><span class="ln">54   </span></a><span class="s2">def </span><span class="s1">_get_platform_and_machine</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s2">try:</span>
+<a name="l56"><span class="ln">56   </span></a>        <span class="s1">system</span><span class="s3">, </span><span class="s1">_</span><span class="s3">, </span><span class="s1">_</span><span class="s3">, </span><span class="s1">_</span><span class="s3">, </span><span class="s1">machine </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">uname</span><span class="s3">()</span>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s2">except </span><span class="s1">AttributeError</span><span class="s2">:</span>
+<a name="l58"><span class="ln">58   </span></a>        <span class="s1">system </span><span class="s2">= </span><span class="s1">sys</span><span class="s3">.</span><span class="s1">platform</span>
+<a name="l59"><span class="ln">59   </span></a>        <span class="s2">if </span><span class="s1">system </span><span class="s2">== </span><span class="s4">'win32'</span><span class="s2">:</span>
+<a name="l60"><span class="ln">60   </span></a>            <span class="s1">machine </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">'PROCESSOR_ARCHITEW6432'</span><span class="s3">, </span><span class="s4">''</span><span class="s3">) </span><span class="s1">\</span>
+<a name="l61"><span class="ln">61   </span></a>                    <span class="s2">or </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">'PROCESSOR_ARCHITECTURE'</span><span class="s3">, </span><span class="s4">''</span><span class="s3">)</span>
+<a name="l62"><span class="ln">62   </span></a>        <span class="s2">else:</span>
+<a name="l63"><span class="ln">63   </span></a>            <span class="s1">machine </span><span class="s2">= </span><span class="s4">'unknown'</span>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s2">return </span><span class="s1">system</span><span class="s3">, </span><span class="s1">machine</span>
+<a name="l65"><span class="ln">65   </span></a>
+<a name="l66"><span class="ln">66   </span></a>
+<a name="l67"><span class="ln">67   </span></a><span class="s1">_system</span><span class="s3">, </span><span class="s1">_machine </span><span class="s2">= </span><span class="s1">_get_platform_and_machine</span><span class="s3">()</span>
+<a name="l68"><span class="ln">68   </span></a><span class="s1">_doc_alias_string </span><span class="s2">= </span><span class="s4">f&quot;:Alias on this platform ({</span><span class="s1">_system</span><span class="s4">} {</span><span class="s1">_machine</span><span class="s4">}):&quot;</span>
+<a name="l69"><span class="ln">69   </span></a>
+<a name="l70"><span class="ln">70   </span></a>
+<a name="l71"><span class="ln">71   </span></a><span class="s2">def </span><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">, </span><span class="s1">fixed_aliases</span><span class="s3">, </span><span class="s1">doc</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l72"><span class="ln">72   </span></a>    <span class="s0"># note: `:field: value` is rST syntax which renders as field lists.</span>
+<a name="l73"><span class="ln">73   </span></a>    <span class="s1">o </span><span class="s2">= </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">_numerictypes</span><span class="s3">, </span><span class="s1">obj</span><span class="s3">)</span>
+<a name="l74"><span class="ln">74   </span></a>
+<a name="l75"><span class="ln">75   </span></a>    <span class="s1">character_code </span><span class="s2">= </span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">o</span><span class="s3">).</span><span class="s1">char</span>
+<a name="l76"><span class="ln">76   </span></a>    <span class="s1">canonical_name_doc </span><span class="s2">= </span><span class="s4">&quot;&quot; </span><span class="s2">if </span><span class="s1">obj </span><span class="s2">== </span><span class="s1">o</span><span class="s3">.</span><span class="s1">__name__ </span><span class="s2">else </span><span class="s1">\</span>
+<a name="l77"><span class="ln">77   </span></a>                        <span class="s4">f&quot;:Canonical name: `numpy.{</span><span class="s1">obj</span><span class="s4">}`\n    &quot;</span>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s2">if </span><span class="s1">fixed_aliases</span><span class="s2">:</span>
+<a name="l79"><span class="ln">79   </span></a>        <span class="s1">alias_doc </span><span class="s2">= </span><span class="s4">''</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s4">f&quot;:Alias: `numpy.{</span><span class="s1">alias</span><span class="s4">}`\n    &quot;</span>
+<a name="l80"><span class="ln">80   </span></a>                            <span class="s2">for </span><span class="s1">alias </span><span class="s2">in </span><span class="s1">fixed_aliases</span><span class="s3">)</span>
+<a name="l81"><span class="ln">81   </span></a>    <span class="s2">else:</span>
+<a name="l82"><span class="ln">82   </span></a>        <span class="s1">alias_doc </span><span class="s2">= </span><span class="s4">''</span>
+<a name="l83"><span class="ln">83   </span></a>    <span class="s1">alias_doc </span><span class="s2">+= </span><span class="s4">''</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s4">f&quot;{</span><span class="s1">_doc_alias_string</span><span class="s4">} `numpy.{</span><span class="s1">alias</span><span class="s4">}`: {</span><span class="s1">doc</span><span class="s4">}.\n    &quot;</span>
+<a name="l84"><span class="ln">84   </span></a>                         <span class="s2">for </span><span class="s3">(</span><span class="s1">alias_type</span><span class="s3">, </span><span class="s1">alias</span><span class="s3">, </span><span class="s1">doc</span><span class="s3">) </span><span class="s2">in </span><span class="s1">possible_aliases </span><span class="s2">if </span><span class="s1">alias_type </span><span class="s2">is </span><span class="s1">o</span><span class="s3">)</span>
+<a name="l85"><span class="ln">85   </span></a>
+<a name="l86"><span class="ln">86   </span></a>    <span class="s1">docstring </span><span class="s2">= </span><span class="s4">f&quot;&quot;&quot;</span>
+<a name="l87"><span class="ln">87   </span></a>    <span class="s4">{</span><span class="s1">doc</span><span class="s3">.</span><span class="s1">strip</span><span class="s3">()</span><span class="s4">}</span>
+<a name="l88"><span class="ln">88   </span></a>
+<a name="l89"><span class="ln">89   </span></a>    <span class="s4">:Character code: ``'{</span><span class="s1">character_code</span><span class="s4">}'``</span>
+<a name="l90"><span class="ln">90   </span></a>    <span class="s4">{</span><span class="s1">canonical_name_doc</span><span class="s4">}{</span><span class="s1">alias_doc</span><span class="s4">}</span>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s4">&quot;&quot;&quot;</span>
+<a name="l92"><span class="ln">92   </span></a>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s1">add_newdoc</span><span class="s3">(</span><span class="s4">'numpy._core.numerictypes'</span><span class="s3">, </span><span class="s1">obj</span><span class="s3">, </span><span class="s1">docstring</span><span class="s3">)</span>
+<a name="l94"><span class="ln">94   </span></a>
+<a name="l95"><span class="ln">95   </span></a>
+<a name="l96"><span class="ln">96   </span></a><span class="s1">_bool_docstring </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l98"><span class="ln">98   </span></a>    Boolean type (True or False), stored as a byte. 
+<a name="l99"><span class="ln">99   </span></a> 
+<a name="l100"><span class="ln">100  </span></a>    .. warning:: 
+<a name="l101"><span class="ln">101  </span></a> 
+<a name="l102"><span class="ln">102  </span></a>       The :class:`bool` type is not a subclass of the :class:`int_` type 
+<a name="l103"><span class="ln">103  </span></a>       (the :class:`bool` is not even a number type). This is different 
+<a name="l104"><span class="ln">104  </span></a>       than Python's default implementation of :class:`bool` as a 
+<a name="l105"><span class="ln">105  </span></a>       sub-class of :class:`int`. 
+<a name="l106"><span class="ln">106  </span></a>    &quot;&quot;&quot;</span>
+<a name="l107"><span class="ln">107  </span></a><span class="s3">)</span>
+<a name="l108"><span class="ln">108  </span></a>
+<a name="l109"><span class="ln">109  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'bool'</span><span class="s3">, [], </span><span class="s1">_bool_docstring</span><span class="s3">)</span>
+<a name="l110"><span class="ln">110  </span></a>
+<a name="l111"><span class="ln">111  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'bool_'</span><span class="s3">, [], </span><span class="s1">_bool_docstring</span><span class="s3">)</span>
+<a name="l112"><span class="ln">112  </span></a>
+<a name="l113"><span class="ln">113  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'byte'</span><span class="s3">, [],</span>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l115"><span class="ln">115  </span></a>    Signed integer type, compatible with C ``char``. 
+<a name="l116"><span class="ln">116  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l117"><span class="ln">117  </span></a>
+<a name="l118"><span class="ln">118  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'short'</span><span class="s3">, [],</span>
+<a name="l119"><span class="ln">119  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l120"><span class="ln">120  </span></a>    Signed integer type, compatible with C ``short``. 
+<a name="l121"><span class="ln">121  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l122"><span class="ln">122  </span></a>
+<a name="l123"><span class="ln">123  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'intc'</span><span class="s3">, [],</span>
+<a name="l124"><span class="ln">124  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l125"><span class="ln">125  </span></a>    Signed integer type, compatible with C ``int``. 
+<a name="l126"><span class="ln">126  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l127"><span class="ln">127  </span></a>
+<a name="l128"><span class="ln">128  </span></a><span class="s0"># TODO: These docs probably need an if to highlight the default rather than</span>
+<a name="l129"><span class="ln">129  </span></a><span class="s0">#       the C-types (and be correct).</span>
+<a name="l130"><span class="ln">130  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'int_'</span><span class="s3">, [],</span>
+<a name="l131"><span class="ln">131  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l132"><span class="ln">132  </span></a>    Default signed integer type, 64bit on 64bit systems and 32bit on 32bit 
+<a name="l133"><span class="ln">133  </span></a>    systems. 
+<a name="l134"><span class="ln">134  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l135"><span class="ln">135  </span></a>
+<a name="l136"><span class="ln">136  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'longlong'</span><span class="s3">, [],</span>
+<a name="l137"><span class="ln">137  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l138"><span class="ln">138  </span></a>    Signed integer type, compatible with C ``long long``. 
+<a name="l139"><span class="ln">139  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l140"><span class="ln">140  </span></a>
+<a name="l141"><span class="ln">141  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'ubyte'</span><span class="s3">, [],</span>
+<a name="l142"><span class="ln">142  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l143"><span class="ln">143  </span></a>    Unsigned integer type, compatible with C ``unsigned char``. 
+<a name="l144"><span class="ln">144  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l145"><span class="ln">145  </span></a>
+<a name="l146"><span class="ln">146  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'ushort'</span><span class="s3">, [],</span>
+<a name="l147"><span class="ln">147  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l148"><span class="ln">148  </span></a>    Unsigned integer type, compatible with C ``unsigned short``. 
+<a name="l149"><span class="ln">149  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l150"><span class="ln">150  </span></a>
+<a name="l151"><span class="ln">151  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'uintc'</span><span class="s3">, [],</span>
+<a name="l152"><span class="ln">152  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l153"><span class="ln">153  </span></a>    Unsigned integer type, compatible with C ``unsigned int``. 
+<a name="l154"><span class="ln">154  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l155"><span class="ln">155  </span></a>
+<a name="l156"><span class="ln">156  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'uint'</span><span class="s3">, [],</span>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l158"><span class="ln">158  </span></a>    Unsigned signed integer type, 64bit on 64bit systems and 32bit on 32bit 
+<a name="l159"><span class="ln">159  </span></a>    systems. 
+<a name="l160"><span class="ln">160  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l161"><span class="ln">161  </span></a>
+<a name="l162"><span class="ln">162  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'ulonglong'</span><span class="s3">, [],</span>
+<a name="l163"><span class="ln">163  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l164"><span class="ln">164  </span></a>    Signed integer type, compatible with C ``unsigned long long``. 
+<a name="l165"><span class="ln">165  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l166"><span class="ln">166  </span></a>
+<a name="l167"><span class="ln">167  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'half'</span><span class="s3">, [],</span>
+<a name="l168"><span class="ln">168  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l169"><span class="ln">169  </span></a>    Half-precision floating-point number type. 
+<a name="l170"><span class="ln">170  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l171"><span class="ln">171  </span></a>
+<a name="l172"><span class="ln">172  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'single'</span><span class="s3">, [],</span>
+<a name="l173"><span class="ln">173  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l174"><span class="ln">174  </span></a>    Single-precision floating-point number type, compatible with C ``float``. 
+<a name="l175"><span class="ln">175  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l176"><span class="ln">176  </span></a>
+<a name="l177"><span class="ln">177  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'double'</span><span class="s3">, [],</span>
+<a name="l178"><span class="ln">178  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l179"><span class="ln">179  </span></a>    Double-precision floating-point number type, compatible with Python 
+<a name="l180"><span class="ln">180  </span></a>    :class:`float` and C ``double``. 
+<a name="l181"><span class="ln">181  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l182"><span class="ln">182  </span></a>
+<a name="l183"><span class="ln">183  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'longdouble'</span><span class="s3">, [],</span>
+<a name="l184"><span class="ln">184  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l185"><span class="ln">185  </span></a>    Extended-precision floating-point number type, compatible with C 
+<a name="l186"><span class="ln">186  </span></a>    ``long double`` but not necessarily with IEEE 754 quadruple-precision. 
+<a name="l187"><span class="ln">187  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l188"><span class="ln">188  </span></a>
+<a name="l189"><span class="ln">189  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'csingle'</span><span class="s3">, [],</span>
+<a name="l190"><span class="ln">190  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l191"><span class="ln">191  </span></a>    Complex number type composed of two single-precision floating-point 
+<a name="l192"><span class="ln">192  </span></a>    numbers. 
+<a name="l193"><span class="ln">193  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l194"><span class="ln">194  </span></a>
+<a name="l195"><span class="ln">195  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'cdouble'</span><span class="s3">, [],</span>
+<a name="l196"><span class="ln">196  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l197"><span class="ln">197  </span></a>    Complex number type composed of two double-precision floating-point 
+<a name="l198"><span class="ln">198  </span></a>    numbers, compatible with Python :class:`complex`. 
+<a name="l199"><span class="ln">199  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l200"><span class="ln">200  </span></a>
+<a name="l201"><span class="ln">201  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'clongdouble'</span><span class="s3">, [],</span>
+<a name="l202"><span class="ln">202  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l203"><span class="ln">203  </span></a>    Complex number type composed of two extended-precision floating-point 
+<a name="l204"><span class="ln">204  </span></a>    numbers. 
+<a name="l205"><span class="ln">205  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l206"><span class="ln">206  </span></a>
+<a name="l207"><span class="ln">207  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'object_'</span><span class="s3">, [],</span>
+<a name="l208"><span class="ln">208  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l209"><span class="ln">209  </span></a>    Any Python object. 
+<a name="l210"><span class="ln">210  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l211"><span class="ln">211  </span></a>
+<a name="l212"><span class="ln">212  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'str_'</span><span class="s3">, [],</span>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s4">r&quot;&quot;&quot; 
+<a name="l214"><span class="ln">214  </span></a>    A unicode string. 
+<a name="l215"><span class="ln">215  </span></a> 
+<a name="l216"><span class="ln">216  </span></a>    This type strips trailing null codepoints. 
+<a name="l217"><span class="ln">217  </span></a> 
+<a name="l218"><span class="ln">218  </span></a>    &gt;&gt;&gt; s = np.str_(&quot;abc\x00&quot;) 
+<a name="l219"><span class="ln">219  </span></a>    &gt;&gt;&gt; s 
+<a name="l220"><span class="ln">220  </span></a>    'abc' 
+<a name="l221"><span class="ln">221  </span></a> 
+<a name="l222"><span class="ln">222  </span></a>    Unlike the builtin :class:`str`, this supports the 
+<a name="l223"><span class="ln">223  </span></a>    :ref:`python:bufferobjects`, exposing its contents as UCS4: 
+<a name="l224"><span class="ln">224  </span></a> 
+<a name="l225"><span class="ln">225  </span></a>    &gt;&gt;&gt; m = memoryview(np.str_(&quot;abc&quot;)) 
+<a name="l226"><span class="ln">226  </span></a>    &gt;&gt;&gt; m.format 
+<a name="l227"><span class="ln">227  </span></a>    '3w' 
+<a name="l228"><span class="ln">228  </span></a>    &gt;&gt;&gt; m.tobytes() 
+<a name="l229"><span class="ln">229  </span></a>    b'a\x00\x00\x00b\x00\x00\x00c\x00\x00\x00' 
+<a name="l230"><span class="ln">230  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l231"><span class="ln">231  </span></a>
+<a name="l232"><span class="ln">232  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'bytes_'</span><span class="s3">, [],</span>
+<a name="l233"><span class="ln">233  </span></a>    <span class="s4">r&quot;&quot;&quot; 
+<a name="l234"><span class="ln">234  </span></a>    A byte string. 
+<a name="l235"><span class="ln">235  </span></a> 
+<a name="l236"><span class="ln">236  </span></a>    When used in arrays, this type strips trailing null bytes. 
+<a name="l237"><span class="ln">237  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l238"><span class="ln">238  </span></a>
+<a name="l239"><span class="ln">239  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'void'</span><span class="s3">, [],</span>
+<a name="l240"><span class="ln">240  </span></a>    <span class="s4">r&quot;&quot;&quot; 
+<a name="l241"><span class="ln">241  </span></a>    np.void(length_or_data, /, dtype=None) 
+<a name="l242"><span class="ln">242  </span></a> 
+<a name="l243"><span class="ln">243  </span></a>    Create a new structured or unstructured void scalar. 
+<a name="l244"><span class="ln">244  </span></a> 
+<a name="l245"><span class="ln">245  </span></a>    Parameters 
+<a name="l246"><span class="ln">246  </span></a>    ---------- 
+<a name="l247"><span class="ln">247  </span></a>    length_or_data : int, array-like, bytes-like, object 
+<a name="l248"><span class="ln">248  </span></a>       One of multiple meanings (see notes).  The length or 
+<a name="l249"><span class="ln">249  </span></a>       bytes data of an unstructured void.  Or alternatively, 
+<a name="l250"><span class="ln">250  </span></a>       the data to be stored in the new scalar when `dtype` 
+<a name="l251"><span class="ln">251  </span></a>       is provided. 
+<a name="l252"><span class="ln">252  </span></a>       This can be an array-like, in which case an array may 
+<a name="l253"><span class="ln">253  </span></a>       be returned. 
+<a name="l254"><span class="ln">254  </span></a>    dtype : dtype, optional 
+<a name="l255"><span class="ln">255  </span></a>       If provided the dtype of the new scalar.  This dtype must 
+<a name="l256"><span class="ln">256  </span></a>       be &quot;void&quot; dtype (i.e. a structured or unstructured void, 
+<a name="l257"><span class="ln">257  </span></a>       see also :ref:`defining-structured-types`). 
+<a name="l258"><span class="ln">258  </span></a> 
+<a name="l259"><span class="ln">259  </span></a>       .. versionadded:: 1.24 
+<a name="l260"><span class="ln">260  </span></a> 
+<a name="l261"><span class="ln">261  </span></a>    Notes 
+<a name="l262"><span class="ln">262  </span></a>    ----- 
+<a name="l263"><span class="ln">263  </span></a>    For historical reasons and because void scalars can represent both 
+<a name="l264"><span class="ln">264  </span></a>    arbitrary byte data and structured dtypes, the void constructor 
+<a name="l265"><span class="ln">265  </span></a>    has three calling conventions: 
+<a name="l266"><span class="ln">266  </span></a> 
+<a name="l267"><span class="ln">267  </span></a>    1. ``np.void(5)`` creates a ``dtype=&quot;V5&quot;`` scalar filled with five 
+<a name="l268"><span class="ln">268  </span></a>       ``\0`` bytes.  The 5 can be a Python or NumPy integer. 
+<a name="l269"><span class="ln">269  </span></a>    2. ``np.void(b&quot;bytes-like&quot;)`` creates a void scalar from the byte string. 
+<a name="l270"><span class="ln">270  </span></a>       The dtype itemsize will match the byte string length, here ``&quot;V10&quot;``. 
+<a name="l271"><span class="ln">271  </span></a>    3. When a ``dtype=`` is passed the call is roughly the same as an 
+<a name="l272"><span class="ln">272  </span></a>       array creation.  However, a void scalar rather than array is returned. 
+<a name="l273"><span class="ln">273  </span></a> 
+<a name="l274"><span class="ln">274  </span></a>    Please see the examples which show all three different conventions. 
+<a name="l275"><span class="ln">275  </span></a> 
+<a name="l276"><span class="ln">276  </span></a>    Examples 
+<a name="l277"><span class="ln">277  </span></a>    -------- 
+<a name="l278"><span class="ln">278  </span></a>    &gt;&gt;&gt; np.void(5) 
+<a name="l279"><span class="ln">279  </span></a>    np.void(b'\x00\x00\x00\x00\x00') 
+<a name="l280"><span class="ln">280  </span></a>    &gt;&gt;&gt; np.void(b'abcd') 
+<a name="l281"><span class="ln">281  </span></a>    np.void(b'\x61\x62\x63\x64') 
+<a name="l282"><span class="ln">282  </span></a>    &gt;&gt;&gt; np.void((3.2, b'eggs'), dtype=&quot;d,S5&quot;) 
+<a name="l283"><span class="ln">283  </span></a>    np.void((3.2, b'eggs'), dtype=[('f0', '&lt;f8'), ('f1', 'S5')]) 
+<a name="l284"><span class="ln">284  </span></a>    &gt;&gt;&gt; np.void(3, dtype=[('x', np.int8), ('y', np.int8)]) 
+<a name="l285"><span class="ln">285  </span></a>    np.void((3, 3), dtype=[('x', 'i1'), ('y', 'i1')]) 
+<a name="l286"><span class="ln">286  </span></a> 
+<a name="l287"><span class="ln">287  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l288"><span class="ln">288  </span></a>
+<a name="l289"><span class="ln">289  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'datetime64'</span><span class="s3">, [],</span>
+<a name="l290"><span class="ln">290  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l291"><span class="ln">291  </span></a>    If created from a 64-bit integer, it represents an offset from 
+<a name="l292"><span class="ln">292  </span></a>    ``1970-01-01T00:00:00``. 
+<a name="l293"><span class="ln">293  </span></a>    If created from string, the string can be in ISO 8601 date 
+<a name="l294"><span class="ln">294  </span></a>    or datetime format. 
+<a name="l295"><span class="ln">295  </span></a> 
+<a name="l296"><span class="ln">296  </span></a>    When parsing a string to create a datetime object, if the string contains 
+<a name="l297"><span class="ln">297  </span></a>    a trailing timezone (A 'Z' or a timezone offset), the timezone will be 
+<a name="l298"><span class="ln">298  </span></a>    dropped and a User Warning is given. 
+<a name="l299"><span class="ln">299  </span></a> 
+<a name="l300"><span class="ln">300  </span></a>    Datetime64 objects should be considered to be UTC and therefore have an 
+<a name="l301"><span class="ln">301  </span></a>    offset of +0000. 
+<a name="l302"><span class="ln">302  </span></a> 
+<a name="l303"><span class="ln">303  </span></a>    &gt;&gt;&gt; np.datetime64(10, 'Y') 
+<a name="l304"><span class="ln">304  </span></a>    np.datetime64('1980') 
+<a name="l305"><span class="ln">305  </span></a>    &gt;&gt;&gt; np.datetime64('1980', 'Y') 
+<a name="l306"><span class="ln">306  </span></a>    np.datetime64('1980') 
+<a name="l307"><span class="ln">307  </span></a>    &gt;&gt;&gt; np.datetime64(10, 'D') 
+<a name="l308"><span class="ln">308  </span></a>    np.datetime64('1970-01-11') 
+<a name="l309"><span class="ln">309  </span></a> 
+<a name="l310"><span class="ln">310  </span></a>    See :ref:`arrays.datetime` for more information. 
+<a name="l311"><span class="ln">311  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l312"><span class="ln">312  </span></a>
+<a name="l313"><span class="ln">313  </span></a><span class="s1">add_newdoc_for_scalar_type</span><span class="s3">(</span><span class="s4">'timedelta64'</span><span class="s3">, [],</span>
+<a name="l314"><span class="ln">314  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l315"><span class="ln">315  </span></a>    A timedelta stored as a 64-bit integer. 
+<a name="l316"><span class="ln">316  </span></a> 
+<a name="l317"><span class="ln">317  </span></a>    See :ref:`arrays.datetime` for more information. 
+<a name="l318"><span class="ln">318  </span></a>    &quot;&quot;&quot;</span><span class="s3">)</span>
+<a name="l319"><span class="ln">319  </span></a>
+<a name="l320"><span class="ln">320  </span></a><span class="s1">add_newdoc</span><span class="s3">(</span><span class="s4">'numpy._core.numerictypes'</span><span class="s3">, </span><span class="s4">&quot;integer&quot;</span><span class="s3">, (</span><span class="s4">'is_integer'</span><span class="s3">,</span>
+<a name="l321"><span class="ln">321  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l322"><span class="ln">322  </span></a>    integer.is_integer() -&gt; bool 
+<a name="l323"><span class="ln">323  </span></a> 
+<a name="l324"><span class="ln">324  </span></a>    Return ``True`` if the number is finite with integral value. 
+<a name="l325"><span class="ln">325  </span></a> 
+<a name="l326"><span class="ln">326  </span></a>    .. versionadded:: 1.22 
+<a name="l327"><span class="ln">327  </span></a> 
+<a name="l328"><span class="ln">328  </span></a>    Examples 
+<a name="l329"><span class="ln">329  </span></a>    -------- 
+<a name="l330"><span class="ln">330  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l331"><span class="ln">331  </span></a>    &gt;&gt;&gt; np.int64(-2).is_integer() 
+<a name="l332"><span class="ln">332  </span></a>    True 
+<a name="l333"><span class="ln">333  </span></a>    &gt;&gt;&gt; np.uint32(5).is_integer() 
+<a name="l334"><span class="ln">334  </span></a>    True 
+<a name="l335"><span class="ln">335  </span></a>    &quot;&quot;&quot;</span><span class="s3">))</span>
+<a name="l336"><span class="ln">336  </span></a>
+<a name="l337"><span class="ln">337  </span></a><span class="s0"># TODO: work out how to put this on the base class, np.floating</span>
+<a name="l338"><span class="ln">338  </span></a><span class="s2">for </span><span class="s1">float_name </span><span class="s2">in </span><span class="s3">(</span><span class="s4">'half'</span><span class="s3">, </span><span class="s4">'single'</span><span class="s3">, </span><span class="s4">'double'</span><span class="s3">, </span><span class="s4">'longdouble'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l339"><span class="ln">339  </span></a>    <span class="s1">add_newdoc</span><span class="s3">(</span><span class="s4">'numpy._core.numerictypes'</span><span class="s3">, </span><span class="s1">float_name</span><span class="s3">, (</span><span class="s4">'as_integer_ratio'</span><span class="s3">,</span>
+<a name="l340"><span class="ln">340  </span></a>        <span class="s4">&quot;&quot;&quot; 
+<a name="l341"><span class="ln">341  </span></a>        {ftype}.as_integer_ratio() -&gt; (int, int) 
+<a name="l342"><span class="ln">342  </span></a> 
+<a name="l343"><span class="ln">343  </span></a>        Return a pair of integers, whose ratio is exactly equal to the original 
+<a name="l344"><span class="ln">344  </span></a>        floating point number, and with a positive denominator. 
+<a name="l345"><span class="ln">345  </span></a>        Raise `OverflowError` on infinities and a `ValueError` on NaNs. 
+<a name="l346"><span class="ln">346  </span></a> 
+<a name="l347"><span class="ln">347  </span></a>        &gt;&gt;&gt; np.{ftype}(10.0).as_integer_ratio() 
+<a name="l348"><span class="ln">348  </span></a>        (10, 1) 
+<a name="l349"><span class="ln">349  </span></a>        &gt;&gt;&gt; np.{ftype}(0.0).as_integer_ratio() 
+<a name="l350"><span class="ln">350  </span></a>        (0, 1) 
+<a name="l351"><span class="ln">351  </span></a>        &gt;&gt;&gt; np.{ftype}(-.25).as_integer_ratio() 
+<a name="l352"><span class="ln">352  </span></a>        (-1, 4) 
+<a name="l353"><span class="ln">353  </span></a>        &quot;&quot;&quot;</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">ftype</span><span class="s2">=</span><span class="s1">float_name</span><span class="s3">)))</span>
+<a name="l354"><span class="ln">354  </span></a>
+<a name="l355"><span class="ln">355  </span></a>    <span class="s1">add_newdoc</span><span class="s3">(</span><span class="s4">'numpy._core.numerictypes'</span><span class="s3">, </span><span class="s1">float_name</span><span class="s3">, (</span><span class="s4">'is_integer'</span><span class="s3">,</span>
+<a name="l356"><span class="ln">356  </span></a>        <span class="s4">f&quot;&quot;&quot;</span>
+<a name="l357"><span class="ln">357  </span></a>        <span class="s4">{</span><span class="s1">float_name</span><span class="s4">}.is_integer() -&gt; bool</span>
+<a name="l358"><span class="ln">358  </span></a>
+<a name="l359"><span class="ln">359  </span></a>        <span class="s4">Return ``True`` if the floating point number is finite with integral</span>
+<a name="l360"><span class="ln">360  </span></a>        <span class="s4">value, and ``False`` otherwise.</span>
+<a name="l361"><span class="ln">361  </span></a>
+<a name="l362"><span class="ln">362  </span></a>        <span class="s4">.. versionadded:: 1.22</span>
+<a name="l363"><span class="ln">363  </span></a>
+<a name="l364"><span class="ln">364  </span></a>        <span class="s4">Examples</span>
+<a name="l365"><span class="ln">365  </span></a>        <span class="s4">--------</span>
+<a name="l366"><span class="ln">366  </span></a>        <span class="s4">&gt;&gt;&gt; np.{</span><span class="s1">float_name</span><span class="s4">}(-2.0).is_integer()</span>
+<a name="l367"><span class="ln">367  </span></a>        <span class="s4">True</span>
+<a name="l368"><span class="ln">368  </span></a>        <span class="s4">&gt;&gt;&gt; np.{</span><span class="s1">float_name</span><span class="s4">}(3.2).is_integer()</span>
+<a name="l369"><span class="ln">369  </span></a>        <span class="s4">False</span>
+<a name="l370"><span class="ln">370  </span></a>        <span class="s4">&quot;&quot;&quot;</span><span class="s3">))</span>
+<a name="l371"><span class="ln">371  </span></a>
+<a name="l372"><span class="ln">372  </span></a><span class="s2">for </span><span class="s1">int_name </span><span class="s2">in </span><span class="s3">(</span><span class="s4">'int8'</span><span class="s3">, </span><span class="s4">'uint8'</span><span class="s3">, </span><span class="s4">'int16'</span><span class="s3">, </span><span class="s4">'uint16'</span><span class="s3">, </span><span class="s4">'int32'</span><span class="s3">, </span><span class="s4">'uint32'</span><span class="s3">,</span>
+<a name="l373"><span class="ln">373  </span></a>        <span class="s4">'int64'</span><span class="s3">, </span><span class="s4">'uint64'</span><span class="s3">, </span><span class="s4">'int64'</span><span class="s3">, </span><span class="s4">'uint64'</span><span class="s3">, </span><span class="s4">'int64'</span><span class="s3">, </span><span class="s4">'uint64'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l374"><span class="ln">374  </span></a>    <span class="s0"># Add negative examples for signed cases by checking typecode</span>
+<a name="l375"><span class="ln">375  </span></a>    <span class="s1">add_newdoc</span><span class="s3">(</span><span class="s4">'numpy._core.numerictypes'</span><span class="s3">, </span><span class="s1">int_name</span><span class="s3">, (</span><span class="s4">'bit_count'</span><span class="s3">,</span>
+<a name="l376"><span class="ln">376  </span></a>        <span class="s4">f&quot;&quot;&quot;</span>
+<a name="l377"><span class="ln">377  </span></a>        <span class="s4">{</span><span class="s1">int_name</span><span class="s4">}.bit_count() -&gt; int</span>
+<a name="l378"><span class="ln">378  </span></a>
+<a name="l379"><span class="ln">379  </span></a>        <span class="s4">Computes the number of 1-bits in the absolute value of the input.</span>
+<a name="l380"><span class="ln">380  </span></a>        <span class="s4">Analogous to the builtin `int.bit_count` or ``popcount`` in C++.</span>
+<a name="l381"><span class="ln">381  </span></a>
+<a name="l382"><span class="ln">382  </span></a>        <span class="s4">Examples</span>
+<a name="l383"><span class="ln">383  </span></a>        <span class="s4">--------</span>
+<a name="l384"><span class="ln">384  </span></a>        <span class="s4">&gt;&gt;&gt; np.{</span><span class="s1">int_name</span><span class="s4">}(127).bit_count()</span>
+<a name="l385"><span class="ln">385  </span></a>        <span class="s4">7&quot;&quot;&quot; </span><span class="s2">+</span>
+<a name="l386"><span class="ln">386  </span></a>        <span class="s3">(</span><span class="s4">f&quot;&quot;&quot;</span>
+<a name="l387"><span class="ln">387  </span></a>        <span class="s4">&gt;&gt;&gt; np.{</span><span class="s1">int_name</span><span class="s4">}(-127).bit_count()</span>
+<a name="l388"><span class="ln">388  </span></a>        <span class="s4">7</span>
+<a name="l389"><span class="ln">389  </span></a>        <span class="s4">&quot;&quot;&quot; </span><span class="s2">if </span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">int_name</span><span class="s3">).</span><span class="s1">char</span><span class="s3">.</span><span class="s1">islower</span><span class="s3">() </span><span class="s2">else </span><span class="s4">&quot;&quot;</span><span class="s3">)))</span>
+<a name="l390"><span class="ln">390  </span></a></pre>
+</body>
+</html>

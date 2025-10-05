@@ -1,0 +1,231 @@
+<html>
+<head>
+<title>particle.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #969896;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+particle.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">from </span><span class="s1">sympy </span><span class="s0">import </span><span class="s1">S</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">physics</span><span class="s2">.</span><span class="s1">vector </span><span class="s0">import </span><span class="s1">cross</span><span class="s2">, </span><span class="s1">dot</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">physics</span><span class="s2">.</span><span class="s1">mechanics</span><span class="s2">.</span><span class="s1">body_base </span><span class="s0">import </span><span class="s1">BodyBase</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">physics</span><span class="s2">.</span><span class="s1">mechanics</span><span class="s2">.</span><span class="s1">inertia </span><span class="s0">import </span><span class="s1">inertia_of_point_mass</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">utilities</span><span class="s2">.</span><span class="s1">exceptions </span><span class="s0">import </span><span class="s1">sympy_deprecation_warning</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span><span class="s3">'Particle'</span><span class="s2">]</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">class </span><span class="s1">Particle</span><span class="s2">(</span><span class="s1">BodyBase</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l11"><span class="ln">11   </span></a>    <span class="s4">&quot;&quot;&quot;A particle. 
+<a name="l12"><span class="ln">12   </span></a> 
+<a name="l13"><span class="ln">13   </span></a>    Explanation 
+<a name="l14"><span class="ln">14   </span></a>    =========== 
+<a name="l15"><span class="ln">15   </span></a> 
+<a name="l16"><span class="ln">16   </span></a>    Particles have a non-zero mass and lack spatial extension; they take up no 
+<a name="l17"><span class="ln">17   </span></a>    space. 
+<a name="l18"><span class="ln">18   </span></a> 
+<a name="l19"><span class="ln">19   </span></a>    Values need to be supplied on initialization, but can be changed later. 
+<a name="l20"><span class="ln">20   </span></a> 
+<a name="l21"><span class="ln">21   </span></a>    Parameters 
+<a name="l22"><span class="ln">22   </span></a>    ========== 
+<a name="l23"><span class="ln">23   </span></a> 
+<a name="l24"><span class="ln">24   </span></a>    name : str 
+<a name="l25"><span class="ln">25   </span></a>        Name of particle 
+<a name="l26"><span class="ln">26   </span></a>    point : Point 
+<a name="l27"><span class="ln">27   </span></a>        A physics/mechanics Point which represents the position, velocity, and 
+<a name="l28"><span class="ln">28   </span></a>        acceleration of this Particle 
+<a name="l29"><span class="ln">29   </span></a>    mass : Sympifyable 
+<a name="l30"><span class="ln">30   </span></a>        A SymPy expression representing the Particle's mass 
+<a name="l31"><span class="ln">31   </span></a>    potential_energy : Sympifyable 
+<a name="l32"><span class="ln">32   </span></a>        The potential energy of the Particle. 
+<a name="l33"><span class="ln">33   </span></a> 
+<a name="l34"><span class="ln">34   </span></a>    Examples 
+<a name="l35"><span class="ln">35   </span></a>    ======== 
+<a name="l36"><span class="ln">36   </span></a> 
+<a name="l37"><span class="ln">37   </span></a>    &gt;&gt;&gt; from sympy.physics.mechanics import Particle, Point 
+<a name="l38"><span class="ln">38   </span></a>    &gt;&gt;&gt; from sympy import Symbol 
+<a name="l39"><span class="ln">39   </span></a>    &gt;&gt;&gt; po = Point('po') 
+<a name="l40"><span class="ln">40   </span></a>    &gt;&gt;&gt; m = Symbol('m') 
+<a name="l41"><span class="ln">41   </span></a>    &gt;&gt;&gt; pa = Particle('pa', po, m) 
+<a name="l42"><span class="ln">42   </span></a>    &gt;&gt;&gt; # Or you could change these later 
+<a name="l43"><span class="ln">43   </span></a>    &gt;&gt;&gt; pa.mass = m 
+<a name="l44"><span class="ln">44   </span></a>    &gt;&gt;&gt; pa.point = po 
+<a name="l45"><span class="ln">45   </span></a> 
+<a name="l46"><span class="ln">46   </span></a>    &quot;&quot;&quot;</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s1">point </span><span class="s0">= </span><span class="s1">BodyBase</span><span class="s2">.</span><span class="s1">masscenter</span>
+<a name="l48"><span class="ln">48   </span></a>
+<a name="l49"><span class="ln">49   </span></a>    <span class="s0">def </span><span class="s1">__init__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">name</span><span class="s2">, </span><span class="s1">point</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">mass</span><span class="s0">=None</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l50"><span class="ln">50   </span></a>        <span class="s1">super</span><span class="s2">().</span><span class="s1">__init__</span><span class="s2">(</span><span class="s1">name</span><span class="s2">, </span><span class="s1">point</span><span class="s2">, </span><span class="s1">mass</span><span class="s2">)</span>
+<a name="l51"><span class="ln">51   </span></a>
+<a name="l52"><span class="ln">52   </span></a>    <span class="s0">def </span><span class="s1">linear_momentum</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">frame</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l53"><span class="ln">53   </span></a>        <span class="s4">&quot;&quot;&quot;Linear momentum of the particle. 
+<a name="l54"><span class="ln">54   </span></a> 
+<a name="l55"><span class="ln">55   </span></a>        Explanation 
+<a name="l56"><span class="ln">56   </span></a>        =========== 
+<a name="l57"><span class="ln">57   </span></a> 
+<a name="l58"><span class="ln">58   </span></a>        The linear momentum L, of a particle P, with respect to frame N is 
+<a name="l59"><span class="ln">59   </span></a>        given by: 
+<a name="l60"><span class="ln">60   </span></a> 
+<a name="l61"><span class="ln">61   </span></a>        L = m * v 
+<a name="l62"><span class="ln">62   </span></a> 
+<a name="l63"><span class="ln">63   </span></a>        where m is the mass of the particle, and v is the velocity of the 
+<a name="l64"><span class="ln">64   </span></a>        particle in the frame N. 
+<a name="l65"><span class="ln">65   </span></a> 
+<a name="l66"><span class="ln">66   </span></a>        Parameters 
+<a name="l67"><span class="ln">67   </span></a>        ========== 
+<a name="l68"><span class="ln">68   </span></a> 
+<a name="l69"><span class="ln">69   </span></a>        frame : ReferenceFrame 
+<a name="l70"><span class="ln">70   </span></a>            The frame in which linear momentum is desired. 
+<a name="l71"><span class="ln">71   </span></a> 
+<a name="l72"><span class="ln">72   </span></a>        Examples 
+<a name="l73"><span class="ln">73   </span></a>        ======== 
+<a name="l74"><span class="ln">74   </span></a> 
+<a name="l75"><span class="ln">75   </span></a>        &gt;&gt;&gt; from sympy.physics.mechanics import Particle, Point, ReferenceFrame 
+<a name="l76"><span class="ln">76   </span></a>        &gt;&gt;&gt; from sympy.physics.mechanics import dynamicsymbols 
+<a name="l77"><span class="ln">77   </span></a>        &gt;&gt;&gt; from sympy.physics.vector import init_vprinting 
+<a name="l78"><span class="ln">78   </span></a>        &gt;&gt;&gt; init_vprinting(pretty_print=False) 
+<a name="l79"><span class="ln">79   </span></a>        &gt;&gt;&gt; m, v = dynamicsymbols('m v') 
+<a name="l80"><span class="ln">80   </span></a>        &gt;&gt;&gt; N = ReferenceFrame('N') 
+<a name="l81"><span class="ln">81   </span></a>        &gt;&gt;&gt; P = Point('P') 
+<a name="l82"><span class="ln">82   </span></a>        &gt;&gt;&gt; A = Particle('A', P, m) 
+<a name="l83"><span class="ln">83   </span></a>        &gt;&gt;&gt; P.set_vel(N, v * N.x) 
+<a name="l84"><span class="ln">84   </span></a>        &gt;&gt;&gt; A.linear_momentum(N) 
+<a name="l85"><span class="ln">85   </span></a>        m*v*N.x 
+<a name="l86"><span class="ln">86   </span></a> 
+<a name="l87"><span class="ln">87   </span></a>        &quot;&quot;&quot;</span>
+<a name="l88"><span class="ln">88   </span></a>
+<a name="l89"><span class="ln">89   </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">mass </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">point</span><span class="s2">.</span><span class="s1">vel</span><span class="s2">(</span><span class="s1">frame</span><span class="s2">)</span>
+<a name="l90"><span class="ln">90   </span></a>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s0">def </span><span class="s1">angular_momentum</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">point</span><span class="s2">, </span><span class="s1">frame</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l92"><span class="ln">92   </span></a>        <span class="s4">&quot;&quot;&quot;Angular momentum of the particle about the point. 
+<a name="l93"><span class="ln">93   </span></a> 
+<a name="l94"><span class="ln">94   </span></a>        Explanation 
+<a name="l95"><span class="ln">95   </span></a>        =========== 
+<a name="l96"><span class="ln">96   </span></a> 
+<a name="l97"><span class="ln">97   </span></a>        The angular momentum H, about some point O of a particle, P, is given 
+<a name="l98"><span class="ln">98   </span></a>        by: 
+<a name="l99"><span class="ln">99   </span></a> 
+<a name="l100"><span class="ln">100  </span></a>        ``H = cross(r, m * v)`` 
+<a name="l101"><span class="ln">101  </span></a> 
+<a name="l102"><span class="ln">102  </span></a>        where r is the position vector from point O to the particle P, m is 
+<a name="l103"><span class="ln">103  </span></a>        the mass of the particle, and v is the velocity of the particle in 
+<a name="l104"><span class="ln">104  </span></a>        the inertial frame, N. 
+<a name="l105"><span class="ln">105  </span></a> 
+<a name="l106"><span class="ln">106  </span></a>        Parameters 
+<a name="l107"><span class="ln">107  </span></a>        ========== 
+<a name="l108"><span class="ln">108  </span></a> 
+<a name="l109"><span class="ln">109  </span></a>        point : Point 
+<a name="l110"><span class="ln">110  </span></a>            The point about which angular momentum of the particle is desired. 
+<a name="l111"><span class="ln">111  </span></a> 
+<a name="l112"><span class="ln">112  </span></a>        frame : ReferenceFrame 
+<a name="l113"><span class="ln">113  </span></a>            The frame in which angular momentum is desired. 
+<a name="l114"><span class="ln">114  </span></a> 
+<a name="l115"><span class="ln">115  </span></a>        Examples 
+<a name="l116"><span class="ln">116  </span></a>        ======== 
+<a name="l117"><span class="ln">117  </span></a> 
+<a name="l118"><span class="ln">118  </span></a>        &gt;&gt;&gt; from sympy.physics.mechanics import Particle, Point, ReferenceFrame 
+<a name="l119"><span class="ln">119  </span></a>        &gt;&gt;&gt; from sympy.physics.mechanics import dynamicsymbols 
+<a name="l120"><span class="ln">120  </span></a>        &gt;&gt;&gt; from sympy.physics.vector import init_vprinting 
+<a name="l121"><span class="ln">121  </span></a>        &gt;&gt;&gt; init_vprinting(pretty_print=False) 
+<a name="l122"><span class="ln">122  </span></a>        &gt;&gt;&gt; m, v, r = dynamicsymbols('m v r') 
+<a name="l123"><span class="ln">123  </span></a>        &gt;&gt;&gt; N = ReferenceFrame('N') 
+<a name="l124"><span class="ln">124  </span></a>        &gt;&gt;&gt; O = Point('O') 
+<a name="l125"><span class="ln">125  </span></a>        &gt;&gt;&gt; A = O.locatenew('A', r * N.x) 
+<a name="l126"><span class="ln">126  </span></a>        &gt;&gt;&gt; P = Particle('P', A, m) 
+<a name="l127"><span class="ln">127  </span></a>        &gt;&gt;&gt; P.point.set_vel(N, v * N.y) 
+<a name="l128"><span class="ln">128  </span></a>        &gt;&gt;&gt; P.angular_momentum(O, N) 
+<a name="l129"><span class="ln">129  </span></a>        m*r*v*N.z 
+<a name="l130"><span class="ln">130  </span></a> 
+<a name="l131"><span class="ln">131  </span></a>        &quot;&quot;&quot;</span>
+<a name="l132"><span class="ln">132  </span></a>
+<a name="l133"><span class="ln">133  </span></a>        <span class="s0">return </span><span class="s1">cross</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">point</span><span class="s2">.</span><span class="s1">pos_from</span><span class="s2">(</span><span class="s1">point</span><span class="s2">),</span>
+<a name="l134"><span class="ln">134  </span></a>                     <span class="s1">self</span><span class="s2">.</span><span class="s1">mass </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">point</span><span class="s2">.</span><span class="s1">vel</span><span class="s2">(</span><span class="s1">frame</span><span class="s2">))</span>
+<a name="l135"><span class="ln">135  </span></a>
+<a name="l136"><span class="ln">136  </span></a>    <span class="s0">def </span><span class="s1">kinetic_energy</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">frame</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l137"><span class="ln">137  </span></a>        <span class="s4">&quot;&quot;&quot;Kinetic energy of the particle. 
+<a name="l138"><span class="ln">138  </span></a> 
+<a name="l139"><span class="ln">139  </span></a>        Explanation 
+<a name="l140"><span class="ln">140  </span></a>        =========== 
+<a name="l141"><span class="ln">141  </span></a> 
+<a name="l142"><span class="ln">142  </span></a>        The kinetic energy, T, of a particle, P, is given by: 
+<a name="l143"><span class="ln">143  </span></a> 
+<a name="l144"><span class="ln">144  </span></a>        ``T = 1/2 (dot(m * v, v))`` 
+<a name="l145"><span class="ln">145  </span></a> 
+<a name="l146"><span class="ln">146  </span></a>        where m is the mass of particle P, and v is the velocity of the 
+<a name="l147"><span class="ln">147  </span></a>        particle in the supplied ReferenceFrame. 
+<a name="l148"><span class="ln">148  </span></a> 
+<a name="l149"><span class="ln">149  </span></a>        Parameters 
+<a name="l150"><span class="ln">150  </span></a>        ========== 
+<a name="l151"><span class="ln">151  </span></a> 
+<a name="l152"><span class="ln">152  </span></a>        frame : ReferenceFrame 
+<a name="l153"><span class="ln">153  </span></a>            The Particle's velocity is typically defined with respect to 
+<a name="l154"><span class="ln">154  </span></a>            an inertial frame but any relevant frame in which the velocity is 
+<a name="l155"><span class="ln">155  </span></a>            known can be supplied. 
+<a name="l156"><span class="ln">156  </span></a> 
+<a name="l157"><span class="ln">157  </span></a>        Examples 
+<a name="l158"><span class="ln">158  </span></a>        ======== 
+<a name="l159"><span class="ln">159  </span></a> 
+<a name="l160"><span class="ln">160  </span></a>        &gt;&gt;&gt; from sympy.physics.mechanics import Particle, Point, ReferenceFrame 
+<a name="l161"><span class="ln">161  </span></a>        &gt;&gt;&gt; from sympy import symbols 
+<a name="l162"><span class="ln">162  </span></a>        &gt;&gt;&gt; m, v, r = symbols('m v r') 
+<a name="l163"><span class="ln">163  </span></a>        &gt;&gt;&gt; N = ReferenceFrame('N') 
+<a name="l164"><span class="ln">164  </span></a>        &gt;&gt;&gt; O = Point('O') 
+<a name="l165"><span class="ln">165  </span></a>        &gt;&gt;&gt; P = Particle('P', O, m) 
+<a name="l166"><span class="ln">166  </span></a>        &gt;&gt;&gt; P.point.set_vel(N, v * N.y) 
+<a name="l167"><span class="ln">167  </span></a>        &gt;&gt;&gt; P.kinetic_energy(N) 
+<a name="l168"><span class="ln">168  </span></a>        m*v**2/2 
+<a name="l169"><span class="ln">169  </span></a> 
+<a name="l170"><span class="ln">170  </span></a>        &quot;&quot;&quot;</span>
+<a name="l171"><span class="ln">171  </span></a>
+<a name="l172"><span class="ln">172  </span></a>        <span class="s0">return </span><span class="s1">S</span><span class="s2">.</span><span class="s1">Half </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">mass </span><span class="s0">* </span><span class="s1">dot</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">point</span><span class="s2">.</span><span class="s1">vel</span><span class="s2">(</span><span class="s1">frame</span><span class="s2">),</span>
+<a name="l173"><span class="ln">173  </span></a>                                        <span class="s1">self</span><span class="s2">.</span><span class="s1">point</span><span class="s2">.</span><span class="s1">vel</span><span class="s2">(</span><span class="s1">frame</span><span class="s2">))</span>
+<a name="l174"><span class="ln">174  </span></a>
+<a name="l175"><span class="ln">175  </span></a>    <span class="s0">def </span><span class="s1">set_potential_energy</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">scalar</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l176"><span class="ln">176  </span></a>        <span class="s1">sympy_deprecation_warning</span><span class="s2">(</span>
+<a name="l177"><span class="ln">177  </span></a>            <span class="s3">&quot;&quot;&quot; 
+<a name="l178"><span class="ln">178  </span></a>The sympy.physics.mechanics.Particle.set_potential_energy() 
+<a name="l179"><span class="ln">179  </span></a>method is deprecated. Instead use 
+<a name="l180"><span class="ln">180  </span></a> 
+<a name="l181"><span class="ln">181  </span></a>    P.potential_energy = scalar 
+<a name="l182"><span class="ln">182  </span></a>            &quot;&quot;&quot;</span><span class="s2">,</span>
+<a name="l183"><span class="ln">183  </span></a>        <span class="s1">deprecated_since_version</span><span class="s0">=</span><span class="s3">&quot;1.5&quot;</span><span class="s2">,</span>
+<a name="l184"><span class="ln">184  </span></a>        <span class="s1">active_deprecations_target</span><span class="s0">=</span><span class="s3">&quot;deprecated-set-potential-energy&quot;</span><span class="s2">,</span>
+<a name="l185"><span class="ln">185  </span></a>        <span class="s2">)</span>
+<a name="l186"><span class="ln">186  </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">potential_energy </span><span class="s0">= </span><span class="s1">scalar</span>
+<a name="l187"><span class="ln">187  </span></a>
+<a name="l188"><span class="ln">188  </span></a>    <span class="s0">def </span><span class="s1">parallel_axis</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">point</span><span class="s2">, </span><span class="s1">frame</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l189"><span class="ln">189  </span></a>        <span class="s4">&quot;&quot;&quot;Returns an inertia dyadic of the particle with respect to another 
+<a name="l190"><span class="ln">190  </span></a>        point and frame. 
+<a name="l191"><span class="ln">191  </span></a> 
+<a name="l192"><span class="ln">192  </span></a>        Parameters 
+<a name="l193"><span class="ln">193  </span></a>        ========== 
+<a name="l194"><span class="ln">194  </span></a> 
+<a name="l195"><span class="ln">195  </span></a>        point : sympy.physics.vector.Point 
+<a name="l196"><span class="ln">196  </span></a>            The point to express the inertia dyadic about. 
+<a name="l197"><span class="ln">197  </span></a>        frame : sympy.physics.vector.ReferenceFrame 
+<a name="l198"><span class="ln">198  </span></a>            The reference frame used to construct the dyadic. 
+<a name="l199"><span class="ln">199  </span></a> 
+<a name="l200"><span class="ln">200  </span></a>        Returns 
+<a name="l201"><span class="ln">201  </span></a>        ======= 
+<a name="l202"><span class="ln">202  </span></a> 
+<a name="l203"><span class="ln">203  </span></a>        inertia : sympy.physics.vector.Dyadic 
+<a name="l204"><span class="ln">204  </span></a>            The inertia dyadic of the particle expressed about the provided 
+<a name="l205"><span class="ln">205  </span></a>            point and frame. 
+<a name="l206"><span class="ln">206  </span></a> 
+<a name="l207"><span class="ln">207  </span></a>        &quot;&quot;&quot;</span>
+<a name="l208"><span class="ln">208  </span></a>        <span class="s0">return </span><span class="s1">inertia_of_point_mass</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">mass</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">point</span><span class="s2">.</span><span class="s1">pos_from</span><span class="s2">(</span><span class="s1">point</span><span class="s2">),</span>
+<a name="l209"><span class="ln">209  </span></a>                                     <span class="s1">frame</span><span class="s2">)</span>
+<a name="l210"><span class="ln">210  </span></a></pre>
+</body>
+</html>

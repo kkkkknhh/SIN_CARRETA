@@ -1,0 +1,283 @@
+<html>
+<head>
+<title>_traceback.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_traceback.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: allow-untyped-defs</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s2">import </span><span class="s1">contextlib</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s2">import </span><span class="s1">inspect</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">import </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s2">import </span><span class="s1">tempfile</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s2">import </span><span class="s1">traceback</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">from </span><span class="s1">types </span><span class="s2">import </span><span class="s1">TracebackType</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s2">from </span><span class="s1">typing </span><span class="s2">import </span><span class="s1">Optional</span>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s0"># This file contains utilities for ensuring dynamically compile()'d</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s0"># code fragments display their line numbers in backtraces.</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s0">#</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s0"># The constraints:</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s0">#</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s0"># - We don't have control over the user exception printer (in particular,</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s0">#   we cannot assume the linecache trick will work, c.f.</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s0">#   https://stackoverflow.com/q/50515651/23845 )</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s0">#</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s0"># - We don't want to create temporary files every time we compile()</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s0">#   some code; file creation should happen lazily only at exception</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s0">#   time.  Arguably, you *should* be willing to write out your</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s0">#   generated Python code to file system, but in some situations</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s0">#   (esp. library code) it would violate user expectation to write</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s0">#   to the file system, so we try to avoid it.  In particular, we'd</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s0">#   like to keep the files around, so users can open up the files</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s0">#   mentioned in the trace; if the file is invisible, we want to</span>
+<a name="l28"><span class="ln">28   </span></a><span class="s0">#   avoid clogging up the filesystem.</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s0">#</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s0">#   If this is not a constraint for you, there is a substantially simpler</span>
+<a name="l31"><span class="ln">31   </span></a><span class="s0">#   way to implement the functionality in this PR: instead of using</span>
+<a name="l32"><span class="ln">32   </span></a><span class="s0">#   eval/exec directly, just always write a Python file to filesystem</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s0">#   and compile that.</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s0">#</span>
+<a name="l35"><span class="ln">35   </span></a><span class="s0"># - You have control over a context where the compiled code will get</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s0">#   executed, so that we can interpose while the stack is unwinding</span>
+<a name="l37"><span class="ln">37   </span></a><span class="s0">#   (otherwise, we have no way to interpose on the exception printing</span>
+<a name="l38"><span class="ln">38   </span></a><span class="s0">#   process.)</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s0">#</span>
+<a name="l40"><span class="ln">40   </span></a><span class="s0"># There are two things you have to do to make use of the utilities here:</span>
+<a name="l41"><span class="ln">41   </span></a><span class="s0">#</span>
+<a name="l42"><span class="ln">42   </span></a><span class="s0"># - When you compile your source code, you must save its string source</span>
+<a name="l43"><span class="ln">43   </span></a><span class="s0">#   in its f_globals under the magic name &quot;__compile_source__&quot;</span>
+<a name="l44"><span class="ln">44   </span></a><span class="s0">#</span>
+<a name="l45"><span class="ln">45   </span></a><span class="s0"># - Before running the compiled code, enter the</span>
+<a name="l46"><span class="ln">46   </span></a><span class="s0">#   report_compile_source_on_error() context manager.</span>
+<a name="l47"><span class="ln">47   </span></a>
+<a name="l48"><span class="ln">48   </span></a>
+<a name="l49"><span class="ln">49   </span></a><span class="s2">@</span><span class="s1">contextlib</span><span class="s3">.</span><span class="s1">contextmanager</span>
+<a name="l50"><span class="ln">50   </span></a><span class="s2">def </span><span class="s1">report_compile_source_on_error</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s2">try:</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s2">yield</span>
+<a name="l53"><span class="ln">53   </span></a>    <span class="s2">except </span><span class="s1">Exception </span><span class="s2">as </span><span class="s1">exc</span><span class="s2">:</span>
+<a name="l54"><span class="ln">54   </span></a>        <span class="s1">tb </span><span class="s2">= </span><span class="s1">exc</span><span class="s3">.</span><span class="s1">__traceback__</span>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a>        <span class="s0"># Walk the traceback, looking for frames that have</span>
+<a name="l57"><span class="ln">57   </span></a>        <span class="s0"># source attached</span>
+<a name="l58"><span class="ln">58   </span></a>        <span class="s1">stack </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l59"><span class="ln">59   </span></a>        <span class="s2">while </span><span class="s1">tb </span><span class="s2">is not None:</span>
+<a name="l60"><span class="ln">60   </span></a>            <span class="s1">filename </span><span class="s2">= </span><span class="s1">tb</span><span class="s3">.</span><span class="s1">tb_frame</span><span class="s3">.</span><span class="s1">f_code</span><span class="s3">.</span><span class="s1">co_filename</span>
+<a name="l61"><span class="ln">61   </span></a>            <span class="s1">source </span><span class="s2">= </span><span class="s1">tb</span><span class="s3">.</span><span class="s1">tb_frame</span><span class="s3">.</span><span class="s1">f_globals</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;__compile_source__&quot;</span><span class="s3">)</span>
+<a name="l62"><span class="ln">62   </span></a>
+<a name="l63"><span class="ln">63   </span></a>            <span class="s2">if </span><span class="s1">filename </span><span class="s2">== </span><span class="s4">&quot;&lt;string&gt;&quot; </span><span class="s2">and </span><span class="s1">source </span><span class="s2">is not None:</span>
+<a name="l64"><span class="ln">64   </span></a>                <span class="s0"># What black magic are we doing here?  Intuitively, what</span>
+<a name="l65"><span class="ln">65   </span></a>                <span class="s0"># we would like to do is overwrite the co_filename on any</span>
+<a name="l66"><span class="ln">66   </span></a>                <span class="s0"># frames that were generated from exec/eval so that they</span>
+<a name="l67"><span class="ln">67   </span></a>                <span class="s0"># point to a temporary file that has the actual line</span>
+<a name="l68"><span class="ln">68   </span></a>                <span class="s0"># information, so Python's default error printer can print</span>
+<a name="l69"><span class="ln">69   </span></a>                <span class="s0"># useful line information on it.</span>
+<a name="l70"><span class="ln">70   </span></a>                <span class="s0">#</span>
+<a name="l71"><span class="ln">71   </span></a>                <span class="s0"># Writing out the temporary file is easy.  But overwriting</span>
+<a name="l72"><span class="ln">72   </span></a>                <span class="s0"># co_filename is not!  You can't modify the code object</span>
+<a name="l73"><span class="ln">73   </span></a>                <span class="s0"># associated with a frame.  You can, however, reconstruct</span>
+<a name="l74"><span class="ln">74   </span></a>                <span class="s0"># a traceback with entirely new frames from scratch, so that's</span>
+<a name="l75"><span class="ln">75   </span></a>                <span class="s0"># what we do.  But there's another problem, which is how to</span>
+<a name="l76"><span class="ln">76   </span></a>                <span class="s0"># make the frame?</span>
+<a name="l77"><span class="ln">77   </span></a>                <span class="s0">#</span>
+<a name="l78"><span class="ln">78   </span></a>                <span class="s0"># The black magic is we make a frankenstein frame and code</span>
+<a name="l79"><span class="ln">79   </span></a>                <span class="s0"># object which resembles the original frame/code enough so</span>
+<a name="l80"><span class="ln">80   </span></a>                <span class="s0"># that it will print properly under traceback and the default</span>
+<a name="l81"><span class="ln">81   </span></a>                <span class="s0"># error printer, but IT IS NOT THE ORIGINAL FRAME (you</span>
+<a name="l82"><span class="ln">82   </span></a>                <span class="s0"># couldn't, e.g., execute its code with different variables</span>
+<a name="l83"><span class="ln">83   </span></a>                <span class="s0"># and expect it to work.)</span>
+<a name="l84"><span class="ln">84   </span></a>
+<a name="l85"><span class="ln">85   </span></a>                <span class="s0"># Don't delete the temporary file so the user can inspect it</span>
+<a name="l86"><span class="ln">86   </span></a>                <span class="s0"># TODO: This creates a temporary file for every frame, but we</span>
+<a name="l87"><span class="ln">87   </span></a>                <span class="s0"># technically only need one per distinct __compile_source__</span>
+<a name="l88"><span class="ln">88   </span></a>                <span class="s2">with </span><span class="s1">tempfile</span><span class="s3">.</span><span class="s1">NamedTemporaryFile</span><span class="s3">(</span>
+<a name="l89"><span class="ln">89   </span></a>                    <span class="s1">mode</span><span class="s2">=</span><span class="s4">&quot;w&quot;</span><span class="s3">, </span><span class="s1">delete</span><span class="s2">=False</span><span class="s3">, </span><span class="s1">suffix</span><span class="s2">=</span><span class="s4">&quot;.py&quot;</span>
+<a name="l90"><span class="ln">90   </span></a>                <span class="s3">) </span><span class="s2">as </span><span class="s1">f</span><span class="s2">:</span>
+<a name="l91"><span class="ln">91   </span></a>                    <span class="s1">f</span><span class="s3">.</span><span class="s1">write</span><span class="s3">(</span><span class="s1">source</span><span class="s3">)</span>
+<a name="l92"><span class="ln">92   </span></a>                <span class="s0"># Create a frame.  Python doesn't let you construct</span>
+<a name="l93"><span class="ln">93   </span></a>                <span class="s0"># FrameType directly, so just make one with compile</span>
+<a name="l94"><span class="ln">94   </span></a>                <span class="s1">frame </span><span class="s2">= </span><span class="s1">tb</span><span class="s3">.</span><span class="s1">tb_frame</span>
+<a name="l95"><span class="ln">95   </span></a>                <span class="s1">code </span><span class="s2">= </span><span class="s1">compile</span><span class="s3">(</span><span class="s4">&quot;__inspect_currentframe()&quot;</span><span class="s3">, </span><span class="s1">f</span><span class="s3">.</span><span class="s1">name</span><span class="s3">, </span><span class="s4">&quot;eval&quot;</span><span class="s3">)</span>
+<a name="l96"><span class="ln">96   </span></a>                <span class="s1">code </span><span class="s2">= </span><span class="s1">code</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s1">co_name</span><span class="s2">=</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">f_code</span><span class="s3">.</span><span class="s1">co_name</span><span class="s3">)</span>
+<a name="l97"><span class="ln">97   </span></a>                <span class="s0"># Python 3.11 only</span>
+<a name="l98"><span class="ln">98   </span></a>                <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">f_code</span><span class="s3">, </span><span class="s4">&quot;co_linetable&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l99"><span class="ln">99   </span></a>                    <span class="s0"># We can't copy ALL of the metadata over, because you</span>
+<a name="l100"><span class="ln">100  </span></a>                    <span class="s0"># can cause Python to segfault this way.  What exactly</span>
+<a name="l101"><span class="ln">101  </span></a>                    <span class="s0"># do we need?  We need enough information for</span>
+<a name="l102"><span class="ln">102  </span></a>                    <span class="s0"># traceback to be able to print the exception</span>
+<a name="l103"><span class="ln">103  </span></a>                    <span class="s0"># correctly.  Code reading Lib/traceback.py reveals</span>
+<a name="l104"><span class="ln">104  </span></a>                    <span class="s0"># that traceback calls code.co_positions() in order to</span>
+<a name="l105"><span class="ln">105  </span></a>                    <span class="s0"># get the augmented line/col numbers.  Objects/codeobject.c,</span>
+<a name="l106"><span class="ln">106  </span></a>                    <span class="s0"># specifically _PyCode_InitAddressRange, reveals that</span>
+<a name="l107"><span class="ln">107  </span></a>                    <span class="s0"># this iterator is initialized from co_linetable and</span>
+<a name="l108"><span class="ln">108  </span></a>                    <span class="s0"># co_firstfileno.  So copy these we must!</span>
+<a name="l109"><span class="ln">109  </span></a>                    <span class="s1">code </span><span class="s2">= </span><span class="s1">code</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(  </span><span class="s0"># type: ignore[call-arg]</span>
+<a name="l110"><span class="ln">110  </span></a>                        <span class="s1">co_linetable</span><span class="s2">=</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">f_code</span><span class="s3">.</span><span class="s1">co_linetable</span><span class="s3">,  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l111"><span class="ln">111  </span></a>                        <span class="s1">co_firstlineno</span><span class="s2">=</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">f_code</span><span class="s3">.</span><span class="s1">co_firstlineno</span><span class="s3">,  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l112"><span class="ln">112  </span></a>                    <span class="s3">)</span>
+<a name="l113"><span class="ln">113  </span></a>                <span class="s1">fake_frame </span><span class="s2">= </span><span class="s1">eval</span><span class="s3">(</span>
+<a name="l114"><span class="ln">114  </span></a>                    <span class="s1">code</span><span class="s3">,</span>
+<a name="l115"><span class="ln">115  </span></a>                    <span class="s1">frame</span><span class="s3">.</span><span class="s1">f_globals</span><span class="s3">,</span>
+<a name="l116"><span class="ln">116  </span></a>                    <span class="s3">{</span><span class="s2">**</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">f_locals</span><span class="s3">, </span><span class="s4">&quot;__inspect_currentframe&quot;</span><span class="s2">: </span><span class="s1">inspect</span><span class="s3">.</span><span class="s1">currentframe</span><span class="s3">},</span>
+<a name="l117"><span class="ln">117  </span></a>                <span class="s3">)</span>
+<a name="l118"><span class="ln">118  </span></a>                <span class="s1">fake_tb </span><span class="s2">= </span><span class="s1">TracebackType</span><span class="s3">(</span><span class="s2">None</span><span class="s3">, </span><span class="s1">fake_frame</span><span class="s3">, </span><span class="s1">tb</span><span class="s3">.</span><span class="s1">tb_lasti</span><span class="s3">, </span><span class="s1">tb</span><span class="s3">.</span><span class="s1">tb_lineno</span><span class="s3">)</span>
+<a name="l119"><span class="ln">119  </span></a>                <span class="s1">stack</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">fake_tb</span><span class="s3">)</span>
+<a name="l120"><span class="ln">120  </span></a>            <span class="s2">else:</span>
+<a name="l121"><span class="ln">121  </span></a>                <span class="s1">stack</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">tb</span><span class="s3">)</span>
+<a name="l122"><span class="ln">122  </span></a>
+<a name="l123"><span class="ln">123  </span></a>            <span class="s1">tb </span><span class="s2">= </span><span class="s1">tb</span><span class="s3">.</span><span class="s1">tb_next</span>
+<a name="l124"><span class="ln">124  </span></a>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s0"># Reconstruct the linked list</span>
+<a name="l126"><span class="ln">126  </span></a>        <span class="s1">tb_next </span><span class="s2">= None</span>
+<a name="l127"><span class="ln">127  </span></a>        <span class="s2">for </span><span class="s1">tb </span><span class="s2">in </span><span class="s1">reversed</span><span class="s3">(</span><span class="s1">stack</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l128"><span class="ln">128  </span></a>            <span class="s1">tb</span><span class="s3">.</span><span class="s1">tb_next </span><span class="s2">= </span><span class="s1">tb_next</span>
+<a name="l129"><span class="ln">129  </span></a>            <span class="s1">tb_next </span><span class="s2">= </span><span class="s1">tb</span>
+<a name="l130"><span class="ln">130  </span></a>
+<a name="l131"><span class="ln">131  </span></a>        <span class="s2">raise </span><span class="s1">exc</span><span class="s3">.</span><span class="s1">with_traceback</span><span class="s3">(</span><span class="s1">tb_next</span><span class="s3">)  </span><span class="s0"># noqa: B904</span>
+<a name="l132"><span class="ln">132  </span></a>
+<a name="l133"><span class="ln">133  </span></a>
+<a name="l134"><span class="ln">134  </span></a><span class="s2">def </span><span class="s1">shorten_filename</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">base</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l135"><span class="ln">135  </span></a>    <span class="s0">&quot;&quot;&quot;Shorten a source filepath, with the assumption that torch/ subdirectories don't need to be shown to user.&quot;&quot;&quot;</span>
+<a name="l136"><span class="ln">136  </span></a>    <span class="s2">if </span><span class="s1">base </span><span class="s2">is None:</span>
+<a name="l137"><span class="ln">137  </span></a>        <span class="s1">base </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">dirname</span><span class="s3">(</span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">dirname</span><span class="s3">(</span><span class="s1">__file__</span><span class="s3">))</span>
+<a name="l138"><span class="ln">138  </span></a>    <span class="s0"># Truncate torch/foo.py to foo.py</span>
+<a name="l139"><span class="ln">139  </span></a>    <span class="s2">try:</span>
+<a name="l140"><span class="ln">140  </span></a>        <span class="s1">prefix </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">commonpath</span><span class="s3">([</span><span class="s1">fn</span><span class="s3">, </span><span class="s1">base</span><span class="s3">])</span>
+<a name="l141"><span class="ln">141  </span></a>    <span class="s2">except </span><span class="s1">ValueError</span><span class="s2">:</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s2">return </span><span class="s1">fn</span>
+<a name="l143"><span class="ln">143  </span></a>    <span class="s2">else:</span>
+<a name="l144"><span class="ln">144  </span></a>        <span class="s2">return </span><span class="s1">fn</span><span class="s3">[</span><span class="s1">len</span><span class="s3">(</span><span class="s1">prefix</span><span class="s3">) </span><span class="s2">+ </span><span class="s5">1 </span><span class="s2">:</span><span class="s3">]</span>
+<a name="l145"><span class="ln">145  </span></a>
+<a name="l146"><span class="ln">146  </span></a>
+<a name="l147"><span class="ln">147  </span></a><span class="s2">def </span><span class="s1">format_frame</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">base</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">line</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l149"><span class="ln">149  </span></a>    Format a FrameSummary in a short way, without printing full absolute path or code. 
+<a name="l150"><span class="ln">150  </span></a> 
+<a name="l151"><span class="ln">151  </span></a>    The idea is the result fits on a single line. 
+<a name="l152"><span class="ln">152  </span></a>    &quot;&quot;&quot;</span>
+<a name="l153"><span class="ln">153  </span></a>    <span class="s1">extra_line </span><span class="s2">= </span><span class="s4">&quot;&quot;</span>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s2">if </span><span class="s1">line</span><span class="s2">:</span>
+<a name="l155"><span class="ln">155  </span></a>        <span class="s1">extra_line </span><span class="s2">= </span><span class="s4">f&quot;{</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">line</span><span class="s4">}  # &quot;</span>
+<a name="l156"><span class="ln">156  </span></a>    <span class="s2">return </span><span class="s4">f&quot;{</span><span class="s1">extra_line</span><span class="s4">}{</span><span class="s1">shorten_filename</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">filename</span><span class="s3">, </span><span class="s1">base</span><span class="s2">=</span><span class="s1">base</span><span class="s3">)</span><span class="s4">}:{</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">lineno</span><span class="s4">} in {</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">name</span><span class="s4">}&quot;</span>
+<a name="l157"><span class="ln">157  </span></a>
+<a name="l158"><span class="ln">158  </span></a>
+<a name="l159"><span class="ln">159  </span></a><span class="s2">def </span><span class="s1">format_traceback_short</span><span class="s3">(</span><span class="s1">tb</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l160"><span class="ln">160  </span></a>    <span class="s0">&quot;&quot;&quot;Format a TracebackType in a short way, printing only the inner-most frame.&quot;&quot;&quot;</span>
+<a name="l161"><span class="ln">161  </span></a>    <span class="s2">return </span><span class="s1">format_frame</span><span class="s3">(</span><span class="s1">traceback</span><span class="s3">.</span><span class="s1">extract_tb</span><span class="s3">(</span><span class="s1">tb</span><span class="s3">)[</span><span class="s2">-</span><span class="s5">1</span><span class="s3">])</span>
+<a name="l162"><span class="ln">162  </span></a>
+<a name="l163"><span class="ln">163  </span></a>
+<a name="l164"><span class="ln">164  </span></a><span class="s2">class </span><span class="s1">CapturedTraceback</span><span class="s2">:</span>
+<a name="l165"><span class="ln">165  </span></a>    <span class="s1">__slots__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">&quot;tb&quot;</span><span class="s3">, </span><span class="s4">&quot;skip&quot;</span><span class="s3">]</span>
+<a name="l166"><span class="ln">166  </span></a>
+<a name="l167"><span class="ln">167  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">tb</span><span class="s3">, </span><span class="s1">skip</span><span class="s2">=</span><span class="s5">0</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l168"><span class="ln">168  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">tb </span><span class="s2">= </span><span class="s1">tb</span>
+<a name="l169"><span class="ln">169  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">skip </span><span class="s2">= </span><span class="s1">skip</span>
+<a name="l170"><span class="ln">170  </span></a>
+<a name="l171"><span class="ln">171  </span></a>    <span class="s2">def </span><span class="s1">cleanup</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l172"><span class="ln">172  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">tb </span><span class="s2">= None</span>
+<a name="l173"><span class="ln">173  </span></a>
+<a name="l174"><span class="ln">174  </span></a>    <span class="s2">def </span><span class="s1">summary</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l175"><span class="ln">175  </span></a>        <span class="s2">import </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_profiler</span>
+<a name="l176"><span class="ln">176  </span></a>
+<a name="l177"><span class="ln">177  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">tb </span><span class="s2">is None:</span>
+<a name="l178"><span class="ln">178  </span></a>            <span class="s0"># TODO: Maybe indicate that the traceback was elided?</span>
+<a name="l179"><span class="ln">179  </span></a>            <span class="s2">return </span><span class="s1">traceback</span><span class="s3">.</span><span class="s1">StackSummary</span><span class="s3">()</span>
+<a name="l180"><span class="ln">180  </span></a>
+<a name="l181"><span class="ln">181  </span></a>        <span class="s2">return </span><span class="s1">_extract_symbolized_tb</span><span class="s3">(</span>
+<a name="l182"><span class="ln">182  </span></a>            <span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_profiler</span><span class="s3">.</span><span class="s1">symbolize_tracebacks</span><span class="s3">([</span><span class="s1">self</span><span class="s3">.</span><span class="s1">tb</span><span class="s3">])[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">self</span><span class="s3">.</span><span class="s1">skip</span>
+<a name="l183"><span class="ln">183  </span></a>        <span class="s3">)</span>
+<a name="l184"><span class="ln">184  </span></a>
+<a name="l185"><span class="ln">185  </span></a>    <span class="s2">def </span><span class="s1">__getstate__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l186"><span class="ln">186  </span></a>        <span class="s2">return </span><span class="s3">(</span>
+<a name="l187"><span class="ln">187  </span></a>            <span class="s2">None</span><span class="s3">,</span>
+<a name="l188"><span class="ln">188  </span></a>            <span class="s3">{</span>
+<a name="l189"><span class="ln">189  </span></a>                <span class="s4">&quot;tb&quot;</span><span class="s2">: None</span><span class="s3">,  </span><span class="s0"># TB is not pickleable</span>
+<a name="l190"><span class="ln">190  </span></a>                <span class="s4">&quot;skip&quot;</span><span class="s2">: </span><span class="s1">self</span><span class="s3">.</span><span class="s1">skip</span><span class="s3">,</span>
+<a name="l191"><span class="ln">191  </span></a>            <span class="s3">},</span>
+<a name="l192"><span class="ln">192  </span></a>        <span class="s3">)</span>
+<a name="l193"><span class="ln">193  </span></a>
+<a name="l194"><span class="ln">194  </span></a>    <span class="s2">@</span><span class="s1">staticmethod</span>
+<a name="l195"><span class="ln">195  </span></a>    <span class="s2">def </span><span class="s1">extract</span><span class="s3">(</span><span class="s2">*</span><span class="s3">, </span><span class="s1">script</span><span class="s2">=False</span><span class="s3">, </span><span class="s1">cpp</span><span class="s2">=False</span><span class="s3">, </span><span class="s1">skip</span><span class="s2">=</span><span class="s5">0</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l196"><span class="ln">196  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l197"><span class="ln">197  </span></a>        Like traceback.extract_stack(), but faster (approximately 20x faster); it 
+<a name="l198"><span class="ln">198  </span></a>        is fast enough that you can unconditionally log stacks this way as part of 
+<a name="l199"><span class="ln">199  </span></a>        normal execution.  It returns a torch._C._profiler.CapturedTraceback 
+<a name="l200"><span class="ln">200  </span></a>        object that must be formatted specially with format_captured_tb. 
+<a name="l201"><span class="ln">201  </span></a> 
+<a name="l202"><span class="ln">202  </span></a>        By default, this only reports Python backtraces (like extract_stack).  You 
+<a name="l203"><span class="ln">203  </span></a>        can set the script/cpp kwargs to also turn on TorchScript/C++ trace 
+<a name="l204"><span class="ln">204  </span></a>        reporting. 
+<a name="l205"><span class="ln">205  </span></a>        &quot;&quot;&quot;</span>
+<a name="l206"><span class="ln">206  </span></a>        <span class="s2">import </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_profiler</span>
+<a name="l207"><span class="ln">207  </span></a>
+<a name="l208"><span class="ln">208  </span></a>        <span class="s2">if </span><span class="s1">script </span><span class="s2">or </span><span class="s1">cpp</span><span class="s2">:</span>
+<a name="l209"><span class="ln">209  </span></a>            <span class="s2">assert </span><span class="s1">skip </span><span class="s2">== </span><span class="s5">0</span><span class="s3">, </span><span class="s4">&quot;skip with script/cpp NYI&quot;</span>
+<a name="l210"><span class="ln">210  </span></a>
+<a name="l211"><span class="ln">211  </span></a>        <span class="s2">return </span><span class="s1">CapturedTraceback</span><span class="s3">(</span>
+<a name="l212"><span class="ln">212  </span></a>            <span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_profiler</span><span class="s3">.</span><span class="s1">gather_traceback</span><span class="s3">(</span><span class="s1">python</span><span class="s2">=True</span><span class="s3">, </span><span class="s1">script</span><span class="s2">=</span><span class="s1">script</span><span class="s3">, </span><span class="s1">cpp</span><span class="s2">=</span><span class="s1">cpp</span><span class="s3">),</span>
+<a name="l213"><span class="ln">213  </span></a>            <span class="s0"># Elide extract() frame if we don't have script/cpp frames.  If</span>
+<a name="l214"><span class="ln">214  </span></a>            <span class="s0"># we do have those frames, it doesn't work so force zero.</span>
+<a name="l215"><span class="ln">215  </span></a>            <span class="s5">0 </span><span class="s2">if </span><span class="s1">script </span><span class="s2">or </span><span class="s1">cpp </span><span class="s2">else </span><span class="s1">skip </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">,</span>
+<a name="l216"><span class="ln">216  </span></a>        <span class="s3">)</span>
+<a name="l217"><span class="ln">217  </span></a>
+<a name="l218"><span class="ln">218  </span></a>    <span class="s2">def </span><span class="s1">format</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l219"><span class="ln">219  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l220"><span class="ln">220  </span></a>        Formats a single torch._C._profiler.CapturedTraceback into a list of 
+<a name="l221"><span class="ln">221  </span></a>        strings equivalent to the output of traceback.format_list.  Note that if 
+<a name="l222"><span class="ln">222  </span></a>        pass it CapturedTraceback with C++ traces,  it is better not to use this 
+<a name="l223"><span class="ln">223  </span></a>        function and use the batch formatting API format_captured_tbs to amortize 
+<a name="l224"><span class="ln">224  </span></a>        the cost of symbolization 
+<a name="l225"><span class="ln">225  </span></a>        &quot;&quot;&quot;</span>
+<a name="l226"><span class="ln">226  </span></a>        <span class="s2">return </span><span class="s1">traceback</span><span class="s3">.</span><span class="s1">format_list</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">summary</span><span class="s3">())</span>
+<a name="l227"><span class="ln">227  </span></a>
+<a name="l228"><span class="ln">228  </span></a>    <span class="s2">@</span><span class="s1">staticmethod</span>
+<a name="l229"><span class="ln">229  </span></a>    <span class="s2">def </span><span class="s1">format_all</span><span class="s3">(</span><span class="s1">tbs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l230"><span class="ln">230  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l231"><span class="ln">231  </span></a>        Bulk version of CapturedTraceback.format.  Returns a list of list of strings. 
+<a name="l232"><span class="ln">232  </span></a>        &quot;&quot;&quot;</span>
+<a name="l233"><span class="ln">233  </span></a>        <span class="s2">import </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_profiler</span>
+<a name="l234"><span class="ln">234  </span></a>
+<a name="l235"><span class="ln">235  </span></a>        <span class="s0"># Directly populate tracebacks that already have cached summaries</span>
+<a name="l236"><span class="ln">236  </span></a>        <span class="s1">rs</span><span class="s2">: </span><span class="s1">list</span><span class="s3">[</span><span class="s1">Optional</span><span class="s3">[</span><span class="s1">list</span><span class="s3">[</span><span class="s1">str</span><span class="s3">]]] </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l237"><span class="ln">237  </span></a>        <span class="s1">delayed_idxs </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l238"><span class="ln">238  </span></a>        <span class="s2">for </span><span class="s1">i</span><span class="s3">, </span><span class="s1">tb </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">tbs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l239"><span class="ln">239  </span></a>            <span class="s2">if </span><span class="s1">tb</span><span class="s3">.</span><span class="s1">tb </span><span class="s2">is None:</span>
+<a name="l240"><span class="ln">240  </span></a>                <span class="s1">rs</span><span class="s3">.</span><span class="s1">append</span><span class="s3">([])</span>
+<a name="l241"><span class="ln">241  </span></a>            <span class="s2">else:</span>
+<a name="l242"><span class="ln">242  </span></a>                <span class="s1">rs</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s2">None</span><span class="s3">)</span>
+<a name="l243"><span class="ln">243  </span></a>                <span class="s1">delayed_idxs</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">i</span><span class="s3">)</span>
+<a name="l244"><span class="ln">244  </span></a>
+<a name="l245"><span class="ln">245  </span></a>        <span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_profiler</span><span class="s3">.</span><span class="s1">symbolize_tracebacks</span><span class="s3">([</span><span class="s1">tbs</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">tb </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">delayed_idxs</span><span class="s3">])</span>
+<a name="l246"><span class="ln">246  </span></a>        <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">delayed_idxs</span><span class="s2">:</span>
+<a name="l247"><span class="ln">247  </span></a>            <span class="s1">rs</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] </span><span class="s2">= </span><span class="s1">traceback</span><span class="s3">.</span><span class="s1">format_list</span><span class="s3">(</span><span class="s1">tbs</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">summary</span><span class="s3">())</span>
+<a name="l248"><span class="ln">248  </span></a>
+<a name="l249"><span class="ln">249  </span></a>        <span class="s2">return </span><span class="s1">rs</span>
+<a name="l250"><span class="ln">250  </span></a>
+<a name="l251"><span class="ln">251  </span></a>
+<a name="l252"><span class="ln">252  </span></a><span class="s2">def </span><span class="s1">_extract_symbolized_tb</span><span class="s3">(</span><span class="s1">tb</span><span class="s3">, </span><span class="s1">skip</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l253"><span class="ln">253  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l254"><span class="ln">254  </span></a>    Given a symbolized traceback from symbolize_tracebacks, return a StackSummary object of 
+<a name="l255"><span class="ln">255  </span></a>    pre-processed stack trace entries. 
+<a name="l256"><span class="ln">256  </span></a>    &quot;&quot;&quot;</span>
+<a name="l257"><span class="ln">257  </span></a>    <span class="s1">stack </span><span class="s2">= </span><span class="s1">traceback</span><span class="s3">.</span><span class="s1">StackSummary</span><span class="s3">()</span>
+<a name="l258"><span class="ln">258  </span></a>    <span class="s2">for </span><span class="s1">f </span><span class="s2">in </span><span class="s1">reversed</span><span class="s3">(</span><span class="s1">tb</span><span class="s3">[</span><span class="s1">skip</span><span class="s2">:</span><span class="s3">])</span><span class="s2">:</span>
+<a name="l259"><span class="ln">259  </span></a>        <span class="s1">stack</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">traceback</span><span class="s3">.</span><span class="s1">FrameSummary</span><span class="s3">(</span><span class="s1">f</span><span class="s3">[</span><span class="s4">&quot;filename&quot;</span><span class="s3">], </span><span class="s1">f</span><span class="s3">[</span><span class="s4">&quot;line&quot;</span><span class="s3">], </span><span class="s1">f</span><span class="s3">[</span><span class="s4">&quot;name&quot;</span><span class="s3">]))</span>
+<a name="l260"><span class="ln">260  </span></a>    <span class="s2">return </span><span class="s1">stack</span>
+<a name="l261"><span class="ln">261  </span></a></pre>
+</body>
+</html>

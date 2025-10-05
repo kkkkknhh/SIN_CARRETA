@@ -1,0 +1,137 @@
+<html>
+<head>
+<title>matcher_with_name_node_map_utils.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #0086b3;}
+.s5 { color: #969896;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+matcher_with_name_node_map_utils.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">from </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">fx </span><span class="s0">import </span><span class="s1">Graph</span><span class="s2">, </span><span class="s1">GraphModule</span><span class="s2">, </span><span class="s1">Node</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">fx</span><span class="s2">.</span><span class="s1">_compatibility </span><span class="s0">import </span><span class="s1">compatibility</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">matcher_utils </span><span class="s0">import </span><span class="s1">InternalMatch</span><span class="s2">, </span><span class="s1">SubgraphMatcher</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span><span class="s3">&quot;SubgraphMatcherWithNameNodeMap&quot;</span><span class="s2">]</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">def </span><span class="s1">_split_to_graph_and_name_node_map</span><span class="s2">(</span>
+<a name="l11"><span class="ln">11   </span></a>    <span class="s1">gm</span><span class="s0">: </span><span class="s1">GraphModule</span><span class="s2">,</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">) </span><span class="s1">-&gt; tuple</span><span class="s2">[</span><span class="s1">GraphModule</span><span class="s2">, </span><span class="s1">dict</span><span class="s2">[</span><span class="s1">str</span><span class="s2">, </span><span class="s1">Node</span><span class="s2">]]</span><span class="s0">:</span>
+<a name="l13"><span class="ln">13   </span></a>    <span class="s0">from </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">fx</span><span class="s2">.</span><span class="s1">graph </span><span class="s0">import </span><span class="s1">_PyTreeInfo</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s0">from </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">utils</span><span class="s2">.</span><span class="s1">_pytree </span><span class="s0">import </span><span class="s1">tree_flatten</span><span class="s2">, </span><span class="s1">tree_unflatten</span>
+<a name="l15"><span class="ln">15   </span></a>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s1">name_node_map </span><span class="s0">= </span><span class="s2">{}</span>
+<a name="l17"><span class="ln">17   </span></a>    <span class="s0">for </span><span class="s1">n </span><span class="s0">in </span><span class="s1">gm</span><span class="s2">.</span><span class="s1">graph</span><span class="s2">.</span><span class="s1">nodes</span><span class="s0">:</span>
+<a name="l18"><span class="ln">18   </span></a>        <span class="s0">if </span><span class="s1">n</span><span class="s2">.</span><span class="s1">op </span><span class="s0">== </span><span class="s3">&quot;output&quot;</span><span class="s0">:</span>
+<a name="l19"><span class="ln">19   </span></a>            <span class="s0">assert </span><span class="s1">gm</span><span class="s2">.</span><span class="s1">_out_spec </span><span class="s0">is not None</span>
+<a name="l20"><span class="ln">20   </span></a>            <span class="s1">output </span><span class="s0">= </span><span class="s1">tree_unflatten</span><span class="s2">(</span><span class="s1">n</span><span class="s2">.</span><span class="s1">args</span><span class="s2">[</span><span class="s4">0</span><span class="s2">], </span><span class="s1">gm</span><span class="s2">.</span><span class="s1">_out_spec</span><span class="s2">)</span>
+<a name="l21"><span class="ln">21   </span></a>            <span class="s0">assert </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">output</span><span class="s2">, </span><span class="s1">tuple</span><span class="s2">), (</span>
+<a name="l22"><span class="ln">22   </span></a>                <span class="s3">&quot;Expecting the pattern graph to return a tuple&quot;</span>
+<a name="l23"><span class="ln">23   </span></a>            <span class="s2">)</span>
+<a name="l24"><span class="ln">24   </span></a>            <span class="s0">assert </span><span class="s1">len</span><span class="s2">(</span><span class="s1">output</span><span class="s2">) </span><span class="s0">&gt;= </span><span class="s4">2</span><span class="s2">, (</span>
+<a name="l25"><span class="ln">25   </span></a>                <span class="s3">&quot;Expecting the pattern graph to have at least two outputs&quot;</span>
+<a name="l26"><span class="ln">26   </span></a>            <span class="s2">)</span>
+<a name="l27"><span class="ln">27   </span></a>            <span class="s0">*</span><span class="s1">out</span><span class="s2">, </span><span class="s1">name_node_map </span><span class="s0">= </span><span class="s1">output</span>
+<a name="l28"><span class="ln">28   </span></a>            <span class="s1">flattened</span><span class="s2">, </span><span class="s1">out_spec </span><span class="s0">= </span><span class="s1">tree_flatten</span><span class="s2">(</span><span class="s1">out</span><span class="s2">)</span>
+<a name="l29"><span class="ln">29   </span></a>            <span class="s0">assert </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">name_node_map</span><span class="s2">, </span><span class="s1">dict</span><span class="s2">), (</span>
+<a name="l30"><span class="ln">30   </span></a>                <span class="s3">&quot;Expecting the input graph to have a dict output as the last element&quot;</span>
+<a name="l31"><span class="ln">31   </span></a>            <span class="s2">)</span>
+<a name="l32"><span class="ln">32   </span></a>            <span class="s1">n</span><span class="s2">.</span><span class="s1">args </span><span class="s0">= </span><span class="s2">(</span><span class="s1">flattened</span><span class="s2">,)</span>
+<a name="l33"><span class="ln">33   </span></a>            <span class="s1">orig_pytree_info </span><span class="s0">= </span><span class="s1">gm</span><span class="s2">.</span><span class="s1">_graph</span><span class="s2">.</span><span class="s1">_codegen</span><span class="s2">.</span><span class="s1">pytree_info  </span><span class="s5"># type: ignore[attr-defined]</span>
+<a name="l34"><span class="ln">34   </span></a>            <span class="s1">gm</span><span class="s2">.</span><span class="s1">_graph</span><span class="s2">.</span><span class="s1">_codegen</span><span class="s2">.</span><span class="s1">pytree_info </span><span class="s0">= </span><span class="s1">_PyTreeInfo</span><span class="s2">(  </span><span class="s5"># type: ignore[attr-defined]</span>
+<a name="l35"><span class="ln">35   </span></a>                <span class="s1">orig_pytree_info</span><span class="s2">.</span><span class="s1">orig_args</span><span class="s2">, </span><span class="s1">orig_pytree_info</span><span class="s2">.</span><span class="s1">in_spec</span><span class="s2">, </span><span class="s1">out_spec</span>
+<a name="l36"><span class="ln">36   </span></a>            <span class="s2">)</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s1">gm</span><span class="s2">.</span><span class="s1">recompile</span><span class="s2">()</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s0">return </span><span class="s1">gm</span><span class="s2">, </span><span class="s1">name_node_map</span>
+<a name="l39"><span class="ln">39   </span></a>
+<a name="l40"><span class="ln">40   </span></a>
+<a name="l41"><span class="ln">41   </span></a><span class="s0">@</span><span class="s1">compatibility</span><span class="s2">(</span><span class="s1">is_backward_compatible</span><span class="s0">=False</span><span class="s2">)</span>
+<a name="l42"><span class="ln">42   </span></a><span class="s0">class </span><span class="s1">SubgraphMatcherWithNameNodeMap</span><span class="s2">(</span><span class="s1">SubgraphMatcher</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s5">&quot;&quot;&quot;Extends SubgraphMatcher to support querying the matched subgraph nodes through node name, 
+<a name="l44"><span class="ln">44   </span></a>    this requires pattern to have specific format (returning and additional dictionary at the output, 
+<a name="l45"><span class="ln">45   </span></a>    that has node name as key, and the node in the pattern graph as value, see Example for more details) 
+<a name="l46"><span class="ln">46   </span></a> 
+<a name="l47"><span class="ln">47   </span></a>    Difference with SubgraphMatcher is that it takes a `pattern_gm` GraphModule as input during 
+<a name="l48"><span class="ln">48   </span></a>    initialization since we need to modify the graph (which requires `recompile` the GraphModule) 
+<a name="l49"><span class="ln">49   </span></a> 
+<a name="l50"><span class="ln">50   </span></a>    Example:: 
+<a name="l51"><span class="ln">51   </span></a>        def pattern(x, weight): 
+<a name="l52"><span class="ln">52   </span></a>            conv = F.conv2d(x, weight) 
+<a name="l53"><span class="ln">53   </span></a>            relu = F.relu(conv) 
+<a name="l54"><span class="ln">54   </span></a>            return relu, {&quot;conv&quot;: conv, &quot;relu&quot;: relu} 
+<a name="l55"><span class="ln">55   </span></a> 
+<a name="l56"><span class="ln">56   </span></a> 
+<a name="l57"><span class="ln">57   </span></a>        def target_graph(x, weight): 
+<a name="l58"><span class="ln">58   </span></a>            conv = F.conv2d(x, weight) 
+<a name="l59"><span class="ln">59   </span></a>            relu = F.relu(conv) 
+<a name="l60"><span class="ln">60   </span></a>            relu *= 2 
+<a name="l61"><span class="ln">61   </span></a>            return relu 
+<a name="l62"><span class="ln">62   </span></a> 
+<a name="l63"><span class="ln">63   </span></a> 
+<a name="l64"><span class="ln">64   </span></a>        pattern_gm = export_for_training(pattern, example_inputs).module() 
+<a name="l65"><span class="ln">65   </span></a>        target_gm = export_for_training(target_graph, example_inputs).module() 
+<a name="l66"><span class="ln">66   </span></a>        matcher = SubgraphMatcherWithNameNodeMap(pattern_gm) 
+<a name="l67"><span class="ln">67   </span></a>        matches = matcher.match(target_gm) 
+<a name="l68"><span class="ln">68   </span></a>        for match in matches: 
+<a name="l69"><span class="ln">69   </span></a>            match.name_node_map[&quot;conv&quot;].meta[&quot;annotation&quot;] = ... 
+<a name="l70"><span class="ln">70   </span></a> 
+<a name="l71"><span class="ln">71   </span></a>    &quot;&quot;&quot;</span>
+<a name="l72"><span class="ln">72   </span></a>
+<a name="l73"><span class="ln">73   </span></a>    <span class="s0">def </span><span class="s1">__init__</span><span class="s2">(</span>
+<a name="l74"><span class="ln">74   </span></a>        <span class="s1">self</span><span class="s2">,</span>
+<a name="l75"><span class="ln">75   </span></a>        <span class="s1">pattern_gm</span><span class="s0">: </span><span class="s1">GraphModule</span><span class="s2">,</span>
+<a name="l76"><span class="ln">76   </span></a>        <span class="s1">match_output</span><span class="s0">: </span><span class="s1">bool </span><span class="s0">= False</span><span class="s2">,</span>
+<a name="l77"><span class="ln">77   </span></a>        <span class="s1">match_placeholder</span><span class="s0">: </span><span class="s1">bool </span><span class="s0">= False</span><span class="s2">,</span>
+<a name="l78"><span class="ln">78   </span></a>        <span class="s1">remove_overlapping_matches</span><span class="s0">: </span><span class="s1">bool </span><span class="s0">= True</span><span class="s2">,</span>
+<a name="l79"><span class="ln">79   </span></a>        <span class="s1">ignore_literals</span><span class="s0">: </span><span class="s1">bool </span><span class="s0">= False</span><span class="s2">,</span>
+<a name="l80"><span class="ln">80   </span></a>    <span class="s2">) </span><span class="s1">-&gt; </span><span class="s0">None:</span>
+<a name="l81"><span class="ln">81   </span></a>        <span class="s1">pattern_gm</span><span class="s2">, </span><span class="s1">name_node_map </span><span class="s0">= </span><span class="s1">_split_to_graph_and_name_node_map</span><span class="s2">(</span><span class="s1">pattern_gm</span><span class="s2">)</span>
+<a name="l82"><span class="ln">82   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">name_node_map </span><span class="s0">= </span><span class="s1">name_node_map</span>
+<a name="l83"><span class="ln">83   </span></a>        <span class="s1">super</span><span class="s2">().</span><span class="s1">__init__</span><span class="s2">(</span>
+<a name="l84"><span class="ln">84   </span></a>            <span class="s1">pattern_gm</span><span class="s2">.</span><span class="s1">graph</span><span class="s2">,</span>
+<a name="l85"><span class="ln">85   </span></a>            <span class="s1">match_output</span><span class="s2">,</span>
+<a name="l86"><span class="ln">86   </span></a>            <span class="s1">match_placeholder</span><span class="s2">,</span>
+<a name="l87"><span class="ln">87   </span></a>            <span class="s1">remove_overlapping_matches</span><span class="s2">,</span>
+<a name="l88"><span class="ln">88   </span></a>            <span class="s1">ignore_literals</span><span class="s2">,</span>
+<a name="l89"><span class="ln">89   </span></a>        <span class="s2">)</span>
+<a name="l90"><span class="ln">90   </span></a>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s0">def </span><span class="s1">match</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">graph</span><span class="s0">: </span><span class="s1">Graph</span><span class="s2">) </span><span class="s1">-&gt; list</span><span class="s2">[</span><span class="s1">InternalMatch</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l92"><span class="ln">92   </span></a>        <span class="s5">&quot;&quot;&quot;The returned InternalMatch will have name_node_map populated with a map 
+<a name="l93"><span class="ln">93   </span></a>        from node name (str) to the target node, e.g. 
+<a name="l94"><span class="ln">94   </span></a>        {&quot;conv&quot;: target_conv_ndoe, &quot;relu&quot;: target_relu_node} 
+<a name="l95"><span class="ln">95   </span></a> 
+<a name="l96"><span class="ln">96   </span></a>        this requires the pattern graph returns an additional 
+<a name="l97"><span class="ln">97   </span></a>        output of node name to node, e.g. instead of: 
+<a name="l98"><span class="ln">98   </span></a>        ``` 
+<a name="l99"><span class="ln">99   </span></a>        def pattern(...): 
+<a name="l100"><span class="ln">100  </span></a>            ... 
+<a name="l101"><span class="ln">101  </span></a>            return relu 
+<a name="l102"><span class="ln">102  </span></a>        ``` 
+<a name="l103"><span class="ln">103  </span></a>        we should do: 
+<a name="l104"><span class="ln">104  </span></a>        ``` 
+<a name="l105"><span class="ln">105  </span></a>        def pattern(...): 
+<a name="l106"><span class="ln">106  </span></a>            ... 
+<a name="l107"><span class="ln">107  </span></a>            return relu, {&quot;conv&quot;: conv, &quot;relu&quot;: relu} 
+<a name="l108"><span class="ln">108  </span></a>        ``` instead 
+<a name="l109"><span class="ln">109  </span></a>        &quot;&quot;&quot;</span>
+<a name="l110"><span class="ln">110  </span></a>        <span class="s1">internal_matches </span><span class="s0">= </span><span class="s1">super</span><span class="s2">().</span><span class="s1">match</span><span class="s2">(</span><span class="s1">graph</span><span class="s2">)</span>
+<a name="l111"><span class="ln">111  </span></a>        <span class="s0">for </span><span class="s1">internal_match </span><span class="s0">in </span><span class="s1">internal_matches</span><span class="s0">:</span>
+<a name="l112"><span class="ln">112  </span></a>            <span class="s0">for </span><span class="s1">k</span><span class="s2">, </span><span class="s1">n </span><span class="s0">in </span><span class="s1">self</span><span class="s2">.</span><span class="s1">name_node_map</span><span class="s2">.</span><span class="s1">items</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l113"><span class="ln">113  </span></a>                <span class="s1">internal_match</span><span class="s2">.</span><span class="s1">name_node_map</span><span class="s2">[</span><span class="s1">k</span><span class="s2">] </span><span class="s0">= </span><span class="s1">internal_match</span><span class="s2">.</span><span class="s1">nodes_map</span><span class="s2">[</span><span class="s1">n</span><span class="s2">]</span>
+<a name="l114"><span class="ln">114  </span></a>        <span class="s0">return </span><span class="s1">internal_matches</span>
+<a name="l115"><span class="ln">115  </span></a></pre>
+</body>
+</html>

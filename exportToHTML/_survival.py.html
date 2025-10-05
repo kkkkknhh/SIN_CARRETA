@@ -1,0 +1,706 @@
+<html>
+<head>
+<title>_survival.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #969896;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_survival.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">from </span><span class="s1">dataclasses </span><span class="s0">import </span><span class="s1">dataclass</span><span class="s2">, </span><span class="s1">field</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s1">typing </span><span class="s0">import </span><span class="s1">TYPE_CHECKING</span><span class="s2">, </span><span class="s1">Literal</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">import </span><span class="s1">warnings</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">import </span><span class="s1">numpy </span><span class="s0">as </span><span class="s1">np</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">from </span><span class="s1">scipy </span><span class="s0">import </span><span class="s1">special</span><span class="s2">, </span><span class="s1">interpolate</span><span class="s2">, </span><span class="s1">stats</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">stats</span><span class="s2">.</span><span class="s1">_censored_data </span><span class="s0">import </span><span class="s1">CensoredData</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">stats</span><span class="s2">.</span><span class="s1">_common </span><span class="s0">import </span><span class="s1">ConfidenceInterval</span>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">if </span><span class="s1">TYPE_CHECKING</span><span class="s0">:</span>
+<a name="l11"><span class="ln">11   </span></a>    <span class="s0">import </span><span class="s1">numpy</span><span class="s2">.</span><span class="s1">typing </span><span class="s0">as </span><span class="s1">npt</span>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span><span class="s3">'ecdf'</span><span class="s2">, </span><span class="s3">'logrank'</span><span class="s2">]</span>
+<a name="l15"><span class="ln">15   </span></a>
+<a name="l16"><span class="ln">16   </span></a>
+<a name="l17"><span class="ln">17   </span></a><span class="s0">@</span><span class="s1">dataclass</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s0">class </span><span class="s1">EmpiricalDistributionFunction</span><span class="s0">:</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s4">&quot;&quot;&quot;An empirical distribution function produced by `scipy.stats.ecdf` 
+<a name="l20"><span class="ln">20   </span></a> 
+<a name="l21"><span class="ln">21   </span></a>    Attributes 
+<a name="l22"><span class="ln">22   </span></a>    ---------- 
+<a name="l23"><span class="ln">23   </span></a>    quantiles : ndarray 
+<a name="l24"><span class="ln">24   </span></a>        The unique values of the sample from which the 
+<a name="l25"><span class="ln">25   </span></a>        `EmpiricalDistributionFunction` was estimated. 
+<a name="l26"><span class="ln">26   </span></a>    probabilities : ndarray 
+<a name="l27"><span class="ln">27   </span></a>        The point estimates of the cumulative distribution function (CDF) or 
+<a name="l28"><span class="ln">28   </span></a>        its complement, the survival function (SF), corresponding with 
+<a name="l29"><span class="ln">29   </span></a>        `quantiles`. 
+<a name="l30"><span class="ln">30   </span></a>    &quot;&quot;&quot;</span>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s1">quantiles</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s1">probabilities</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span>
+<a name="l33"><span class="ln">33   </span></a>    <span class="s4"># Exclude these from __str__</span>
+<a name="l34"><span class="ln">34   </span></a>    <span class="s1">_n</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray </span><span class="s0">= </span><span class="s1">field</span><span class="s2">(</span><span class="s1">repr</span><span class="s0">=False</span><span class="s2">)  </span><span class="s4"># number &quot;at risk&quot;</span>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s1">_d</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray </span><span class="s0">= </span><span class="s1">field</span><span class="s2">(</span><span class="s1">repr</span><span class="s0">=False</span><span class="s2">)  </span><span class="s4"># number of &quot;deaths&quot;</span>
+<a name="l36"><span class="ln">36   </span></a>    <span class="s1">_sf</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray </span><span class="s0">= </span><span class="s1">field</span><span class="s2">(</span><span class="s1">repr</span><span class="s0">=False</span><span class="s2">)  </span><span class="s4"># survival function for var estimate</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s1">_kind</span><span class="s0">: </span><span class="s1">str </span><span class="s0">= </span><span class="s1">field</span><span class="s2">(</span><span class="s1">repr</span><span class="s0">=False</span><span class="s2">)  </span><span class="s4"># type of function: &quot;cdf&quot; or &quot;sf&quot;</span>
+<a name="l38"><span class="ln">38   </span></a>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s0">def </span><span class="s1">__init__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">q</span><span class="s2">, </span><span class="s1">p</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">d</span><span class="s2">, </span><span class="s1">kind</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l40"><span class="ln">40   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">probabilities </span><span class="s0">= </span><span class="s1">p</span>
+<a name="l41"><span class="ln">41   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">quantiles </span><span class="s0">= </span><span class="s1">q</span>
+<a name="l42"><span class="ln">42   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">_n </span><span class="s0">= </span><span class="s1">n</span>
+<a name="l43"><span class="ln">43   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">_d </span><span class="s0">= </span><span class="s1">d</span>
+<a name="l44"><span class="ln">44   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">_sf </span><span class="s0">= </span><span class="s1">p </span><span class="s0">if </span><span class="s1">kind </span><span class="s0">== </span><span class="s3">'sf' </span><span class="s0">else </span><span class="s5">1 </span><span class="s0">- </span><span class="s1">p</span>
+<a name="l45"><span class="ln">45   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">_kind </span><span class="s0">= </span><span class="s1">kind</span>
+<a name="l46"><span class="ln">46   </span></a>
+<a name="l47"><span class="ln">47   </span></a>        <span class="s1">f0 </span><span class="s0">= </span><span class="s5">1 </span><span class="s0">if </span><span class="s1">kind </span><span class="s0">== </span><span class="s3">'sf' </span><span class="s0">else </span><span class="s5">0  </span><span class="s4"># leftmost function value</span>
+<a name="l48"><span class="ln">48   </span></a>        <span class="s1">f1 </span><span class="s0">= </span><span class="s5">1 </span><span class="s0">- </span><span class="s1">f0</span>
+<a name="l49"><span class="ln">49   </span></a>        <span class="s4"># fill_value can't handle edge cases at infinity</span>
+<a name="l50"><span class="ln">50   </span></a>        <span class="s1">x </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">insert</span><span class="s2">(</span><span class="s1">q</span><span class="s2">, [</span><span class="s5">0</span><span class="s2">, </span><span class="s1">len</span><span class="s2">(</span><span class="s1">q</span><span class="s2">)], [</span><span class="s0">-</span><span class="s1">np</span><span class="s2">.</span><span class="s1">inf</span><span class="s2">, </span><span class="s1">np</span><span class="s2">.</span><span class="s1">inf</span><span class="s2">])</span>
+<a name="l51"><span class="ln">51   </span></a>        <span class="s1">y </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">insert</span><span class="s2">(</span><span class="s1">p</span><span class="s2">, [</span><span class="s5">0</span><span class="s2">, </span><span class="s1">len</span><span class="s2">(</span><span class="s1">p</span><span class="s2">)], [</span><span class="s1">f0</span><span class="s2">, </span><span class="s1">f1</span><span class="s2">])</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s4"># `or` conditions handle the case of empty x, points</span>
+<a name="l53"><span class="ln">53   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">_f </span><span class="s0">= </span><span class="s1">interpolate</span><span class="s2">.</span><span class="s1">interp1d</span><span class="s2">(</span><span class="s1">x</span><span class="s2">, </span><span class="s1">y</span><span class="s2">, </span><span class="s1">kind</span><span class="s0">=</span><span class="s3">'previous'</span><span class="s2">,</span>
+<a name="l54"><span class="ln">54   </span></a>                                       <span class="s1">assume_sorted</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a>    <span class="s0">def </span><span class="s1">evaluate</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">x</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l57"><span class="ln">57   </span></a>        <span class="s4">&quot;&quot;&quot;Evaluate the empirical CDF/SF function at the input. 
+<a name="l58"><span class="ln">58   </span></a> 
+<a name="l59"><span class="ln">59   </span></a>        Parameters 
+<a name="l60"><span class="ln">60   </span></a>        ---------- 
+<a name="l61"><span class="ln">61   </span></a>        x : ndarray 
+<a name="l62"><span class="ln">62   </span></a>            Argument to the CDF/SF 
+<a name="l63"><span class="ln">63   </span></a> 
+<a name="l64"><span class="ln">64   </span></a>        Returns 
+<a name="l65"><span class="ln">65   </span></a>        ------- 
+<a name="l66"><span class="ln">66   </span></a>        y : ndarray 
+<a name="l67"><span class="ln">67   </span></a>            The CDF/SF evaluated at the input 
+<a name="l68"><span class="ln">68   </span></a>        &quot;&quot;&quot;</span>
+<a name="l69"><span class="ln">69   </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_f</span><span class="s2">(</span><span class="s1">x</span><span class="s2">)</span>
+<a name="l70"><span class="ln">70   </span></a>
+<a name="l71"><span class="ln">71   </span></a>    <span class="s0">def </span><span class="s1">plot</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">ax</span><span class="s0">=None</span><span class="s2">, </span><span class="s0">**</span><span class="s1">matplotlib_kwargs</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l72"><span class="ln">72   </span></a>        <span class="s4">&quot;&quot;&quot;Plot the empirical distribution function 
+<a name="l73"><span class="ln">73   </span></a> 
+<a name="l74"><span class="ln">74   </span></a>        Available only if ``matplotlib`` is installed. 
+<a name="l75"><span class="ln">75   </span></a> 
+<a name="l76"><span class="ln">76   </span></a>        Parameters 
+<a name="l77"><span class="ln">77   </span></a>        ---------- 
+<a name="l78"><span class="ln">78   </span></a>        ax : matplotlib.axes.Axes 
+<a name="l79"><span class="ln">79   </span></a>            Axes object to draw the plot onto, otherwise uses the current Axes. 
+<a name="l80"><span class="ln">80   </span></a> 
+<a name="l81"><span class="ln">81   </span></a>        **matplotlib_kwargs : dict, optional 
+<a name="l82"><span class="ln">82   </span></a>            Keyword arguments passed directly to `matplotlib.axes.Axes.step`. 
+<a name="l83"><span class="ln">83   </span></a>            Unless overridden, ``where='post'``. 
+<a name="l84"><span class="ln">84   </span></a> 
+<a name="l85"><span class="ln">85   </span></a>        Returns 
+<a name="l86"><span class="ln">86   </span></a>        ------- 
+<a name="l87"><span class="ln">87   </span></a>        lines : list of `matplotlib.lines.Line2D` 
+<a name="l88"><span class="ln">88   </span></a>            Objects representing the plotted data 
+<a name="l89"><span class="ln">89   </span></a>        &quot;&quot;&quot;</span>
+<a name="l90"><span class="ln">90   </span></a>        <span class="s0">try:</span>
+<a name="l91"><span class="ln">91   </span></a>            <span class="s0">import </span><span class="s1">matplotlib  </span><span class="s4"># noqa: F401</span>
+<a name="l92"><span class="ln">92   </span></a>        <span class="s0">except </span><span class="s1">ModuleNotFoundError </span><span class="s0">as </span><span class="s1">exc</span><span class="s0">:</span>
+<a name="l93"><span class="ln">93   </span></a>            <span class="s1">message </span><span class="s0">= </span><span class="s3">&quot;matplotlib must be installed to use method `plot`.&quot;</span>
+<a name="l94"><span class="ln">94   </span></a>            <span class="s0">raise </span><span class="s1">ModuleNotFoundError</span><span class="s2">(</span><span class="s1">message</span><span class="s2">) </span><span class="s0">from </span><span class="s1">exc</span>
+<a name="l95"><span class="ln">95   </span></a>
+<a name="l96"><span class="ln">96   </span></a>        <span class="s0">if </span><span class="s1">ax </span><span class="s0">is None:</span>
+<a name="l97"><span class="ln">97   </span></a>            <span class="s0">import </span><span class="s1">matplotlib</span><span class="s2">.</span><span class="s1">pyplot </span><span class="s0">as </span><span class="s1">plt</span>
+<a name="l98"><span class="ln">98   </span></a>            <span class="s1">ax </span><span class="s0">= </span><span class="s1">plt</span><span class="s2">.</span><span class="s1">gca</span><span class="s2">()</span>
+<a name="l99"><span class="ln">99   </span></a>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s1">kwargs </span><span class="s0">= </span><span class="s2">{</span><span class="s3">'where'</span><span class="s0">: </span><span class="s3">'post'</span><span class="s2">}</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s1">kwargs</span><span class="s2">.</span><span class="s1">update</span><span class="s2">(</span><span class="s1">matplotlib_kwargs</span><span class="s2">)</span>
+<a name="l102"><span class="ln">102  </span></a>
+<a name="l103"><span class="ln">103  </span></a>        <span class="s1">delta </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ptp</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">quantiles</span><span class="s2">)</span><span class="s0">*</span><span class="s5">0.05  </span><span class="s4"># how far past sample edge to plot</span>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s1">q </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">quantiles</span>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s1">q </span><span class="s0">= </span><span class="s2">[</span><span class="s1">q</span><span class="s2">[</span><span class="s5">0</span><span class="s2">] </span><span class="s0">- </span><span class="s1">delta</span><span class="s2">] </span><span class="s0">+ </span><span class="s1">list</span><span class="s2">(</span><span class="s1">q</span><span class="s2">) </span><span class="s0">+ </span><span class="s2">[</span><span class="s1">q</span><span class="s2">[</span><span class="s0">-</span><span class="s5">1</span><span class="s2">] </span><span class="s0">+ </span><span class="s1">delta</span><span class="s2">]</span>
+<a name="l106"><span class="ln">106  </span></a>
+<a name="l107"><span class="ln">107  </span></a>        <span class="s0">return </span><span class="s1">ax</span><span class="s2">.</span><span class="s1">step</span><span class="s2">(</span><span class="s1">q</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">evaluate</span><span class="s2">(</span><span class="s1">q</span><span class="s2">), </span><span class="s0">**</span><span class="s1">kwargs</span><span class="s2">)</span>
+<a name="l108"><span class="ln">108  </span></a>
+<a name="l109"><span class="ln">109  </span></a>    <span class="s0">def </span><span class="s1">confidence_interval</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">confidence_level</span><span class="s0">=</span><span class="s5">0.95</span><span class="s2">, </span><span class="s0">*</span><span class="s2">, </span><span class="s1">method</span><span class="s0">=</span><span class="s3">'linear'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l110"><span class="ln">110  </span></a>        <span class="s4">&quot;&quot;&quot;Compute a confidence interval around the CDF/SF point estimate 
+<a name="l111"><span class="ln">111  </span></a> 
+<a name="l112"><span class="ln">112  </span></a>        Parameters 
+<a name="l113"><span class="ln">113  </span></a>        ---------- 
+<a name="l114"><span class="ln">114  </span></a>        confidence_level : float, default: 0.95 
+<a name="l115"><span class="ln">115  </span></a>            Confidence level for the computed confidence interval 
+<a name="l116"><span class="ln">116  </span></a> 
+<a name="l117"><span class="ln">117  </span></a>        method : str, {&quot;linear&quot;, &quot;log-log&quot;} 
+<a name="l118"><span class="ln">118  </span></a>            Method used to compute the confidence interval. Options are 
+<a name="l119"><span class="ln">119  </span></a>            &quot;linear&quot; for the conventional Greenwood confidence interval 
+<a name="l120"><span class="ln">120  </span></a>            (default)  and &quot;log-log&quot; for the &quot;exponential Greenwood&quot;, 
+<a name="l121"><span class="ln">121  </span></a>            log-negative-log-transformed confidence interval. 
+<a name="l122"><span class="ln">122  </span></a> 
+<a name="l123"><span class="ln">123  </span></a>        Returns 
+<a name="l124"><span class="ln">124  </span></a>        ------- 
+<a name="l125"><span class="ln">125  </span></a>        ci : ``ConfidenceInterval`` 
+<a name="l126"><span class="ln">126  </span></a>            An object with attributes ``low`` and ``high``, instances of 
+<a name="l127"><span class="ln">127  </span></a>            `~scipy.stats._result_classes.EmpiricalDistributionFunction` that 
+<a name="l128"><span class="ln">128  </span></a>            represent the lower and upper bounds (respectively) of the 
+<a name="l129"><span class="ln">129  </span></a>            confidence interval. 
+<a name="l130"><span class="ln">130  </span></a> 
+<a name="l131"><span class="ln">131  </span></a>        Notes 
+<a name="l132"><span class="ln">132  </span></a>        ----- 
+<a name="l133"><span class="ln">133  </span></a>        Confidence intervals are computed according to the Greenwood formula 
+<a name="l134"><span class="ln">134  </span></a>        (``method='linear'``) or the more recent &quot;exponential Greenwood&quot; 
+<a name="l135"><span class="ln">135  </span></a>        formula (``method='log-log'``) as described in [1]_. The conventional 
+<a name="l136"><span class="ln">136  </span></a>        Greenwood formula can result in lower confidence limits less than 0 
+<a name="l137"><span class="ln">137  </span></a>        and upper confidence limits greater than 1; these are clipped to the 
+<a name="l138"><span class="ln">138  </span></a>        unit interval. NaNs may be produced by either method; these are 
+<a name="l139"><span class="ln">139  </span></a>        features of the formulas. 
+<a name="l140"><span class="ln">140  </span></a> 
+<a name="l141"><span class="ln">141  </span></a>        References 
+<a name="l142"><span class="ln">142  </span></a>        ---------- 
+<a name="l143"><span class="ln">143  </span></a>        .. [1] Sawyer, Stanley. &quot;The Greenwood and Exponential Greenwood 
+<a name="l144"><span class="ln">144  </span></a>               Confidence Intervals in Survival Analysis.&quot; 
+<a name="l145"><span class="ln">145  </span></a>               https://www.math.wustl.edu/~sawyer/handouts/greenwood.pdf 
+<a name="l146"><span class="ln">146  </span></a> 
+<a name="l147"><span class="ln">147  </span></a>        &quot;&quot;&quot;</span>
+<a name="l148"><span class="ln">148  </span></a>        <span class="s1">message </span><span class="s0">= </span><span class="s2">(</span><span class="s3">&quot;Confidence interval bounds do not implement a &quot;</span>
+<a name="l149"><span class="ln">149  </span></a>                   <span class="s3">&quot;`confidence_interval` method.&quot;</span><span class="s2">)</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s0">if </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_n </span><span class="s0">is None:</span>
+<a name="l151"><span class="ln">151  </span></a>            <span class="s0">raise </span><span class="s1">NotImplementedError</span><span class="s2">(</span><span class="s1">message</span><span class="s2">)</span>
+<a name="l152"><span class="ln">152  </span></a>
+<a name="l153"><span class="ln">153  </span></a>        <span class="s1">methods </span><span class="s0">= </span><span class="s2">{</span><span class="s3">'linear'</span><span class="s0">: </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_linear_ci</span><span class="s2">,</span>
+<a name="l154"><span class="ln">154  </span></a>                   <span class="s3">'log-log'</span><span class="s0">: </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_loglog_ci</span><span class="s2">}</span>
+<a name="l155"><span class="ln">155  </span></a>
+<a name="l156"><span class="ln">156  </span></a>        <span class="s1">message </span><span class="s0">= </span><span class="s3">f&quot;`method` must be one of {</span><span class="s1">set</span><span class="s2">(</span><span class="s1">methods</span><span class="s2">)</span><span class="s3">}.&quot;</span>
+<a name="l157"><span class="ln">157  </span></a>        <span class="s0">if </span><span class="s1">method</span><span class="s2">.</span><span class="s1">lower</span><span class="s2">() </span><span class="s0">not in </span><span class="s1">methods</span><span class="s0">:</span>
+<a name="l158"><span class="ln">158  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s1">message</span><span class="s2">)</span>
+<a name="l159"><span class="ln">159  </span></a>
+<a name="l160"><span class="ln">160  </span></a>        <span class="s1">message </span><span class="s0">= </span><span class="s3">&quot;`confidence_level` must be a scalar between 0 and 1.&quot;</span>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s1">confidence_level </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">(</span><span class="s1">confidence_level</span><span class="s2">)[()]</span>
+<a name="l162"><span class="ln">162  </span></a>        <span class="s0">if </span><span class="s1">confidence_level</span><span class="s2">.</span><span class="s1">shape </span><span class="s0">or not </span><span class="s2">(</span><span class="s5">0 </span><span class="s0">&lt;= </span><span class="s1">confidence_level </span><span class="s0">&lt;= </span><span class="s5">1</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l163"><span class="ln">163  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s1">message</span><span class="s2">)</span>
+<a name="l164"><span class="ln">164  </span></a>
+<a name="l165"><span class="ln">165  </span></a>        <span class="s1">method_fun </span><span class="s0">= </span><span class="s1">methods</span><span class="s2">[</span><span class="s1">method</span><span class="s2">.</span><span class="s1">lower</span><span class="s2">()]</span>
+<a name="l166"><span class="ln">166  </span></a>        <span class="s1">low</span><span class="s2">, </span><span class="s1">high </span><span class="s0">= </span><span class="s1">method_fun</span><span class="s2">(</span><span class="s1">confidence_level</span><span class="s2">)</span>
+<a name="l167"><span class="ln">167  </span></a>
+<a name="l168"><span class="ln">168  </span></a>        <span class="s1">message </span><span class="s0">= </span><span class="s2">(</span><span class="s3">&quot;The confidence interval is undefined at some observations.&quot;</span>
+<a name="l169"><span class="ln">169  </span></a>                   <span class="s3">&quot; This is a feature of the mathematical formula used, not&quot;</span>
+<a name="l170"><span class="ln">170  </span></a>                   <span class="s3">&quot; an error in its implementation.&quot;</span><span class="s2">)</span>
+<a name="l171"><span class="ln">171  </span></a>        <span class="s0">if </span><span class="s1">np</span><span class="s2">.</span><span class="s1">any</span><span class="s2">(</span><span class="s1">np</span><span class="s2">.</span><span class="s1">isnan</span><span class="s2">(</span><span class="s1">low</span><span class="s2">) </span><span class="s0">| </span><span class="s1">np</span><span class="s2">.</span><span class="s1">isnan</span><span class="s2">(</span><span class="s1">high</span><span class="s2">))</span><span class="s0">:</span>
+<a name="l172"><span class="ln">172  </span></a>            <span class="s1">warnings</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s1">message</span><span class="s2">, </span><span class="s1">RuntimeWarning</span><span class="s2">, </span><span class="s1">stacklevel</span><span class="s0">=</span><span class="s5">2</span><span class="s2">)</span>
+<a name="l173"><span class="ln">173  </span></a>
+<a name="l174"><span class="ln">174  </span></a>        <span class="s1">low</span><span class="s2">, </span><span class="s1">high </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">clip</span><span class="s2">(</span><span class="s1">low</span><span class="s2">, </span><span class="s5">0</span><span class="s2">, </span><span class="s5">1</span><span class="s2">), </span><span class="s1">np</span><span class="s2">.</span><span class="s1">clip</span><span class="s2">(</span><span class="s1">high</span><span class="s2">, </span><span class="s5">0</span><span class="s2">, </span><span class="s5">1</span><span class="s2">)</span>
+<a name="l175"><span class="ln">175  </span></a>        <span class="s1">low </span><span class="s0">= </span><span class="s1">EmpiricalDistributionFunction</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">quantiles</span><span class="s2">, </span><span class="s1">low</span><span class="s2">, </span><span class="s0">None</span><span class="s2">, </span><span class="s0">None</span><span class="s2">,</span>
+<a name="l176"><span class="ln">176  </span></a>                                            <span class="s1">self</span><span class="s2">.</span><span class="s1">_kind</span><span class="s2">)</span>
+<a name="l177"><span class="ln">177  </span></a>        <span class="s1">high </span><span class="s0">= </span><span class="s1">EmpiricalDistributionFunction</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">quantiles</span><span class="s2">, </span><span class="s1">high</span><span class="s2">, </span><span class="s0">None</span><span class="s2">, </span><span class="s0">None</span><span class="s2">,</span>
+<a name="l178"><span class="ln">178  </span></a>                                             <span class="s1">self</span><span class="s2">.</span><span class="s1">_kind</span><span class="s2">)</span>
+<a name="l179"><span class="ln">179  </span></a>        <span class="s0">return </span><span class="s1">ConfidenceInterval</span><span class="s2">(</span><span class="s1">low</span><span class="s2">, </span><span class="s1">high</span><span class="s2">)</span>
+<a name="l180"><span class="ln">180  </span></a>
+<a name="l181"><span class="ln">181  </span></a>    <span class="s0">def </span><span class="s1">_linear_ci</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">confidence_level</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l182"><span class="ln">182  </span></a>        <span class="s1">sf</span><span class="s2">, </span><span class="s1">d</span><span class="s2">, </span><span class="s1">n </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_sf</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_d</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_n</span>
+<a name="l183"><span class="ln">183  </span></a>        <span class="s4"># When n == d, Greenwood's formula divides by zero.</span>
+<a name="l184"><span class="ln">184  </span></a>        <span class="s4"># When s != 0, this can be ignored: var == inf, and CI is [0, 1]</span>
+<a name="l185"><span class="ln">185  </span></a>        <span class="s4"># When s == 0, this results in NaNs. Produce an informative warning.</span>
+<a name="l186"><span class="ln">186  </span></a>        <span class="s0">with </span><span class="s1">np</span><span class="s2">.</span><span class="s1">errstate</span><span class="s2">(</span><span class="s1">divide</span><span class="s0">=</span><span class="s3">'ignore'</span><span class="s2">, </span><span class="s1">invalid</span><span class="s0">=</span><span class="s3">'ignore'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l187"><span class="ln">187  </span></a>            <span class="s1">var </span><span class="s0">= </span><span class="s1">sf </span><span class="s0">** </span><span class="s5">2 </span><span class="s0">* </span><span class="s1">np</span><span class="s2">.</span><span class="s1">cumsum</span><span class="s2">(</span><span class="s1">d </span><span class="s0">/ </span><span class="s2">(</span><span class="s1">n </span><span class="s0">* </span><span class="s2">(</span><span class="s1">n </span><span class="s0">- </span><span class="s1">d</span><span class="s2">)))</span>
+<a name="l188"><span class="ln">188  </span></a>
+<a name="l189"><span class="ln">189  </span></a>        <span class="s1">se </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s1">var</span><span class="s2">)</span>
+<a name="l190"><span class="ln">190  </span></a>        <span class="s1">z </span><span class="s0">= </span><span class="s1">special</span><span class="s2">.</span><span class="s1">ndtri</span><span class="s2">(</span><span class="s5">1 </span><span class="s0">/ </span><span class="s5">2 </span><span class="s0">+ </span><span class="s1">confidence_level </span><span class="s0">/ </span><span class="s5">2</span><span class="s2">)</span>
+<a name="l191"><span class="ln">191  </span></a>
+<a name="l192"><span class="ln">192  </span></a>        <span class="s1">z_se </span><span class="s0">= </span><span class="s1">z </span><span class="s0">* </span><span class="s1">se</span>
+<a name="l193"><span class="ln">193  </span></a>        <span class="s1">low </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">probabilities </span><span class="s0">- </span><span class="s1">z_se</span>
+<a name="l194"><span class="ln">194  </span></a>        <span class="s1">high </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">probabilities </span><span class="s0">+ </span><span class="s1">z_se</span>
+<a name="l195"><span class="ln">195  </span></a>
+<a name="l196"><span class="ln">196  </span></a>        <span class="s0">return </span><span class="s1">low</span><span class="s2">, </span><span class="s1">high</span>
+<a name="l197"><span class="ln">197  </span></a>
+<a name="l198"><span class="ln">198  </span></a>    <span class="s0">def </span><span class="s1">_loglog_ci</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">confidence_level</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l199"><span class="ln">199  </span></a>        <span class="s1">sf</span><span class="s2">, </span><span class="s1">d</span><span class="s2">, </span><span class="s1">n </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_sf</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_d</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_n</span>
+<a name="l200"><span class="ln">200  </span></a>
+<a name="l201"><span class="ln">201  </span></a>        <span class="s0">with </span><span class="s1">np</span><span class="s2">.</span><span class="s1">errstate</span><span class="s2">(</span><span class="s1">divide</span><span class="s0">=</span><span class="s3">'ignore'</span><span class="s2">, </span><span class="s1">invalid</span><span class="s0">=</span><span class="s3">'ignore'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l202"><span class="ln">202  </span></a>            <span class="s1">var </span><span class="s0">= </span><span class="s5">1 </span><span class="s0">/ </span><span class="s1">np</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s1">sf</span><span class="s2">) </span><span class="s0">** </span><span class="s5">2 </span><span class="s0">* </span><span class="s1">np</span><span class="s2">.</span><span class="s1">cumsum</span><span class="s2">(</span><span class="s1">d </span><span class="s0">/ </span><span class="s2">(</span><span class="s1">n </span><span class="s0">* </span><span class="s2">(</span><span class="s1">n </span><span class="s0">- </span><span class="s1">d</span><span class="s2">)))</span>
+<a name="l203"><span class="ln">203  </span></a>
+<a name="l204"><span class="ln">204  </span></a>        <span class="s1">se </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s1">var</span><span class="s2">)</span>
+<a name="l205"><span class="ln">205  </span></a>        <span class="s1">z </span><span class="s0">= </span><span class="s1">special</span><span class="s2">.</span><span class="s1">ndtri</span><span class="s2">(</span><span class="s5">1 </span><span class="s0">/ </span><span class="s5">2 </span><span class="s0">+ </span><span class="s1">confidence_level </span><span class="s0">/ </span><span class="s5">2</span><span class="s2">)</span>
+<a name="l206"><span class="ln">206  </span></a>
+<a name="l207"><span class="ln">207  </span></a>        <span class="s0">with </span><span class="s1">np</span><span class="s2">.</span><span class="s1">errstate</span><span class="s2">(</span><span class="s1">divide</span><span class="s0">=</span><span class="s3">'ignore'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l208"><span class="ln">208  </span></a>            <span class="s1">lnl_points </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s0">-</span><span class="s1">np</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s1">sf</span><span class="s2">))</span>
+<a name="l209"><span class="ln">209  </span></a>
+<a name="l210"><span class="ln">210  </span></a>        <span class="s1">z_se </span><span class="s0">= </span><span class="s1">z </span><span class="s0">* </span><span class="s1">se</span>
+<a name="l211"><span class="ln">211  </span></a>        <span class="s1">low </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">exp</span><span class="s2">(</span><span class="s0">-</span><span class="s1">np</span><span class="s2">.</span><span class="s1">exp</span><span class="s2">(</span><span class="s1">lnl_points </span><span class="s0">+ </span><span class="s1">z_se</span><span class="s2">))</span>
+<a name="l212"><span class="ln">212  </span></a>        <span class="s1">high </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">exp</span><span class="s2">(</span><span class="s0">-</span><span class="s1">np</span><span class="s2">.</span><span class="s1">exp</span><span class="s2">(</span><span class="s1">lnl_points </span><span class="s0">- </span><span class="s1">z_se</span><span class="s2">))</span>
+<a name="l213"><span class="ln">213  </span></a>        <span class="s0">if </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_kind </span><span class="s0">== </span><span class="s3">&quot;cdf&quot;</span><span class="s0">:</span>
+<a name="l214"><span class="ln">214  </span></a>            <span class="s1">low</span><span class="s2">, </span><span class="s1">high </span><span class="s0">= </span><span class="s5">1</span><span class="s0">-</span><span class="s1">high</span><span class="s2">, </span><span class="s5">1</span><span class="s0">-</span><span class="s1">low</span>
+<a name="l215"><span class="ln">215  </span></a>
+<a name="l216"><span class="ln">216  </span></a>        <span class="s0">return </span><span class="s1">low</span><span class="s2">, </span><span class="s1">high</span>
+<a name="l217"><span class="ln">217  </span></a>
+<a name="l218"><span class="ln">218  </span></a>
+<a name="l219"><span class="ln">219  </span></a><span class="s0">@</span><span class="s1">dataclass</span>
+<a name="l220"><span class="ln">220  </span></a><span class="s0">class </span><span class="s1">ECDFResult</span><span class="s0">:</span>
+<a name="l221"><span class="ln">221  </span></a>    <span class="s4">&quot;&quot;&quot; Result object returned by `scipy.stats.ecdf` 
+<a name="l222"><span class="ln">222  </span></a> 
+<a name="l223"><span class="ln">223  </span></a>    Attributes 
+<a name="l224"><span class="ln">224  </span></a>    ---------- 
+<a name="l225"><span class="ln">225  </span></a>    cdf : `~scipy.stats._result_classes.EmpiricalDistributionFunction` 
+<a name="l226"><span class="ln">226  </span></a>        An object representing the empirical cumulative distribution function. 
+<a name="l227"><span class="ln">227  </span></a>    sf : `~scipy.stats._result_classes.EmpiricalDistributionFunction` 
+<a name="l228"><span class="ln">228  </span></a>        An object representing the complement of the empirical cumulative 
+<a name="l229"><span class="ln">229  </span></a>        distribution function. 
+<a name="l230"><span class="ln">230  </span></a>    &quot;&quot;&quot;</span>
+<a name="l231"><span class="ln">231  </span></a>    <span class="s1">cdf</span><span class="s0">: </span><span class="s1">EmpiricalDistributionFunction</span>
+<a name="l232"><span class="ln">232  </span></a>    <span class="s1">sf</span><span class="s0">: </span><span class="s1">EmpiricalDistributionFunction</span>
+<a name="l233"><span class="ln">233  </span></a>
+<a name="l234"><span class="ln">234  </span></a>    <span class="s0">def </span><span class="s1">__init__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">q</span><span class="s2">, </span><span class="s1">cdf</span><span class="s2">, </span><span class="s1">sf</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">d</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l235"><span class="ln">235  </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">cdf </span><span class="s0">= </span><span class="s1">EmpiricalDistributionFunction</span><span class="s2">(</span><span class="s1">q</span><span class="s2">, </span><span class="s1">cdf</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">d</span><span class="s2">, </span><span class="s3">&quot;cdf&quot;</span><span class="s2">)</span>
+<a name="l236"><span class="ln">236  </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">sf </span><span class="s0">= </span><span class="s1">EmpiricalDistributionFunction</span><span class="s2">(</span><span class="s1">q</span><span class="s2">, </span><span class="s1">sf</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">d</span><span class="s2">, </span><span class="s3">&quot;sf&quot;</span><span class="s2">)</span>
+<a name="l237"><span class="ln">237  </span></a>
+<a name="l238"><span class="ln">238  </span></a>
+<a name="l239"><span class="ln">239  </span></a><span class="s0">def </span><span class="s1">_iv_CensoredData</span><span class="s2">(</span>
+<a name="l240"><span class="ln">240  </span></a>    <span class="s1">sample</span><span class="s0">: </span><span class="s3">&quot;npt.ArrayLike | CensoredData&quot;</span><span class="s2">, </span><span class="s1">param_name</span><span class="s0">: </span><span class="s1">str </span><span class="s0">= </span><span class="s3">&quot;sample&quot;</span>
+<a name="l241"><span class="ln">241  </span></a><span class="s2">) </span><span class="s1">-&gt; CensoredData</span><span class="s0">:</span>
+<a name="l242"><span class="ln">242  </span></a>    <span class="s4">&quot;&quot;&quot;Attempt to convert `sample` to `CensoredData`.&quot;&quot;&quot;</span>
+<a name="l243"><span class="ln">243  </span></a>    <span class="s0">if not </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">sample</span><span class="s2">, </span><span class="s1">CensoredData</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l244"><span class="ln">244  </span></a>        <span class="s0">try:  </span><span class="s4"># takes care of input standardization/validation</span>
+<a name="l245"><span class="ln">245  </span></a>            <span class="s1">sample </span><span class="s0">= </span><span class="s1">CensoredData</span><span class="s2">(</span><span class="s1">uncensored</span><span class="s0">=</span><span class="s1">sample</span><span class="s2">)</span>
+<a name="l246"><span class="ln">246  </span></a>        <span class="s0">except </span><span class="s1">ValueError </span><span class="s0">as </span><span class="s1">e</span><span class="s0">:</span>
+<a name="l247"><span class="ln">247  </span></a>            <span class="s1">message </span><span class="s0">= </span><span class="s1">str</span><span class="s2">(</span><span class="s1">e</span><span class="s2">).</span><span class="s1">replace</span><span class="s2">(</span><span class="s3">'uncensored'</span><span class="s2">, </span><span class="s1">param_name</span><span class="s2">)</span>
+<a name="l248"><span class="ln">248  </span></a>            <span class="s0">raise </span><span class="s1">type</span><span class="s2">(</span><span class="s1">e</span><span class="s2">)(</span><span class="s1">message</span><span class="s2">) </span><span class="s0">from </span><span class="s1">e</span>
+<a name="l249"><span class="ln">249  </span></a>    <span class="s0">return </span><span class="s1">sample</span>
+<a name="l250"><span class="ln">250  </span></a>
+<a name="l251"><span class="ln">251  </span></a>
+<a name="l252"><span class="ln">252  </span></a><span class="s0">def </span><span class="s1">ecdf</span><span class="s2">(</span><span class="s1">sample</span><span class="s0">: </span><span class="s3">&quot;npt.ArrayLike | CensoredData&quot;</span><span class="s2">) </span><span class="s1">-&gt; ECDFResult</span><span class="s0">:</span>
+<a name="l253"><span class="ln">253  </span></a>    <span class="s4">&quot;&quot;&quot;Empirical cumulative distribution function of a sample. 
+<a name="l254"><span class="ln">254  </span></a> 
+<a name="l255"><span class="ln">255  </span></a>    The empirical cumulative distribution function (ECDF) is a step function 
+<a name="l256"><span class="ln">256  </span></a>    estimate of the CDF of the distribution underlying a sample. This function 
+<a name="l257"><span class="ln">257  </span></a>    returns objects representing both the empirical distribution function and 
+<a name="l258"><span class="ln">258  </span></a>    its complement, the empirical survival function. 
+<a name="l259"><span class="ln">259  </span></a> 
+<a name="l260"><span class="ln">260  </span></a>    Parameters 
+<a name="l261"><span class="ln">261  </span></a>    ---------- 
+<a name="l262"><span class="ln">262  </span></a>    sample : 1D array_like or `scipy.stats.CensoredData` 
+<a name="l263"><span class="ln">263  </span></a>        Besides array_like, instances of `scipy.stats.CensoredData` containing 
+<a name="l264"><span class="ln">264  </span></a>        uncensored and right-censored observations are supported. Currently, 
+<a name="l265"><span class="ln">265  </span></a>        other instances of `scipy.stats.CensoredData` will result in a 
+<a name="l266"><span class="ln">266  </span></a>        ``NotImplementedError``. 
+<a name="l267"><span class="ln">267  </span></a> 
+<a name="l268"><span class="ln">268  </span></a>    Returns 
+<a name="l269"><span class="ln">269  </span></a>    ------- 
+<a name="l270"><span class="ln">270  </span></a>    res : `~scipy.stats._result_classes.ECDFResult` 
+<a name="l271"><span class="ln">271  </span></a>        An object with the following attributes. 
+<a name="l272"><span class="ln">272  </span></a> 
+<a name="l273"><span class="ln">273  </span></a>        cdf : `~scipy.stats._result_classes.EmpiricalDistributionFunction` 
+<a name="l274"><span class="ln">274  </span></a>            An object representing the empirical cumulative distribution 
+<a name="l275"><span class="ln">275  </span></a>            function. 
+<a name="l276"><span class="ln">276  </span></a>        sf : `~scipy.stats._result_classes.EmpiricalDistributionFunction` 
+<a name="l277"><span class="ln">277  </span></a>            An object representing the empirical survival function. 
+<a name="l278"><span class="ln">278  </span></a> 
+<a name="l279"><span class="ln">279  </span></a>        The `cdf` and `sf` attributes themselves have the following attributes. 
+<a name="l280"><span class="ln">280  </span></a> 
+<a name="l281"><span class="ln">281  </span></a>        quantiles : ndarray 
+<a name="l282"><span class="ln">282  </span></a>            The unique values in the sample that defines the empirical CDF/SF. 
+<a name="l283"><span class="ln">283  </span></a>        probabilities : ndarray 
+<a name="l284"><span class="ln">284  </span></a>            The point estimates of the probabilities corresponding with 
+<a name="l285"><span class="ln">285  </span></a>            `quantiles`. 
+<a name="l286"><span class="ln">286  </span></a> 
+<a name="l287"><span class="ln">287  </span></a>        And the following methods: 
+<a name="l288"><span class="ln">288  </span></a> 
+<a name="l289"><span class="ln">289  </span></a>        evaluate(x) : 
+<a name="l290"><span class="ln">290  </span></a>            Evaluate the CDF/SF at the argument. 
+<a name="l291"><span class="ln">291  </span></a> 
+<a name="l292"><span class="ln">292  </span></a>        plot(ax) : 
+<a name="l293"><span class="ln">293  </span></a>            Plot the CDF/SF on the provided axes. 
+<a name="l294"><span class="ln">294  </span></a> 
+<a name="l295"><span class="ln">295  </span></a>        confidence_interval(confidence_level=0.95) : 
+<a name="l296"><span class="ln">296  </span></a>            Compute the confidence interval around the CDF/SF at the values in 
+<a name="l297"><span class="ln">297  </span></a>            `quantiles`. 
+<a name="l298"><span class="ln">298  </span></a> 
+<a name="l299"><span class="ln">299  </span></a>    Notes 
+<a name="l300"><span class="ln">300  </span></a>    ----- 
+<a name="l301"><span class="ln">301  </span></a>    When each observation of the sample is a precise measurement, the ECDF 
+<a name="l302"><span class="ln">302  </span></a>    steps up by ``1/len(sample)`` at each of the observations [1]_. 
+<a name="l303"><span class="ln">303  </span></a> 
+<a name="l304"><span class="ln">304  </span></a>    When observations are lower bounds, upper bounds, or both upper and lower 
+<a name="l305"><span class="ln">305  </span></a>    bounds, the data is said to be &quot;censored&quot;, and `sample` may be provided as 
+<a name="l306"><span class="ln">306  </span></a>    an instance of `scipy.stats.CensoredData`. 
+<a name="l307"><span class="ln">307  </span></a> 
+<a name="l308"><span class="ln">308  </span></a>    For right-censored data, the ECDF is given by the Kaplan-Meier estimator 
+<a name="l309"><span class="ln">309  </span></a>    [2]_; other forms of censoring are not supported at this time. 
+<a name="l310"><span class="ln">310  </span></a> 
+<a name="l311"><span class="ln">311  </span></a>    Confidence intervals are computed according to the Greenwood formula or the 
+<a name="l312"><span class="ln">312  </span></a>    more recent &quot;Exponential Greenwood&quot; formula as described in [4]_. 
+<a name="l313"><span class="ln">313  </span></a> 
+<a name="l314"><span class="ln">314  </span></a>    References 
+<a name="l315"><span class="ln">315  </span></a>    ---------- 
+<a name="l316"><span class="ln">316  </span></a>    .. [1] Conover, William Jay. Practical nonparametric statistics. Vol. 350. 
+<a name="l317"><span class="ln">317  </span></a>           John Wiley &amp; Sons, 1999. 
+<a name="l318"><span class="ln">318  </span></a> 
+<a name="l319"><span class="ln">319  </span></a>    .. [2] Kaplan, Edward L., and Paul Meier. &quot;Nonparametric estimation from 
+<a name="l320"><span class="ln">320  </span></a>           incomplete observations.&quot; Journal of the American statistical 
+<a name="l321"><span class="ln">321  </span></a>           association 53.282 (1958): 457-481. 
+<a name="l322"><span class="ln">322  </span></a> 
+<a name="l323"><span class="ln">323  </span></a>    .. [3] Goel, Manish Kumar, Pardeep Khanna, and Jugal Kishore. 
+<a name="l324"><span class="ln">324  </span></a>           &quot;Understanding survival analysis: Kaplan-Meier estimate.&quot; 
+<a name="l325"><span class="ln">325  </span></a>           International journal of Ayurveda research 1.4 (2010): 274. 
+<a name="l326"><span class="ln">326  </span></a> 
+<a name="l327"><span class="ln">327  </span></a>    .. [4] Sawyer, Stanley. &quot;The Greenwood and Exponential Greenwood Confidence 
+<a name="l328"><span class="ln">328  </span></a>           Intervals in Survival Analysis.&quot; 
+<a name="l329"><span class="ln">329  </span></a>           https://www.math.wustl.edu/~sawyer/handouts/greenwood.pdf 
+<a name="l330"><span class="ln">330  </span></a> 
+<a name="l331"><span class="ln">331  </span></a>    Examples 
+<a name="l332"><span class="ln">332  </span></a>    -------- 
+<a name="l333"><span class="ln">333  </span></a>    **Uncensored Data** 
+<a name="l334"><span class="ln">334  </span></a> 
+<a name="l335"><span class="ln">335  </span></a>    As in the example from [1]_ page 79, five boys were selected at random from 
+<a name="l336"><span class="ln">336  </span></a>    those in a single high school. Their one-mile run times were recorded as 
+<a name="l337"><span class="ln">337  </span></a>    follows. 
+<a name="l338"><span class="ln">338  </span></a> 
+<a name="l339"><span class="ln">339  </span></a>    &gt;&gt;&gt; sample = [6.23, 5.58, 7.06, 6.42, 5.20]  # one-mile run times (minutes) 
+<a name="l340"><span class="ln">340  </span></a> 
+<a name="l341"><span class="ln">341  </span></a>    The empirical distribution function, which approximates the distribution 
+<a name="l342"><span class="ln">342  </span></a>    function of one-mile run times of the population from which the boys were 
+<a name="l343"><span class="ln">343  </span></a>    sampled, is calculated as follows. 
+<a name="l344"><span class="ln">344  </span></a> 
+<a name="l345"><span class="ln">345  </span></a>    &gt;&gt;&gt; from scipy import stats 
+<a name="l346"><span class="ln">346  </span></a>    &gt;&gt;&gt; res = stats.ecdf(sample) 
+<a name="l347"><span class="ln">347  </span></a>    &gt;&gt;&gt; res.cdf.quantiles 
+<a name="l348"><span class="ln">348  </span></a>    array([5.2 , 5.58, 6.23, 6.42, 7.06]) 
+<a name="l349"><span class="ln">349  </span></a>    &gt;&gt;&gt; res.cdf.probabilities 
+<a name="l350"><span class="ln">350  </span></a>    array([0.2, 0.4, 0.6, 0.8, 1. ]) 
+<a name="l351"><span class="ln">351  </span></a> 
+<a name="l352"><span class="ln">352  </span></a>    To plot the result as a step function: 
+<a name="l353"><span class="ln">353  </span></a> 
+<a name="l354"><span class="ln">354  </span></a>    &gt;&gt;&gt; import matplotlib.pyplot as plt 
+<a name="l355"><span class="ln">355  </span></a>    &gt;&gt;&gt; ax = plt.subplot() 
+<a name="l356"><span class="ln">356  </span></a>    &gt;&gt;&gt; res.cdf.plot(ax) 
+<a name="l357"><span class="ln">357  </span></a>    &gt;&gt;&gt; ax.set_xlabel('One-Mile Run Time (minutes)') 
+<a name="l358"><span class="ln">358  </span></a>    &gt;&gt;&gt; ax.set_ylabel('Empirical CDF') 
+<a name="l359"><span class="ln">359  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l360"><span class="ln">360  </span></a> 
+<a name="l361"><span class="ln">361  </span></a>    **Right-censored Data** 
+<a name="l362"><span class="ln">362  </span></a> 
+<a name="l363"><span class="ln">363  </span></a>    As in the example from [1]_ page 91, the lives of ten car fanbelts were 
+<a name="l364"><span class="ln">364  </span></a>    tested. Five tests concluded because the fanbelt being tested broke, but 
+<a name="l365"><span class="ln">365  </span></a>    the remaining tests concluded for other reasons (e.g. the study ran out of 
+<a name="l366"><span class="ln">366  </span></a>    funding, but the fanbelt was still functional). The mileage driven 
+<a name="l367"><span class="ln">367  </span></a>    with the fanbelts were recorded as follows. 
+<a name="l368"><span class="ln">368  </span></a> 
+<a name="l369"><span class="ln">369  </span></a>    &gt;&gt;&gt; broken = [77, 47, 81, 56, 80]  # in thousands of miles driven 
+<a name="l370"><span class="ln">370  </span></a>    &gt;&gt;&gt; unbroken = [62, 60, 43, 71, 37] 
+<a name="l371"><span class="ln">371  </span></a> 
+<a name="l372"><span class="ln">372  </span></a>    Precise survival times of the fanbelts that were still functional at the 
+<a name="l373"><span class="ln">373  </span></a>    end of the tests are unknown, but they are known to exceed the values 
+<a name="l374"><span class="ln">374  </span></a>    recorded in ``unbroken``. Therefore, these observations are said to be 
+<a name="l375"><span class="ln">375  </span></a>    &quot;right-censored&quot;, and the data is represented using 
+<a name="l376"><span class="ln">376  </span></a>    `scipy.stats.CensoredData`. 
+<a name="l377"><span class="ln">377  </span></a> 
+<a name="l378"><span class="ln">378  </span></a>    &gt;&gt;&gt; sample = stats.CensoredData(uncensored=broken, right=unbroken) 
+<a name="l379"><span class="ln">379  </span></a> 
+<a name="l380"><span class="ln">380  </span></a>    The empirical survival function is calculated as follows. 
+<a name="l381"><span class="ln">381  </span></a> 
+<a name="l382"><span class="ln">382  </span></a>    &gt;&gt;&gt; res = stats.ecdf(sample) 
+<a name="l383"><span class="ln">383  </span></a>    &gt;&gt;&gt; res.sf.quantiles 
+<a name="l384"><span class="ln">384  </span></a>    array([37., 43., 47., 56., 60., 62., 71., 77., 80., 81.]) 
+<a name="l385"><span class="ln">385  </span></a>    &gt;&gt;&gt; res.sf.probabilities 
+<a name="l386"><span class="ln">386  </span></a>    array([1.   , 1.   , 0.875, 0.75 , 0.75 , 0.75 , 0.75 , 0.5  , 0.25 , 0.   ]) 
+<a name="l387"><span class="ln">387  </span></a> 
+<a name="l388"><span class="ln">388  </span></a>    To plot the result as a step function: 
+<a name="l389"><span class="ln">389  </span></a> 
+<a name="l390"><span class="ln">390  </span></a>    &gt;&gt;&gt; ax = plt.subplot() 
+<a name="l391"><span class="ln">391  </span></a>    &gt;&gt;&gt; res.sf.plot(ax) 
+<a name="l392"><span class="ln">392  </span></a>    &gt;&gt;&gt; ax.set_xlabel('Fanbelt Survival Time (thousands of miles)') 
+<a name="l393"><span class="ln">393  </span></a>    &gt;&gt;&gt; ax.set_ylabel('Empirical SF') 
+<a name="l394"><span class="ln">394  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l395"><span class="ln">395  </span></a> 
+<a name="l396"><span class="ln">396  </span></a>    &quot;&quot;&quot;</span>
+<a name="l397"><span class="ln">397  </span></a>    <span class="s1">sample </span><span class="s0">= </span><span class="s1">_iv_CensoredData</span><span class="s2">(</span><span class="s1">sample</span><span class="s2">)</span>
+<a name="l398"><span class="ln">398  </span></a>
+<a name="l399"><span class="ln">399  </span></a>    <span class="s0">if </span><span class="s1">sample</span><span class="s2">.</span><span class="s1">num_censored</span><span class="s2">() </span><span class="s0">== </span><span class="s5">0</span><span class="s0">:</span>
+<a name="l400"><span class="ln">400  </span></a>        <span class="s1">res </span><span class="s0">= </span><span class="s1">_ecdf_uncensored</span><span class="s2">(</span><span class="s1">sample</span><span class="s2">.</span><span class="s1">_uncensor</span><span class="s2">())</span>
+<a name="l401"><span class="ln">401  </span></a>    <span class="s0">elif </span><span class="s1">sample</span><span class="s2">.</span><span class="s1">num_censored</span><span class="s2">() </span><span class="s0">== </span><span class="s1">sample</span><span class="s2">.</span><span class="s1">_right</span><span class="s2">.</span><span class="s1">size</span><span class="s0">:</span>
+<a name="l402"><span class="ln">402  </span></a>        <span class="s1">res </span><span class="s0">= </span><span class="s1">_ecdf_right_censored</span><span class="s2">(</span><span class="s1">sample</span><span class="s2">)</span>
+<a name="l403"><span class="ln">403  </span></a>    <span class="s0">else:</span>
+<a name="l404"><span class="ln">404  </span></a>        <span class="s4"># Support additional censoring options in follow-up PRs</span>
+<a name="l405"><span class="ln">405  </span></a>        <span class="s1">message </span><span class="s0">= </span><span class="s2">(</span><span class="s3">&quot;Currently, only uncensored and right-censored data is &quot;</span>
+<a name="l406"><span class="ln">406  </span></a>                   <span class="s3">&quot;supported.&quot;</span><span class="s2">)</span>
+<a name="l407"><span class="ln">407  </span></a>        <span class="s0">raise </span><span class="s1">NotImplementedError</span><span class="s2">(</span><span class="s1">message</span><span class="s2">)</span>
+<a name="l408"><span class="ln">408  </span></a>
+<a name="l409"><span class="ln">409  </span></a>    <span class="s1">t</span><span class="s2">, </span><span class="s1">cdf</span><span class="s2">, </span><span class="s1">sf</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">d </span><span class="s0">= </span><span class="s1">res</span>
+<a name="l410"><span class="ln">410  </span></a>    <span class="s0">return </span><span class="s1">ECDFResult</span><span class="s2">(</span><span class="s1">t</span><span class="s2">, </span><span class="s1">cdf</span><span class="s2">, </span><span class="s1">sf</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">d</span><span class="s2">)</span>
+<a name="l411"><span class="ln">411  </span></a>
+<a name="l412"><span class="ln">412  </span></a>
+<a name="l413"><span class="ln">413  </span></a><span class="s0">def </span><span class="s1">_ecdf_uncensored</span><span class="s2">(</span><span class="s1">sample</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l414"><span class="ln">414  </span></a>    <span class="s1">sample </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">sort</span><span class="s2">(</span><span class="s1">sample</span><span class="s2">)</span>
+<a name="l415"><span class="ln">415  </span></a>    <span class="s1">x</span><span class="s2">, </span><span class="s1">counts </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">unique</span><span class="s2">(</span><span class="s1">sample</span><span class="s2">, </span><span class="s1">return_counts</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l416"><span class="ln">416  </span></a>
+<a name="l417"><span class="ln">417  </span></a>    <span class="s4"># [1].81 &quot;the fraction of [observations] that are less than or equal to x</span>
+<a name="l418"><span class="ln">418  </span></a>    <span class="s1">events </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">cumsum</span><span class="s2">(</span><span class="s1">counts</span><span class="s2">)</span>
+<a name="l419"><span class="ln">419  </span></a>    <span class="s1">n </span><span class="s0">= </span><span class="s1">sample</span><span class="s2">.</span><span class="s1">size</span>
+<a name="l420"><span class="ln">420  </span></a>    <span class="s1">cdf </span><span class="s0">= </span><span class="s1">events </span><span class="s0">/ </span><span class="s1">n</span>
+<a name="l421"><span class="ln">421  </span></a>
+<a name="l422"><span class="ln">422  </span></a>    <span class="s4"># [1].89 &quot;the relative frequency of the sample that exceeds x in value&quot;</span>
+<a name="l423"><span class="ln">423  </span></a>    <span class="s1">sf </span><span class="s0">= </span><span class="s5">1 </span><span class="s0">- </span><span class="s1">cdf</span>
+<a name="l424"><span class="ln">424  </span></a>
+<a name="l425"><span class="ln">425  </span></a>    <span class="s1">at_risk </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">concatenate</span><span class="s2">(([</span><span class="s1">n</span><span class="s2">], </span><span class="s1">n </span><span class="s0">- </span><span class="s1">events</span><span class="s2">[</span><span class="s0">:-</span><span class="s5">1</span><span class="s2">]))</span>
+<a name="l426"><span class="ln">426  </span></a>    <span class="s0">return </span><span class="s1">x</span><span class="s2">, </span><span class="s1">cdf</span><span class="s2">, </span><span class="s1">sf</span><span class="s2">, </span><span class="s1">at_risk</span><span class="s2">, </span><span class="s1">counts</span>
+<a name="l427"><span class="ln">427  </span></a>
+<a name="l428"><span class="ln">428  </span></a>
+<a name="l429"><span class="ln">429  </span></a><span class="s0">def </span><span class="s1">_ecdf_right_censored</span><span class="s2">(</span><span class="s1">sample</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l430"><span class="ln">430  </span></a>    <span class="s4"># It is conventional to discuss right-censored data in terms of</span>
+<a name="l431"><span class="ln">431  </span></a>    <span class="s4"># &quot;survival time&quot;, &quot;death&quot;, and &quot;loss&quot; (e.g. [2]). We'll use that</span>
+<a name="l432"><span class="ln">432  </span></a>    <span class="s4"># terminology here.</span>
+<a name="l433"><span class="ln">433  </span></a>    <span class="s4"># This implementation was influenced by the references cited and also</span>
+<a name="l434"><span class="ln">434  </span></a>    <span class="s4"># https://www.youtube.com/watch?v=lxoWsVco_iM</span>
+<a name="l435"><span class="ln">435  </span></a>    <span class="s4"># https://en.wikipedia.org/wiki/Kaplan%E2%80%93Meier_estimator</span>
+<a name="l436"><span class="ln">436  </span></a>    <span class="s4"># In retrospect it is probably most easily compared against [3].</span>
+<a name="l437"><span class="ln">437  </span></a>    <span class="s4"># Ultimately, the data needs to be sorted, so this implementation is</span>
+<a name="l438"><span class="ln">438  </span></a>    <span class="s4"># written to avoid a separate call to `unique` after sorting. In hope of</span>
+<a name="l439"><span class="ln">439  </span></a>    <span class="s4"># better performance on large datasets, it also computes survival</span>
+<a name="l440"><span class="ln">440  </span></a>    <span class="s4"># probabilities at unique times only rather than at each observation.</span>
+<a name="l441"><span class="ln">441  </span></a>    <span class="s1">tod </span><span class="s0">= </span><span class="s1">sample</span><span class="s2">.</span><span class="s1">_uncensored  </span><span class="s4"># time of &quot;death&quot;</span>
+<a name="l442"><span class="ln">442  </span></a>    <span class="s1">tol </span><span class="s0">= </span><span class="s1">sample</span><span class="s2">.</span><span class="s1">_right  </span><span class="s4"># time of &quot;loss&quot;</span>
+<a name="l443"><span class="ln">443  </span></a>    <span class="s1">times </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">concatenate</span><span class="s2">((</span><span class="s1">tod</span><span class="s2">, </span><span class="s1">tol</span><span class="s2">))</span>
+<a name="l444"><span class="ln">444  </span></a>    <span class="s1">died </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">([</span><span class="s5">1</span><span class="s2">]</span><span class="s0">*</span><span class="s1">tod</span><span class="s2">.</span><span class="s1">size </span><span class="s0">+ </span><span class="s2">[</span><span class="s5">0</span><span class="s2">]</span><span class="s0">*</span><span class="s1">tol</span><span class="s2">.</span><span class="s1">size</span><span class="s2">)</span>
+<a name="l445"><span class="ln">445  </span></a>
+<a name="l446"><span class="ln">446  </span></a>    <span class="s4"># sort by times</span>
+<a name="l447"><span class="ln">447  </span></a>    <span class="s1">i </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">argsort</span><span class="s2">(</span><span class="s1">times</span><span class="s2">)</span>
+<a name="l448"><span class="ln">448  </span></a>    <span class="s1">times </span><span class="s0">= </span><span class="s1">times</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]</span>
+<a name="l449"><span class="ln">449  </span></a>    <span class="s1">died </span><span class="s0">= </span><span class="s1">died</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]</span>
+<a name="l450"><span class="ln">450  </span></a>    <span class="s1">at_risk </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">arange</span><span class="s2">(</span><span class="s1">times</span><span class="s2">.</span><span class="s1">size</span><span class="s2">, </span><span class="s5">0</span><span class="s2">, </span><span class="s0">-</span><span class="s5">1</span><span class="s2">)</span>
+<a name="l451"><span class="ln">451  </span></a>
+<a name="l452"><span class="ln">452  </span></a>    <span class="s4"># logical indices of unique times</span>
+<a name="l453"><span class="ln">453  </span></a>    <span class="s1">j </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">diff</span><span class="s2">(</span><span class="s1">times</span><span class="s2">, </span><span class="s1">prepend</span><span class="s0">=-</span><span class="s1">np</span><span class="s2">.</span><span class="s1">inf</span><span class="s2">, </span><span class="s1">append</span><span class="s0">=</span><span class="s1">np</span><span class="s2">.</span><span class="s1">inf</span><span class="s2">) </span><span class="s0">&gt; </span><span class="s5">0</span>
+<a name="l454"><span class="ln">454  </span></a>    <span class="s1">j_l </span><span class="s0">= </span><span class="s1">j</span><span class="s2">[</span><span class="s0">:-</span><span class="s5">1</span><span class="s2">]  </span><span class="s4"># first instances of unique times</span>
+<a name="l455"><span class="ln">455  </span></a>    <span class="s1">j_r </span><span class="s0">= </span><span class="s1">j</span><span class="s2">[</span><span class="s5">1</span><span class="s0">:</span><span class="s2">]  </span><span class="s4"># last instances of unique times</span>
+<a name="l456"><span class="ln">456  </span></a>
+<a name="l457"><span class="ln">457  </span></a>    <span class="s4"># get number at risk and deaths at each unique time</span>
+<a name="l458"><span class="ln">458  </span></a>    <span class="s1">t </span><span class="s0">= </span><span class="s1">times</span><span class="s2">[</span><span class="s1">j_l</span><span class="s2">]  </span><span class="s4"># unique times</span>
+<a name="l459"><span class="ln">459  </span></a>    <span class="s1">n </span><span class="s0">= </span><span class="s1">at_risk</span><span class="s2">[</span><span class="s1">j_l</span><span class="s2">]  </span><span class="s4"># number at risk at each unique time</span>
+<a name="l460"><span class="ln">460  </span></a>    <span class="s1">cd </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">cumsum</span><span class="s2">(</span><span class="s1">died</span><span class="s2">)[</span><span class="s1">j_r</span><span class="s2">]  </span><span class="s4"># cumulative deaths up to/including unique times</span>
+<a name="l461"><span class="ln">461  </span></a>    <span class="s1">d </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">diff</span><span class="s2">(</span><span class="s1">cd</span><span class="s2">, </span><span class="s1">prepend</span><span class="s0">=</span><span class="s5">0</span><span class="s2">)  </span><span class="s4"># deaths at each unique time</span>
+<a name="l462"><span class="ln">462  </span></a>
+<a name="l463"><span class="ln">463  </span></a>    <span class="s4"># compute survival function</span>
+<a name="l464"><span class="ln">464  </span></a>    <span class="s1">sf </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">cumprod</span><span class="s2">((</span><span class="s1">n </span><span class="s0">- </span><span class="s1">d</span><span class="s2">) </span><span class="s0">/ </span><span class="s1">n</span><span class="s2">)</span>
+<a name="l465"><span class="ln">465  </span></a>    <span class="s1">cdf </span><span class="s0">= </span><span class="s5">1 </span><span class="s0">- </span><span class="s1">sf</span>
+<a name="l466"><span class="ln">466  </span></a>    <span class="s0">return </span><span class="s1">t</span><span class="s2">, </span><span class="s1">cdf</span><span class="s2">, </span><span class="s1">sf</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">d</span>
+<a name="l467"><span class="ln">467  </span></a>
+<a name="l468"><span class="ln">468  </span></a>
+<a name="l469"><span class="ln">469  </span></a><span class="s0">@</span><span class="s1">dataclass</span>
+<a name="l470"><span class="ln">470  </span></a><span class="s0">class </span><span class="s1">LogRankResult</span><span class="s0">:</span>
+<a name="l471"><span class="ln">471  </span></a>    <span class="s4">&quot;&quot;&quot;Result object returned by `scipy.stats.logrank`. 
+<a name="l472"><span class="ln">472  </span></a> 
+<a name="l473"><span class="ln">473  </span></a>    Attributes 
+<a name="l474"><span class="ln">474  </span></a>    ---------- 
+<a name="l475"><span class="ln">475  </span></a>    statistic : float ndarray 
+<a name="l476"><span class="ln">476  </span></a>        The computed statistic (defined below). Its magnitude is the 
+<a name="l477"><span class="ln">477  </span></a>        square root of the magnitude returned by most other logrank test 
+<a name="l478"><span class="ln">478  </span></a>        implementations. 
+<a name="l479"><span class="ln">479  </span></a>    pvalue : float ndarray 
+<a name="l480"><span class="ln">480  </span></a>        The computed p-value of the test. 
+<a name="l481"><span class="ln">481  </span></a>    &quot;&quot;&quot;</span>
+<a name="l482"><span class="ln">482  </span></a>    <span class="s1">statistic</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span>
+<a name="l483"><span class="ln">483  </span></a>    <span class="s1">pvalue</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span>
+<a name="l484"><span class="ln">484  </span></a>
+<a name="l485"><span class="ln">485  </span></a>
+<a name="l486"><span class="ln">486  </span></a><span class="s0">def </span><span class="s1">logrank</span><span class="s2">(</span>
+<a name="l487"><span class="ln">487  </span></a>    <span class="s1">x</span><span class="s0">: </span><span class="s3">&quot;npt.ArrayLike | CensoredData&quot;</span><span class="s2">,</span>
+<a name="l488"><span class="ln">488  </span></a>    <span class="s1">y</span><span class="s0">: </span><span class="s3">&quot;npt.ArrayLike | CensoredData&quot;</span><span class="s2">,</span>
+<a name="l489"><span class="ln">489  </span></a>    <span class="s1">alternative</span><span class="s0">: </span><span class="s1">Literal</span><span class="s2">[</span><span class="s3">'two-sided'</span><span class="s2">, </span><span class="s3">'less'</span><span class="s2">, </span><span class="s3">'greater'</span><span class="s2">] </span><span class="s0">= </span><span class="s3">&quot;two-sided&quot;</span>
+<a name="l490"><span class="ln">490  </span></a><span class="s2">) </span><span class="s1">-&gt; LogRankResult</span><span class="s0">:</span>
+<a name="l491"><span class="ln">491  </span></a>    <span class="s4">r&quot;&quot;&quot;Compare the survival distributions of two samples via the logrank test. 
+<a name="l492"><span class="ln">492  </span></a> 
+<a name="l493"><span class="ln">493  </span></a>    Parameters 
+<a name="l494"><span class="ln">494  </span></a>    ---------- 
+<a name="l495"><span class="ln">495  </span></a>    x, y : array_like or CensoredData 
+<a name="l496"><span class="ln">496  </span></a>        Samples to compare based on their empirical survival functions. 
+<a name="l497"><span class="ln">497  </span></a>    alternative : {'two-sided', 'less', 'greater'}, optional 
+<a name="l498"><span class="ln">498  </span></a>        Defines the alternative hypothesis. 
+<a name="l499"><span class="ln">499  </span></a> 
+<a name="l500"><span class="ln">500  </span></a>        The null hypothesis is that the survival distributions of the two 
+<a name="l501"><span class="ln">501  </span></a>        groups, say *X* and *Y*, are identical. 
+<a name="l502"><span class="ln">502  </span></a> 
+<a name="l503"><span class="ln">503  </span></a>        The following alternative hypotheses [4]_ are available (default is 
+<a name="l504"><span class="ln">504  </span></a>        'two-sided'): 
+<a name="l505"><span class="ln">505  </span></a> 
+<a name="l506"><span class="ln">506  </span></a>        * 'two-sided': the survival distributions of the two groups are not 
+<a name="l507"><span class="ln">507  </span></a>          identical. 
+<a name="l508"><span class="ln">508  </span></a>        * 'less': survival of group *X* is favored: the group *X* failure rate 
+<a name="l509"><span class="ln">509  </span></a>          function is less than the group *Y* failure rate function at some 
+<a name="l510"><span class="ln">510  </span></a>          times. 
+<a name="l511"><span class="ln">511  </span></a>        * 'greater': survival of group *Y* is favored: the group *X* failure 
+<a name="l512"><span class="ln">512  </span></a>          rate function is greater than the group *Y* failure rate function at 
+<a name="l513"><span class="ln">513  </span></a>          some times. 
+<a name="l514"><span class="ln">514  </span></a> 
+<a name="l515"><span class="ln">515  </span></a>    Returns 
+<a name="l516"><span class="ln">516  </span></a>    ------- 
+<a name="l517"><span class="ln">517  </span></a>    res : `~scipy.stats._result_classes.LogRankResult` 
+<a name="l518"><span class="ln">518  </span></a>        An object containing attributes: 
+<a name="l519"><span class="ln">519  </span></a> 
+<a name="l520"><span class="ln">520  </span></a>        statistic : float ndarray 
+<a name="l521"><span class="ln">521  </span></a>            The computed statistic (defined below). Its magnitude is the 
+<a name="l522"><span class="ln">522  </span></a>            square root of the magnitude returned by most other logrank test 
+<a name="l523"><span class="ln">523  </span></a>            implementations. 
+<a name="l524"><span class="ln">524  </span></a>        pvalue : float ndarray 
+<a name="l525"><span class="ln">525  </span></a>            The computed p-value of the test. 
+<a name="l526"><span class="ln">526  </span></a> 
+<a name="l527"><span class="ln">527  </span></a>    See Also 
+<a name="l528"><span class="ln">528  </span></a>    -------- 
+<a name="l529"><span class="ln">529  </span></a>    scipy.stats.ecdf 
+<a name="l530"><span class="ln">530  </span></a> 
+<a name="l531"><span class="ln">531  </span></a>    Notes 
+<a name="l532"><span class="ln">532  </span></a>    ----- 
+<a name="l533"><span class="ln">533  </span></a>    The logrank test [1]_ compares the observed number of events to 
+<a name="l534"><span class="ln">534  </span></a>    the expected number of events under the null hypothesis that the two 
+<a name="l535"><span class="ln">535  </span></a>    samples were drawn from the same distribution. The statistic is 
+<a name="l536"><span class="ln">536  </span></a> 
+<a name="l537"><span class="ln">537  </span></a>    .. math:: 
+<a name="l538"><span class="ln">538  </span></a> 
+<a name="l539"><span class="ln">539  </span></a>        Z_i = \frac{\sum_{j=1}^J(O_{i,j}-E_{i,j})}{\sqrt{\sum_{j=1}^J V_{i,j}}} 
+<a name="l540"><span class="ln">540  </span></a>        \rightarrow \mathcal{N}(0,1) 
+<a name="l541"><span class="ln">541  </span></a> 
+<a name="l542"><span class="ln">542  </span></a>    where 
+<a name="l543"><span class="ln">543  </span></a> 
+<a name="l544"><span class="ln">544  </span></a>    .. math:: 
+<a name="l545"><span class="ln">545  </span></a> 
+<a name="l546"><span class="ln">546  </span></a>        E_{i,j} = O_j \frac{N_{i,j}}{N_j}, 
+<a name="l547"><span class="ln">547  </span></a>        \qquad 
+<a name="l548"><span class="ln">548  </span></a>        V_{i,j} = E_{i,j} \left(\frac{N_j-O_j}{N_j}\right) 
+<a name="l549"><span class="ln">549  </span></a>        \left(\frac{N_j-N_{i,j}}{N_j-1}\right), 
+<a name="l550"><span class="ln">550  </span></a> 
+<a name="l551"><span class="ln">551  </span></a>    :math:`i` denotes the group (i.e. it may assume values :math:`x` or 
+<a name="l552"><span class="ln">552  </span></a>    :math:`y`, or it may be omitted to refer to the combined sample) 
+<a name="l553"><span class="ln">553  </span></a>    :math:`j` denotes the time (at which an event occurred), 
+<a name="l554"><span class="ln">554  </span></a>    :math:`N` is the number of subjects at risk just before an event occurred, 
+<a name="l555"><span class="ln">555  </span></a>    and :math:`O` is the observed number of events at that time. 
+<a name="l556"><span class="ln">556  </span></a> 
+<a name="l557"><span class="ln">557  </span></a>    The ``statistic`` :math:`Z_x` returned by `logrank` is the (signed) square 
+<a name="l558"><span class="ln">558  </span></a>    root of the statistic returned by many other implementations. Under the 
+<a name="l559"><span class="ln">559  </span></a>    null hypothesis, :math:`Z_x**2` is asymptotically distributed according to 
+<a name="l560"><span class="ln">560  </span></a>    the chi-squared distribution with one degree of freedom. Consequently, 
+<a name="l561"><span class="ln">561  </span></a>    :math:`Z_x` is asymptotically distributed according to the standard normal 
+<a name="l562"><span class="ln">562  </span></a>    distribution. The advantage of using :math:`Z_x` is that the sign 
+<a name="l563"><span class="ln">563  </span></a>    information (i.e. whether the observed number of events tends to be less 
+<a name="l564"><span class="ln">564  </span></a>    than or greater than the number expected under the null hypothesis) is 
+<a name="l565"><span class="ln">565  </span></a>    preserved, allowing `scipy.stats.logrank` to offer one-sided alternative 
+<a name="l566"><span class="ln">566  </span></a>    hypotheses. 
+<a name="l567"><span class="ln">567  </span></a> 
+<a name="l568"><span class="ln">568  </span></a>    References 
+<a name="l569"><span class="ln">569  </span></a>    ---------- 
+<a name="l570"><span class="ln">570  </span></a>    .. [1] Mantel N. &quot;Evaluation of survival data and two new rank order 
+<a name="l571"><span class="ln">571  </span></a>           statistics arising in its consideration.&quot; 
+<a name="l572"><span class="ln">572  </span></a>           Cancer Chemotherapy Reports, 50(3):163-170, PMID: 5910392, 1966 
+<a name="l573"><span class="ln">573  </span></a>    .. [2] Bland, Altman, &quot;The logrank test&quot;, BMJ, 328:1073, 
+<a name="l574"><span class="ln">574  </span></a>           :doi:`10.1136/bmj.328.7447.1073`, 2004 
+<a name="l575"><span class="ln">575  </span></a>    .. [3] &quot;Logrank test&quot;, Wikipedia, 
+<a name="l576"><span class="ln">576  </span></a>           https://en.wikipedia.org/wiki/Logrank_test 
+<a name="l577"><span class="ln">577  </span></a>    .. [4] Brown, Mark. &quot;On the choice of variance for the log rank test.&quot; 
+<a name="l578"><span class="ln">578  </span></a>           Biometrika 71.1 (1984): 65-74. 
+<a name="l579"><span class="ln">579  </span></a>    .. [5] Klein, John P., and Melvin L. Moeschberger. Survival analysis: 
+<a name="l580"><span class="ln">580  </span></a>           techniques for censored and truncated data. Vol. 1230. New York: 
+<a name="l581"><span class="ln">581  </span></a>           Springer, 2003. 
+<a name="l582"><span class="ln">582  </span></a> 
+<a name="l583"><span class="ln">583  </span></a>    Examples 
+<a name="l584"><span class="ln">584  </span></a>    -------- 
+<a name="l585"><span class="ln">585  </span></a>    Reference [2]_ compared the survival times of patients with two different 
+<a name="l586"><span class="ln">586  </span></a>    types of recurrent malignant gliomas. The samples below record the time 
+<a name="l587"><span class="ln">587  </span></a>    (number of weeks) for which each patient participated in the study. The 
+<a name="l588"><span class="ln">588  </span></a>    `scipy.stats.CensoredData` class is used because the data is 
+<a name="l589"><span class="ln">589  </span></a>    right-censored: the uncensored observations correspond with observed deaths 
+<a name="l590"><span class="ln">590  </span></a>    whereas the censored observations correspond with the patient leaving the 
+<a name="l591"><span class="ln">591  </span></a>    study for another reason. 
+<a name="l592"><span class="ln">592  </span></a> 
+<a name="l593"><span class="ln">593  </span></a>    &gt;&gt;&gt; from scipy import stats 
+<a name="l594"><span class="ln">594  </span></a>    &gt;&gt;&gt; x = stats.CensoredData( 
+<a name="l595"><span class="ln">595  </span></a>    ...     uncensored=[6, 13, 21, 30, 37, 38, 49, 50, 
+<a name="l596"><span class="ln">596  </span></a>    ...                 63, 79, 86, 98, 202, 219], 
+<a name="l597"><span class="ln">597  </span></a>    ...     right=[31, 47, 80, 82, 82, 149] 
+<a name="l598"><span class="ln">598  </span></a>    ... ) 
+<a name="l599"><span class="ln">599  </span></a>    &gt;&gt;&gt; y = stats.CensoredData( 
+<a name="l600"><span class="ln">600  </span></a>    ...     uncensored=[10, 10, 12, 13, 14, 15, 16, 17, 18, 20, 24, 24, 
+<a name="l601"><span class="ln">601  </span></a>    ...                 25, 28,30, 33, 35, 37, 40, 40, 46, 48, 76, 81, 
+<a name="l602"><span class="ln">602  </span></a>    ...                 82, 91, 112, 181], 
+<a name="l603"><span class="ln">603  </span></a>    ...     right=[34, 40, 70] 
+<a name="l604"><span class="ln">604  </span></a>    ... ) 
+<a name="l605"><span class="ln">605  </span></a> 
+<a name="l606"><span class="ln">606  </span></a>    We can calculate and visualize the empirical survival functions 
+<a name="l607"><span class="ln">607  </span></a>    of both groups as follows. 
+<a name="l608"><span class="ln">608  </span></a> 
+<a name="l609"><span class="ln">609  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l610"><span class="ln">610  </span></a>    &gt;&gt;&gt; import matplotlib.pyplot as plt 
+<a name="l611"><span class="ln">611  </span></a>    &gt;&gt;&gt; ax = plt.subplot() 
+<a name="l612"><span class="ln">612  </span></a>    &gt;&gt;&gt; ecdf_x = stats.ecdf(x) 
+<a name="l613"><span class="ln">613  </span></a>    &gt;&gt;&gt; ecdf_x.sf.plot(ax, label='Astrocytoma') 
+<a name="l614"><span class="ln">614  </span></a>    &gt;&gt;&gt; ecdf_y = stats.ecdf(y) 
+<a name="l615"><span class="ln">615  </span></a>    &gt;&gt;&gt; ecdf_y.sf.plot(ax, label='Glioblastoma') 
+<a name="l616"><span class="ln">616  </span></a>    &gt;&gt;&gt; ax.set_xlabel('Time to death (weeks)') 
+<a name="l617"><span class="ln">617  </span></a>    &gt;&gt;&gt; ax.set_ylabel('Empirical SF') 
+<a name="l618"><span class="ln">618  </span></a>    &gt;&gt;&gt; plt.legend() 
+<a name="l619"><span class="ln">619  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l620"><span class="ln">620  </span></a> 
+<a name="l621"><span class="ln">621  </span></a>    Visual inspection of the empirical survival functions suggests that the 
+<a name="l622"><span class="ln">622  </span></a>    survival times tend to be different between the two groups. To formally 
+<a name="l623"><span class="ln">623  </span></a>    assess whether the difference is significant at the 1% level, we use the 
+<a name="l624"><span class="ln">624  </span></a>    logrank test. 
+<a name="l625"><span class="ln">625  </span></a> 
+<a name="l626"><span class="ln">626  </span></a>    &gt;&gt;&gt; res = stats.logrank(x=x, y=y) 
+<a name="l627"><span class="ln">627  </span></a>    &gt;&gt;&gt; res.statistic 
+<a name="l628"><span class="ln">628  </span></a>    -2.73799 
+<a name="l629"><span class="ln">629  </span></a>    &gt;&gt;&gt; res.pvalue 
+<a name="l630"><span class="ln">630  </span></a>    0.00618 
+<a name="l631"><span class="ln">631  </span></a> 
+<a name="l632"><span class="ln">632  </span></a>    The p-value is less than 1%, so we can consider the data to be evidence 
+<a name="l633"><span class="ln">633  </span></a>    against the null hypothesis in favor of the alternative that there is a 
+<a name="l634"><span class="ln">634  </span></a>    difference between the two survival functions. 
+<a name="l635"><span class="ln">635  </span></a> 
+<a name="l636"><span class="ln">636  </span></a>    &quot;&quot;&quot;</span>
+<a name="l637"><span class="ln">637  </span></a>    <span class="s4"># Input validation. `alternative` IV handled in `_get_pvalue` below.</span>
+<a name="l638"><span class="ln">638  </span></a>    <span class="s1">x </span><span class="s0">= </span><span class="s1">_iv_CensoredData</span><span class="s2">(</span><span class="s1">sample</span><span class="s0">=</span><span class="s1">x</span><span class="s2">, </span><span class="s1">param_name</span><span class="s0">=</span><span class="s3">'x'</span><span class="s2">)</span>
+<a name="l639"><span class="ln">639  </span></a>    <span class="s1">y </span><span class="s0">= </span><span class="s1">_iv_CensoredData</span><span class="s2">(</span><span class="s1">sample</span><span class="s0">=</span><span class="s1">y</span><span class="s2">, </span><span class="s1">param_name</span><span class="s0">=</span><span class="s3">'y'</span><span class="s2">)</span>
+<a name="l640"><span class="ln">640  </span></a>
+<a name="l641"><span class="ln">641  </span></a>    <span class="s4"># Combined sample. (Under H0, the two groups are identical.)</span>
+<a name="l642"><span class="ln">642  </span></a>    <span class="s1">xy </span><span class="s0">= </span><span class="s1">CensoredData</span><span class="s2">(</span>
+<a name="l643"><span class="ln">643  </span></a>        <span class="s1">uncensored</span><span class="s0">=</span><span class="s1">np</span><span class="s2">.</span><span class="s1">concatenate</span><span class="s2">((</span><span class="s1">x</span><span class="s2">.</span><span class="s1">_uncensored</span><span class="s2">, </span><span class="s1">y</span><span class="s2">.</span><span class="s1">_uncensored</span><span class="s2">)),</span>
+<a name="l644"><span class="ln">644  </span></a>        <span class="s1">right</span><span class="s0">=</span><span class="s1">np</span><span class="s2">.</span><span class="s1">concatenate</span><span class="s2">((</span><span class="s1">x</span><span class="s2">.</span><span class="s1">_right</span><span class="s2">, </span><span class="s1">y</span><span class="s2">.</span><span class="s1">_right</span><span class="s2">))</span>
+<a name="l645"><span class="ln">645  </span></a>    <span class="s2">)</span>
+<a name="l646"><span class="ln">646  </span></a>
+<a name="l647"><span class="ln">647  </span></a>    <span class="s4"># Extract data from the combined sample</span>
+<a name="l648"><span class="ln">648  </span></a>    <span class="s1">res </span><span class="s0">= </span><span class="s1">ecdf</span><span class="s2">(</span><span class="s1">xy</span><span class="s2">)</span>
+<a name="l649"><span class="ln">649  </span></a>    <span class="s1">idx </span><span class="s0">= </span><span class="s1">res</span><span class="s2">.</span><span class="s1">sf</span><span class="s2">.</span><span class="s1">_d</span><span class="s2">.</span><span class="s1">astype</span><span class="s2">(</span><span class="s1">bool</span><span class="s2">)  </span><span class="s4"># indices of observed events</span>
+<a name="l650"><span class="ln">650  </span></a>    <span class="s1">times_xy </span><span class="s0">= </span><span class="s1">res</span><span class="s2">.</span><span class="s1">sf</span><span class="s2">.</span><span class="s1">quantiles</span><span class="s2">[</span><span class="s1">idx</span><span class="s2">]  </span><span class="s4"># unique times of observed events</span>
+<a name="l651"><span class="ln">651  </span></a>    <span class="s1">at_risk_xy </span><span class="s0">= </span><span class="s1">res</span><span class="s2">.</span><span class="s1">sf</span><span class="s2">.</span><span class="s1">_n</span><span class="s2">[</span><span class="s1">idx</span><span class="s2">]  </span><span class="s4"># combined number of subjects at risk</span>
+<a name="l652"><span class="ln">652  </span></a>    <span class="s1">deaths_xy </span><span class="s0">= </span><span class="s1">res</span><span class="s2">.</span><span class="s1">sf</span><span class="s2">.</span><span class="s1">_d</span><span class="s2">[</span><span class="s1">idx</span><span class="s2">]  </span><span class="s4"># combined number of events</span>
+<a name="l653"><span class="ln">653  </span></a>
+<a name="l654"><span class="ln">654  </span></a>    <span class="s4"># Get the number at risk within each sample.</span>
+<a name="l655"><span class="ln">655  </span></a>    <span class="s4"># First compute the number at risk in group X at each of the `times_xy`.</span>
+<a name="l656"><span class="ln">656  </span></a>    <span class="s4"># Could use `interpolate_1d`, but this is more compact.</span>
+<a name="l657"><span class="ln">657  </span></a>    <span class="s1">res_x </span><span class="s0">= </span><span class="s1">ecdf</span><span class="s2">(</span><span class="s1">x</span><span class="s2">)</span>
+<a name="l658"><span class="ln">658  </span></a>    <span class="s1">i </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">searchsorted</span><span class="s2">(</span><span class="s1">res_x</span><span class="s2">.</span><span class="s1">sf</span><span class="s2">.</span><span class="s1">quantiles</span><span class="s2">, </span><span class="s1">times_xy</span><span class="s2">)</span>
+<a name="l659"><span class="ln">659  </span></a>    <span class="s1">at_risk_x </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">res_x</span><span class="s2">.</span><span class="s1">sf</span><span class="s2">.</span><span class="s1">_n</span><span class="s2">, </span><span class="s5">0</span><span class="s2">)[</span><span class="s1">i</span><span class="s2">]  </span><span class="s4"># 0 at risk after last time</span>
+<a name="l660"><span class="ln">660  </span></a>    <span class="s4"># Subtract from the combined number at risk to get number at risk in Y</span>
+<a name="l661"><span class="ln">661  </span></a>    <span class="s1">at_risk_y </span><span class="s0">= </span><span class="s1">at_risk_xy </span><span class="s0">- </span><span class="s1">at_risk_x</span>
+<a name="l662"><span class="ln">662  </span></a>
+<a name="l663"><span class="ln">663  </span></a>    <span class="s4"># Compute the variance.</span>
+<a name="l664"><span class="ln">664  </span></a>    <span class="s1">num </span><span class="s0">= </span><span class="s1">at_risk_x </span><span class="s0">* </span><span class="s1">at_risk_y </span><span class="s0">* </span><span class="s1">deaths_xy </span><span class="s0">* </span><span class="s2">(</span><span class="s1">at_risk_xy </span><span class="s0">- </span><span class="s1">deaths_xy</span><span class="s2">)</span>
+<a name="l665"><span class="ln">665  </span></a>    <span class="s1">den </span><span class="s0">= </span><span class="s1">at_risk_xy</span><span class="s0">**</span><span class="s5">2 </span><span class="s0">* </span><span class="s2">(</span><span class="s1">at_risk_xy </span><span class="s0">- </span><span class="s5">1</span><span class="s2">)</span>
+<a name="l666"><span class="ln">666  </span></a>    <span class="s4"># Note: when `at_risk_xy == 1`, we would have `at_risk_xy - 1 == 0` in the</span>
+<a name="l667"><span class="ln">667  </span></a>    <span class="s4"># numerator and denominator. Simplifying the fraction symbolically, we</span>
+<a name="l668"><span class="ln">668  </span></a>    <span class="s4"># would always find the overall quotient to be zero, so don't compute it.</span>
+<a name="l669"><span class="ln">669  </span></a>    <span class="s1">i </span><span class="s0">= </span><span class="s1">at_risk_xy </span><span class="s0">&gt; </span><span class="s5">1</span>
+<a name="l670"><span class="ln">670  </span></a>    <span class="s1">sum_var </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">sum</span><span class="s2">(</span><span class="s1">num</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]</span><span class="s0">/</span><span class="s1">den</span><span class="s2">[</span><span class="s1">i</span><span class="s2">])</span>
+<a name="l671"><span class="ln">671  </span></a>
+<a name="l672"><span class="ln">672  </span></a>    <span class="s4"># Get the observed and expected number of deaths in group X</span>
+<a name="l673"><span class="ln">673  </span></a>    <span class="s1">n_died_x </span><span class="s0">= </span><span class="s1">x</span><span class="s2">.</span><span class="s1">_uncensored</span><span class="s2">.</span><span class="s1">size</span>
+<a name="l674"><span class="ln">674  </span></a>    <span class="s1">sum_exp_deaths_x </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">sum</span><span class="s2">(</span><span class="s1">at_risk_x </span><span class="s0">* </span><span class="s2">(</span><span class="s1">deaths_xy</span><span class="s0">/</span><span class="s1">at_risk_xy</span><span class="s2">))</span>
+<a name="l675"><span class="ln">675  </span></a>
+<a name="l676"><span class="ln">676  </span></a>    <span class="s4"># Compute the statistic. This is the square root of that in references.</span>
+<a name="l677"><span class="ln">677  </span></a>    <span class="s1">statistic </span><span class="s0">= </span><span class="s2">(</span><span class="s1">n_died_x </span><span class="s0">- </span><span class="s1">sum_exp_deaths_x</span><span class="s2">)</span><span class="s0">/</span><span class="s1">np</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s1">sum_var</span><span class="s2">)</span>
+<a name="l678"><span class="ln">678  </span></a>
+<a name="l679"><span class="ln">679  </span></a>    <span class="s4"># Equivalent to chi2(df=1).sf(statistic**2) when alternative='two-sided'</span>
+<a name="l680"><span class="ln">680  </span></a>    <span class="s1">norm </span><span class="s0">= </span><span class="s1">stats</span><span class="s2">.</span><span class="s1">_stats_py</span><span class="s2">.</span><span class="s1">_SimpleNormal</span><span class="s2">()</span>
+<a name="l681"><span class="ln">681  </span></a>    <span class="s1">pvalue </span><span class="s0">= </span><span class="s1">stats</span><span class="s2">.</span><span class="s1">_stats_py</span><span class="s2">.</span><span class="s1">_get_pvalue</span><span class="s2">(</span><span class="s1">statistic</span><span class="s2">, </span><span class="s1">norm</span><span class="s2">, </span><span class="s1">alternative</span><span class="s2">, </span><span class="s1">xp</span><span class="s0">=</span><span class="s1">np</span><span class="s2">)</span>
+<a name="l682"><span class="ln">682  </span></a>
+<a name="l683"><span class="ln">683  </span></a>    <span class="s0">return </span><span class="s1">LogRankResult</span><span class="s2">(</span><span class="s1">statistic</span><span class="s0">=</span><span class="s1">statistic</span><span class="s2">[()], </span><span class="s1">pvalue</span><span class="s0">=</span><span class="s1">pvalue</span><span class="s2">[()])</span>
+<a name="l684"><span class="ln">684  </span></a></pre>
+</body>
+</html>

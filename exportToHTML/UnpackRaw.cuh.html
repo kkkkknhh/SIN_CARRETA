@@ -1,0 +1,58 @@
+<html>
+<head>
+<title>UnpackRaw.cuh</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #63a35c;}
+.s1 { color: #969896;}
+.s2 { color: #333333;}
+.s3 { color: #a71d5d;}
+.s4 { color: #333333;}
+.s5 { color: #795da3;}
+.s6 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+UnpackRaw.cuh</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">// </span><span class="s1">No &quot;#pragma once&quot; because this is a raw definition that can be copied by jit codegen. 
+<a name="l2"><span class="ln">2    </span></a></span><span class="s0">// </span><span class="s1">Eager mode clients should not include this file directly, instead, 
+<a name="l3"><span class="ln">3    </span></a></span><span class="s0">// </span><span class="s1">they should #include &lt;ATen/cuda/PhiloxUtils.cuh&gt;, which has a #pragma once. 
+<a name="l4"><span class="ln">4    </span></a></span>
+<a name="l5"><span class="ln">5    </span></a><span class="s3">namespace </span><span class="s4">at</span><span class="s0">::</span><span class="s4">cuda</span><span class="s0">::</span><span class="s4">philox </span><span class="s0">{</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">// </span><span class="s1">In-kernel call to retrieve philox seed and offset from a PhiloxCudaState instance whether 
+<a name="l8"><span class="ln">8    </span></a></span><span class="s0">// </span><span class="s1">that instance was created with graph capture underway or not. 
+<a name="l9"><span class="ln">9    </span></a></span><span class="s0">// </span><span class="s1">See Note [CUDA Graph-safe RNG states]. 
+<a name="l10"><span class="ln">10   </span></a></span><span class="s0">//</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s0">// </span><span class="s1">We can't write a __device__ function in CUDAGeneratorImpl.h, because it's in ATen. 
+<a name="l12"><span class="ln">12   </span></a></span><span class="s0">// </span><span class="s1">Also, whatever call unpacks PhiloxCudaState in consumer kernels must be inlineable. 
+<a name="l13"><span class="ln">13   </span></a></span><span class="s0">// </span><span class="s1">Easiest thing that comes to mind is, define a __device__ unpack helper here, in ATen/cuda. 
+<a name="l14"><span class="ln">14   </span></a></span><span class="s0">//</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s0">// </span><span class="s1">The raw definition lives in its own file so jit codegen can easily copy it. 
+<a name="l16"><span class="ln">16   </span></a></span><span class="s3">__host__ __device__ __forceinline__ </span><span class="s4">std</span><span class="s0">::</span><span class="s2">tuple</span><span class="s3">&lt;uint64_t</span><span class="s0">, </span><span class="s3">uint64_t&gt;</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s5">unpack</span><span class="s0">(</span><span class="s4">at</span><span class="s0">::</span><span class="s2">PhiloxCudaState arg</span><span class="s0">) {</span>
+<a name="l18"><span class="ln">18   </span></a>  <span class="s3">if </span><span class="s0">(</span><span class="s6">arg</span><span class="s0">.</span><span class="s6">captured_</span><span class="s0">) {</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s0">// </span><span class="s1">static_cast avoids &quot;warning: invalid narrowing conversion from &quot;long&quot; to &quot;unsigned long&quot;. 
+<a name="l20"><span class="ln">20   </span></a>    </span><span class="s0">// </span><span class="s1">*(arg.offset_.ptr) is a broadcast load of a single int64_t to the entire kernel. 
+<a name="l21"><span class="ln">21   </span></a>    </span><span class="s0">// </span><span class="s1">For most threads' reads it will hit in cache, so it shouldn't hurt performance. 
+<a name="l22"><span class="ln">22   </span></a>    </span><span class="s3">return </span><span class="s4">std</span><span class="s0">::</span><span class="s5">make_tuple</span><span class="s0">(</span><span class="s3">static_cast&lt;uint64_t&gt;</span><span class="s0">(</span><span class="s3">*</span><span class="s6">arg</span><span class="s0">.</span><span class="s6">seed_</span><span class="s0">.</span><span class="s6">ptr</span><span class="s0">), </span><span class="s3">static_cast&lt;uint64_t&gt;</span><span class="s0">(</span><span class="s3">*</span><span class="s0">(</span><span class="s6">arg</span><span class="s0">.</span><span class="s6">offset_</span><span class="s0">.</span><span class="s6">ptr</span><span class="s0">) </span><span class="s3">+ </span><span class="s6">arg</span><span class="s0">.</span><span class="s6">offset_intragraph_</span><span class="s0">));</span>
+<a name="l23"><span class="ln">23   </span></a>  <span class="s0">} </span><span class="s3">else </span><span class="s0">{</span>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s3">return </span><span class="s4">std</span><span class="s0">::</span><span class="s5">make_tuple</span><span class="s0">(</span><span class="s6">arg</span><span class="s0">.</span><span class="s6">seed_</span><span class="s0">.</span><span class="s6">val</span><span class="s0">, </span><span class="s6">arg</span><span class="s0">.</span><span class="s6">offset_</span><span class="s0">.</span><span class="s6">val</span><span class="s0">);</span>
+<a name="l25"><span class="ln">25   </span></a>  <span class="s0">}</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s0">}</span>
+<a name="l27"><span class="ln">27   </span></a>
+<a name="l28"><span class="ln">28   </span></a><span class="s0">// </span><span class="s1">Adapted from TE 
+<a name="l29"><span class="ln">29   </span></a></span><span class="s0">// </span><span class="s1">extract seed and offset from PhiloxCudaState 
+<a name="l30"><span class="ln">30   </span></a></span><span class="s3">__global__ </span><span class="s2">void </span><span class="s5">unpack_cudnn</span><span class="s0">(</span><span class="s4">at</span><span class="s0">::</span><span class="s4">PhiloxCudaState </span><span class="s6">arg</span><span class="s0">, </span><span class="s3">int64_t* </span><span class="s6">seed_ptr</span><span class="s0">, </span><span class="s3">int64_t* </span><span class="s6">offset_ptr</span><span class="s0">);</span>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a><span class="s2">void </span><span class="s5">unpack_cudnn_wrapper</span><span class="s0">(</span><span class="s4">at</span><span class="s0">::</span><span class="s4">PhiloxCudaState </span><span class="s6">arg</span><span class="s0">, </span><span class="s3">int64_t* </span><span class="s6">seed_ptr</span><span class="s0">, </span><span class="s3">int64_t* </span><span class="s6">offset_ptr</span><span class="s0">, </span><span class="s6">cudaStream_t stream</span><span class="s0">);</span>
+<a name="l33"><span class="ln">33   </span></a>
+<a name="l34"><span class="ln">34   </span></a><span class="s0">} // </span><span class="s1">namespace at::cuda::philox 
+<a name="l35"><span class="ln">35   </span></a></span></pre>
+</body>
+</html>

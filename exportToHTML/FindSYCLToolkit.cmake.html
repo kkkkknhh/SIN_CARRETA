@@ -1,0 +1,164 @@
+<html>
+<head>
+<title>FindSYCLToolkit.cmake</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #183691;}
+.s4 { color: #0086b3;}
+.s5 { color: #795da3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+FindSYCLToolkit.cmake</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># This will define the following variables:</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0"># SYCL_FOUND               : True if the system has the SYCL library.</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0"># SYCL_INCLUDE_DIR         : Include directories needed to use SYCL.</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0"># SYCL_LIBRARY_DIR         ：The path to the SYCL library.</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0"># SYCL_LIBRARY             : SYCL library fullname.</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0"># SYCL_COMPILER_VERSION    : SYCL compiler version.</span>
+<a name="l7"><span class="ln">7    </span></a>
+<a name="l8"><span class="ln">8    </span></a><span class="s2">include</span><span class="s1">(FindPackageHandleStandardArgs) 
+<a name="l9"><span class="ln">9    </span></a></span>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">set</span><span class="s1">(SYCL_ROOT </span><span class="s3">&quot;&quot;</span><span class="s1">) 
+<a name="l11"><span class="ln">11   </span></a></span><span class="s2">if</span><span class="s1">(</span><span class="s2">DEFINED </span><span class="s1">ENV{SYCL_ROOT}) 
+<a name="l12"><span class="ln">12   </span></a>  </span><span class="s2">set</span><span class="s1">(SYCL_ROOT </span><span class="s2">$ENV{SYCL_ROOT}</span><span class="s1">) 
+<a name="l13"><span class="ln">13   </span></a></span><span class="s2">elseif</span><span class="s1">(</span><span class="s2">DEFINED </span><span class="s1">ENV{CMPLR_ROOT}) 
+<a name="l14"><span class="ln">14   </span></a>  </span><span class="s2">set</span><span class="s1">(SYCL_ROOT </span><span class="s2">$ENV{CMPLR_ROOT}</span><span class="s1">) 
+<a name="l15"><span class="ln">15   </span></a></span><span class="s2">else</span><span class="s1">() 
+<a name="l16"><span class="ln">16   </span></a>  </span><span class="s0"># Use the default path to ensure proper linking with torch::xpurt when the user is working with libtorch.</span>
+<a name="l17"><span class="ln">17   </span></a>  <span class="s2">if</span><span class="s1">(</span><span class="s4">CMAKE_SYSTEM_NAME </span><span class="s2">MATCHES </span><span class="s3">&quot;Linux&quot;</span><span class="s1">) 
+<a name="l18"><span class="ln">18   </span></a>    </span><span class="s2">set</span><span class="s1">(SYCL_ROOT </span><span class="s3">&quot;/opt/intel/oneapi/compiler/latest&quot;</span><span class="s1">) 
+<a name="l19"><span class="ln">19   </span></a>  </span><span class="s2">elseif</span><span class="s1">(</span><span class="s4">CMAKE_SYSTEM_NAME </span><span class="s2">MATCHES </span><span class="s3">&quot;Windows&quot;</span><span class="s1">) 
+<a name="l20"><span class="ln">20   </span></a>    </span><span class="s2">set</span><span class="s1">(SYCL_ROOT </span><span class="s3">&quot;C:/Program Files (x86)/Intel/oneAPI/compiler/latest&quot;</span><span class="s1">) 
+<a name="l21"><span class="ln">21   </span></a>  </span><span class="s2">endif</span><span class="s1">() 
+<a name="l22"><span class="ln">22   </span></a>  </span><span class="s2">if</span><span class="s1">(</span><span class="s2">NOT EXISTS ${SYCL_ROOT}</span><span class="s1">) 
+<a name="l23"><span class="ln">23   </span></a>    </span><span class="s2">set</span><span class="s1">(SYCL_ROOT </span><span class="s3">&quot;&quot;</span><span class="s1">) 
+<a name="l24"><span class="ln">24   </span></a>  </span><span class="s2">endif</span><span class="s1">() 
+<a name="l25"><span class="ln">25   </span></a></span><span class="s2">endif</span><span class="s1">() 
+<a name="l26"><span class="ln">26   </span></a></span>
+<a name="l27"><span class="ln">27   </span></a><span class="s2">string</span><span class="s1">(COMPARE </span><span class="s2">EQUAL </span><span class="s3">&quot;${SYCL_ROOT}&quot; &quot;&quot; </span><span class="s1">nosyclfound) 
+<a name="l28"><span class="ln">28   </span></a></span><span class="s2">if</span><span class="s1">(nosyclfound) 
+<a name="l29"><span class="ln">29   </span></a>  </span><span class="s2">set</span><span class="s1">(SYCL_FOUND </span><span class="s2">False</span><span class="s1">) 
+<a name="l30"><span class="ln">30   </span></a>  </span><span class="s2">set</span><span class="s1">(SYCL_REASON_FAILURE </span><span class="s3">&quot;SYCL library not set!!&quot;</span><span class="s1">) 
+<a name="l31"><span class="ln">31   </span></a>  </span><span class="s2">set</span><span class="s1">(SYCL_NOT_FOUND_MESSAGE </span><span class="s3">&quot;${SYCL_REASON_FAILURE}&quot;</span><span class="s1">) 
+<a name="l32"><span class="ln">32   </span></a>  </span><span class="s2">return</span><span class="s1">() 
+<a name="l33"><span class="ln">33   </span></a></span><span class="s2">endif</span><span class="s1">() 
+<a name="l34"><span class="ln">34   </span></a></span>
+<a name="l35"><span class="ln">35   </span></a><span class="s0"># Find SYCL compiler executable.</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s2">find_program</span><span class="s1">( 
+<a name="l37"><span class="ln">37   </span></a>  SYCL_COMPILER 
+<a name="l38"><span class="ln">38   </span></a>  </span><span class="s2">NAMES </span><span class="s1">icx 
+<a name="l39"><span class="ln">39   </span></a>  </span><span class="s2">PATHS </span><span class="s3">&quot;${SYCL_ROOT}&quot;</span>
+<a name="l40"><span class="ln">40   </span></a>  <span class="s1">PATH_SUFFIXES bin bin64 
+<a name="l41"><span class="ln">41   </span></a>  NO_DEFAULT_PATH 
+<a name="l42"><span class="ln">42   </span></a>  ) 
+<a name="l43"><span class="ln">43   </span></a></span>
+<a name="l44"><span class="ln">44   </span></a><span class="s2">function</span><span class="s1">(parse_sycl_compiler_version version_number) 
+<a name="l45"><span class="ln">45   </span></a>  </span><span class="s0"># Execute the SYCL compiler with the --version flag to match the version string.</span>
+<a name="l46"><span class="ln">46   </span></a>  <span class="s2">execute_process</span><span class="s1">(</span><span class="s2">COMMAND ${SYCL_COMPILER} </span><span class="s1">--</span><span class="s5">version </span><span class="s1">OUTPUT_VARIABLE SYCL_VERSION_STRING) 
+<a name="l47"><span class="ln">47   </span></a>  </span><span class="s2">string</span><span class="s1">(REGEX REPLACE </span><span class="s3">&quot;Intel\\(R\\) (.*) Compiler ([0-9]+\\.[0-9]+\\.[0-9]+) (.*)&quot; &quot;\\2&quot;</span>
+<a name="l48"><span class="ln">48   </span></a>               <span class="s1">SYCL_VERSION_STRING_MATCH </span><span class="s2">${SYCL_VERSION_STRING}</span><span class="s1">) 
+<a name="l49"><span class="ln">49   </span></a>  </span><span class="s2">string</span><span class="s1">(REPLACE </span><span class="s3">&quot;.&quot; &quot;;&quot; </span><span class="s1">SYCL_VERSION_LIST </span><span class="s2">${SYCL_VERSION_STRING_MATCH}</span><span class="s1">) 
+<a name="l50"><span class="ln">50   </span></a>  </span><span class="s0"># Split the version number list into major, minor, and patch components.</span>
+<a name="l51"><span class="ln">51   </span></a>  <span class="s2">list</span><span class="s1">(GET SYCL_VERSION_LIST 0 VERSION_MAJOR) 
+<a name="l52"><span class="ln">52   </span></a>  </span><span class="s2">list</span><span class="s1">(GET SYCL_VERSION_LIST 1 VERSION_MINOR) 
+<a name="l53"><span class="ln">53   </span></a>  </span><span class="s2">list</span><span class="s1">(GET SYCL_VERSION_LIST 2 VERSION_PATCH) 
+<a name="l54"><span class="ln">54   </span></a>  </span><span class="s0"># Calculate the version number in the format XXXXYYZZ, using the formula (major * 10000 + minor * 100 + patch).</span>
+<a name="l55"><span class="ln">55   </span></a>  <span class="s2">math</span><span class="s1">(EXPR VERSION_NUMBER_MATCH </span><span class="s3">&quot;${VERSION_MAJOR} * 10000 + ${VERSION_MINOR} * 100 + ${VERSION_PATCH}&quot;</span><span class="s1">) 
+<a name="l56"><span class="ln">56   </span></a>  </span><span class="s2">set</span><span class="s1">(</span><span class="s2">${version_number} </span><span class="s3">&quot;${VERSION_NUMBER_MATCH}&quot; </span><span class="s1">PARENT_SCOPE) 
+<a name="l57"><span class="ln">57   </span></a></span><span class="s2">endfunction</span><span class="s1">() 
+<a name="l58"><span class="ln">58   </span></a></span>
+<a name="l59"><span class="ln">59   </span></a><span class="s2">if</span><span class="s1">(SYCL_COMPILER) 
+<a name="l60"><span class="ln">60   </span></a>  parse_sycl_compiler_version(SYCL_COMPILER_VERSION) 
+<a name="l61"><span class="ln">61   </span></a></span><span class="s2">endif</span><span class="s1">() 
+<a name="l62"><span class="ln">62   </span></a></span>
+<a name="l63"><span class="ln">63   </span></a><span class="s2">if</span><span class="s1">(</span><span class="s2">NOT </span><span class="s1">SYCL_COMPILER_VERSION) 
+<a name="l64"><span class="ln">64   </span></a>  </span><span class="s2">set</span><span class="s1">(SYCL_FOUND </span><span class="s2">False</span><span class="s1">) 
+<a name="l65"><span class="ln">65   </span></a>  </span><span class="s2">set</span><span class="s1">(SYCL_REASON_FAILURE </span><span class="s3">&quot;Cannot parse sycl compiler version to get SYCL_COMPILER_VERSION!&quot;</span><span class="s1">) 
+<a name="l66"><span class="ln">66   </span></a>  </span><span class="s2">set</span><span class="s1">(SYCL_NOT_FOUND_MESSAGE </span><span class="s3">&quot;${SYCL_REASON_FAILURE}&quot;</span><span class="s1">) 
+<a name="l67"><span class="ln">67   </span></a>  </span><span class="s2">return</span><span class="s1">() 
+<a name="l68"><span class="ln">68   </span></a></span><span class="s2">endif</span><span class="s1">() 
+<a name="l69"><span class="ln">69   </span></a></span>
+<a name="l70"><span class="ln">70   </span></a><span class="s0"># Find include path from binary.</span>
+<a name="l71"><span class="ln">71   </span></a><span class="s2">find_file</span><span class="s1">( 
+<a name="l72"><span class="ln">72   </span></a>  SYCL_INCLUDE_DIR 
+<a name="l73"><span class="ln">73   </span></a>  </span><span class="s2">NAMES </span><span class="s1">include 
+<a name="l74"><span class="ln">74   </span></a>  HINTS </span><span class="s2">${SYCL_ROOT}</span>
+<a name="l75"><span class="ln">75   </span></a>  <span class="s1">NO_DEFAULT_PATH 
+<a name="l76"><span class="ln">76   </span></a>  ) 
+<a name="l77"><span class="ln">77   </span></a></span>
+<a name="l78"><span class="ln">78   </span></a><span class="s0"># Find include/sycl path from include path.</span>
+<a name="l79"><span class="ln">79   </span></a><span class="s2">find_file</span><span class="s1">( 
+<a name="l80"><span class="ln">80   </span></a>  SYCL_INCLUDE_SYCL_DIR 
+<a name="l81"><span class="ln">81   </span></a>  </span><span class="s2">NAMES </span><span class="s1">sycl 
+<a name="l82"><span class="ln">82   </span></a>  HINTS </span><span class="s2">${SYCL_ROOT}</span><span class="s1">/include/ 
+<a name="l83"><span class="ln">83   </span></a>  NO_DEFAULT_PATH 
+<a name="l84"><span class="ln">84   </span></a>  ) 
+<a name="l85"><span class="ln">85   </span></a></span>
+<a name="l86"><span class="ln">86   </span></a><span class="s0"># Due to the unrecognized compilation option `-fsycl` in other compiler.</span>
+<a name="l87"><span class="ln">87   </span></a><span class="s2">list</span><span class="s1">(APPEND SYCL_INCLUDE_DIR </span><span class="s2">${SYCL_INCLUDE_SYCL_DIR}</span><span class="s1">) 
+<a name="l88"><span class="ln">88   </span></a></span>
+<a name="l89"><span class="ln">89   </span></a><span class="s0"># Find library directory from binary.</span>
+<a name="l90"><span class="ln">90   </span></a><span class="s2">find_file</span><span class="s1">( 
+<a name="l91"><span class="ln">91   </span></a>  SYCL_LIBRARY_DIR 
+<a name="l92"><span class="ln">92   </span></a>  </span><span class="s2">NAMES </span><span class="s1">lib lib64 
+<a name="l93"><span class="ln">93   </span></a>  HINTS </span><span class="s2">${SYCL_ROOT}</span>
+<a name="l94"><span class="ln">94   </span></a>  <span class="s1">NO_DEFAULT_PATH 
+<a name="l95"><span class="ln">95   </span></a>  ) 
+<a name="l96"><span class="ln">96   </span></a></span>
+<a name="l97"><span class="ln">97   </span></a><span class="s0"># Define the old version of SYCL toolkit that is compatible with the current version of PyTorch.</span>
+<a name="l98"><span class="ln">98   </span></a><span class="s2">set</span><span class="s1">(PYTORCH_2_5_SYCL_TOOLKIT_VERSION 20249999) 
+<a name="l99"><span class="ln">99   </span></a></span>
+<a name="l100"><span class="ln">100  </span></a><span class="s0"># By default, we use libsycl.so on Linux and sycl.lib on Windows as the SYCL library name.</span>
+<a name="l101"><span class="ln">101  </span></a><span class="s2">if </span><span class="s1">(SYCL_COMPILER_VERSION VERSION_LESS_EQUAL PYTORCH_2_5_SYCL_TOOLKIT_VERSION) 
+<a name="l102"><span class="ln">102  </span></a>  </span><span class="s0"># Don't use if(WIN32) here since this requires cmake&gt;=3.25 and file is installed</span>
+<a name="l103"><span class="ln">103  </span></a>  <span class="s0"># and used by other projects.</span>
+<a name="l104"><span class="ln">104  </span></a>  <span class="s0"># See: https://cmake.org/cmake/help/v3.25/variable/LINUX.html</span>
+<a name="l105"><span class="ln">105  </span></a>  <span class="s2">if</span><span class="s1">(</span><span class="s4">CMAKE_SYSTEM_NAME </span><span class="s2">MATCHES </span><span class="s3">&quot;Windows&quot;</span><span class="s1">) 
+<a name="l106"><span class="ln">106  </span></a>    </span><span class="s0"># On Windows, the SYCL library is named sycl7.lib until PYTORCH_2_5_SYCL_TOOLKIT_VERSION.</span>
+<a name="l107"><span class="ln">107  </span></a>    <span class="s0"># sycl.lib is supported in the later version.</span>
+<a name="l108"><span class="ln">108  </span></a>    <span class="s2">set</span><span class="s1">(sycl_lib_suffix </span><span class="s3">&quot;7&quot;</span><span class="s1">) 
+<a name="l109"><span class="ln">109  </span></a>  </span><span class="s2">endif</span><span class="s1">() 
+<a name="l110"><span class="ln">110  </span></a></span><span class="s2">endif</span><span class="s1">() 
+<a name="l111"><span class="ln">111  </span></a></span>
+<a name="l112"><span class="ln">112  </span></a><span class="s0"># Find SYCL library fullname.</span>
+<a name="l113"><span class="ln">113  </span></a><span class="s2">find_library</span><span class="s1">( 
+<a name="l114"><span class="ln">114  </span></a>  SYCL_LIBRARY 
+<a name="l115"><span class="ln">115  </span></a>  </span><span class="s2">NAMES </span><span class="s3">&quot;sycl${sycl_lib_suffix}&quot;</span>
+<a name="l116"><span class="ln">116  </span></a>  <span class="s1">HINTS </span><span class="s2">${SYCL_LIBRARY_DIR}</span>
+<a name="l117"><span class="ln">117  </span></a>  <span class="s1">NO_DEFAULT_PATH 
+<a name="l118"><span class="ln">118  </span></a>) 
+<a name="l119"><span class="ln">119  </span></a></span>
+<a name="l120"><span class="ln">120  </span></a><span class="s0"># Find OpenCL library fullname, which is a dependency of oneDNN.</span>
+<a name="l121"><span class="ln">121  </span></a><span class="s2">find_library</span><span class="s1">( 
+<a name="l122"><span class="ln">122  </span></a>  OCL_LIBRARY 
+<a name="l123"><span class="ln">123  </span></a>  </span><span class="s2">NAMES </span><span class="s1">OpenCL 
+<a name="l124"><span class="ln">124  </span></a>  HINTS </span><span class="s2">${SYCL_LIBRARY_DIR}</span>
+<a name="l125"><span class="ln">125  </span></a>  <span class="s1">NO_DEFAULT_PATH 
+<a name="l126"><span class="ln">126  </span></a>) 
+<a name="l127"><span class="ln">127  </span></a></span>
+<a name="l128"><span class="ln">128  </span></a><span class="s2">if</span><span class="s1">((</span><span class="s2">NOT </span><span class="s1">SYCL_LIBRARY) </span><span class="s2">OR </span><span class="s1">(</span><span class="s2">NOT </span><span class="s1">OCL_LIBRARY)) 
+<a name="l129"><span class="ln">129  </span></a>  </span><span class="s2">set</span><span class="s1">(SYCL_FOUND </span><span class="s2">False</span><span class="s1">) 
+<a name="l130"><span class="ln">130  </span></a>  </span><span class="s2">set</span><span class="s1">(SYCL_REASON_FAILURE </span><span class="s3">&quot;SYCL library is incomplete!!&quot;</span><span class="s1">) 
+<a name="l131"><span class="ln">131  </span></a>  </span><span class="s2">set</span><span class="s1">(SYCL_NOT_FOUND_MESSAGE </span><span class="s3">&quot;${SYCL_REASON_FAILURE}&quot;</span><span class="s1">) 
+<a name="l132"><span class="ln">132  </span></a>  </span><span class="s2">return</span><span class="s1">() 
+<a name="l133"><span class="ln">133  </span></a></span><span class="s2">endif</span><span class="s1">() 
+<a name="l134"><span class="ln">134  </span></a></span>
+<a name="l135"><span class="ln">135  </span></a><span class="s1">find_package_handle_standard_args( 
+<a name="l136"><span class="ln">136  </span></a>  SYCL 
+<a name="l137"><span class="ln">137  </span></a>  FOUND_VAR SYCL_FOUND 
+<a name="l138"><span class="ln">138  </span></a>  REQUIRED_VARS SYCL_INCLUDE_DIR SYCL_LIBRARY_DIR SYCL_LIBRARY 
+<a name="l139"><span class="ln">139  </span></a>  REASON_FAILURE_MESSAGE </span><span class="s3">&quot;${SYCL_REASON_FAILURE}&quot;</span>
+<a name="l140"><span class="ln">140  </span></a>  <span class="s1">VERSION_VAR SYCL_COMPILER_VERSION 
+<a name="l141"><span class="ln">141  </span></a>  ) 
+<a name="l142"><span class="ln">142  </span></a></span></pre>
+</body>
+</html>

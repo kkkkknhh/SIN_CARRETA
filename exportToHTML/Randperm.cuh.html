@@ -1,0 +1,83 @@
+<html>
+<head>
+<title>Randperm.cuh</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #63a35c;}
+.s1 { color: #a71d5d;}
+.s2 { color: #333333;}
+.s3 { color: #183691;}
+.s4 { color: #969896;}
+.s5 { color: #795da3;}
+.s6 { color: #333333;}
+.s7 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+Randperm.cuh</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s3">ATen/cuda/CUDAGeneratorImpl.h</span><span class="s0">&gt;</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s3">ATen/cuda/CUDAGraphsUtils.cuh</span><span class="s0">&gt;</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s3">ATen/Utils.h</span><span class="s0">&gt;</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s3">curand.h</span><span class="s0">&gt;</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s3">curand_kernel.h</span><span class="s0">&gt;</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s3">curand_philox4x32_x.h</span><span class="s0">&gt;</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">namespace </span><span class="s0">{</span>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s0">// </span><span class="s4">See note [Algorithm of randperm] 
+<a name="l12"><span class="ln">12   </span></a></span><span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename T, typename scalar_t</span><span class="s0">&gt; 
+<a name="l13"><span class="ln">13   </span></a></span><span class="s1">__global__ </span><span class="s2">void </span><span class="s5">randperm_handle_duplicate_keys_kernel</span><span class="s0">(</span><span class="s6">T </span><span class="s1">*</span><span class="s7">keys</span><span class="s0">, </span><span class="s7">scalar_t </span><span class="s1">*</span><span class="s7">data</span><span class="s0">, </span><span class="s6">T </span><span class="s7">mask</span><span class="s0">, </span><span class="s1">int </span><span class="s7">n</span><span class="s0">, </span><span class="s6">at</span><span class="s0">::</span><span class="s6">PhiloxCudaState </span><span class="s7">philox_args</span><span class="s0">) {</span>
+<a name="l14"><span class="ln">14   </span></a>  <span class="s1">int </span><span class="s2">tid </span><span class="s1">= threadIdx</span><span class="s2">.x </span><span class="s1">+ blockDim</span><span class="s2">.x </span><span class="s1">* blockIdx</span><span class="s2">.x</span><span class="s0">;</span>
+<a name="l15"><span class="ln">15   </span></a>
+<a name="l16"><span class="ln">16   </span></a>  <span class="s0">// </span><span class="s4">find the beginning of islands 
+<a name="l17"><span class="ln">17   </span></a>  </span><span class="s1">if </span><span class="s0">(</span><span class="s2">tid </span><span class="s1">&gt;= </span><span class="s2">n </span><span class="s1">- </span><span class="s7">1</span><span class="s0">) </span><span class="s1">return</span><span class="s0">;  // </span><span class="s4">out of range 
+<a name="l18"><span class="ln">18   </span></a>  </span><span class="s1">if </span><span class="s0">((</span><span class="s7">keys</span><span class="s0">[</span><span class="s2">tid</span><span class="s0">] </span><span class="s1">&amp; </span><span class="s2">mask</span><span class="s0">) </span><span class="s1">!= </span><span class="s0">(</span><span class="s7">keys</span><span class="s0">[</span><span class="s2">tid </span><span class="s1">+ </span><span class="s7">1</span><span class="s0">] </span><span class="s1">&amp; </span><span class="s2">mask</span><span class="s0">)) </span><span class="s1">return</span><span class="s0">;  // </span><span class="s4">not in an island 
+<a name="l19"><span class="ln">19   </span></a>  </span><span class="s1">if </span><span class="s0">(</span><span class="s2">tid </span><span class="s1">!= </span><span class="s7">0 </span><span class="s1">&amp;&amp; </span><span class="s0">(</span><span class="s7">keys</span><span class="s0">[</span><span class="s2">tid</span><span class="s0">] </span><span class="s1">&amp; </span><span class="s2">mask</span><span class="s0">) </span><span class="s1">== </span><span class="s0">(</span><span class="s7">keys</span><span class="s0">[</span><span class="s2">tid </span><span class="s1">- </span><span class="s7">1</span><span class="s0">] </span><span class="s1">&amp; </span><span class="s2">mask</span><span class="s0">)) </span><span class="s1">return</span><span class="s0">;  // </span><span class="s4">not the beginning of an island 
+<a name="l20"><span class="ln">20   </span></a></span>
+<a name="l21"><span class="ln">21   </span></a>  <span class="s0">// </span><span class="s4">find the size of islands 
+<a name="l22"><span class="ln">22   </span></a>  </span><span class="s1">int </span><span class="s2">island_size </span><span class="s1">= </span><span class="s7">0</span><span class="s0">;</span>
+<a name="l23"><span class="ln">23   </span></a>  <span class="s1">do </span><span class="s0">{ </span><span class="s2">island_size</span><span class="s1">++</span><span class="s0">; }</span>
+<a name="l24"><span class="ln">24   </span></a>  <span class="s1">while </span><span class="s0">((</span><span class="s2">tid </span><span class="s1">+ </span><span class="s2">island_size </span><span class="s1">&lt; </span><span class="s2">n</span><span class="s0">) </span><span class="s1">&amp;&amp; </span><span class="s0">(</span><span class="s7">keys</span><span class="s0">[</span><span class="s2">tid </span><span class="s1">+ </span><span class="s2">island_size</span><span class="s0">] </span><span class="s1">&amp; </span><span class="s2">mask</span><span class="s0">) </span><span class="s1">== </span><span class="s0">(</span><span class="s7">keys</span><span class="s0">[</span><span class="s2">tid</span><span class="s0">] </span><span class="s1">&amp; </span><span class="s2">mask</span><span class="s0">));</span>
+<a name="l25"><span class="ln">25   </span></a>
+<a name="l26"><span class="ln">26   </span></a>  <span class="s0">// </span><span class="s4">do random permutation inside each island. 
+<a name="l27"><span class="ln">27   </span></a>  </span><span class="s2">data </span><span class="s1">+= </span><span class="s2">tid</span><span class="s0">;</span>
+<a name="l28"><span class="ln">28   </span></a>  <span class="s1">const auto </span><span class="s0">[</span><span class="s2">seed</span><span class="s0">, </span><span class="s2">offset</span><span class="s0">] </span><span class="s1">= </span><span class="s6">at</span><span class="s0">::</span><span class="s6">cuda</span><span class="s0">::</span><span class="s6">philox</span><span class="s0">::</span><span class="s5">unpack</span><span class="s0">(</span><span class="s2">philox_args</span><span class="s0">);</span>
+<a name="l29"><span class="ln">29   </span></a>  <span class="s7">curandStatePhilox4_32_10_t </span><span class="s2">state</span><span class="s0">;</span>
+<a name="l30"><span class="ln">30   </span></a>  <span class="s5">curand_init</span><span class="s0">(</span><span class="s2">seed</span><span class="s0">, </span><span class="s2">tid</span><span class="s0">, </span><span class="s2">offset</span><span class="s0">, </span><span class="s1">&amp;</span><span class="s2">state</span><span class="s0">);</span>
+<a name="l31"><span class="ln">31   </span></a>  <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">i </span><span class="s1">= </span><span class="s2">island_size </span><span class="s1">- </span><span class="s7">1</span><span class="s0">; </span><span class="s2">i </span><span class="s1">&gt; </span><span class="s7">0</span><span class="s0">; </span><span class="s2">i</span><span class="s1">--</span><span class="s0">) {</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s1">unsigned int </span><span class="s2">r </span><span class="s1">= </span><span class="s5">curand</span><span class="s0">(</span><span class="s1">&amp;</span><span class="s2">state</span><span class="s0">) </span><span class="s1">% </span><span class="s0">(</span><span class="s2">i </span><span class="s1">+ </span><span class="s7">1</span><span class="s0">);</span>
+<a name="l33"><span class="ln">33   </span></a>    <span class="s1">if </span><span class="s0">(</span><span class="s2">i </span><span class="s1">!= </span><span class="s2">r</span><span class="s0">) {</span>
+<a name="l34"><span class="ln">34   </span></a>      <span class="s7">scalar_t </span><span class="s2">tmp </span><span class="s1">= </span><span class="s7">data</span><span class="s0">[</span><span class="s2">i</span><span class="s0">];</span>
+<a name="l35"><span class="ln">35   </span></a>      <span class="s7">data</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] </span><span class="s1">= </span><span class="s7">data</span><span class="s0">[</span><span class="s2">r</span><span class="s0">];</span>
+<a name="l36"><span class="ln">36   </span></a>      <span class="s7">data</span><span class="s0">[</span><span class="s2">r</span><span class="s0">] </span><span class="s1">= </span><span class="s2">tmp</span><span class="s0">;</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s0">}</span>
+<a name="l38"><span class="ln">38   </span></a>  <span class="s0">}</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s0">}</span>
+<a name="l40"><span class="ln">40   </span></a>
+<a name="l41"><span class="ln">41   </span></a><span class="s0">// </span><span class="s4">See note [Algorithm of randperm] 
+<a name="l42"><span class="ln">42   </span></a></span><span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename T, typename scalar_t</span><span class="s0">&gt; 
+<a name="l43"><span class="ln">43   </span></a></span><span class="s2">void </span><span class="s5">randperm_handle_duplicate_keys</span><span class="s0">(</span><span class="s6">T </span><span class="s1">*</span><span class="s7">keys</span><span class="s0">, </span><span class="s7">scalar_t </span><span class="s1">*</span><span class="s7">data</span><span class="s0">, </span><span class="s1">int </span><span class="s7">bits</span><span class="s0">, </span><span class="s1">int64_t </span><span class="s7">n</span><span class="s0">, </span><span class="s6">std</span><span class="s0">::</span><span class="s6">optional</span><span class="s0">&lt;</span><span class="s6">at</span><span class="s0">::</span><span class="s6">Generator</span><span class="s0">&gt; </span><span class="s1">&amp;</span><span class="s7">gen_</span><span class="s0">) {</span>
+<a name="l44"><span class="ln">44   </span></a>  <span class="s1">auto </span><span class="s2">gen </span><span class="s1">= </span><span class="s6">at</span><span class="s0">::</span><span class="s5">get_generator_or_default</span><span class="s2">&lt;at::CUDAGeneratorImpl&gt;</span><span class="s0">(</span><span class="s2">gen_</span><span class="s0">, </span><span class="s6">at</span><span class="s0">::</span><span class="s6">cuda</span><span class="s0">::</span><span class="s6">detail</span><span class="s0">::</span><span class="s5">getDefaultCUDAGenerator</span><span class="s0">());</span>
+<a name="l45"><span class="ln">45   </span></a>  <span class="s1">int64_t </span><span class="s2">counter_offset </span><span class="s1">= </span><span class="s2">n</span><span class="s0">;</span>
+<a name="l46"><span class="ln">46   </span></a>  <span class="s6">at</span><span class="s0">::</span><span class="s2">PhiloxCudaState rng_engine_inputs</span><span class="s0">;</span>
+<a name="l47"><span class="ln">47   </span></a>  <span class="s0">{</span>
+<a name="l48"><span class="ln">48   </span></a>    <span class="s0">// </span><span class="s4">See Note [Acquire lock when using random generators] 
+<a name="l49"><span class="ln">49   </span></a>    </span><span class="s6">std</span><span class="s0">::</span><span class="s2">lock_guard</span><span class="s1">&lt;</span><span class="s6">std</span><span class="s0">::</span><span class="s2">mutex</span><span class="s1">&gt; </span><span class="s5">lock</span><span class="s0">(</span><span class="s7">gen</span><span class="s0">-&gt;</span><span class="s7">mutex_</span><span class="s0">);</span>
+<a name="l50"><span class="ln">50   </span></a>    <span class="s2">rng_engine_inputs </span><span class="s1">= </span><span class="s7">gen</span><span class="s0">-&gt;</span><span class="s5">philox_cuda_state</span><span class="s0">(</span><span class="s2">counter_offset</span><span class="s0">);</span>
+<a name="l51"><span class="ln">51   </span></a>  <span class="s0">}</span>
+<a name="l52"><span class="ln">52   </span></a>  <span class="s2">T mask </span><span class="s1">= static_cast&lt;</span><span class="s2">T</span><span class="s1">&gt;</span><span class="s0">((</span><span class="s7">1</span><span class="s1">UL &lt;&lt; </span><span class="s2">bits</span><span class="s0">) </span><span class="s1">- </span><span class="s7">1</span><span class="s0">);</span>
+<a name="l53"><span class="ln">53   </span></a>  <span class="s2">randperm_handle_duplicate_keys_kernel</span><span class="s1">&lt;&lt;&lt;</span><span class="s0">(</span><span class="s2">n </span><span class="s1">+ </span><span class="s7">511</span><span class="s0">) </span><span class="s1">/ </span><span class="s7">512</span><span class="s0">, </span><span class="s7">512</span><span class="s0">, </span><span class="s7">0</span><span class="s0">, </span><span class="s6">at</span><span class="s0">::</span><span class="s6">cuda</span><span class="s0">::</span><span class="s5">getCurrentCUDAStream</span><span class="s0">()</span><span class="s1">&gt;&gt;&gt;</span><span class="s0">(</span>
+<a name="l54"><span class="ln">54   </span></a>    <span class="s2">keys</span><span class="s0">, </span><span class="s2">data</span><span class="s0">, </span><span class="s2">mask</span><span class="s0">, </span><span class="s2">n</span><span class="s0">, </span><span class="s2">rng_engine_inputs</span><span class="s0">);</span>
+<a name="l55"><span class="ln">55   </span></a>  <span class="s5">C10_CUDA_KERNEL_LAUNCH_CHECK</span><span class="s0">();</span>
+<a name="l56"><span class="ln">56   </span></a><span class="s0">}</span>
+<a name="l57"><span class="ln">57   </span></a>
+<a name="l58"><span class="ln">58   </span></a><span class="s0">}</span>
+<a name="l59"><span class="ln">59   </span></a></pre>
+</body>
+</html>

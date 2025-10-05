@@ -1,0 +1,432 @@
+<html>
+<head>
+<title>qexpr.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #969896;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+qexpr.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">expr </span><span class="s0">import </span><span class="s1">Expr</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">symbol </span><span class="s0">import </span><span class="s1">Symbol</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">sympify </span><span class="s0">import </span><span class="s1">sympify</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">matrices</span><span class="s2">.</span><span class="s1">dense </span><span class="s0">import </span><span class="s1">Matrix</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">printing</span><span class="s2">.</span><span class="s1">pretty</span><span class="s2">.</span><span class="s1">stringpict </span><span class="s0">import </span><span class="s1">prettyForm</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">containers </span><span class="s0">import </span><span class="s1">Tuple</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">utilities</span><span class="s2">.</span><span class="s1">iterables </span><span class="s0">import </span><span class="s1">is_sequence</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">physics</span><span class="s2">.</span><span class="s1">quantum</span><span class="s2">.</span><span class="s1">dagger </span><span class="s0">import </span><span class="s1">Dagger</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">physics</span><span class="s2">.</span><span class="s1">quantum</span><span class="s2">.</span><span class="s1">matrixutils </span><span class="s0">import </span><span class="s2">(</span>
+<a name="l11"><span class="ln">11   </span></a>    <span class="s1">numpy_ndarray</span><span class="s2">, </span><span class="s1">scipy_sparse_matrix</span><span class="s2">,</span>
+<a name="l12"><span class="ln">12   </span></a>    <span class="s1">to_sympy</span><span class="s2">, </span><span class="s1">to_numpy</span><span class="s2">, </span><span class="s1">to_scipy_sparse</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">)</span>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s3">'QuantumError'</span><span class="s2">,</span>
+<a name="l17"><span class="ln">17   </span></a>    <span class="s3">'QExpr'</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s2">]</span>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s4">#-----------------------------------------------------------------------------</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s4"># Error handling</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s4">#-----------------------------------------------------------------------------</span>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a><span class="s0">class </span><span class="s1">QuantumError</span><span class="s2">(</span><span class="s1">Exception</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l26"><span class="ln">26   </span></a>    <span class="s0">pass</span>
+<a name="l27"><span class="ln">27   </span></a>
+<a name="l28"><span class="ln">28   </span></a>
+<a name="l29"><span class="ln">29   </span></a><span class="s0">def </span><span class="s1">_qsympify_sequence</span><span class="s2">(</span><span class="s1">seq</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l30"><span class="ln">30   </span></a>    <span class="s4">&quot;&quot;&quot;Convert elements of a sequence to standard form. 
+<a name="l31"><span class="ln">31   </span></a> 
+<a name="l32"><span class="ln">32   </span></a>    This is like sympify, but it performs special logic for arguments passed 
+<a name="l33"><span class="ln">33   </span></a>    to QExpr. The following conversions are done: 
+<a name="l34"><span class="ln">34   </span></a> 
+<a name="l35"><span class="ln">35   </span></a>    * (list, tuple, Tuple) =&gt; _qsympify_sequence each element and convert 
+<a name="l36"><span class="ln">36   </span></a>      sequence to a Tuple. 
+<a name="l37"><span class="ln">37   </span></a>    * basestring =&gt; Symbol 
+<a name="l38"><span class="ln">38   </span></a>    * Matrix =&gt; Matrix 
+<a name="l39"><span class="ln">39   </span></a>    * other =&gt; sympify 
+<a name="l40"><span class="ln">40   </span></a> 
+<a name="l41"><span class="ln">41   </span></a>    Strings are passed to Symbol, not sympify to make sure that variables like 
+<a name="l42"><span class="ln">42   </span></a>    'pi' are kept as Symbols, not the SymPy built-in number subclasses. 
+<a name="l43"><span class="ln">43   </span></a> 
+<a name="l44"><span class="ln">44   </span></a>    Examples 
+<a name="l45"><span class="ln">45   </span></a>    ======== 
+<a name="l46"><span class="ln">46   </span></a> 
+<a name="l47"><span class="ln">47   </span></a>    &gt;&gt;&gt; from sympy.physics.quantum.qexpr import _qsympify_sequence 
+<a name="l48"><span class="ln">48   </span></a>    &gt;&gt;&gt; _qsympify_sequence((1,2,[3,4,[1,]])) 
+<a name="l49"><span class="ln">49   </span></a>    (1, 2, (3, 4, (1,))) 
+<a name="l50"><span class="ln">50   </span></a> 
+<a name="l51"><span class="ln">51   </span></a>    &quot;&quot;&quot;</span>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a>    <span class="s0">return </span><span class="s1">tuple</span><span class="s2">(</span><span class="s1">__qsympify_sequence_helper</span><span class="s2">(</span><span class="s1">seq</span><span class="s2">))</span>
+<a name="l54"><span class="ln">54   </span></a>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a><span class="s0">def </span><span class="s1">__qsympify_sequence_helper</span><span class="s2">(</span><span class="s1">seq</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l58"><span class="ln">58   </span></a>       Helper function for _qsympify_sequence 
+<a name="l59"><span class="ln">59   </span></a>       This function does the actual work. 
+<a name="l60"><span class="ln">60   </span></a>    &quot;&quot;&quot;</span>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s4">#base case. If not a list, do Sympification</span>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s0">if not </span><span class="s1">is_sequence</span><span class="s2">(</span><span class="s1">seq</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l63"><span class="ln">63   </span></a>        <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">seq</span><span class="s2">, </span><span class="s1">Matrix</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l64"><span class="ln">64   </span></a>            <span class="s0">return </span><span class="s1">seq</span>
+<a name="l65"><span class="ln">65   </span></a>        <span class="s0">elif </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">seq</span><span class="s2">, </span><span class="s1">str</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l66"><span class="ln">66   </span></a>            <span class="s0">return </span><span class="s1">Symbol</span><span class="s2">(</span><span class="s1">seq</span><span class="s2">)</span>
+<a name="l67"><span class="ln">67   </span></a>        <span class="s0">else:</span>
+<a name="l68"><span class="ln">68   </span></a>            <span class="s0">return </span><span class="s1">sympify</span><span class="s2">(</span><span class="s1">seq</span><span class="s2">)</span>
+<a name="l69"><span class="ln">69   </span></a>
+<a name="l70"><span class="ln">70   </span></a>    <span class="s4"># base condition, when seq is QExpr and also</span>
+<a name="l71"><span class="ln">71   </span></a>    <span class="s4"># is iterable.</span>
+<a name="l72"><span class="ln">72   </span></a>    <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">seq</span><span class="s2">, </span><span class="s1">QExpr</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l73"><span class="ln">73   </span></a>        <span class="s0">return </span><span class="s1">seq</span>
+<a name="l74"><span class="ln">74   </span></a>
+<a name="l75"><span class="ln">75   </span></a>    <span class="s4">#if list, recurse on each item in the list</span>
+<a name="l76"><span class="ln">76   </span></a>    <span class="s1">result </span><span class="s0">= </span><span class="s2">[</span><span class="s1">__qsympify_sequence_helper</span><span class="s2">(</span><span class="s1">item</span><span class="s2">) </span><span class="s0">for </span><span class="s1">item </span><span class="s0">in </span><span class="s1">seq</span><span class="s2">]</span>
+<a name="l77"><span class="ln">77   </span></a>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s0">return </span><span class="s1">Tuple</span><span class="s2">(</span><span class="s0">*</span><span class="s1">result</span><span class="s2">)</span>
+<a name="l79"><span class="ln">79   </span></a>
+<a name="l80"><span class="ln">80   </span></a>
+<a name="l81"><span class="ln">81   </span></a><span class="s4">#-----------------------------------------------------------------------------</span>
+<a name="l82"><span class="ln">82   </span></a><span class="s4"># Basic Quantum Expression from which all objects descend</span>
+<a name="l83"><span class="ln">83   </span></a><span class="s4">#-----------------------------------------------------------------------------</span>
+<a name="l84"><span class="ln">84   </span></a>
+<a name="l85"><span class="ln">85   </span></a><span class="s0">class </span><span class="s1">QExpr</span><span class="s2">(</span><span class="s1">Expr</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l86"><span class="ln">86   </span></a>    <span class="s4">&quot;&quot;&quot;A base class for all quantum object like operators and states.&quot;&quot;&quot;</span>
+<a name="l87"><span class="ln">87   </span></a>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s4"># In sympy, slots are for instance attributes that are computed</span>
+<a name="l89"><span class="ln">89   </span></a>    <span class="s4"># dynamically by the __new__ method. They are not part of args, but they</span>
+<a name="l90"><span class="ln">90   </span></a>    <span class="s4"># derive from args.</span>
+<a name="l91"><span class="ln">91   </span></a>
+<a name="l92"><span class="ln">92   </span></a>    <span class="s4"># The Hilbert space a quantum Object belongs to.</span>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s1">__slots__ </span><span class="s0">= </span><span class="s2">(</span><span class="s3">'hilbert_space'</span><span class="s2">, )</span>
+<a name="l94"><span class="ln">94   </span></a>
+<a name="l95"><span class="ln">95   </span></a>    <span class="s1">is_commutative </span><span class="s0">= False</span>
+<a name="l96"><span class="ln">96   </span></a>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s4"># The separator used in printing the label.</span>
+<a name="l98"><span class="ln">98   </span></a>    <span class="s1">_label_separator </span><span class="s0">= </span><span class="s3">''</span>
+<a name="l99"><span class="ln">99   </span></a>
+<a name="l100"><span class="ln">100  </span></a>    <span class="s0">def </span><span class="s1">__new__</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">, </span><span class="s0">**</span><span class="s1">kwargs</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s4">&quot;&quot;&quot;Construct a new quantum object. 
+<a name="l102"><span class="ln">102  </span></a> 
+<a name="l103"><span class="ln">103  </span></a>        Parameters 
+<a name="l104"><span class="ln">104  </span></a>        ========== 
+<a name="l105"><span class="ln">105  </span></a> 
+<a name="l106"><span class="ln">106  </span></a>        args : tuple 
+<a name="l107"><span class="ln">107  </span></a>            The list of numbers or parameters that uniquely specify the 
+<a name="l108"><span class="ln">108  </span></a>            quantum object. For a state, this will be its symbol or its 
+<a name="l109"><span class="ln">109  </span></a>            set of quantum numbers. 
+<a name="l110"><span class="ln">110  </span></a> 
+<a name="l111"><span class="ln">111  </span></a>        Examples 
+<a name="l112"><span class="ln">112  </span></a>        ======== 
+<a name="l113"><span class="ln">113  </span></a> 
+<a name="l114"><span class="ln">114  </span></a>        &gt;&gt;&gt; from sympy.physics.quantum.qexpr import QExpr 
+<a name="l115"><span class="ln">115  </span></a>        &gt;&gt;&gt; q = QExpr(0) 
+<a name="l116"><span class="ln">116  </span></a>        &gt;&gt;&gt; q 
+<a name="l117"><span class="ln">117  </span></a>        0 
+<a name="l118"><span class="ln">118  </span></a>        &gt;&gt;&gt; q.label 
+<a name="l119"><span class="ln">119  </span></a>        (0,) 
+<a name="l120"><span class="ln">120  </span></a>        &gt;&gt;&gt; q.hilbert_space 
+<a name="l121"><span class="ln">121  </span></a>        H 
+<a name="l122"><span class="ln">122  </span></a>        &gt;&gt;&gt; q.args 
+<a name="l123"><span class="ln">123  </span></a>        (0,) 
+<a name="l124"><span class="ln">124  </span></a>        &gt;&gt;&gt; q.is_commutative 
+<a name="l125"><span class="ln">125  </span></a>        False 
+<a name="l126"><span class="ln">126  </span></a>        &quot;&quot;&quot;</span>
+<a name="l127"><span class="ln">127  </span></a>
+<a name="l128"><span class="ln">128  </span></a>        <span class="s4"># First compute args and call Expr.__new__ to create the instance</span>
+<a name="l129"><span class="ln">129  </span></a>        <span class="s1">args </span><span class="s0">= </span><span class="s1">cls</span><span class="s2">.</span><span class="s1">_eval_args</span><span class="s2">(</span><span class="s1">args</span><span class="s2">, </span><span class="s0">**</span><span class="s1">kwargs</span><span class="s2">)</span>
+<a name="l130"><span class="ln">130  </span></a>        <span class="s0">if </span><span class="s1">len</span><span class="s2">(</span><span class="s1">args</span><span class="s2">) </span><span class="s0">== </span><span class="s5">0</span><span class="s0">:</span>
+<a name="l131"><span class="ln">131  </span></a>            <span class="s1">args </span><span class="s0">= </span><span class="s1">cls</span><span class="s2">.</span><span class="s1">_eval_args</span><span class="s2">(</span><span class="s1">tuple</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">.</span><span class="s1">default_args</span><span class="s2">()), </span><span class="s0">**</span><span class="s1">kwargs</span><span class="s2">)</span>
+<a name="l132"><span class="ln">132  </span></a>        <span class="s1">inst </span><span class="s0">= </span><span class="s1">Expr</span><span class="s2">.</span><span class="s1">__new__</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l133"><span class="ln">133  </span></a>        <span class="s4"># Now set the slots on the instance</span>
+<a name="l134"><span class="ln">134  </span></a>        <span class="s1">inst</span><span class="s2">.</span><span class="s1">hilbert_space </span><span class="s0">= </span><span class="s1">cls</span><span class="s2">.</span><span class="s1">_eval_hilbert_space</span><span class="s2">(</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l135"><span class="ln">135  </span></a>        <span class="s0">return </span><span class="s1">inst</span>
+<a name="l136"><span class="ln">136  </span></a>
+<a name="l137"><span class="ln">137  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l138"><span class="ln">138  </span></a>    <span class="s0">def </span><span class="s1">_new_rawargs</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">hilbert_space</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">, </span><span class="s0">**</span><span class="s1">old_assumptions</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l139"><span class="ln">139  </span></a>        <span class="s4">&quot;&quot;&quot;Create new instance of this class with hilbert_space and args. 
+<a name="l140"><span class="ln">140  </span></a> 
+<a name="l141"><span class="ln">141  </span></a>        This is used to bypass the more complex logic in the ``__new__`` 
+<a name="l142"><span class="ln">142  </span></a>        method in cases where you already have the exact ``hilbert_space`` 
+<a name="l143"><span class="ln">143  </span></a>        and ``args``. This should be used when you are positive these 
+<a name="l144"><span class="ln">144  </span></a>        arguments are valid, in their final, proper form and want to optimize 
+<a name="l145"><span class="ln">145  </span></a>        the creation of the object. 
+<a name="l146"><span class="ln">146  </span></a>        &quot;&quot;&quot;</span>
+<a name="l147"><span class="ln">147  </span></a>
+<a name="l148"><span class="ln">148  </span></a>        <span class="s1">obj </span><span class="s0">= </span><span class="s1">Expr</span><span class="s2">.</span><span class="s1">__new__</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">, </span><span class="s0">**</span><span class="s1">old_assumptions</span><span class="s2">)</span>
+<a name="l149"><span class="ln">149  </span></a>        <span class="s1">obj</span><span class="s2">.</span><span class="s1">hilbert_space </span><span class="s0">= </span><span class="s1">hilbert_space</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s0">return </span><span class="s1">obj</span>
+<a name="l151"><span class="ln">151  </span></a>
+<a name="l152"><span class="ln">152  </span></a>    <span class="s4">#-------------------------------------------------------------------------</span>
+<a name="l153"><span class="ln">153  </span></a>    <span class="s4"># Properties</span>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s4">#-------------------------------------------------------------------------</span>
+<a name="l155"><span class="ln">155  </span></a>
+<a name="l156"><span class="ln">156  </span></a>    <span class="s0">@</span><span class="s1">property</span>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s0">def </span><span class="s1">label</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s4">&quot;&quot;&quot;The label is the unique set of identifiers for the object. 
+<a name="l159"><span class="ln">159  </span></a> 
+<a name="l160"><span class="ln">160  </span></a>        Usually, this will include all of the information about the state 
+<a name="l161"><span class="ln">161  </span></a>        *except* the time (in the case of time-dependent objects). 
+<a name="l162"><span class="ln">162  </span></a> 
+<a name="l163"><span class="ln">163  </span></a>        This must be a tuple, rather than a Tuple. 
+<a name="l164"><span class="ln">164  </span></a>        &quot;&quot;&quot;</span>
+<a name="l165"><span class="ln">165  </span></a>        <span class="s0">if </span><span class="s1">len</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">args</span><span class="s2">) </span><span class="s0">== </span><span class="s5">0</span><span class="s0">:  </span><span class="s4"># If there is no label specified, return the default</span>
+<a name="l166"><span class="ln">166  </span></a>            <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_eval_args</span><span class="s2">(</span><span class="s1">list</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">default_args</span><span class="s2">()))</span>
+<a name="l167"><span class="ln">167  </span></a>        <span class="s0">else:</span>
+<a name="l168"><span class="ln">168  </span></a>            <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">args</span>
+<a name="l169"><span class="ln">169  </span></a>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s0">@</span><span class="s1">property</span>
+<a name="l171"><span class="ln">171  </span></a>    <span class="s0">def </span><span class="s1">is_symbolic</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l172"><span class="ln">172  </span></a>        <span class="s0">return True</span>
+<a name="l173"><span class="ln">173  </span></a>
+<a name="l174"><span class="ln">174  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l175"><span class="ln">175  </span></a>    <span class="s0">def </span><span class="s1">default_args</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l176"><span class="ln">176  </span></a>        <span class="s4">&quot;&quot;&quot;If no arguments are specified, then this will return a default set 
+<a name="l177"><span class="ln">177  </span></a>        of arguments to be run through the constructor. 
+<a name="l178"><span class="ln">178  </span></a> 
+<a name="l179"><span class="ln">179  </span></a>        NOTE: Any classes that override this MUST return a tuple of arguments. 
+<a name="l180"><span class="ln">180  </span></a>        Should be overridden by subclasses to specify the default arguments for kets and operators 
+<a name="l181"><span class="ln">181  </span></a>        &quot;&quot;&quot;</span>
+<a name="l182"><span class="ln">182  </span></a>        <span class="s0">raise </span><span class="s1">NotImplementedError</span><span class="s2">(</span><span class="s3">&quot;No default arguments for this class!&quot;</span><span class="s2">)</span>
+<a name="l183"><span class="ln">183  </span></a>
+<a name="l184"><span class="ln">184  </span></a>    <span class="s4">#-------------------------------------------------------------------------</span>
+<a name="l185"><span class="ln">185  </span></a>    <span class="s4"># _eval_* methods</span>
+<a name="l186"><span class="ln">186  </span></a>    <span class="s4">#-------------------------------------------------------------------------</span>
+<a name="l187"><span class="ln">187  </span></a>
+<a name="l188"><span class="ln">188  </span></a>    <span class="s0">def </span><span class="s1">_eval_adjoint</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l189"><span class="ln">189  </span></a>        <span class="s1">obj </span><span class="s0">= </span><span class="s1">Expr</span><span class="s2">.</span><span class="s1">_eval_adjoint</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span>
+<a name="l190"><span class="ln">190  </span></a>        <span class="s0">if </span><span class="s1">obj </span><span class="s0">is None:</span>
+<a name="l191"><span class="ln">191  </span></a>            <span class="s1">obj </span><span class="s0">= </span><span class="s1">Expr</span><span class="s2">.</span><span class="s1">__new__</span><span class="s2">(</span><span class="s1">Dagger</span><span class="s2">, </span><span class="s1">self</span><span class="s2">)</span>
+<a name="l192"><span class="ln">192  </span></a>        <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">obj</span><span class="s2">, </span><span class="s1">QExpr</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l193"><span class="ln">193  </span></a>            <span class="s1">obj</span><span class="s2">.</span><span class="s1">hilbert_space </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">hilbert_space</span>
+<a name="l194"><span class="ln">194  </span></a>        <span class="s0">return </span><span class="s1">obj</span>
+<a name="l195"><span class="ln">195  </span></a>
+<a name="l196"><span class="ln">196  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l197"><span class="ln">197  </span></a>    <span class="s0">def </span><span class="s1">_eval_args</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l198"><span class="ln">198  </span></a>        <span class="s4">&quot;&quot;&quot;Process the args passed to the __new__ method. 
+<a name="l199"><span class="ln">199  </span></a> 
+<a name="l200"><span class="ln">200  </span></a>        This simply runs args through _qsympify_sequence. 
+<a name="l201"><span class="ln">201  </span></a>        &quot;&quot;&quot;</span>
+<a name="l202"><span class="ln">202  </span></a>        <span class="s0">return </span><span class="s1">_qsympify_sequence</span><span class="s2">(</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l203"><span class="ln">203  </span></a>
+<a name="l204"><span class="ln">204  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l205"><span class="ln">205  </span></a>    <span class="s0">def </span><span class="s1">_eval_hilbert_space</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l206"><span class="ln">206  </span></a>        <span class="s4">&quot;&quot;&quot;Compute the Hilbert space instance from the args. 
+<a name="l207"><span class="ln">207  </span></a>        &quot;&quot;&quot;</span>
+<a name="l208"><span class="ln">208  </span></a>        <span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">physics</span><span class="s2">.</span><span class="s1">quantum</span><span class="s2">.</span><span class="s1">hilbert </span><span class="s0">import </span><span class="s1">HilbertSpace</span>
+<a name="l209"><span class="ln">209  </span></a>        <span class="s0">return </span><span class="s1">HilbertSpace</span><span class="s2">()</span>
+<a name="l210"><span class="ln">210  </span></a>
+<a name="l211"><span class="ln">211  </span></a>    <span class="s4">#-------------------------------------------------------------------------</span>
+<a name="l212"><span class="ln">212  </span></a>    <span class="s4"># Printing</span>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s4">#-------------------------------------------------------------------------</span>
+<a name="l214"><span class="ln">214  </span></a>
+<a name="l215"><span class="ln">215  </span></a>    <span class="s4"># Utilities for printing: these operate on raw SymPy objects</span>
+<a name="l216"><span class="ln">216  </span></a>
+<a name="l217"><span class="ln">217  </span></a>    <span class="s0">def </span><span class="s1">_print_sequence</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">seq</span><span class="s2">, </span><span class="s1">sep</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l218"><span class="ln">218  </span></a>        <span class="s1">result </span><span class="s0">= </span><span class="s2">[]</span>
+<a name="l219"><span class="ln">219  </span></a>        <span class="s0">for </span><span class="s1">item </span><span class="s0">in </span><span class="s1">seq</span><span class="s0">:</span>
+<a name="l220"><span class="ln">220  </span></a>            <span class="s1">result</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">printer</span><span class="s2">.</span><span class="s1">_print</span><span class="s2">(</span><span class="s1">item</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">))</span>
+<a name="l221"><span class="ln">221  </span></a>        <span class="s0">return </span><span class="s1">sep</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s1">result</span><span class="s2">)</span>
+<a name="l222"><span class="ln">222  </span></a>
+<a name="l223"><span class="ln">223  </span></a>    <span class="s0">def </span><span class="s1">_print_sequence_pretty</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">seq</span><span class="s2">, </span><span class="s1">sep</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l224"><span class="ln">224  </span></a>        <span class="s1">pform </span><span class="s0">= </span><span class="s1">printer</span><span class="s2">.</span><span class="s1">_print</span><span class="s2">(</span><span class="s1">seq</span><span class="s2">[</span><span class="s5">0</span><span class="s2">], </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l225"><span class="ln">225  </span></a>        <span class="s0">for </span><span class="s1">item </span><span class="s0">in </span><span class="s1">seq</span><span class="s2">[</span><span class="s5">1</span><span class="s0">:</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l226"><span class="ln">226  </span></a>            <span class="s1">pform </span><span class="s0">= </span><span class="s1">prettyForm</span><span class="s2">(</span><span class="s0">*</span><span class="s1">pform</span><span class="s2">.</span><span class="s1">right</span><span class="s2">(</span><span class="s1">sep</span><span class="s2">))</span>
+<a name="l227"><span class="ln">227  </span></a>            <span class="s1">pform </span><span class="s0">= </span><span class="s1">prettyForm</span><span class="s2">(</span><span class="s0">*</span><span class="s1">pform</span><span class="s2">.</span><span class="s1">right</span><span class="s2">(</span><span class="s1">printer</span><span class="s2">.</span><span class="s1">_print</span><span class="s2">(</span><span class="s1">item</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)))</span>
+<a name="l228"><span class="ln">228  </span></a>        <span class="s0">return </span><span class="s1">pform</span>
+<a name="l229"><span class="ln">229  </span></a>
+<a name="l230"><span class="ln">230  </span></a>    <span class="s4"># Utilities for printing: these operate prettyForm objects</span>
+<a name="l231"><span class="ln">231  </span></a>
+<a name="l232"><span class="ln">232  </span></a>    <span class="s0">def </span><span class="s1">_print_subscript_pretty</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l233"><span class="ln">233  </span></a>        <span class="s1">top </span><span class="s0">= </span><span class="s1">prettyForm</span><span class="s2">(</span><span class="s0">*</span><span class="s1">b</span><span class="s2">.</span><span class="s1">left</span><span class="s2">(</span><span class="s3">' '</span><span class="s0">*</span><span class="s1">a</span><span class="s2">.</span><span class="s1">width</span><span class="s2">()))</span>
+<a name="l234"><span class="ln">234  </span></a>        <span class="s1">bot </span><span class="s0">= </span><span class="s1">prettyForm</span><span class="s2">(</span><span class="s0">*</span><span class="s1">a</span><span class="s2">.</span><span class="s1">right</span><span class="s2">(</span><span class="s3">' '</span><span class="s0">*</span><span class="s1">b</span><span class="s2">.</span><span class="s1">width</span><span class="s2">()))</span>
+<a name="l235"><span class="ln">235  </span></a>        <span class="s0">return </span><span class="s1">prettyForm</span><span class="s2">(</span><span class="s1">binding</span><span class="s0">=</span><span class="s1">prettyForm</span><span class="s2">.</span><span class="s1">POW</span><span class="s2">, </span><span class="s0">*</span><span class="s1">bot</span><span class="s2">.</span><span class="s1">below</span><span class="s2">(</span><span class="s1">top</span><span class="s2">))</span>
+<a name="l236"><span class="ln">236  </span></a>
+<a name="l237"><span class="ln">237  </span></a>    <span class="s0">def </span><span class="s1">_print_superscript_pretty</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l238"><span class="ln">238  </span></a>        <span class="s0">return </span><span class="s1">a</span><span class="s0">**</span><span class="s1">b</span>
+<a name="l239"><span class="ln">239  </span></a>
+<a name="l240"><span class="ln">240  </span></a>    <span class="s0">def </span><span class="s1">_print_parens_pretty</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">pform</span><span class="s2">, </span><span class="s1">left</span><span class="s0">=</span><span class="s3">'('</span><span class="s2">, </span><span class="s1">right</span><span class="s0">=</span><span class="s3">')'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l241"><span class="ln">241  </span></a>        <span class="s0">return </span><span class="s1">prettyForm</span><span class="s2">(</span><span class="s0">*</span><span class="s1">pform</span><span class="s2">.</span><span class="s1">parens</span><span class="s2">(</span><span class="s1">left</span><span class="s0">=</span><span class="s1">left</span><span class="s2">, </span><span class="s1">right</span><span class="s0">=</span><span class="s1">right</span><span class="s2">))</span>
+<a name="l242"><span class="ln">242  </span></a>
+<a name="l243"><span class="ln">243  </span></a>    <span class="s4"># Printing of labels (i.e. args)</span>
+<a name="l244"><span class="ln">244  </span></a>
+<a name="l245"><span class="ln">245  </span></a>    <span class="s0">def </span><span class="s1">_print_label</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l246"><span class="ln">246  </span></a>        <span class="s4">&quot;&quot;&quot;Prints the label of the QExpr 
+<a name="l247"><span class="ln">247  </span></a> 
+<a name="l248"><span class="ln">248  </span></a>        This method prints self.label, using self._label_separator to separate 
+<a name="l249"><span class="ln">249  </span></a>        the elements. This method should not be overridden, instead, override 
+<a name="l250"><span class="ln">250  </span></a>        _print_contents to change printing behavior. 
+<a name="l251"><span class="ln">251  </span></a>        &quot;&quot;&quot;</span>
+<a name="l252"><span class="ln">252  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_print_sequence</span><span class="s2">(</span>
+<a name="l253"><span class="ln">253  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">label</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_label_separator</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span>
+<a name="l254"><span class="ln">254  </span></a>        <span class="s2">)</span>
+<a name="l255"><span class="ln">255  </span></a>
+<a name="l256"><span class="ln">256  </span></a>    <span class="s0">def </span><span class="s1">_print_label_repr</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l257"><span class="ln">257  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_print_sequence</span><span class="s2">(</span>
+<a name="l258"><span class="ln">258  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">label</span><span class="s2">, </span><span class="s3">','</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span>
+<a name="l259"><span class="ln">259  </span></a>        <span class="s2">)</span>
+<a name="l260"><span class="ln">260  </span></a>
+<a name="l261"><span class="ln">261  </span></a>    <span class="s0">def </span><span class="s1">_print_label_pretty</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l262"><span class="ln">262  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_print_sequence_pretty</span><span class="s2">(</span>
+<a name="l263"><span class="ln">263  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">label</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_label_separator</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span>
+<a name="l264"><span class="ln">264  </span></a>        <span class="s2">)</span>
+<a name="l265"><span class="ln">265  </span></a>
+<a name="l266"><span class="ln">266  </span></a>    <span class="s0">def </span><span class="s1">_print_label_latex</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l267"><span class="ln">267  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_print_sequence</span><span class="s2">(</span>
+<a name="l268"><span class="ln">268  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">label</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_label_separator</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span>
+<a name="l269"><span class="ln">269  </span></a>        <span class="s2">)</span>
+<a name="l270"><span class="ln">270  </span></a>
+<a name="l271"><span class="ln">271  </span></a>    <span class="s4"># Printing of contents (default to label)</span>
+<a name="l272"><span class="ln">272  </span></a>
+<a name="l273"><span class="ln">273  </span></a>    <span class="s0">def </span><span class="s1">_print_contents</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l274"><span class="ln">274  </span></a>        <span class="s4">&quot;&quot;&quot;Printer for contents of QExpr 
+<a name="l275"><span class="ln">275  </span></a> 
+<a name="l276"><span class="ln">276  </span></a>        Handles the printing of any unique identifying contents of a QExpr to 
+<a name="l277"><span class="ln">277  </span></a>        print as its contents, such as any variables or quantum numbers. The 
+<a name="l278"><span class="ln">278  </span></a>        default is to print the label, which is almost always the args. This 
+<a name="l279"><span class="ln">279  </span></a>        should not include printing of any brackets or parentheses. 
+<a name="l280"><span class="ln">280  </span></a>        &quot;&quot;&quot;</span>
+<a name="l281"><span class="ln">281  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_print_label</span><span class="s2">(</span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l282"><span class="ln">282  </span></a>
+<a name="l283"><span class="ln">283  </span></a>    <span class="s0">def </span><span class="s1">_print_contents_pretty</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l284"><span class="ln">284  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_print_label_pretty</span><span class="s2">(</span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l285"><span class="ln">285  </span></a>
+<a name="l286"><span class="ln">286  </span></a>    <span class="s0">def </span><span class="s1">_print_contents_latex</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l287"><span class="ln">287  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_print_label_latex</span><span class="s2">(</span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l288"><span class="ln">288  </span></a>
+<a name="l289"><span class="ln">289  </span></a>    <span class="s4"># Main printing methods</span>
+<a name="l290"><span class="ln">290  </span></a>
+<a name="l291"><span class="ln">291  </span></a>    <span class="s0">def </span><span class="s1">_sympystr</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l292"><span class="ln">292  </span></a>        <span class="s4">&quot;&quot;&quot;Default printing behavior of QExpr objects 
+<a name="l293"><span class="ln">293  </span></a> 
+<a name="l294"><span class="ln">294  </span></a>        Handles the default printing of a QExpr. To add other things to the 
+<a name="l295"><span class="ln">295  </span></a>        printing of the object, such as an operator name to operators or 
+<a name="l296"><span class="ln">296  </span></a>        brackets to states, the class should override the _print/_pretty/_latex 
+<a name="l297"><span class="ln">297  </span></a>        functions directly and make calls to _print_contents where appropriate. 
+<a name="l298"><span class="ln">298  </span></a>        This allows things like InnerProduct to easily control its printing the 
+<a name="l299"><span class="ln">299  </span></a>        printing of contents. 
+<a name="l300"><span class="ln">300  </span></a>        &quot;&quot;&quot;</span>
+<a name="l301"><span class="ln">301  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_print_contents</span><span class="s2">(</span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l302"><span class="ln">302  </span></a>
+<a name="l303"><span class="ln">303  </span></a>    <span class="s0">def </span><span class="s1">_sympyrepr</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l304"><span class="ln">304  </span></a>        <span class="s1">classname </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">__class__</span><span class="s2">.</span><span class="s1">__name__</span>
+<a name="l305"><span class="ln">305  </span></a>        <span class="s1">label </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_print_label_repr</span><span class="s2">(</span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l306"><span class="ln">306  </span></a>        <span class="s0">return </span><span class="s3">'%s(%s)' </span><span class="s0">% </span><span class="s2">(</span><span class="s1">classname</span><span class="s2">, </span><span class="s1">label</span><span class="s2">)</span>
+<a name="l307"><span class="ln">307  </span></a>
+<a name="l308"><span class="ln">308  </span></a>    <span class="s0">def </span><span class="s1">_pretty</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l309"><span class="ln">309  </span></a>        <span class="s1">pform </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_print_contents_pretty</span><span class="s2">(</span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l310"><span class="ln">310  </span></a>        <span class="s0">return </span><span class="s1">pform</span>
+<a name="l311"><span class="ln">311  </span></a>
+<a name="l312"><span class="ln">312  </span></a>    <span class="s0">def </span><span class="s1">_latex</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l313"><span class="ln">313  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_print_contents_latex</span><span class="s2">(</span><span class="s1">printer</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l314"><span class="ln">314  </span></a>
+<a name="l315"><span class="ln">315  </span></a>    <span class="s4">#-------------------------------------------------------------------------</span>
+<a name="l316"><span class="ln">316  </span></a>    <span class="s4"># Represent</span>
+<a name="l317"><span class="ln">317  </span></a>    <span class="s4">#-------------------------------------------------------------------------</span>
+<a name="l318"><span class="ln">318  </span></a>
+<a name="l319"><span class="ln">319  </span></a>    <span class="s0">def </span><span class="s1">_represent_default_basis</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s0">**</span><span class="s1">options</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l320"><span class="ln">320  </span></a>        <span class="s0">raise </span><span class="s1">NotImplementedError</span><span class="s2">(</span><span class="s3">'This object does not have a default basis'</span><span class="s2">)</span>
+<a name="l321"><span class="ln">321  </span></a>
+<a name="l322"><span class="ln">322  </span></a>    <span class="s0">def </span><span class="s1">_represent</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s0">*</span><span class="s2">, </span><span class="s1">basis</span><span class="s0">=None</span><span class="s2">, </span><span class="s0">**</span><span class="s1">options</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l323"><span class="ln">323  </span></a>        <span class="s4">&quot;&quot;&quot;Represent this object in a given basis. 
+<a name="l324"><span class="ln">324  </span></a> 
+<a name="l325"><span class="ln">325  </span></a>        This method dispatches to the actual methods that perform the 
+<a name="l326"><span class="ln">326  </span></a>        representation. Subclases of QExpr should define various methods to 
+<a name="l327"><span class="ln">327  </span></a>        determine how the object will be represented in various bases. The 
+<a name="l328"><span class="ln">328  </span></a>        format of these methods is:: 
+<a name="l329"><span class="ln">329  </span></a> 
+<a name="l330"><span class="ln">330  </span></a>            def _represent_BasisName(self, basis, **options): 
+<a name="l331"><span class="ln">331  </span></a> 
+<a name="l332"><span class="ln">332  </span></a>        Thus to define how a quantum object is represented in the basis of 
+<a name="l333"><span class="ln">333  </span></a>        the operator Position, you would define:: 
+<a name="l334"><span class="ln">334  </span></a> 
+<a name="l335"><span class="ln">335  </span></a>            def _represent_Position(self, basis, **options): 
+<a name="l336"><span class="ln">336  </span></a> 
+<a name="l337"><span class="ln">337  </span></a>        Usually, basis object will be instances of Operator subclasses, but 
+<a name="l338"><span class="ln">338  </span></a>        there is a chance we will relax this in the future to accommodate other 
+<a name="l339"><span class="ln">339  </span></a>        types of basis sets that are not associated with an operator. 
+<a name="l340"><span class="ln">340  </span></a> 
+<a name="l341"><span class="ln">341  </span></a>        If the ``format`` option is given it can be (&quot;sympy&quot;, &quot;numpy&quot;, 
+<a name="l342"><span class="ln">342  </span></a>        &quot;scipy.sparse&quot;). This will ensure that any matrices that result from 
+<a name="l343"><span class="ln">343  </span></a>        representing the object are returned in the appropriate matrix format. 
+<a name="l344"><span class="ln">344  </span></a> 
+<a name="l345"><span class="ln">345  </span></a>        Parameters 
+<a name="l346"><span class="ln">346  </span></a>        ========== 
+<a name="l347"><span class="ln">347  </span></a> 
+<a name="l348"><span class="ln">348  </span></a>        basis : Operator 
+<a name="l349"><span class="ln">349  </span></a>            The Operator whose basis functions will be used as the basis for 
+<a name="l350"><span class="ln">350  </span></a>            representation. 
+<a name="l351"><span class="ln">351  </span></a>        options : dict 
+<a name="l352"><span class="ln">352  </span></a>            A dictionary of key/value pairs that give options and hints for 
+<a name="l353"><span class="ln">353  </span></a>            the representation, such as the number of basis functions to 
+<a name="l354"><span class="ln">354  </span></a>            be used. 
+<a name="l355"><span class="ln">355  </span></a>        &quot;&quot;&quot;</span>
+<a name="l356"><span class="ln">356  </span></a>        <span class="s0">if </span><span class="s1">basis </span><span class="s0">is None:</span>
+<a name="l357"><span class="ln">357  </span></a>            <span class="s1">result </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_represent_default_basis</span><span class="s2">(</span><span class="s0">**</span><span class="s1">options</span><span class="s2">)</span>
+<a name="l358"><span class="ln">358  </span></a>        <span class="s0">else:</span>
+<a name="l359"><span class="ln">359  </span></a>            <span class="s1">result </span><span class="s0">= </span><span class="s1">dispatch_method</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s3">'_represent'</span><span class="s2">, </span><span class="s1">basis</span><span class="s2">, </span><span class="s0">**</span><span class="s1">options</span><span class="s2">)</span>
+<a name="l360"><span class="ln">360  </span></a>
+<a name="l361"><span class="ln">361  </span></a>        <span class="s4"># If we get a matrix representation, convert it to the right format.</span>
+<a name="l362"><span class="ln">362  </span></a>        <span class="s1">format </span><span class="s0">= </span><span class="s1">options</span><span class="s2">.</span><span class="s1">get</span><span class="s2">(</span><span class="s3">'format'</span><span class="s2">, </span><span class="s3">'sympy'</span><span class="s2">)</span>
+<a name="l363"><span class="ln">363  </span></a>        <span class="s1">result </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_format_represent</span><span class="s2">(</span><span class="s1">result</span><span class="s2">, </span><span class="s1">format</span><span class="s2">)</span>
+<a name="l364"><span class="ln">364  </span></a>        <span class="s0">return </span><span class="s1">result</span>
+<a name="l365"><span class="ln">365  </span></a>
+<a name="l366"><span class="ln">366  </span></a>    <span class="s0">def </span><span class="s1">_format_represent</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">result</span><span class="s2">, </span><span class="s1">format</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l367"><span class="ln">367  </span></a>        <span class="s0">if </span><span class="s1">format </span><span class="s0">== </span><span class="s3">'sympy' </span><span class="s0">and not </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">result</span><span class="s2">, </span><span class="s1">Matrix</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l368"><span class="ln">368  </span></a>            <span class="s0">return </span><span class="s1">to_sympy</span><span class="s2">(</span><span class="s1">result</span><span class="s2">)</span>
+<a name="l369"><span class="ln">369  </span></a>        <span class="s0">elif </span><span class="s1">format </span><span class="s0">== </span><span class="s3">'numpy' </span><span class="s0">and not </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">result</span><span class="s2">, </span><span class="s1">numpy_ndarray</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l370"><span class="ln">370  </span></a>            <span class="s0">return </span><span class="s1">to_numpy</span><span class="s2">(</span><span class="s1">result</span><span class="s2">)</span>
+<a name="l371"><span class="ln">371  </span></a>        <span class="s0">elif </span><span class="s1">format </span><span class="s0">== </span><span class="s3">'scipy.sparse' </span><span class="s0">and </span><span class="s1">\</span>
+<a name="l372"><span class="ln">372  </span></a>                <span class="s0">not </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">result</span><span class="s2">, </span><span class="s1">scipy_sparse_matrix</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l373"><span class="ln">373  </span></a>            <span class="s0">return </span><span class="s1">to_scipy_sparse</span><span class="s2">(</span><span class="s1">result</span><span class="s2">)</span>
+<a name="l374"><span class="ln">374  </span></a>
+<a name="l375"><span class="ln">375  </span></a>        <span class="s0">return </span><span class="s1">result</span>
+<a name="l376"><span class="ln">376  </span></a>
+<a name="l377"><span class="ln">377  </span></a>
+<a name="l378"><span class="ln">378  </span></a><span class="s0">def </span><span class="s1">split_commutative_parts</span><span class="s2">(</span><span class="s1">e</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l379"><span class="ln">379  </span></a>    <span class="s4">&quot;&quot;&quot;Split into commutative and non-commutative parts.&quot;&quot;&quot;</span>
+<a name="l380"><span class="ln">380  </span></a>    <span class="s1">c_part</span><span class="s2">, </span><span class="s1">nc_part </span><span class="s0">= </span><span class="s1">e</span><span class="s2">.</span><span class="s1">args_cnc</span><span class="s2">()</span>
+<a name="l381"><span class="ln">381  </span></a>    <span class="s1">c_part </span><span class="s0">= </span><span class="s1">list</span><span class="s2">(</span><span class="s1">c_part</span><span class="s2">)</span>
+<a name="l382"><span class="ln">382  </span></a>    <span class="s0">return </span><span class="s1">c_part</span><span class="s2">, </span><span class="s1">nc_part</span>
+<a name="l383"><span class="ln">383  </span></a>
+<a name="l384"><span class="ln">384  </span></a>
+<a name="l385"><span class="ln">385  </span></a><span class="s0">def </span><span class="s1">split_qexpr_parts</span><span class="s2">(</span><span class="s1">e</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l386"><span class="ln">386  </span></a>    <span class="s4">&quot;&quot;&quot;Split an expression into Expr and noncommutative QExpr parts.&quot;&quot;&quot;</span>
+<a name="l387"><span class="ln">387  </span></a>    <span class="s1">expr_part </span><span class="s0">= </span><span class="s2">[]</span>
+<a name="l388"><span class="ln">388  </span></a>    <span class="s1">qexpr_part </span><span class="s0">= </span><span class="s2">[]</span>
+<a name="l389"><span class="ln">389  </span></a>    <span class="s0">for </span><span class="s1">arg </span><span class="s0">in </span><span class="s1">e</span><span class="s2">.</span><span class="s1">args</span><span class="s0">:</span>
+<a name="l390"><span class="ln">390  </span></a>        <span class="s0">if not </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">arg</span><span class="s2">, </span><span class="s1">QExpr</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l391"><span class="ln">391  </span></a>            <span class="s1">expr_part</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">arg</span><span class="s2">)</span>
+<a name="l392"><span class="ln">392  </span></a>        <span class="s0">else:</span>
+<a name="l393"><span class="ln">393  </span></a>            <span class="s1">qexpr_part</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">arg</span><span class="s2">)</span>
+<a name="l394"><span class="ln">394  </span></a>    <span class="s0">return </span><span class="s1">expr_part</span><span class="s2">, </span><span class="s1">qexpr_part</span>
+<a name="l395"><span class="ln">395  </span></a>
+<a name="l396"><span class="ln">396  </span></a>
+<a name="l397"><span class="ln">397  </span></a><span class="s0">def </span><span class="s1">dispatch_method</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">basename</span><span class="s2">, </span><span class="s1">arg</span><span class="s2">, </span><span class="s0">**</span><span class="s1">options</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l398"><span class="ln">398  </span></a>    <span class="s4">&quot;&quot;&quot;Dispatch a method to the proper handlers.&quot;&quot;&quot;</span>
+<a name="l399"><span class="ln">399  </span></a>    <span class="s1">method_name </span><span class="s0">= </span><span class="s3">'%s_%s' </span><span class="s0">% </span><span class="s2">(</span><span class="s1">basename</span><span class="s2">, </span><span class="s1">arg</span><span class="s2">.</span><span class="s1">__class__</span><span class="s2">.</span><span class="s1">__name__</span><span class="s2">)</span>
+<a name="l400"><span class="ln">400  </span></a>    <span class="s0">if </span><span class="s1">hasattr</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">method_name</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l401"><span class="ln">401  </span></a>        <span class="s1">f </span><span class="s0">= </span><span class="s1">getattr</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">method_name</span><span class="s2">)</span>
+<a name="l402"><span class="ln">402  </span></a>        <span class="s4"># This can raise and we will allow it to propagate.</span>
+<a name="l403"><span class="ln">403  </span></a>        <span class="s1">result </span><span class="s0">= </span><span class="s1">f</span><span class="s2">(</span><span class="s1">arg</span><span class="s2">, </span><span class="s0">**</span><span class="s1">options</span><span class="s2">)</span>
+<a name="l404"><span class="ln">404  </span></a>        <span class="s0">if </span><span class="s1">result </span><span class="s0">is not None:</span>
+<a name="l405"><span class="ln">405  </span></a>            <span class="s0">return </span><span class="s1">result</span>
+<a name="l406"><span class="ln">406  </span></a>    <span class="s0">raise </span><span class="s1">NotImplementedError</span><span class="s2">(</span>
+<a name="l407"><span class="ln">407  </span></a>        <span class="s3">&quot;%s.%s cannot handle: %r&quot; </span><span class="s0">%</span>
+<a name="l408"><span class="ln">408  </span></a>        <span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">__class__</span><span class="s2">.</span><span class="s1">__name__</span><span class="s2">, </span><span class="s1">basename</span><span class="s2">, </span><span class="s1">arg</span><span class="s2">)</span>
+<a name="l409"><span class="ln">409  </span></a>    <span class="s2">)</span>
+<a name="l410"><span class="ln">410  </span></a></pre>
+</body>
+</html>

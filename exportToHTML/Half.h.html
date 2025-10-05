@@ -1,0 +1,549 @@
+<html>
+<head>
+    <title>Half.h</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <style type="text/css">
+        .s0 { color: #333333;}
+        .s1 { color: #969896; font-style: italic;}
+        .s2 { color: #000080; font-weight: bold;}
+        .s3 { color: #0086b3;}
+        .s4 { color: #660e7a; font-weight: bold;}
+        .ln { color: #333333; font-weight: normal; font-style: normal; }
+    </style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0">
+    <tr>
+        <td>
+            <center>
+                <font face="Arial, Helvetica" color="#000000">
+                    Half.h</font>
+            </center>
+        </td>
+    </tr>
+</table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">/// Defines the Half type (half-precision floating-point) including conversions</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">/// to standard C types and basic arithmetic operations. Note that arithmetic</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s1">/// operations are implemented by converting to floating point and</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s1">/// performing the operation in float32, instead of using CUDA half intrinsics.</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">/// Most uses of this type within ATen are memory bound, including the</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s1">/// element-wise kernels, and the half intrinsics aren't efficient on all GPUs.</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">/// If you are writing a compute bound kernel, you can use the CUDA half</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s1">/// intrinsics directly on the Half type from device code.</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">#include </span><span class="s0">&lt;c10/macros/Export.h&gt;</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">#include </span><span class="s0">&lt;c10/macros/Macros.h&gt;</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">#include </span><span class="s0">&lt;c10/util/bit_cast.h&gt;</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">#include </span><span class="s0">&lt;c10/util/floating_point_utils.h&gt;</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">#include </span><span
+            class="s0">&lt;type_traits&gt;</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a><span class="s2">#if </span><span class="s0">defined(__cplusplus)</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">#include </span><span class="s0">&lt;cmath&gt;</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s0">#elif !defined(__OPENCL_VERSION__)</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s2">#include </span><span class="s0">&lt;math.h&gt;</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s2">#endif</span>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a><span class="s2">#ifdef </span><span class="s0">_MSC_VER</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s2">#include </span><span class="s0">&lt;intrin.h&gt;</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s2">#endif</span>
+<a name="l27"><span class="ln">27   </span></a>
+<a name="l28"><span class="ln">28   </span></a><span class="s2">#include </span><span class="s0">&lt;cstdint&gt;</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s2">#include </span><span class="s0">&lt;cstring&gt;</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s2">#include </span><span class="s0">&lt;iosfwd&gt;</span>
+<a name="l31"><span class="ln">31   </span></a><span class="s2">#include </span><span class="s0">&lt;limits&gt;</span>
+<a name="l32"><span class="ln">32   </span></a><span class="s2">#include </span><span class="s0">&lt;ostream&gt;</span>
+<a name="l33"><span class="ln">33   </span></a>
+<a name="l34"><span class="ln">34   </span></a><span class="s2">#ifdef </span><span class="s0">__CUDACC__</span>
+<a name="l35"><span class="ln">35   </span></a><span class="s2">#include </span><span
+            class="s0">&lt;cuda_fp16.h&gt;</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s2">#endif</span>
+<a name="l37"><span class="ln">37   </span></a>
+<a name="l38"><span class="ln">38   </span></a><span class="s2">#ifdef </span><span class="s0">__HIPCC__</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s2">#include </span><span
+            class="s0">&lt;hip/hip_fp16.h&gt;</span>
+<a name="l40"><span class="ln">40   </span></a><span class="s2">#endif</span>
+<a name="l41"><span class="ln">41   </span></a>
+<a name="l42"><span class="ln">42   </span></a><span class="s2">#if </span><span class="s0">defined(CL_SYCL_LANGUAGE_VERSION)</span>
+<a name="l43"><span class="ln">43   </span></a><span class="s2">#include </span><span
+            class="s0">&lt;CL/sycl.hpp&gt; </span><span class="s1">// for SYCL 1.2.1</span>
+<a name="l44"><span class="ln">44   </span></a><span class="s0">#elif defined(SYCL_LANGUAGE_VERSION)</span>
+<a name="l45"><span class="ln">45   </span></a><span class="s2">#include </span><span
+            class="s0">&lt;sycl/sycl.hpp&gt; </span><span class="s1">// for SYCL 2020</span>
+<a name="l46"><span class="ln">46   </span></a><span class="s2">#endif</span>
+<a name="l47"><span class="ln">47   </span></a>
+<a name="l48"><span class="ln">48   </span></a><span class="s2">#if </span><span class="s0">defined(__aarch64__) &amp;&amp; !defined(__CUDACC__)</span>
+<a name="l49"><span class="ln">49   </span></a><span class="s2">#include </span><span
+            class="s0">&lt;arm_neon.h&gt;</span>
+<a name="l50"><span class="ln">50   </span></a><span class="s2">#endif</span>
+<a name="l51"><span class="ln">51   </span></a>
+<a name="l52"><span class="ln">52   </span></a><span class="s2">#if </span><span class="s0">defined(__GNUC__) || defined(__clang__)</span>
+<a name="l53"><span class="ln">53   </span></a><span class="s2">#if </span><span class="s0">defined(__x86_64__) || defined(_M_X64) || defined(__i386) || \</span>
+<a name="l54"><span class="ln">54   </span></a>    <span class="s0">defined(_M_IX86)</span>
+<a name="l55"><span class="ln">55   </span></a><span class="s2">#if </span><span class="s0">defined(__F16C__) &amp;&amp;                               \</span>
+<a name="l56"><span class="ln">56   </span></a>    <span
+            class="s0">!(defined(__CUDA_ARCH__) || defined(__CUDACC__) || \</span>
+<a name="l57"><span class="ln">57   </span></a>      <span class="s0">defined(__HIP_DEVICE_COMPILE__))</span>
+<a name="l58"><span class="ln">58   </span></a><span class="s2">#define </span><span class="s0">C10_X86_F16 </span><span
+            class="s3">1</span>
+<a name="l59"><span class="ln">59   </span></a><span class="s2">#include </span><span
+            class="s0">&lt;immintrin.h&gt; </span><span class="s1">// import conversion ops from f16cintrin.h</span>
+<a name="l60"><span class="ln">60   </span></a><span class="s2">#endif </span><span class="s1">// defined(__F16C__) &amp;&amp; !(defined(__CUDA_ARCH__) || defined(__CUDACC__)</span>
+<a name="l61"><span class="ln">61   </span></a>       <span class="s1">// || defined(__HIP_DEVICE_COMPILE__))</span>
+<a name="l62"><span class="ln">62   </span></a><span class="s2">#endif </span><span class="s1">// __x86_64__ || _M_X64 || __i386 || _M_IX86</span>
+<a name="l63"><span class="ln">63   </span></a><span class="s2">#endif </span><span
+            class="s1">// __GNUC__ || __clang__</span>
+<a name="l64"><span class="ln">64   </span></a>
+<a name="l65"><span class="ln">65   </span></a><span class="s4">namespace </span><span class="s0">c10 {</span>
+<a name="l66"><span class="ln">66   </span></a>
+<a name="l67"><span class="ln">67   </span></a><span class="s4">namespace </span><span class="s0">detail {</span>
+<a name="l68"><span class="ln">68   </span></a>
+<a name="l69"><span class="ln">69   </span></a><span class="s1">/* 
+<a name="l70"><span class="ln">70   </span></a> * Convert a 16-bit floating-point number in IEEE half-precision format, in bit 
+<a name="l71"><span class="ln">71   </span></a> * representation, to a 32-bit floating-point number in IEEE single-precision 
+<a name="l72"><span class="ln">72   </span></a> * format, in bit representation. 
+<a name="l73"><span class="ln">73   </span></a> * 
+<a name="l74"><span class="ln">74   </span></a> * @note The implementation doesn't use any floating-point operations. 
+<a name="l75"><span class="ln">75   </span></a> */</span>
+<a name="l76"><span class="ln">76   </span></a><span class="s4">inline </span><span class="s0">uint32_t fp16_ieee_to_fp32_bits(uint16_t h) {</span>
+<a name="l77"><span class="ln">77   </span></a>  <span class="s1">/* 
+<a name="l78"><span class="ln">78   </span></a>   * Extend the half-precision floating-point number to 32 bits and shift to the 
+<a name="l79"><span class="ln">79   </span></a>   * upper part of the 32-bit word: 
+<a name="l80"><span class="ln">80   </span></a>   *      +---+-----+------------+-------------------+ 
+<a name="l81"><span class="ln">81   </span></a>   *      | S |EEEEE|MM MMMM MMMM|0000 0000 0000 0000| 
+<a name="l82"><span class="ln">82   </span></a>   *      +---+-----+------------+-------------------+ 
+<a name="l83"><span class="ln">83   </span></a>   * Bits  31  26-30    16-25            0-15 
+<a name="l84"><span class="ln">84   </span></a>   * 
+<a name="l85"><span class="ln">85   </span></a>   * S - sign bit, E - bits of the biased exponent, M - bits of the mantissa, 0 
+<a name="l86"><span class="ln">86   </span></a>   * - zero bits. 
+<a name="l87"><span class="ln">87   </span></a>   */</span>
+<a name="l88"><span class="ln">88   </span></a>  <span class="s2">const </span><span class="s0">uint32_t w = (uint32_t)h &lt;&lt; </span><span
+            class="s3">16</span><span class="s0">;</span>
+<a name="l89"><span class="ln">89   </span></a>  <span class="s1">/* 
+<a name="l90"><span class="ln">90   </span></a>   * Extract the sign of the input number into the high bit of the 32-bit word: 
+<a name="l91"><span class="ln">91   </span></a>   * 
+<a name="l92"><span class="ln">92   </span></a>   *      +---+----------------------------------+ 
+<a name="l93"><span class="ln">93   </span></a>   *      | S |0000000 00000000 00000000 00000000| 
+<a name="l94"><span class="ln">94   </span></a>   *      +---+----------------------------------+ 
+<a name="l95"><span class="ln">95   </span></a>   * Bits  31                 0-31 
+<a name="l96"><span class="ln">96   </span></a>   */</span>
+<a name="l97"><span class="ln">97   </span></a>  <span class="s2">const </span><span class="s0">uint32_t sign = w &amp; UINT32_C(</span><span
+            class="s3">0x80000000</span><span class="s0">);</span>
+<a name="l98"><span class="ln">98   </span></a>  <span class="s1">/* 
+<a name="l99"><span class="ln">99   </span></a>   * Extract mantissa and biased exponent of the input number into the bits 0-30 
+<a name="l100"><span class="ln">100  </span></a>   * of the 32-bit word: 
+<a name="l101"><span class="ln">101  </span></a>   * 
+<a name="l102"><span class="ln">102  </span></a>   *      +---+-----+------------+-------------------+ 
+<a name="l103"><span class="ln">103  </span></a>   *      | 0 |EEEEE|MM MMMM MMMM|0000 0000 0000 0000| 
+<a name="l104"><span class="ln">104  </span></a>   *      +---+-----+------------+-------------------+ 
+<a name="l105"><span class="ln">105  </span></a>   * Bits  30  27-31     17-26            0-16 
+<a name="l106"><span class="ln">106  </span></a>   */</span>
+<a name="l107"><span class="ln">107  </span></a>  <span class="s2">const </span><span class="s0">uint32_t nonsign = w &amp; UINT32_C(</span><span
+            class="s3">0x7FFFFFFF</span><span class="s0">);</span>
+<a name="l108"><span class="ln">108  </span></a>  <span class="s1">/* 
+<a name="l109"><span class="ln">109  </span></a>   * Renorm shift is the number of bits to shift mantissa left to make the 
+<a name="l110"><span class="ln">110  </span></a>   * half-precision number normalized. If the initial number is normalized, some 
+<a name="l111"><span class="ln">111  </span></a>   * of its high 6 bits (sign == 0 and 5-bit exponent) equals one. In this case 
+<a name="l112"><span class="ln">112  </span></a>   * renorm_shift == 0. If the number is denormalize, renorm_shift &gt; 0. Note 
+<a name="l113"><span class="ln">113  </span></a>   * that if we shift denormalized nonsign by renorm_shift, the unit bit of 
+<a name="l114"><span class="ln">114  </span></a>   * mantissa will shift into exponent, turning the biased exponent into 1, and 
+<a name="l115"><span class="ln">115  </span></a>   * making mantissa normalized (i.e. without leading 1). 
+<a name="l116"><span class="ln">116  </span></a>   */</span>
+<a name="l117"><span class="ln">117  </span></a><span class="s2">#ifdef </span><span class="s0">_MSC_VER</span>
+<a name="l118"><span class="ln">118  </span></a>  <span class="s2">unsigned long </span><span
+            class="s0">nonsign_bsr;</span>
+<a name="l119"><span class="ln">119  </span></a>  <span class="s0">_BitScanReverse(&amp;nonsign_bsr, (</span><span
+            class="s2">unsigned long</span><span class="s0">)nonsign);</span>
+<a name="l120"><span class="ln">120  </span></a>  <span
+            class="s0">uint32_t renorm_shift = (uint32_t)nonsign_bsr ^ </span><span class="s3">31</span><span
+            class="s0">;</span>
+<a name="l121"><span class="ln">121  </span></a><span class="s2">#else</span>
+<a name="l122"><span class="ln">122  </span></a>  <span
+            class="s0">uint32_t renorm_shift = __builtin_clz(nonsign);</span>
+<a name="l123"><span class="ln">123  </span></a><span class="s2">#endif</span>
+<a name="l124"><span class="ln">124  </span></a>  <span class="s0">renorm_shift = renorm_shift &gt; </span><span
+            class="s3">5 </span><span class="s0">? renorm_shift - </span><span class="s3">5 </span><span
+            class="s0">: </span><span class="s3">0</span><span class="s0">;</span>
+<a name="l125"><span class="ln">125  </span></a>  <span class="s1">/* 
+<a name="l126"><span class="ln">126  </span></a>   * Iff half-precision number has exponent of 15, the addition overflows 
+<a name="l127"><span class="ln">127  </span></a>   * it into bit 31, and the subsequent shift turns the high 9 bits 
+<a name="l128"><span class="ln">128  </span></a>   * into 1. Thus inf_nan_mask == 0x7F800000 if the half-precision number 
+<a name="l129"><span class="ln">129  </span></a>   * had exponent of 15 (i.e. was NaN or infinity) 0x00000000 otherwise 
+<a name="l130"><span class="ln">130  </span></a>   */</span>
+<a name="l131"><span class="ln">131  </span></a>  <span class="s2">const </span><span
+            class="s0">int32_t inf_nan_mask =</span>
+<a name="l132"><span class="ln">132  </span></a>      <span class="s0">((int32_t)(nonsign + </span><span class="s3">0x04000000</span><span
+            class="s0">) &gt;&gt; </span><span class="s3">8</span><span class="s0">) &amp; INT32_C(</span><span
+            class="s3">0x7F800000</span><span class="s0">);</span>
+<a name="l133"><span class="ln">133  </span></a>  <span class="s1">/* 
+<a name="l134"><span class="ln">134  </span></a>   * Iff nonsign is 0, it overflows into 0xFFFFFFFF, turning bit 31 
+<a name="l135"><span class="ln">135  </span></a>   * into 1. Otherwise, bit 31 remains 0. The signed shift right by 31 
+<a name="l136"><span class="ln">136  </span></a>   * broadcasts bit 31 into all bits of the zero_mask. Thus zero_mask == 
+<a name="l137"><span class="ln">137  </span></a>   * 0xFFFFFFFF if the half-precision number was zero (+0.0h or -0.0h) 
+<a name="l138"><span class="ln">138  </span></a>   * 0x00000000 otherwise 
+<a name="l139"><span class="ln">139  </span></a>   */</span>
+<a name="l140"><span class="ln">140  </span></a>  <span class="s2">const </span><span class="s0">int32_t zero_mask = (int32_t)(nonsign - </span><span
+            class="s3">1</span><span class="s0">) &gt;&gt; </span><span class="s3">31</span><span class="s0">;</span>
+<a name="l141"><span class="ln">141  </span></a>  <span class="s1">/* 
+<a name="l142"><span class="ln">142  </span></a>   * 1. Shift nonsign left by renorm_shift to normalize it (if the input 
+<a name="l143"><span class="ln">143  </span></a>   * was denormal) 
+<a name="l144"><span class="ln">144  </span></a>   * 2. Shift nonsign right by 3 so the exponent (5 bits originally) 
+<a name="l145"><span class="ln">145  </span></a>   * becomes an 8-bit field and 10-bit mantissa shifts into the 10 high 
+<a name="l146"><span class="ln">146  </span></a>   * bits of the 23-bit mantissa of IEEE single-precision number. 
+<a name="l147"><span class="ln">147  </span></a>   * 3. Add 0x70 to the exponent (starting at bit 23) to compensate the 
+<a name="l148"><span class="ln">148  </span></a>   * different in exponent bias (0x7F for single-precision number less 0xF 
+<a name="l149"><span class="ln">149  </span></a>   * for half-precision number). 
+<a name="l150"><span class="ln">150  </span></a>   * 4. Subtract renorm_shift from the exponent (starting at bit 23) to 
+<a name="l151"><span class="ln">151  </span></a>   * account for renormalization. As renorm_shift is less than 0x70, this 
+<a name="l152"><span class="ln">152  </span></a>   * can be combined with step 3. 
+<a name="l153"><span class="ln">153  </span></a>   * 5. Binary OR with inf_nan_mask to turn the exponent into 0xFF if the 
+<a name="l154"><span class="ln">154  </span></a>   * input was NaN or infinity. 
+<a name="l155"><span class="ln">155  </span></a>   * 6. Binary ANDNOT with zero_mask to turn the mantissa and exponent 
+<a name="l156"><span class="ln">156  </span></a>   * into zero if the input was zero. 
+<a name="l157"><span class="ln">157  </span></a>   * 7. Combine with the sign of the input number. 
+<a name="l158"><span class="ln">158  </span></a>   */</span>
+<a name="l159"><span class="ln">159  </span></a>  <span class="s2">return </span><span class="s0">sign |</span>
+<a name="l160"><span class="ln">160  </span></a>      <span
+            class="s0">((((nonsign &lt;&lt; renorm_shift &gt;&gt; </span><span class="s3">3</span><span class="s0">) + ((</span><span
+            class="s3">0x70 </span><span class="s0">- renorm_shift) &lt;&lt; </span><span class="s3">23</span><span
+            class="s0">)) |</span>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s0">inf_nan_mask) &amp;</span>
+<a name="l162"><span class="ln">162  </span></a>       <span class="s0">~zero_mask);</span>
+<a name="l163"><span class="ln">163  </span></a><span class="s0">}</span>
+<a name="l164"><span class="ln">164  </span></a>
+<a name="l165"><span class="ln">165  </span></a><span class="s1">/* 
+<a name="l166"><span class="ln">166  </span></a> * Convert a 16-bit floating-point number in IEEE half-precision format, in bit 
+<a name="l167"><span class="ln">167  </span></a> * representation, to a 32-bit floating-point number in IEEE single-precision 
+<a name="l168"><span class="ln">168  </span></a> * format. 
+<a name="l169"><span class="ln">169  </span></a> * 
+<a name="l170"><span class="ln">170  </span></a> * @note The implementation relies on IEEE-like (no assumption about rounding 
+<a name="l171"><span class="ln">171  </span></a> * mode and no operations on denormals) floating-point operations and bitcasts 
+<a name="l172"><span class="ln">172  </span></a> * between integer and floating-point variables. 
+<a name="l173"><span class="ln">173  </span></a> */</span>
+<a name="l174"><span class="ln">174  </span></a><span class="s0">C10_HOST_DEVICE </span><span
+            class="s4">inline </span><span class="s2">float </span><span class="s0">fp16_ieee_to_fp32_value(uint16_t h) {</span>
+<a name="l175"><span class="ln">175  </span></a><span class="s2">#ifdef </span><span class="s0">C10_X86_F16</span>
+<a name="l176"><span class="ln">176  </span></a>  <span class="s2">return </span><span class="s0">_cvtsh_ss(h);</span>
+<a name="l177"><span class="ln">177  </span></a><span class="s2">#else</span>
+<a name="l178"><span class="ln">178  </span></a>  <span class="s1">/* 
+<a name="l179"><span class="ln">179  </span></a>   * Extend the half-precision floating-point number to 32 bits and shift to the 
+<a name="l180"><span class="ln">180  </span></a>   * upper part of the 32-bit word: 
+<a name="l181"><span class="ln">181  </span></a>   *      +---+-----+------------+-------------------+ 
+<a name="l182"><span class="ln">182  </span></a>   *      | S |EEEEE|MM MMMM MMMM|0000 0000 0000 0000| 
+<a name="l183"><span class="ln">183  </span></a>   *      +---+-----+------------+-------------------+ 
+<a name="l184"><span class="ln">184  </span></a>   * Bits  31  26-30    16-25            0-15 
+<a name="l185"><span class="ln">185  </span></a>   * 
+<a name="l186"><span class="ln">186  </span></a>   * S - sign bit, E - bits of the biased exponent, M - bits of the mantissa, 0 
+<a name="l187"><span class="ln">187  </span></a>   * - zero bits. 
+<a name="l188"><span class="ln">188  </span></a>   */</span>
+<a name="l189"><span class="ln">189  </span></a>  <span class="s2">const </span><span class="s0">uint32_t w = (uint32_t)h &lt;&lt; </span><span
+            class="s3">16</span><span class="s0">;</span>
+<a name="l190"><span class="ln">190  </span></a>  <span class="s1">/* 
+<a name="l191"><span class="ln">191  </span></a>   * Extract the sign of the input number into the high bit of the 32-bit word: 
+<a name="l192"><span class="ln">192  </span></a>   * 
+<a name="l193"><span class="ln">193  </span></a>   *      +---+----------------------------------+ 
+<a name="l194"><span class="ln">194  </span></a>   *      | S |0000000 00000000 00000000 00000000| 
+<a name="l195"><span class="ln">195  </span></a>   *      +---+----------------------------------+ 
+<a name="l196"><span class="ln">196  </span></a>   * Bits  31                 0-31 
+<a name="l197"><span class="ln">197  </span></a>   */</span>
+<a name="l198"><span class="ln">198  </span></a>  <span class="s2">const </span><span class="s0">uint32_t sign = w &amp; UINT32_C(</span><span
+            class="s3">0x80000000</span><span class="s0">);</span>
+<a name="l199"><span class="ln">199  </span></a>  <span class="s1">/* 
+<a name="l200"><span class="ln">200  </span></a>   * Extract mantissa and biased exponent of the input number into the high bits 
+<a name="l201"><span class="ln">201  </span></a>   * of the 32-bit word: 
+<a name="l202"><span class="ln">202  </span></a>   * 
+<a name="l203"><span class="ln">203  </span></a>   *      +-----+------------+---------------------+ 
+<a name="l204"><span class="ln">204  </span></a>   *      |EEEEE|MM MMMM MMMM|0 0000 0000 0000 0000| 
+<a name="l205"><span class="ln">205  </span></a>   *      +-----+------------+---------------------+ 
+<a name="l206"><span class="ln">206  </span></a>   * Bits  27-31    17-26            0-16 
+<a name="l207"><span class="ln">207  </span></a>   */</span>
+<a name="l208"><span class="ln">208  </span></a>  <span class="s2">const </span><span
+            class="s0">uint32_t two_w = w + w;</span>
+<a name="l209"><span class="ln">209  </span></a>
+<a name="l210"><span class="ln">210  </span></a>  <span class="s1">/* 
+<a name="l211"><span class="ln">211  </span></a>   * Shift mantissa and exponent into bits 23-28 and bits 13-22 so they become 
+<a name="l212"><span class="ln">212  </span></a>   * mantissa and exponent of a single-precision floating-point number: 
+<a name="l213"><span class="ln">213  </span></a>   * 
+<a name="l214"><span class="ln">214  </span></a>   *       S|Exponent |          Mantissa 
+<a name="l215"><span class="ln">215  </span></a>   *      +-+---+-----+------------+----------------+ 
+<a name="l216"><span class="ln">216  </span></a>   *      |0|000|EEEEE|MM MMMM MMMM|0 0000 0000 0000| 
+<a name="l217"><span class="ln">217  </span></a>   *      +-+---+-----+------------+----------------+ 
+<a name="l218"><span class="ln">218  </span></a>   * Bits   | 23-31   |           0-22 
+<a name="l219"><span class="ln">219  </span></a>   * 
+<a name="l220"><span class="ln">220  </span></a>   * Next, there are some adjustments to the exponent: 
+<a name="l221"><span class="ln">221  </span></a>   * - The exponent needs to be corrected by the difference in exponent bias 
+<a name="l222"><span class="ln">222  </span></a>   * between single-precision and half-precision formats (0x7F - 0xF = 0x70) 
+<a name="l223"><span class="ln">223  </span></a>   * - Inf and NaN values in the inputs should become Inf and NaN values after 
+<a name="l224"><span class="ln">224  </span></a>   * conversion to the single-precision number. Therefore, if the biased 
+<a name="l225"><span class="ln">225  </span></a>   * exponent of the half-precision input was 0x1F (max possible value), the 
+<a name="l226"><span class="ln">226  </span></a>   * biased exponent of the single-precision output must be 0xFF (max possible 
+<a name="l227"><span class="ln">227  </span></a>   * value). We do this correction in two steps: 
+<a name="l228"><span class="ln">228  </span></a>   *   - First, we adjust the exponent by (0xFF - 0x1F) = 0xE0 (see exp_offset 
+<a name="l229"><span class="ln">229  </span></a>   * below) rather than by 0x70 suggested by the difference in the exponent bias 
+<a name="l230"><span class="ln">230  </span></a>   * (see above). 
+<a name="l231"><span class="ln">231  </span></a>   *   - Then we multiply the single-precision result of exponent adjustment by 
+<a name="l232"><span class="ln">232  </span></a>   * 2**(-112) to reverse the effect of exponent adjustment by 0xE0 less the 
+<a name="l233"><span class="ln">233  </span></a>   * necessary exponent adjustment by 0x70 due to difference in exponent bias. 
+<a name="l234"><span class="ln">234  </span></a>   *     The floating-point multiplication hardware would ensure than Inf and 
+<a name="l235"><span class="ln">235  </span></a>   * NaN would retain their value on at least partially IEEE754-compliant 
+<a name="l236"><span class="ln">236  </span></a>   * implementations. 
+<a name="l237"><span class="ln">237  </span></a>   * 
+<a name="l238"><span class="ln">238  </span></a>   * Note that the above operations do not handle denormal inputs (where biased 
+<a name="l239"><span class="ln">239  </span></a>   * exponent == 0). However, they also do not operate on denormal inputs, and 
+<a name="l240"><span class="ln">240  </span></a>   * do not produce denormal results. 
+<a name="l241"><span class="ln">241  </span></a>   */</span>
+<a name="l242"><span class="ln">242  </span></a>  <span class="s0">constexpr uint32_t exp_offset = UINT32_C(</span><span
+            class="s3">0xE0</span><span class="s0">) &lt;&lt; </span><span class="s3">23</span><span class="s0">;</span>
+<a name="l243"><span class="ln">243  </span></a>  <span class="s1">// const float exp_scale = 0x1.0p-112f;</span>
+<a name="l244"><span class="ln">244  </span></a>  <span
+            class="s0">constexpr uint32_t scale_bits = (uint32_t)</span><span class="s3">15 </span><span class="s0">&lt;&lt; </span><span
+            class="s3">23</span><span class="s0">;</span>
+<a name="l245"><span class="ln">245  </span></a>  <span class="s2">float </span><span class="s0">exp_scale_val = </span><span
+            class="s3">0</span><span class="s0">;</span>
+<a name="l246"><span class="ln">246  </span></a><span class="s2">#if </span><span class="s0">defined(_MSC_VER) &amp;&amp; defined(__clang__)</span>
+<a name="l247"><span class="ln">247  </span></a>  <span
+            class="s0">__builtin_memcpy(&amp;exp_scale_val, &amp;scale_bits, </span><span class="s2">sizeof</span><span
+            class="s0">(exp_scale_val));</span>
+<a name="l248"><span class="ln">248  </span></a><span class="s2">#else</span>
+<a name="l249"><span class="ln">249  </span></a>  <span
+            class="s0">std::memcpy(&amp;exp_scale_val, &amp;scale_bits, </span><span class="s2">sizeof</span><span
+            class="s0">(exp_scale_val));</span>
+<a name="l250"><span class="ln">250  </span></a><span class="s2">#endif</span>
+<a name="l251"><span class="ln">251  </span></a>
+<a name="l252"><span class="ln">252  </span></a>  <span class="s2">const float </span><span class="s0">exp_scale = exp_scale_val;</span>
+<a name="l253"><span class="ln">253  </span></a>  <span class="s2">const float </span><span class="s0">normalized_value =</span>
+<a name="l254"><span class="ln">254  </span></a>      <span class="s0">fp32_from_bits((two_w &gt;&gt; </span><span
+            class="s3">4</span><span class="s0">) + exp_offset) * exp_scale;</span>
+<a name="l255"><span class="ln">255  </span></a>
+<a name="l256"><span class="ln">256  </span></a>  <span class="s1">/* 
+<a name="l257"><span class="ln">257  </span></a>   * Convert denormalized half-precision inputs into single-precision results 
+<a name="l258"><span class="ln">258  </span></a>   * (always normalized). Zero inputs are also handled here. 
+<a name="l259"><span class="ln">259  </span></a>   * 
+<a name="l260"><span class="ln">260  </span></a>   * In a denormalized number the biased exponent is zero, and mantissa has 
+<a name="l261"><span class="ln">261  </span></a>   * on-zero bits. First, we shift mantissa into bits 0-9 of the 32-bit word. 
+<a name="l262"><span class="ln">262  </span></a>   * 
+<a name="l263"><span class="ln">263  </span></a>   *                  zeros           |  mantissa 
+<a name="l264"><span class="ln">264  </span></a>   *      +---------------------------+------------+ 
+<a name="l265"><span class="ln">265  </span></a>   *      |0000 0000 0000 0000 0000 00|MM MMMM MMMM| 
+<a name="l266"><span class="ln">266  </span></a>   *      +---------------------------+------------+ 
+<a name="l267"><span class="ln">267  </span></a>   * Bits             10-31                0-9 
+<a name="l268"><span class="ln">268  </span></a>   * 
+<a name="l269"><span class="ln">269  </span></a>   * Now, remember that denormalized half-precision numbers are represented as: 
+<a name="l270"><span class="ln">270  </span></a>   *    FP16 = mantissa * 2**(-24). 
+<a name="l271"><span class="ln">271  </span></a>   * The trick is to construct a normalized single-precision number with the 
+<a name="l272"><span class="ln">272  </span></a>   * same mantissa and thehalf-precision input and with an exponent which would 
+<a name="l273"><span class="ln">273  </span></a>   * scale the corresponding mantissa bits to 2**(-24). A normalized 
+<a name="l274"><span class="ln">274  </span></a>   * single-precision floating-point number is represented as: FP32 = (1 + 
+<a name="l275"><span class="ln">275  </span></a>   * mantissa * 2**(-23)) * 2**(exponent - 127) Therefore, when the biased 
+<a name="l276"><span class="ln">276  </span></a>   * exponent is 126, a unit change in the mantissa of the input denormalized 
+<a name="l277"><span class="ln">277  </span></a>   * half-precision number causes a change of the constructed single-precision 
+<a name="l278"><span class="ln">278  </span></a>   * number by 2**(-24), i.e. the same amount. 
+<a name="l279"><span class="ln">279  </span></a>   * 
+<a name="l280"><span class="ln">280  </span></a>   * The last step is to adjust the bias of the constructed single-precision 
+<a name="l281"><span class="ln">281  </span></a>   * number. When the input half-precision number is zero, the constructed 
+<a name="l282"><span class="ln">282  </span></a>   * single-precision number has the value of FP32 = 1 * 2**(126 - 127) = 
+<a name="l283"><span class="ln">283  </span></a>   * 2**(-1) = 0.5 Therefore, we need to subtract 0.5 from the constructed 
+<a name="l284"><span class="ln">284  </span></a>   * single-precision number to get the numerical equivalent of the input 
+<a name="l285"><span class="ln">285  </span></a>   * half-precision number. 
+<a name="l286"><span class="ln">286  </span></a>   */</span>
+<a name="l287"><span class="ln">287  </span></a>  <span class="s0">constexpr uint32_t magic_mask = UINT32_C(</span><span
+            class="s3">126</span><span class="s0">) &lt;&lt; </span><span class="s3">23</span><span class="s0">;</span>
+<a name="l288"><span class="ln">288  </span></a>  <span class="s0">constexpr </span><span class="s2">float </span><span
+            class="s0">magic_bias = </span><span class="s3">0</span><span class="s0">.</span><span
+            class="s3">5</span><span class="s0">f;</span>
+<a name="l289"><span class="ln">289  </span></a>  <span class="s2">const float </span><span class="s0">denormalized_value =</span>
+<a name="l290"><span class="ln">290  </span></a>      <span class="s0">fp32_from_bits((two_w &gt;&gt; </span><span
+            class="s3">17</span><span class="s0">) | magic_mask) - magic_bias;</span>
+<a name="l291"><span class="ln">291  </span></a>
+<a name="l292"><span class="ln">292  </span></a>  <span class="s1">/* 
+<a name="l293"><span class="ln">293  </span></a>   * - Choose either results of conversion of input as a normalized number, or 
+<a name="l294"><span class="ln">294  </span></a>   * as a denormalized number, depending on the input exponent. The variable 
+<a name="l295"><span class="ln">295  </span></a>   * two_w contains input exponent in bits 27-31, therefore if its smaller than 
+<a name="l296"><span class="ln">296  </span></a>   * 2**27, the input is either a denormal number, or zero. 
+<a name="l297"><span class="ln">297  </span></a>   * - Combine the result of conversion of exponent and mantissa with the sign 
+<a name="l298"><span class="ln">298  </span></a>   * of the input number. 
+<a name="l299"><span class="ln">299  </span></a>   */</span>
+<a name="l300"><span class="ln">300  </span></a>  <span
+            class="s0">constexpr uint32_t denormalized_cutoff = UINT32_C(</span><span class="s3">1</span><span
+            class="s0">) &lt;&lt; </span><span class="s3">27</span><span class="s0">;</span>
+<a name="l301"><span class="ln">301  </span></a>  <span class="s2">const </span><span class="s0">uint32_t result = sign |</span>
+<a name="l302"><span class="ln">302  </span></a>      <span class="s0">(two_w &lt; denormalized_cutoff ? fp32_to_bits(denormalized_value)</span>
+<a name="l303"><span class="ln">303  </span></a>                                   <span class="s0">: fp32_to_bits(normalized_value));</span>
+<a name="l304"><span class="ln">304  </span></a>  <span class="s2">return </span><span class="s0">fp32_from_bits(result);</span>
+<a name="l305"><span class="ln">305  </span></a><span class="s2">#endif </span><span class="s1">// C10_X86_F16</span>
+<a name="l306"><span class="ln">306  </span></a><span class="s0">}</span>
+<a name="l307"><span class="ln">307  </span></a>
+<a name="l308"><span class="ln">308  </span></a><span class="s1">/* 
+<a name="l309"><span class="ln">309  </span></a> * Convert a 32-bit floating-point number in IEEE single-precision format to a 
+<a name="l310"><span class="ln">310  </span></a> * 16-bit floating-point number in IEEE half-precision format, in bit 
+<a name="l311"><span class="ln">311  </span></a> * representation. 
+<a name="l312"><span class="ln">312  </span></a> * 
+<a name="l313"><span class="ln">313  </span></a> * @note The implementation relies on IEEE-like (no assumption about rounding 
+<a name="l314"><span class="ln">314  </span></a> * mode and no operations on denormals) floating-point operations and bitcasts 
+<a name="l315"><span class="ln">315  </span></a> * between integer and floating-point variables. 
+<a name="l316"><span class="ln">316  </span></a> */</span>
+<a name="l317"><span class="ln">317  </span></a><span class="s4">inline </span><span class="s0">uint16_t fp16_ieee_from_fp32_value(</span><span
+            class="s2">float </span><span class="s0">f) {</span>
+<a name="l318"><span class="ln">318  </span></a><span class="s2">#ifdef </span><span class="s0">C10_X86_F16</span>
+<a name="l319"><span class="ln">319  </span></a>  <span class="s2">return </span><span class="s0">_cvtss_sh(f, _MM_FROUND_TO_NEAREST_INT);</span>
+<a name="l320"><span class="ln">320  </span></a><span class="s2">#else</span>
+<a name="l321"><span class="ln">321  </span></a>  <span class="s1">// const float scale_to_inf = 0x1.0p+112f;</span>
+<a name="l322"><span class="ln">322  </span></a>  <span class="s1">// const float scale_to_zero = 0x1.0p-110f;</span>
+<a name="l323"><span class="ln">323  </span></a>  <span
+            class="s0">constexpr uint32_t scale_to_inf_bits = (uint32_t)</span><span class="s3">239 </span><span
+            class="s0">&lt;&lt; </span><span class="s3">23</span><span class="s0">;</span>
+<a name="l324"><span class="ln">324  </span></a>  <span
+            class="s0">constexpr uint32_t scale_to_zero_bits = (uint32_t)</span><span class="s3">17 </span><span
+            class="s0">&lt;&lt; </span><span class="s3">23</span><span class="s0">;</span>
+<a name="l325"><span class="ln">325  </span></a>  <span class="s2">float </span><span
+            class="s0">scale_to_inf_val = </span><span class="s3">0</span><span class="s0">, scale_to_zero_val = </span><span
+            class="s3">0</span><span class="s0">;</span>
+<a name="l326"><span class="ln">326  </span></a>  <span class="s0">std::memcpy(&amp;scale_to_inf_val, &amp;scale_to_inf_bits, </span><span
+            class="s2">sizeof</span><span class="s0">(scale_to_inf_val));</span>
+<a name="l327"><span class="ln">327  </span></a>  <span class="s0">std::memcpy(</span>
+<a name="l328"><span class="ln">328  </span></a>      <span
+            class="s0">&amp;scale_to_zero_val, &amp;scale_to_zero_bits, </span><span class="s2">sizeof</span><span
+            class="s0">(scale_to_zero_val));</span>
+<a name="l329"><span class="ln">329  </span></a>  <span class="s2">const float </span><span class="s0">scale_to_inf = scale_to_inf_val;</span>
+<a name="l330"><span class="ln">330  </span></a>  <span class="s2">const float </span><span class="s0">scale_to_zero = scale_to_zero_val;</span>
+<a name="l331"><span class="ln">331  </span></a>
+<a name="l332"><span class="ln">332  </span></a><span class="s2">#if </span><span class="s0">defined(_MSC_VER) &amp;&amp; _MSC_VER == </span><span
+            class="s3">1916</span>
+<a name="l333"><span class="ln">333  </span></a>  <span class="s2">float </span><span
+            class="s0">base = ((signbit(f) != </span><span class="s3">0 </span><span class="s0">? -f : f) * scale_to_inf) * scale_to_zero;</span>
+<a name="l334"><span class="ln">334  </span></a><span class="s2">#else</span>
+<a name="l335"><span class="ln">335  </span></a>  <span class="s2">float </span><span class="s0">base = (fabsf(f) * scale_to_inf) * scale_to_zero;</span>
+<a name="l336"><span class="ln">336  </span></a><span class="s2">#endif</span>
+<a name="l337"><span class="ln">337  </span></a>
+<a name="l338"><span class="ln">338  </span></a>  <span class="s2">const </span><span class="s0">uint32_t w = fp32_to_bits(f);</span>
+<a name="l339"><span class="ln">339  </span></a>  <span class="s2">const </span><span class="s0">uint32_t shl1_w = w + w;</span>
+<a name="l340"><span class="ln">340  </span></a>  <span class="s2">const </span><span class="s0">uint32_t sign = w &amp; UINT32_C(</span><span
+            class="s3">0x80000000</span><span class="s0">);</span>
+<a name="l341"><span class="ln">341  </span></a>  <span class="s0">uint32_t bias = shl1_w &amp; UINT32_C(</span><span
+            class="s3">0xFF000000</span><span class="s0">);</span>
+<a name="l342"><span class="ln">342  </span></a>  <span class="s2">if </span><span
+            class="s0">(bias &lt; UINT32_C(</span><span class="s3">0x71000000</span><span class="s0">)) {</span>
+<a name="l343"><span class="ln">343  </span></a>    <span class="s0">bias = UINT32_C(</span><span
+            class="s3">0x71000000</span><span class="s0">);</span>
+<a name="l344"><span class="ln">344  </span></a>  <span class="s0">}</span>
+<a name="l345"><span class="ln">345  </span></a>
+<a name="l346"><span class="ln">346  </span></a>  <span class="s0">base = fp32_from_bits((bias &gt;&gt; </span><span
+            class="s3">1</span><span class="s0">) + UINT32_C(</span><span class="s3">0x07800000</span><span class="s0">)) + base;</span>
+<a name="l347"><span class="ln">347  </span></a>  <span class="s2">const </span><span class="s0">uint32_t bits = fp32_to_bits(base);</span>
+<a name="l348"><span class="ln">348  </span></a>  <span class="s2">const </span><span class="s0">uint32_t exp_bits = (bits &gt;&gt; </span><span
+            class="s3">13</span><span class="s0">) &amp; UINT32_C(</span><span class="s3">0x00007C00</span><span
+            class="s0">);</span>
+<a name="l349"><span class="ln">349  </span></a>  <span class="s2">const </span><span class="s0">uint32_t mantissa_bits = bits &amp; UINT32_C(</span><span
+            class="s3">0x00000FFF</span><span class="s0">);</span>
+<a name="l350"><span class="ln">350  </span></a>  <span class="s2">const </span><span class="s0">uint32_t nonsign = exp_bits + mantissa_bits;</span>
+<a name="l351"><span class="ln">351  </span></a>  <span class="s2">return </span><span
+            class="s4">static_cast</span><span class="s0">&lt;uint16_t&gt;(</span>
+<a name="l352"><span class="ln">352  </span></a>      <span class="s0">(sign &gt;&gt; </span><span
+            class="s3">16</span><span class="s0">) |</span>
+<a name="l353"><span class="ln">353  </span></a>      <span class="s0">(shl1_w &gt; UINT32_C(</span><span class="s3">0xFF000000</span><span
+            class="s0">) ? UINT16_C(</span><span class="s3">0x7E00</span><span class="s0">) : nonsign));</span>
+<a name="l354"><span class="ln">354  </span></a><span class="s2">#endif </span><span class="s1">// C10_X86_F16</span>
+<a name="l355"><span class="ln">355  </span></a><span class="s0">}</span>
+<a name="l356"><span class="ln">356  </span></a>
+<a name="l357"><span class="ln">357  </span></a><span class="s2">#ifdef </span><span class="s0">C10_X86_F16</span>
+<a name="l358"><span class="ln">358  </span></a><span class="s2">#undef </span><span class="s0">C10_X86_F16</span>
+<a name="l359"><span class="ln">359  </span></a><span class="s2">#endif </span><span class="s1">// C10_X86_F16</span>
+<a name="l360"><span class="ln">360  </span></a>
+<a name="l361"><span class="ln">361  </span></a><span class="s2">#if </span><span class="s0">defined(__aarch64__) &amp;&amp; !defined(__CUDACC__)</span>
+<a name="l362"><span class="ln">362  </span></a><span class="s4">inline </span><span class="s0">float16_t fp16_from_bits(uint16_t h) {</span>
+<a name="l363"><span class="ln">363  </span></a>  <span class="s2">return </span><span class="s0">c10::bit_cast&lt;float16_t&gt;(h);</span>
+<a name="l364"><span class="ln">364  </span></a><span class="s0">}</span>
+<a name="l365"><span class="ln">365  </span></a>
+<a name="l366"><span class="ln">366  </span></a><span class="s4">inline </span><span class="s0">uint16_t fp16_to_bits(float16_t f) {</span>
+<a name="l367"><span class="ln">367  </span></a>  <span class="s2">return </span><span class="s0">c10::bit_cast&lt;uint16_t&gt;(f);</span>
+<a name="l368"><span class="ln">368  </span></a><span class="s0">}</span>
+<a name="l369"><span class="ln">369  </span></a>
+<a name="l370"><span class="ln">370  </span></a><span class="s1">// According to https://godbolt.org/z/frExdbsWG it would translate to single</span>
+<a name="l371"><span class="ln">371  </span></a><span class="s1">// fcvt s0, h0</span>
+<a name="l372"><span class="ln">372  </span></a><span class="s4">inline </span><span class="s2">float </span><span
+            class="s0">native_fp16_to_fp32_value(uint16_t h) {</span>
+<a name="l373"><span class="ln">373  </span></a>  <span class="s2">return </span><span
+            class="s4">static_cast</span><span class="s0">&lt;</span><span class="s2">float</span><span class="s0">&gt;(fp16_from_bits(h));</span>
+<a name="l374"><span class="ln">374  </span></a><span class="s0">}</span>
+<a name="l375"><span class="ln">375  </span></a>
+<a name="l376"><span class="ln">376  </span></a><span class="s4">inline </span><span class="s0">uint16_t native_fp16_from_fp32_value(</span><span
+            class="s2">float </span><span class="s0">f) {</span>
+<a name="l377"><span class="ln">377  </span></a>  <span class="s2">return </span><span
+            class="s0">fp16_to_bits(</span><span class="s4">static_cast</span><span
+            class="s0">&lt;float16_t&gt;(f));</span>
+<a name="l378"><span class="ln">378  </span></a><span class="s0">}</span>
+<a name="l379"><span class="ln">379  </span></a><span class="s2">#endif</span>
+<a name="l380"><span class="ln">380  </span></a>
+<a name="l381"><span class="ln">381  </span></a><span class="s0">} </span><span class="s1">// namespace detail</span>
+<a name="l382"><span class="ln">382  </span></a>
+<a name="l383"><span class="ln">383  </span></a><span class="s2">struct </span><span class="s0">alignas(</span><span
+            class="s3">2</span><span class="s0">) Half {</span>
+<a name="l384"><span class="ln">384  </span></a>  <span class="s2">unsigned short </span><span class="s0">x;</span>
+<a name="l385"><span class="ln">385  </span></a>
+<a name="l386"><span class="ln">386  </span></a>  <span class="s2">struct </span><span class="s0">from_bits_t {};</span>
+<a name="l387"><span class="ln">387  </span></a>  <span class="s0">C10_HOST_DEVICE </span><span
+            class="s2">static </span><span class="s0">constexpr from_bits_t from_bits() {</span>
+<a name="l388"><span class="ln">388  </span></a>    <span class="s2">return </span><span
+            class="s0">from_bits_t();</span>
+<a name="l389"><span class="ln">389  </span></a>  <span class="s0">}</span>
+<a name="l390"><span class="ln">390  </span></a>
+<a name="l391"><span class="ln">391  </span></a>  <span
+            class="s1">// HIP wants __host__ __device__ tag, CUDA does not</span>
+<a name="l392"><span class="ln">392  </span></a><span class="s2">#if </span><span class="s0">defined(USE_ROCM)</span>
+<a name="l393"><span class="ln">393  </span></a>  <span class="s0">C10_HOST_DEVICE Half() = </span><span class="s2">default</span><span
+            class="s0">;</span>
+<a name="l394"><span class="ln">394  </span></a><span class="s2">#else</span>
+<a name="l395"><span class="ln">395  </span></a>  <span class="s0">Half() = </span><span class="s2">default</span><span
+            class="s0">;</span>
+<a name="l396"><span class="ln">396  </span></a><span class="s2">#endif</span>
+<a name="l397"><span class="ln">397  </span></a>
+<a name="l398"><span class="ln">398  </span></a>  <span class="s0">constexpr C10_HOST_DEVICE Half(</span><span
+            class="s2">unsigned short </span><span class="s0">bits, from_bits_t) : x(bits) {}</span>
+<a name="l399"><span class="ln">399  </span></a><span class="s2">#if </span><span class="s0">defined(__aarch64__) &amp;&amp; !defined(__CUDACC__)</span>
+<a name="l400"><span class="ln">400  </span></a>  <span class="s4">inline </span><span
+            class="s0">Half(float16_t value);</span>
+<a name="l401"><span class="ln">401  </span></a>  <span class="s4">inline operator </span><span
+            class="s0">float16_t() </span><span class="s2">const</span><span class="s0">;</span>
+<a name="l402"><span class="ln">402  </span></a><span class="s2">#else</span>
+<a name="l403"><span class="ln">403  </span></a>  <span class="s4">inline </span><span
+            class="s0">C10_HOST_DEVICE Half(</span><span class="s2">float </span><span class="s0">value);</span>
+<a name="l404"><span class="ln">404  </span></a>  <span class="s4">inline </span><span
+            class="s0">C10_HOST_DEVICE </span><span class="s4">operator </span><span class="s2">float</span><span
+            class="s0">() </span><span class="s2">const</span><span class="s0">;</span>
+<a name="l405"><span class="ln">405  </span></a><span class="s2">#endif</span>
+<a name="l406"><span class="ln">406  </span></a>
+<a name="l407"><span class="ln">407  </span></a><span class="s2">#if </span><span class="s0">defined(__CUDACC__) || defined(__HIPCC__)</span>
+<a name="l408"><span class="ln">408  </span></a>  <span class="s4">inline </span><span
+            class="s0">C10_HOST_DEVICE Half(</span><span class="s2">const </span><span
+            class="s0">__half&amp; value);</span>
+<a name="l409"><span class="ln">409  </span></a>  <span class="s4">inline </span><span
+            class="s0">C10_HOST_DEVICE </span><span class="s4">operator </span><span class="s0">__half() </span><span
+            class="s2">const</span><span class="s0">;</span>
+<a name="l410"><span class="ln">410  </span></a><span class="s2">#endif</span>
+<a name="l411"><span class="ln">411  </span></a><span class="s2">#ifdef </span><span
+            class="s0">SYCL_LANGUAGE_VERSION</span>
+<a name="l412"><span class="ln">412  </span></a>  <span class="s4">inline </span><span
+            class="s0">C10_HOST_DEVICE Half(</span><span class="s2">const </span><span class="s0">sycl::half&amp; value);</span>
+<a name="l413"><span class="ln">413  </span></a>  <span class="s4">inline </span><span
+            class="s0">C10_HOST_DEVICE </span><span class="s4">operator </span><span
+            class="s0">sycl::half() </span><span class="s2">const</span><span class="s0">;</span>
+<a name="l414"><span class="ln">414  </span></a><span class="s2">#endif</span>
+<a name="l415"><span class="ln">415  </span></a><span class="s0">};</span>
+<a name="l416"><span class="ln">416  </span></a>
+<a name="l417"><span class="ln">417  </span></a><span class="s0">C10_API </span><span class="s4">inline </span><span
+            class="s0">std::ostream&amp; </span><span class="s4">operator</span><span class="s0">&lt;&lt;(std::ostream&amp; out, </span><span
+            class="s2">const </span><span class="s0">Half&amp; value) {</span>
+<a name="l418"><span class="ln">418  </span></a>  <span class="s0">out &lt;&lt; (</span><span
+            class="s2">float</span><span class="s0">)value;</span>
+<a name="l419"><span class="ln">419  </span></a>  <span class="s2">return </span><span class="s0">out;</span>
+<a name="l420"><span class="ln">420  </span></a><span class="s0">}</span>
+<a name="l421"><span class="ln">421  </span></a>
+<a name="l422"><span class="ln">422  </span></a><span class="s0">} </span><span class="s1">// namespace c10</span>
+<a name="l423"><span class="ln">423  </span></a>
+<a name="l424"><span class="ln">424  </span></a><span class="s2">#include </span><span class="s0">&lt;c10/util/Half-inl.h&gt; </span><span
+            class="s1">// IWYU pragma: keep</span>
+<a name="l425"><span class="ln">425  </span></a></pre>
+</body>
+</html>

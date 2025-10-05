@@ -1,0 +1,98 @@
+<html>
+<head>
+<title>_funcs.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_funcs.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: ignore-errors</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s2">import </span><span class="s1">inspect</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">import </span><span class="s1">itertools</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s2">from </span><span class="s3">. </span><span class="s2">import </span><span class="s1">_funcs_impl</span><span class="s3">, </span><span class="s1">_reductions_impl</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">_normalizations </span><span class="s2">import </span><span class="s1">normalizer</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s0"># _funcs_impl.py contains functions which mimic NumPy's eponymous equivalents,</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s0"># and consume/return PyTorch tensors/dtypes.</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s0"># They are also type annotated.</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s0"># Pull these functions from _funcs_impl and decorate them with @normalizer, which</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s0"># - Converts any input `np.ndarray`, `torch._numpy.ndarray`, list of lists, Python scalars, etc into a `torch.Tensor`.</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s0"># - Maps NumPy dtypes to PyTorch dtypes</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s0"># - If the input to the `axis` kwarg is an ndarray, it maps it into a tuple</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s0"># - Implements the semantics for the `out=` arg</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s0"># - Wraps back the outputs into `torch._numpy.ndarrays`</span>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s2">def </span><span class="s1">_public_functions</span><span class="s3">(</span><span class="s1">mod</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s2">def </span><span class="s1">is_public_function</span><span class="s3">(</span><span class="s1">f</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l23"><span class="ln">23   </span></a>        <span class="s2">return </span><span class="s1">inspect</span><span class="s3">.</span><span class="s1">isfunction</span><span class="s3">(</span><span class="s1">f</span><span class="s3">) </span><span class="s2">and not </span><span class="s1">f</span><span class="s3">.</span><span class="s1">__name__</span><span class="s3">.</span><span class="s1">startswith</span><span class="s3">(</span><span class="s4">&quot;_&quot;</span><span class="s3">)</span>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s2">return </span><span class="s1">inspect</span><span class="s3">.</span><span class="s1">getmembers</span><span class="s3">(</span><span class="s1">mod</span><span class="s3">, </span><span class="s1">is_public_function</span><span class="s3">)</span>
+<a name="l26"><span class="ln">26   </span></a>
+<a name="l27"><span class="ln">27   </span></a>
+<a name="l28"><span class="ln">28   </span></a><span class="s0"># We fill in __all__ in the loop below</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l30"><span class="ln">30   </span></a>
+<a name="l31"><span class="ln">31   </span></a><span class="s0"># decorate implementer functions with argument normalizers and export to the top namespace</span>
+<a name="l32"><span class="ln">32   </span></a><span class="s2">for </span><span class="s1">name</span><span class="s3">, </span><span class="s1">func </span><span class="s2">in </span><span class="s1">itertools</span><span class="s3">.</span><span class="s1">chain</span><span class="s3">(</span>
+<a name="l33"><span class="ln">33   </span></a>    <span class="s1">_public_functions</span><span class="s3">(</span><span class="s1">_funcs_impl</span><span class="s3">), </span><span class="s1">_public_functions</span><span class="s3">(</span><span class="s1">_reductions_impl</span><span class="s3">)</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s3">)</span><span class="s2">:</span>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s2">if </span><span class="s1">name </span><span class="s2">in </span><span class="s3">[</span><span class="s4">&quot;percentile&quot;</span><span class="s3">, </span><span class="s4">&quot;quantile&quot;</span><span class="s3">, </span><span class="s4">&quot;median&quot;</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l36"><span class="ln">36   </span></a>        <span class="s1">decorated </span><span class="s2">= </span><span class="s1">normalizer</span><span class="s3">(</span><span class="s1">func</span><span class="s3">, </span><span class="s1">promote_scalar_result</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s2">elif </span><span class="s1">name </span><span class="s2">== </span><span class="s4">&quot;einsum&quot;</span><span class="s2">:</span>
+<a name="l38"><span class="ln">38   </span></a>        <span class="s0"># normalized manually</span>
+<a name="l39"><span class="ln">39   </span></a>        <span class="s1">decorated </span><span class="s2">= </span><span class="s1">func</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s2">else:</span>
+<a name="l41"><span class="ln">41   </span></a>        <span class="s1">decorated </span><span class="s2">= </span><span class="s1">normalizer</span><span class="s3">(</span><span class="s1">func</span><span class="s3">)</span>
+<a name="l42"><span class="ln">42   </span></a>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s1">decorated</span><span class="s3">.</span><span class="s1">__qualname__ </span><span class="s2">= </span><span class="s1">name</span>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s1">decorated</span><span class="s3">.</span><span class="s1">__name__ </span><span class="s2">= </span><span class="s1">name</span>
+<a name="l45"><span class="ln">45   </span></a>    <span class="s1">vars</span><span class="s3">()[</span><span class="s1">name</span><span class="s3">] </span><span class="s2">= </span><span class="s1">decorated</span>
+<a name="l46"><span class="ln">46   </span></a>    <span class="s1">__all__</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)</span>
+<a name="l47"><span class="ln">47   </span></a>
+<a name="l48"><span class="ln">48   </span></a>
+<a name="l49"><span class="ln">49   </span></a><span class="s4">&quot;&quot;&quot; 
+<a name="l50"><span class="ln">50   </span></a>Vendored objects from numpy.lib.index_tricks 
+<a name="l51"><span class="ln">51   </span></a>&quot;&quot;&quot;</span>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a>
+<a name="l54"><span class="ln">54   </span></a><span class="s2">class </span><span class="s1">IndexExpression</span><span class="s2">:</span>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l56"><span class="ln">56   </span></a>    Written by Konrad Hinsen &lt;hinsen@cnrs-orleans.fr&gt; 
+<a name="l57"><span class="ln">57   </span></a>    last revision: 1999-7-23 
+<a name="l58"><span class="ln">58   </span></a> 
+<a name="l59"><span class="ln">59   </span></a>    Cosmetic changes by T. Oliphant 2001 
+<a name="l60"><span class="ln">60   </span></a>    &quot;&quot;&quot;</span>
+<a name="l61"><span class="ln">61   </span></a>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">maketuple</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l63"><span class="ln">63   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">maketuple </span><span class="s2">= </span><span class="s1">maketuple</span>
+<a name="l64"><span class="ln">64   </span></a>
+<a name="l65"><span class="ln">65   </span></a>    <span class="s2">def </span><span class="s1">__getitem__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">item</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">maketuple </span><span class="s2">and not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">item</span><span class="s3">, </span><span class="s1">tuple</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l67"><span class="ln">67   </span></a>            <span class="s2">return </span><span class="s3">(</span><span class="s1">item</span><span class="s3">,)</span>
+<a name="l68"><span class="ln">68   </span></a>        <span class="s2">else:</span>
+<a name="l69"><span class="ln">69   </span></a>            <span class="s2">return </span><span class="s1">item</span>
+<a name="l70"><span class="ln">70   </span></a>
+<a name="l71"><span class="ln">71   </span></a>
+<a name="l72"><span class="ln">72   </span></a><span class="s1">index_exp </span><span class="s2">= </span><span class="s1">IndexExpression</span><span class="s3">(</span><span class="s1">maketuple</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l73"><span class="ln">73   </span></a><span class="s1">s_ </span><span class="s2">= </span><span class="s1">IndexExpression</span><span class="s3">(</span><span class="s1">maketuple</span><span class="s2">=False</span><span class="s3">)</span>
+<a name="l74"><span class="ln">74   </span></a>
+<a name="l75"><span class="ln">75   </span></a>
+<a name="l76"><span class="ln">76   </span></a><span class="s1">__all__ </span><span class="s2">+= </span><span class="s3">[</span><span class="s4">&quot;index_exp&quot;</span><span class="s3">, </span><span class="s4">&quot;s_&quot;</span><span class="s3">]</span>
+<a name="l77"><span class="ln">77   </span></a></pre>
+</body>
+</html>

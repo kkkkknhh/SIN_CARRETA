@@ -1,0 +1,816 @@
+<html>
+<head>
+<title>indexed.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+indexed.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">r&quot;&quot;&quot;Module that defines indexed objects. 
+<a name="l2"><span class="ln">2    </span></a> 
+<a name="l3"><span class="ln">3    </span></a>The classes ``IndexedBase``, ``Indexed``, and ``Idx`` represent a 
+<a name="l4"><span class="ln">4    </span></a>matrix element ``M[i, j]`` as in the following diagram:: 
+<a name="l5"><span class="ln">5    </span></a> 
+<a name="l6"><span class="ln">6    </span></a>       1) The Indexed class represents the entire indexed object. 
+<a name="l7"><span class="ln">7    </span></a>                  | 
+<a name="l8"><span class="ln">8    </span></a>               ___|___ 
+<a name="l9"><span class="ln">9    </span></a>              '       ' 
+<a name="l10"><span class="ln">10   </span></a>               M[i, j] 
+<a name="l11"><span class="ln">11   </span></a>              /   \__\______ 
+<a name="l12"><span class="ln">12   </span></a>              |             | 
+<a name="l13"><span class="ln">13   </span></a>              |             | 
+<a name="l14"><span class="ln">14   </span></a>              |     2) The Idx class represents indices; each Idx can 
+<a name="l15"><span class="ln">15   </span></a>              |        optionally contain information about its range. 
+<a name="l16"><span class="ln">16   </span></a>              | 
+<a name="l17"><span class="ln">17   </span></a>        3) IndexedBase represents the 'stem' of an indexed object, here `M`. 
+<a name="l18"><span class="ln">18   </span></a>           The stem used by itself is usually taken to represent the entire 
+<a name="l19"><span class="ln">19   </span></a>           array. 
+<a name="l20"><span class="ln">20   </span></a> 
+<a name="l21"><span class="ln">21   </span></a>There can be any number of indices on an Indexed object.  No 
+<a name="l22"><span class="ln">22   </span></a>transformation properties are implemented in these Base objects, but 
+<a name="l23"><span class="ln">23   </span></a>implicit contraction of repeated indices is supported. 
+<a name="l24"><span class="ln">24   </span></a> 
+<a name="l25"><span class="ln">25   </span></a>Note that the support for complicated (i.e. non-atomic) integer 
+<a name="l26"><span class="ln">26   </span></a>expressions as indices is limited.  (This should be improved in 
+<a name="l27"><span class="ln">27   </span></a>future releases.) 
+<a name="l28"><span class="ln">28   </span></a> 
+<a name="l29"><span class="ln">29   </span></a>Examples 
+<a name="l30"><span class="ln">30   </span></a>======== 
+<a name="l31"><span class="ln">31   </span></a> 
+<a name="l32"><span class="ln">32   </span></a>To express the above matrix element example you would write: 
+<a name="l33"><span class="ln">33   </span></a> 
+<a name="l34"><span class="ln">34   </span></a>&gt;&gt;&gt; from sympy import symbols, IndexedBase, Idx 
+<a name="l35"><span class="ln">35   </span></a>&gt;&gt;&gt; M = IndexedBase('M') 
+<a name="l36"><span class="ln">36   </span></a>&gt;&gt;&gt; i, j = symbols('i j', cls=Idx) 
+<a name="l37"><span class="ln">37   </span></a>&gt;&gt;&gt; M[i, j] 
+<a name="l38"><span class="ln">38   </span></a>M[i, j] 
+<a name="l39"><span class="ln">39   </span></a> 
+<a name="l40"><span class="ln">40   </span></a>Repeated indices in a product implies a summation, so to express a 
+<a name="l41"><span class="ln">41   </span></a>matrix-vector product in terms of Indexed objects: 
+<a name="l42"><span class="ln">42   </span></a> 
+<a name="l43"><span class="ln">43   </span></a>&gt;&gt;&gt; x = IndexedBase('x') 
+<a name="l44"><span class="ln">44   </span></a>&gt;&gt;&gt; M[i, j]*x[j] 
+<a name="l45"><span class="ln">45   </span></a>M[i, j]*x[j] 
+<a name="l46"><span class="ln">46   </span></a> 
+<a name="l47"><span class="ln">47   </span></a>If the indexed objects will be converted to component based arrays, e.g. 
+<a name="l48"><span class="ln">48   </span></a>with the code printers or the autowrap framework, you also need to provide 
+<a name="l49"><span class="ln">49   </span></a>(symbolic or numerical) dimensions.  This can be done by passing an 
+<a name="l50"><span class="ln">50   </span></a>optional shape parameter to IndexedBase upon construction: 
+<a name="l51"><span class="ln">51   </span></a> 
+<a name="l52"><span class="ln">52   </span></a>&gt;&gt;&gt; dim1, dim2 = symbols('dim1 dim2', integer=True) 
+<a name="l53"><span class="ln">53   </span></a>&gt;&gt;&gt; A = IndexedBase('A', shape=(dim1, 2*dim1, dim2)) 
+<a name="l54"><span class="ln">54   </span></a>&gt;&gt;&gt; A.shape 
+<a name="l55"><span class="ln">55   </span></a>(dim1, 2*dim1, dim2) 
+<a name="l56"><span class="ln">56   </span></a>&gt;&gt;&gt; A[i, j, 3].shape 
+<a name="l57"><span class="ln">57   </span></a>(dim1, 2*dim1, dim2) 
+<a name="l58"><span class="ln">58   </span></a> 
+<a name="l59"><span class="ln">59   </span></a>If an IndexedBase object has no shape information, it is assumed that the 
+<a name="l60"><span class="ln">60   </span></a>array is as large as the ranges of its indices: 
+<a name="l61"><span class="ln">61   </span></a> 
+<a name="l62"><span class="ln">62   </span></a>&gt;&gt;&gt; n, m = symbols('n m', integer=True) 
+<a name="l63"><span class="ln">63   </span></a>&gt;&gt;&gt; i = Idx('i', m) 
+<a name="l64"><span class="ln">64   </span></a>&gt;&gt;&gt; j = Idx('j', n) 
+<a name="l65"><span class="ln">65   </span></a>&gt;&gt;&gt; M[i, j].shape 
+<a name="l66"><span class="ln">66   </span></a>(m, n) 
+<a name="l67"><span class="ln">67   </span></a>&gt;&gt;&gt; M[i, j].ranges 
+<a name="l68"><span class="ln">68   </span></a>[(0, m - 1), (0, n - 1)] 
+<a name="l69"><span class="ln">69   </span></a> 
+<a name="l70"><span class="ln">70   </span></a>The above can be compared with the following: 
+<a name="l71"><span class="ln">71   </span></a> 
+<a name="l72"><span class="ln">72   </span></a>&gt;&gt;&gt; A[i, 2, j].shape 
+<a name="l73"><span class="ln">73   </span></a>(dim1, 2*dim1, dim2) 
+<a name="l74"><span class="ln">74   </span></a>&gt;&gt;&gt; A[i, 2, j].ranges 
+<a name="l75"><span class="ln">75   </span></a>[(0, m - 1), None, (0, n - 1)] 
+<a name="l76"><span class="ln">76   </span></a> 
+<a name="l77"><span class="ln">77   </span></a>To analyze the structure of indexed expressions, you can use the methods 
+<a name="l78"><span class="ln">78   </span></a>get_indices() and get_contraction_structure(): 
+<a name="l79"><span class="ln">79   </span></a> 
+<a name="l80"><span class="ln">80   </span></a>&gt;&gt;&gt; from sympy.tensor import get_indices, get_contraction_structure 
+<a name="l81"><span class="ln">81   </span></a>&gt;&gt;&gt; get_indices(A[i, j, j]) 
+<a name="l82"><span class="ln">82   </span></a>({i}, {}) 
+<a name="l83"><span class="ln">83   </span></a>&gt;&gt;&gt; get_contraction_structure(A[i, j, j]) 
+<a name="l84"><span class="ln">84   </span></a>{(j,): {A[i, j, j]}} 
+<a name="l85"><span class="ln">85   </span></a> 
+<a name="l86"><span class="ln">86   </span></a>See the appropriate docstrings for a detailed explanation of the output. 
+<a name="l87"><span class="ln">87   </span></a>&quot;&quot;&quot;</span>
+<a name="l88"><span class="ln">88   </span></a>
+<a name="l89"><span class="ln">89   </span></a><span class="s0">#   TODO:  (some ideas for improvement)</span>
+<a name="l90"><span class="ln">90   </span></a><span class="s0">#</span>
+<a name="l91"><span class="ln">91   </span></a><span class="s0">#   o test and guarantee numpy compatibility</span>
+<a name="l92"><span class="ln">92   </span></a><span class="s0">#      - implement full support for broadcasting</span>
+<a name="l93"><span class="ln">93   </span></a><span class="s0">#      - strided arrays</span>
+<a name="l94"><span class="ln">94   </span></a><span class="s0">#</span>
+<a name="l95"><span class="ln">95   </span></a><span class="s0">#   o more functions to analyze indexed expressions</span>
+<a name="l96"><span class="ln">96   </span></a><span class="s0">#      - identify standard constructs, e.g matrix-vector product in a subexpression</span>
+<a name="l97"><span class="ln">97   </span></a><span class="s0">#</span>
+<a name="l98"><span class="ln">98   </span></a><span class="s0">#   o functions to generate component based arrays (numpy and sympy.Matrix)</span>
+<a name="l99"><span class="ln">99   </span></a><span class="s0">#      - generate a single array directly from Indexed</span>
+<a name="l100"><span class="ln">100  </span></a><span class="s0">#      - convert simple sub-expressions</span>
+<a name="l101"><span class="ln">101  </span></a><span class="s0">#</span>
+<a name="l102"><span class="ln">102  </span></a><span class="s0">#   o sophisticated indexing (possibly in subclasses to preserve simplicity)</span>
+<a name="l103"><span class="ln">103  </span></a><span class="s0">#      - Idx with range smaller than dimension of Indexed</span>
+<a name="l104"><span class="ln">104  </span></a><span class="s0">#      - Idx with stepsize != 1</span>
+<a name="l105"><span class="ln">105  </span></a><span class="s0">#      - Idx with step determined by function call</span>
+<a name="l106"><span class="ln">106  </span></a><span class="s2">from </span><span class="s1">collections</span><span class="s3">.</span><span class="s1">abc </span><span class="s2">import </span><span class="s1">Iterable</span>
+<a name="l107"><span class="ln">107  </span></a>
+<a name="l108"><span class="ln">108  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">numbers </span><span class="s2">import </span><span class="s1">Number</span>
+<a name="l109"><span class="ln">109  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">assumptions </span><span class="s2">import </span><span class="s1">StdFactKB</span>
+<a name="l110"><span class="ln">110  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core </span><span class="s2">import </span><span class="s1">Expr</span><span class="s3">, </span><span class="s1">Tuple</span><span class="s3">, </span><span class="s1">sympify</span><span class="s3">, </span><span class="s1">S</span>
+<a name="l111"><span class="ln">111  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">symbol </span><span class="s2">import </span><span class="s1">_filter_assumptions</span><span class="s3">, </span><span class="s1">Symbol</span>
+<a name="l112"><span class="ln">112  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">logic </span><span class="s2">import </span><span class="s1">fuzzy_bool</span><span class="s3">, </span><span class="s1">fuzzy_not</span>
+<a name="l113"><span class="ln">113  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">sympify </span><span class="s2">import </span><span class="s1">_sympify</span>
+<a name="l114"><span class="ln">114  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">functions</span><span class="s3">.</span><span class="s1">special</span><span class="s3">.</span><span class="s1">tensor_functions </span><span class="s2">import </span><span class="s1">KroneckerDelta</span>
+<a name="l115"><span class="ln">115  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">multipledispatch </span><span class="s2">import </span><span class="s1">dispatch</span>
+<a name="l116"><span class="ln">116  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities</span><span class="s3">.</span><span class="s1">iterables </span><span class="s2">import </span><span class="s1">is_sequence</span><span class="s3">, </span><span class="s1">NotIterable</span>
+<a name="l117"><span class="ln">117  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities</span><span class="s3">.</span><span class="s1">misc </span><span class="s2">import </span><span class="s1">filldedent</span>
+<a name="l118"><span class="ln">118  </span></a>
+<a name="l119"><span class="ln">119  </span></a>
+<a name="l120"><span class="ln">120  </span></a><span class="s2">class </span><span class="s1">IndexException</span><span class="s3">(</span><span class="s1">Exception</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l121"><span class="ln">121  </span></a>    <span class="s2">pass</span>
+<a name="l122"><span class="ln">122  </span></a>
+<a name="l123"><span class="ln">123  </span></a>
+<a name="l124"><span class="ln">124  </span></a><span class="s2">class </span><span class="s1">Indexed</span><span class="s3">(</span><span class="s1">Expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l125"><span class="ln">125  </span></a>    <span class="s0">&quot;&quot;&quot;Represents a mathematical object with indices. 
+<a name="l126"><span class="ln">126  </span></a> 
+<a name="l127"><span class="ln">127  </span></a>    &gt;&gt;&gt; from sympy import Indexed, IndexedBase, Idx, symbols 
+<a name="l128"><span class="ln">128  </span></a>    &gt;&gt;&gt; i, j = symbols('i j', cls=Idx) 
+<a name="l129"><span class="ln">129  </span></a>    &gt;&gt;&gt; Indexed('A', i, j) 
+<a name="l130"><span class="ln">130  </span></a>    A[i, j] 
+<a name="l131"><span class="ln">131  </span></a> 
+<a name="l132"><span class="ln">132  </span></a>    It is recommended that ``Indexed`` objects be created by indexing ``IndexedBase``: 
+<a name="l133"><span class="ln">133  </span></a>    ``IndexedBase('A')[i, j]`` instead of ``Indexed(IndexedBase('A'), i, j)``. 
+<a name="l134"><span class="ln">134  </span></a> 
+<a name="l135"><span class="ln">135  </span></a>    &gt;&gt;&gt; A = IndexedBase('A') 
+<a name="l136"><span class="ln">136  </span></a>    &gt;&gt;&gt; a_ij = A[i, j]           # Prefer this, 
+<a name="l137"><span class="ln">137  </span></a>    &gt;&gt;&gt; b_ij = Indexed(A, i, j)  # over this. 
+<a name="l138"><span class="ln">138  </span></a>    &gt;&gt;&gt; a_ij == b_ij 
+<a name="l139"><span class="ln">139  </span></a>    True 
+<a name="l140"><span class="ln">140  </span></a> 
+<a name="l141"><span class="ln">141  </span></a>    &quot;&quot;&quot;</span>
+<a name="l142"><span class="ln">142  </span></a>    <span class="s1">is_Indexed </span><span class="s2">= True</span>
+<a name="l143"><span class="ln">143  </span></a>    <span class="s1">is_symbol </span><span class="s2">= True</span>
+<a name="l144"><span class="ln">144  </span></a>    <span class="s1">is_Atom </span><span class="s2">= True</span>
+<a name="l145"><span class="ln">145  </span></a>
+<a name="l146"><span class="ln">146  </span></a>    <span class="s2">def </span><span class="s1">__new__</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s1">base</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kw_args</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">tensor</span><span class="s3">.</span><span class="s1">array</span><span class="s3">.</span><span class="s1">ndim_array </span><span class="s2">import </span><span class="s1">NDimArray</span>
+<a name="l148"><span class="ln">148  </span></a>        <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">matrices</span><span class="s3">.</span><span class="s1">matrixbase </span><span class="s2">import </span><span class="s1">MatrixBase</span>
+<a name="l149"><span class="ln">149  </span></a>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s2">if not </span><span class="s1">args</span><span class="s2">:</span>
+<a name="l151"><span class="ln">151  </span></a>            <span class="s2">raise </span><span class="s1">IndexException</span><span class="s3">(</span><span class="s4">&quot;Indexed needs at least one index.&quot;</span><span class="s3">)</span>
+<a name="l152"><span class="ln">152  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">base</span><span class="s3">, (</span><span class="s1">str</span><span class="s3">, </span><span class="s1">Symbol</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l153"><span class="ln">153  </span></a>            <span class="s1">base </span><span class="s2">= </span><span class="s1">IndexedBase</span><span class="s3">(</span><span class="s1">base</span><span class="s3">)</span>
+<a name="l154"><span class="ln">154  </span></a>        <span class="s2">elif not </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">base</span><span class="s3">, </span><span class="s4">'__getitem__'</span><span class="s3">) </span><span class="s2">and not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">base</span><span class="s3">, </span><span class="s1">IndexedBase</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l155"><span class="ln">155  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s1">filldedent</span><span class="s3">(</span><span class="s4">&quot;&quot;&quot; 
+<a name="l156"><span class="ln">156  </span></a>                The base can only be replaced with a string, Symbol, 
+<a name="l157"><span class="ln">157  </span></a>                IndexedBase or an object with a method for getting 
+<a name="l158"><span class="ln">158  </span></a>                items (i.e. an object with a `__getitem__` method). 
+<a name="l159"><span class="ln">159  </span></a>                &quot;&quot;&quot;</span><span class="s3">))</span>
+<a name="l160"><span class="ln">160  </span></a>        <span class="s1">args </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">map</span><span class="s3">(</span><span class="s1">sympify</span><span class="s3">, </span><span class="s1">args</span><span class="s3">))</span>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">base</span><span class="s3">, (</span><span class="s1">NDimArray</span><span class="s3">, </span><span class="s1">Iterable</span><span class="s3">, </span><span class="s1">Tuple</span><span class="s3">, </span><span class="s1">MatrixBase</span><span class="s3">)) </span><span class="s2">and </span><span class="s1">all</span><span class="s3">(</span><span class="s1">i</span><span class="s3">.</span><span class="s1">is_number </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">args</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l162"><span class="ln">162  </span></a>            <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">args</span><span class="s3">) </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l163"><span class="ln">163  </span></a>                <span class="s2">return </span><span class="s1">base</span><span class="s3">[</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]]</span>
+<a name="l164"><span class="ln">164  </span></a>            <span class="s2">else:</span>
+<a name="l165"><span class="ln">165  </span></a>                <span class="s2">return </span><span class="s1">base</span><span class="s3">[</span><span class="s1">args</span><span class="s3">]</span>
+<a name="l166"><span class="ln">166  </span></a>
+<a name="l167"><span class="ln">167  </span></a>        <span class="s1">base </span><span class="s2">= </span><span class="s1">_sympify</span><span class="s3">(</span><span class="s1">base</span><span class="s3">)</span>
+<a name="l168"><span class="ln">168  </span></a>
+<a name="l169"><span class="ln">169  </span></a>        <span class="s1">obj </span><span class="s2">= </span><span class="s1">Expr</span><span class="s3">.</span><span class="s1">__new__</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s1">base</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kw_args</span><span class="s3">)</span>
+<a name="l170"><span class="ln">170  </span></a>
+<a name="l171"><span class="ln">171  </span></a>        <span class="s1">IndexedBase</span><span class="s3">.</span><span class="s1">_set_assumptions</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">, </span><span class="s1">base</span><span class="s3">.</span><span class="s1">assumptions0</span><span class="s3">)</span>
+<a name="l172"><span class="ln">172  </span></a>
+<a name="l173"><span class="ln">173  </span></a>        <span class="s2">return </span><span class="s1">obj</span>
+<a name="l174"><span class="ln">174  </span></a>
+<a name="l175"><span class="ln">175  </span></a>    <span class="s2">def </span><span class="s1">_hashable_content</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l176"><span class="ln">176  </span></a>        <span class="s2">return </span><span class="s1">super</span><span class="s3">().</span><span class="s1">_hashable_content</span><span class="s3">() </span><span class="s2">+ </span><span class="s1">tuple</span><span class="s3">(</span><span class="s1">sorted</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">assumptions0</span><span class="s3">.</span><span class="s1">items</span><span class="s3">()))</span>
+<a name="l177"><span class="ln">177  </span></a>
+<a name="l178"><span class="ln">178  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l179"><span class="ln">179  </span></a>    <span class="s2">def </span><span class="s1">name</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l180"><span class="ln">180  </span></a>        <span class="s2">return </span><span class="s1">str</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span>
+<a name="l181"><span class="ln">181  </span></a>
+<a name="l182"><span class="ln">182  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l183"><span class="ln">183  </span></a>    <span class="s2">def </span><span class="s1">_diff_wrt</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l184"><span class="ln">184  </span></a>        <span class="s0">&quot;&quot;&quot;Allow derivatives with respect to an ``Indexed`` object.&quot;&quot;&quot;</span>
+<a name="l185"><span class="ln">185  </span></a>        <span class="s2">return True</span>
+<a name="l186"><span class="ln">186  </span></a>
+<a name="l187"><span class="ln">187  </span></a>    <span class="s2">def </span><span class="s1">_eval_derivative</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">wrt</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l188"><span class="ln">188  </span></a>        <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">tensor</span><span class="s3">.</span><span class="s1">array</span><span class="s3">.</span><span class="s1">ndim_array </span><span class="s2">import </span><span class="s1">NDimArray</span>
+<a name="l189"><span class="ln">189  </span></a>
+<a name="l190"><span class="ln">190  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">wrt</span><span class="s3">, </span><span class="s1">Indexed</span><span class="s3">) </span><span class="s2">and </span><span class="s1">wrt</span><span class="s3">.</span><span class="s1">base </span><span class="s2">== </span><span class="s1">self</span><span class="s3">.</span><span class="s1">base</span><span class="s2">:</span>
+<a name="l191"><span class="ln">191  </span></a>            <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">indices</span><span class="s3">) </span><span class="s2">!= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">wrt</span><span class="s3">.</span><span class="s1">indices</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l192"><span class="ln">192  </span></a>                <span class="s1">msg </span><span class="s2">= </span><span class="s4">&quot;Different # of indices: d({!s})/d({!s})&quot;</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">self</span><span class="s3">,</span>
+<a name="l193"><span class="ln">193  </span></a>                                                                       <span class="s1">wrt</span><span class="s3">)</span>
+<a name="l194"><span class="ln">194  </span></a>                <span class="s2">raise </span><span class="s1">IndexException</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l195"><span class="ln">195  </span></a>            <span class="s1">result </span><span class="s2">= </span><span class="s1">S</span><span class="s3">.</span><span class="s1">One</span>
+<a name="l196"><span class="ln">196  </span></a>            <span class="s2">for </span><span class="s1">index1</span><span class="s3">, </span><span class="s1">index2 </span><span class="s2">in </span><span class="s1">zip</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">indices</span><span class="s3">, </span><span class="s1">wrt</span><span class="s3">.</span><span class="s1">indices</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l197"><span class="ln">197  </span></a>                <span class="s1">result </span><span class="s2">*= </span><span class="s1">KroneckerDelta</span><span class="s3">(</span><span class="s1">index1</span><span class="s3">, </span><span class="s1">index2</span><span class="s3">)</span>
+<a name="l198"><span class="ln">198  </span></a>            <span class="s2">return </span><span class="s1">result</span>
+<a name="l199"><span class="ln">199  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">base</span><span class="s3">, </span><span class="s1">NDimArray</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l200"><span class="ln">200  </span></a>            <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">tensor</span><span class="s3">.</span><span class="s1">array </span><span class="s2">import </span><span class="s1">derive_by_array</span>
+<a name="l201"><span class="ln">201  </span></a>            <span class="s2">return </span><span class="s1">Indexed</span><span class="s3">(</span><span class="s1">derive_by_array</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">base</span><span class="s3">, </span><span class="s1">wrt</span><span class="s3">), </span><span class="s2">*</span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">])</span>
+<a name="l202"><span class="ln">202  </span></a>        <span class="s2">else:</span>
+<a name="l203"><span class="ln">203  </span></a>            <span class="s2">if </span><span class="s1">Tuple</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">indices</span><span class="s3">).</span><span class="s1">has</span><span class="s3">(</span><span class="s1">wrt</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l204"><span class="ln">204  </span></a>                <span class="s2">return </span><span class="s1">S</span><span class="s3">.</span><span class="s1">NaN</span>
+<a name="l205"><span class="ln">205  </span></a>            <span class="s2">return </span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span>
+<a name="l206"><span class="ln">206  </span></a>
+<a name="l207"><span class="ln">207  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l208"><span class="ln">208  </span></a>    <span class="s2">def </span><span class="s1">assumptions0</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l209"><span class="ln">209  </span></a>        <span class="s2">return </span><span class="s3">{</span><span class="s1">k</span><span class="s2">: </span><span class="s1">v </span><span class="s2">for </span><span class="s1">k</span><span class="s3">, </span><span class="s1">v </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_assumptions</span><span class="s3">.</span><span class="s1">items</span><span class="s3">() </span><span class="s2">if </span><span class="s1">v </span><span class="s2">is not None</span><span class="s3">}</span>
+<a name="l210"><span class="ln">210  </span></a>
+<a name="l211"><span class="ln">211  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l212"><span class="ln">212  </span></a>    <span class="s2">def </span><span class="s1">base</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l213"><span class="ln">213  </span></a>        <span class="s0">&quot;&quot;&quot;Returns the ``IndexedBase`` of the ``Indexed`` object. 
+<a name="l214"><span class="ln">214  </span></a> 
+<a name="l215"><span class="ln">215  </span></a>        Examples 
+<a name="l216"><span class="ln">216  </span></a>        ======== 
+<a name="l217"><span class="ln">217  </span></a> 
+<a name="l218"><span class="ln">218  </span></a>        &gt;&gt;&gt; from sympy import Indexed, IndexedBase, Idx, symbols 
+<a name="l219"><span class="ln">219  </span></a>        &gt;&gt;&gt; i, j = symbols('i j', cls=Idx) 
+<a name="l220"><span class="ln">220  </span></a>        &gt;&gt;&gt; Indexed('A', i, j).base 
+<a name="l221"><span class="ln">221  </span></a>        A 
+<a name="l222"><span class="ln">222  </span></a>        &gt;&gt;&gt; B = IndexedBase('B') 
+<a name="l223"><span class="ln">223  </span></a>        &gt;&gt;&gt; B == B[i, j].base 
+<a name="l224"><span class="ln">224  </span></a>        True 
+<a name="l225"><span class="ln">225  </span></a> 
+<a name="l226"><span class="ln">226  </span></a>        &quot;&quot;&quot;</span>
+<a name="l227"><span class="ln">227  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l228"><span class="ln">228  </span></a>
+<a name="l229"><span class="ln">229  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l230"><span class="ln">230  </span></a>    <span class="s2">def </span><span class="s1">indices</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l231"><span class="ln">231  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l232"><span class="ln">232  </span></a>        Returns the indices of the ``Indexed`` object. 
+<a name="l233"><span class="ln">233  </span></a> 
+<a name="l234"><span class="ln">234  </span></a>        Examples 
+<a name="l235"><span class="ln">235  </span></a>        ======== 
+<a name="l236"><span class="ln">236  </span></a> 
+<a name="l237"><span class="ln">237  </span></a>        &gt;&gt;&gt; from sympy import Indexed, Idx, symbols 
+<a name="l238"><span class="ln">238  </span></a>        &gt;&gt;&gt; i, j = symbols('i j', cls=Idx) 
+<a name="l239"><span class="ln">239  </span></a>        &gt;&gt;&gt; Indexed('A', i, j).indices 
+<a name="l240"><span class="ln">240  </span></a>        (i, j) 
+<a name="l241"><span class="ln">241  </span></a> 
+<a name="l242"><span class="ln">242  </span></a>        &quot;&quot;&quot;</span>
+<a name="l243"><span class="ln">243  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">]</span>
+<a name="l244"><span class="ln">244  </span></a>
+<a name="l245"><span class="ln">245  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l246"><span class="ln">246  </span></a>    <span class="s2">def </span><span class="s1">rank</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l247"><span class="ln">247  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l248"><span class="ln">248  </span></a>        Returns the rank of the ``Indexed`` object. 
+<a name="l249"><span class="ln">249  </span></a> 
+<a name="l250"><span class="ln">250  </span></a>        Examples 
+<a name="l251"><span class="ln">251  </span></a>        ======== 
+<a name="l252"><span class="ln">252  </span></a> 
+<a name="l253"><span class="ln">253  </span></a>        &gt;&gt;&gt; from sympy import Indexed, Idx, symbols 
+<a name="l254"><span class="ln">254  </span></a>        &gt;&gt;&gt; i, j, k, l, m = symbols('i:m', cls=Idx) 
+<a name="l255"><span class="ln">255  </span></a>        &gt;&gt;&gt; Indexed('A', i, j).rank 
+<a name="l256"><span class="ln">256  </span></a>        2 
+<a name="l257"><span class="ln">257  </span></a>        &gt;&gt;&gt; q = Indexed('A', i, j, k, l, m) 
+<a name="l258"><span class="ln">258  </span></a>        &gt;&gt;&gt; q.rank 
+<a name="l259"><span class="ln">259  </span></a>        5 
+<a name="l260"><span class="ln">260  </span></a>        &gt;&gt;&gt; q.rank == len(q.indices) 
+<a name="l261"><span class="ln">261  </span></a>        True 
+<a name="l262"><span class="ln">262  </span></a> 
+<a name="l263"><span class="ln">263  </span></a>        &quot;&quot;&quot;</span>
+<a name="l264"><span class="ln">264  </span></a>        <span class="s2">return </span><span class="s1">len</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">) </span><span class="s2">- </span><span class="s5">1</span>
+<a name="l265"><span class="ln">265  </span></a>
+<a name="l266"><span class="ln">266  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l267"><span class="ln">267  </span></a>    <span class="s2">def </span><span class="s1">shape</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l268"><span class="ln">268  </span></a>        <span class="s0">&quot;&quot;&quot;Returns a list with dimensions of each index. 
+<a name="l269"><span class="ln">269  </span></a> 
+<a name="l270"><span class="ln">270  </span></a>        Dimensions is a property of the array, not of the indices.  Still, if 
+<a name="l271"><span class="ln">271  </span></a>        the ``IndexedBase`` does not define a shape attribute, it is assumed 
+<a name="l272"><span class="ln">272  </span></a>        that the ranges of the indices correspond to the shape of the array. 
+<a name="l273"><span class="ln">273  </span></a> 
+<a name="l274"><span class="ln">274  </span></a>        &gt;&gt;&gt; from sympy import IndexedBase, Idx, symbols 
+<a name="l275"><span class="ln">275  </span></a>        &gt;&gt;&gt; n, m = symbols('n m', integer=True) 
+<a name="l276"><span class="ln">276  </span></a>        &gt;&gt;&gt; i = Idx('i', m) 
+<a name="l277"><span class="ln">277  </span></a>        &gt;&gt;&gt; j = Idx('j', m) 
+<a name="l278"><span class="ln">278  </span></a>        &gt;&gt;&gt; A = IndexedBase('A', shape=(n, n)) 
+<a name="l279"><span class="ln">279  </span></a>        &gt;&gt;&gt; B = IndexedBase('B') 
+<a name="l280"><span class="ln">280  </span></a>        &gt;&gt;&gt; A[i, j].shape 
+<a name="l281"><span class="ln">281  </span></a>        (n, n) 
+<a name="l282"><span class="ln">282  </span></a>        &gt;&gt;&gt; B[i, j].shape 
+<a name="l283"><span class="ln">283  </span></a>        (m, m) 
+<a name="l284"><span class="ln">284  </span></a>        &quot;&quot;&quot;</span>
+<a name="l285"><span class="ln">285  </span></a>
+<a name="l286"><span class="ln">286  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">base</span><span class="s3">.</span><span class="s1">shape</span><span class="s2">:</span>
+<a name="l287"><span class="ln">287  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">base</span><span class="s3">.</span><span class="s1">shape</span>
+<a name="l288"><span class="ln">288  </span></a>        <span class="s1">sizes </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l289"><span class="ln">289  </span></a>        <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">indices</span><span class="s2">:</span>
+<a name="l290"><span class="ln">290  </span></a>            <span class="s1">upper </span><span class="s2">= </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s4">'upper'</span><span class="s3">, </span><span class="s2">None</span><span class="s3">)</span>
+<a name="l291"><span class="ln">291  </span></a>            <span class="s1">lower </span><span class="s2">= </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s4">'lower'</span><span class="s3">, </span><span class="s2">None</span><span class="s3">)</span>
+<a name="l292"><span class="ln">292  </span></a>            <span class="s2">if None in </span><span class="s3">(</span><span class="s1">upper</span><span class="s3">, </span><span class="s1">lower</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l293"><span class="ln">293  </span></a>                <span class="s2">raise </span><span class="s1">IndexException</span><span class="s3">(</span><span class="s1">filldedent</span><span class="s3">(</span><span class="s4">&quot;&quot;&quot; 
+<a name="l294"><span class="ln">294  </span></a>                    Range is not defined for all indices in: %s&quot;&quot;&quot; </span><span class="s2">% </span><span class="s1">self</span><span class="s3">))</span>
+<a name="l295"><span class="ln">295  </span></a>            <span class="s2">try:</span>
+<a name="l296"><span class="ln">296  </span></a>                <span class="s1">size </span><span class="s2">= </span><span class="s1">upper </span><span class="s2">- </span><span class="s1">lower </span><span class="s2">+ </span><span class="s5">1</span>
+<a name="l297"><span class="ln">297  </span></a>            <span class="s2">except </span><span class="s1">TypeError</span><span class="s2">:</span>
+<a name="l298"><span class="ln">298  </span></a>                <span class="s2">raise </span><span class="s1">IndexException</span><span class="s3">(</span><span class="s1">filldedent</span><span class="s3">(</span><span class="s4">&quot;&quot;&quot; 
+<a name="l299"><span class="ln">299  </span></a>                    Shape cannot be inferred from Idx with 
+<a name="l300"><span class="ln">300  </span></a>                    undefined range: %s&quot;&quot;&quot; </span><span class="s2">% </span><span class="s1">self</span><span class="s3">))</span>
+<a name="l301"><span class="ln">301  </span></a>            <span class="s1">sizes</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">size</span><span class="s3">)</span>
+<a name="l302"><span class="ln">302  </span></a>        <span class="s2">return </span><span class="s1">Tuple</span><span class="s3">(</span><span class="s2">*</span><span class="s1">sizes</span><span class="s3">)</span>
+<a name="l303"><span class="ln">303  </span></a>
+<a name="l304"><span class="ln">304  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l305"><span class="ln">305  </span></a>    <span class="s2">def </span><span class="s1">ranges</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l306"><span class="ln">306  </span></a>        <span class="s0">&quot;&quot;&quot;Returns a list of tuples with lower and upper range of each index. 
+<a name="l307"><span class="ln">307  </span></a> 
+<a name="l308"><span class="ln">308  </span></a>        If an index does not define the data members upper and lower, the 
+<a name="l309"><span class="ln">309  </span></a>        corresponding slot in the list contains ``None`` instead of a tuple. 
+<a name="l310"><span class="ln">310  </span></a> 
+<a name="l311"><span class="ln">311  </span></a>        Examples 
+<a name="l312"><span class="ln">312  </span></a>        ======== 
+<a name="l313"><span class="ln">313  </span></a> 
+<a name="l314"><span class="ln">314  </span></a>        &gt;&gt;&gt; from sympy import Indexed,Idx, symbols 
+<a name="l315"><span class="ln">315  </span></a>        &gt;&gt;&gt; Indexed('A', Idx('i', 2), Idx('j', 4), Idx('k', 8)).ranges 
+<a name="l316"><span class="ln">316  </span></a>        [(0, 1), (0, 3), (0, 7)] 
+<a name="l317"><span class="ln">317  </span></a>        &gt;&gt;&gt; Indexed('A', Idx('i', 3), Idx('j', 3), Idx('k', 3)).ranges 
+<a name="l318"><span class="ln">318  </span></a>        [(0, 2), (0, 2), (0, 2)] 
+<a name="l319"><span class="ln">319  </span></a>        &gt;&gt;&gt; x, y, z = symbols('x y z', integer=True) 
+<a name="l320"><span class="ln">320  </span></a>        &gt;&gt;&gt; Indexed('A', x, y, z).ranges 
+<a name="l321"><span class="ln">321  </span></a>        [None, None, None] 
+<a name="l322"><span class="ln">322  </span></a> 
+<a name="l323"><span class="ln">323  </span></a>        &quot;&quot;&quot;</span>
+<a name="l324"><span class="ln">324  </span></a>        <span class="s1">ranges </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l325"><span class="ln">325  </span></a>        <span class="s1">sentinel </span><span class="s2">= </span><span class="s1">object</span><span class="s3">()</span>
+<a name="l326"><span class="ln">326  </span></a>        <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">indices</span><span class="s2">:</span>
+<a name="l327"><span class="ln">327  </span></a>            <span class="s1">upper </span><span class="s2">= </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s4">'upper'</span><span class="s3">, </span><span class="s1">sentinel</span><span class="s3">)</span>
+<a name="l328"><span class="ln">328  </span></a>            <span class="s1">lower </span><span class="s2">= </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s4">'lower'</span><span class="s3">, </span><span class="s1">sentinel</span><span class="s3">)</span>
+<a name="l329"><span class="ln">329  </span></a>            <span class="s2">if </span><span class="s1">sentinel </span><span class="s2">not in </span><span class="s3">(</span><span class="s1">upper</span><span class="s3">, </span><span class="s1">lower</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l330"><span class="ln">330  </span></a>                <span class="s1">ranges</span><span class="s3">.</span><span class="s1">append</span><span class="s3">((</span><span class="s1">lower</span><span class="s3">, </span><span class="s1">upper</span><span class="s3">))</span>
+<a name="l331"><span class="ln">331  </span></a>            <span class="s2">else:</span>
+<a name="l332"><span class="ln">332  </span></a>                <span class="s1">ranges</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s2">None</span><span class="s3">)</span>
+<a name="l333"><span class="ln">333  </span></a>        <span class="s2">return </span><span class="s1">ranges</span>
+<a name="l334"><span class="ln">334  </span></a>
+<a name="l335"><span class="ln">335  </span></a>    <span class="s2">def </span><span class="s1">_sympystr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">p</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l336"><span class="ln">336  </span></a>        <span class="s1">indices </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">map</span><span class="s3">(</span><span class="s1">p</span><span class="s3">.</span><span class="s1">doprint</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">indices</span><span class="s3">))</span>
+<a name="l337"><span class="ln">337  </span></a>        <span class="s2">return </span><span class="s4">&quot;%s[%s]&quot; </span><span class="s2">% </span><span class="s3">(</span><span class="s1">p</span><span class="s3">.</span><span class="s1">doprint</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">base</span><span class="s3">), </span><span class="s4">&quot;, &quot;</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">indices</span><span class="s3">))</span>
+<a name="l338"><span class="ln">338  </span></a>
+<a name="l339"><span class="ln">339  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l340"><span class="ln">340  </span></a>    <span class="s2">def </span><span class="s1">free_symbols</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l341"><span class="ln">341  </span></a>        <span class="s1">base_free_symbols </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">base</span><span class="s3">.</span><span class="s1">free_symbols</span>
+<a name="l342"><span class="ln">342  </span></a>        <span class="s1">indices_free_symbols </span><span class="s2">= </span><span class="s3">{</span>
+<a name="l343"><span class="ln">343  </span></a>            <span class="s1">fs </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">indices </span><span class="s2">for </span><span class="s1">fs </span><span class="s2">in </span><span class="s1">i</span><span class="s3">.</span><span class="s1">free_symbols</span><span class="s3">}</span>
+<a name="l344"><span class="ln">344  </span></a>        <span class="s2">if </span><span class="s1">base_free_symbols</span><span class="s2">:</span>
+<a name="l345"><span class="ln">345  </span></a>            <span class="s2">return </span><span class="s3">{</span><span class="s1">self</span><span class="s3">} </span><span class="s2">| </span><span class="s1">base_free_symbols </span><span class="s2">| </span><span class="s1">indices_free_symbols</span>
+<a name="l346"><span class="ln">346  </span></a>        <span class="s2">else:</span>
+<a name="l347"><span class="ln">347  </span></a>            <span class="s2">return </span><span class="s1">indices_free_symbols</span>
+<a name="l348"><span class="ln">348  </span></a>
+<a name="l349"><span class="ln">349  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l350"><span class="ln">350  </span></a>    <span class="s2">def </span><span class="s1">expr_free_symbols</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l351"><span class="ln">351  </span></a>        <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities</span><span class="s3">.</span><span class="s1">exceptions </span><span class="s2">import </span><span class="s1">sympy_deprecation_warning</span>
+<a name="l352"><span class="ln">352  </span></a>        <span class="s1">sympy_deprecation_warning</span><span class="s3">(</span><span class="s4">&quot;&quot;&quot; 
+<a name="l353"><span class="ln">353  </span></a>        The expr_free_symbols property is deprecated. Use free_symbols to get 
+<a name="l354"><span class="ln">354  </span></a>        the free symbols of an expression. 
+<a name="l355"><span class="ln">355  </span></a>        &quot;&quot;&quot;</span><span class="s3">,</span>
+<a name="l356"><span class="ln">356  </span></a>            <span class="s1">deprecated_since_version</span><span class="s2">=</span><span class="s4">&quot;1.9&quot;</span><span class="s3">,</span>
+<a name="l357"><span class="ln">357  </span></a>            <span class="s1">active_deprecations_target</span><span class="s2">=</span><span class="s4">&quot;deprecated-expr-free-symbols&quot;</span><span class="s3">)</span>
+<a name="l358"><span class="ln">358  </span></a>
+<a name="l359"><span class="ln">359  </span></a>        <span class="s2">return </span><span class="s3">{</span><span class="s1">self</span><span class="s3">}</span>
+<a name="l360"><span class="ln">360  </span></a>
+<a name="l361"><span class="ln">361  </span></a>
+<a name="l362"><span class="ln">362  </span></a><span class="s2">class </span><span class="s1">IndexedBase</span><span class="s3">(</span><span class="s1">Expr</span><span class="s3">, </span><span class="s1">NotIterable</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l363"><span class="ln">363  </span></a>    <span class="s0">&quot;&quot;&quot;Represent the base or stem of an indexed object 
+<a name="l364"><span class="ln">364  </span></a> 
+<a name="l365"><span class="ln">365  </span></a>    The IndexedBase class represent an array that contains elements. The main purpose 
+<a name="l366"><span class="ln">366  </span></a>    of this class is to allow the convenient creation of objects of the Indexed 
+<a name="l367"><span class="ln">367  </span></a>    class.  The __getitem__ method of IndexedBase returns an instance of 
+<a name="l368"><span class="ln">368  </span></a>    Indexed.  Alone, without indices, the IndexedBase class can be used as a 
+<a name="l369"><span class="ln">369  </span></a>    notation for e.g. matrix equations, resembling what you could do with the 
+<a name="l370"><span class="ln">370  </span></a>    Symbol class.  But, the IndexedBase class adds functionality that is not 
+<a name="l371"><span class="ln">371  </span></a>    available for Symbol instances: 
+<a name="l372"><span class="ln">372  </span></a> 
+<a name="l373"><span class="ln">373  </span></a>      -  An IndexedBase object can optionally store shape information.  This can 
+<a name="l374"><span class="ln">374  </span></a>         be used in to check array conformance and conditions for numpy 
+<a name="l375"><span class="ln">375  </span></a>         broadcasting.  (TODO) 
+<a name="l376"><span class="ln">376  </span></a>      -  An IndexedBase object implements syntactic sugar that allows easy symbolic 
+<a name="l377"><span class="ln">377  </span></a>         representation of array operations, using implicit summation of 
+<a name="l378"><span class="ln">378  </span></a>         repeated indices. 
+<a name="l379"><span class="ln">379  </span></a>      -  The IndexedBase object symbolizes a mathematical structure equivalent 
+<a name="l380"><span class="ln">380  </span></a>         to arrays, and is recognized as such for code generation and automatic 
+<a name="l381"><span class="ln">381  </span></a>         compilation and wrapping. 
+<a name="l382"><span class="ln">382  </span></a> 
+<a name="l383"><span class="ln">383  </span></a>    &gt;&gt;&gt; from sympy.tensor import IndexedBase, Idx 
+<a name="l384"><span class="ln">384  </span></a>    &gt;&gt;&gt; from sympy import symbols 
+<a name="l385"><span class="ln">385  </span></a>    &gt;&gt;&gt; A = IndexedBase('A'); A 
+<a name="l386"><span class="ln">386  </span></a>    A 
+<a name="l387"><span class="ln">387  </span></a>    &gt;&gt;&gt; type(A) 
+<a name="l388"><span class="ln">388  </span></a>    &lt;class 'sympy.tensor.indexed.IndexedBase'&gt; 
+<a name="l389"><span class="ln">389  </span></a> 
+<a name="l390"><span class="ln">390  </span></a>    When an IndexedBase object receives indices, it returns an array with named 
+<a name="l391"><span class="ln">391  </span></a>    axes, represented by an Indexed object: 
+<a name="l392"><span class="ln">392  </span></a> 
+<a name="l393"><span class="ln">393  </span></a>    &gt;&gt;&gt; i, j = symbols('i j', integer=True) 
+<a name="l394"><span class="ln">394  </span></a>    &gt;&gt;&gt; A[i, j, 2] 
+<a name="l395"><span class="ln">395  </span></a>    A[i, j, 2] 
+<a name="l396"><span class="ln">396  </span></a>    &gt;&gt;&gt; type(A[i, j, 2]) 
+<a name="l397"><span class="ln">397  </span></a>    &lt;class 'sympy.tensor.indexed.Indexed'&gt; 
+<a name="l398"><span class="ln">398  </span></a> 
+<a name="l399"><span class="ln">399  </span></a>    The IndexedBase constructor takes an optional shape argument.  If given, 
+<a name="l400"><span class="ln">400  </span></a>    it overrides any shape information in the indices. (But not the index 
+<a name="l401"><span class="ln">401  </span></a>    ranges!) 
+<a name="l402"><span class="ln">402  </span></a> 
+<a name="l403"><span class="ln">403  </span></a>    &gt;&gt;&gt; m, n, o, p = symbols('m n o p', integer=True) 
+<a name="l404"><span class="ln">404  </span></a>    &gt;&gt;&gt; i = Idx('i', m) 
+<a name="l405"><span class="ln">405  </span></a>    &gt;&gt;&gt; j = Idx('j', n) 
+<a name="l406"><span class="ln">406  </span></a>    &gt;&gt;&gt; A[i, j].shape 
+<a name="l407"><span class="ln">407  </span></a>    (m, n) 
+<a name="l408"><span class="ln">408  </span></a>    &gt;&gt;&gt; B = IndexedBase('B', shape=(o, p)) 
+<a name="l409"><span class="ln">409  </span></a>    &gt;&gt;&gt; B[i, j].shape 
+<a name="l410"><span class="ln">410  </span></a>    (o, p) 
+<a name="l411"><span class="ln">411  </span></a> 
+<a name="l412"><span class="ln">412  </span></a>    Assumptions can be specified with keyword arguments the same way as for Symbol: 
+<a name="l413"><span class="ln">413  </span></a> 
+<a name="l414"><span class="ln">414  </span></a>    &gt;&gt;&gt; A_real = IndexedBase('A', real=True) 
+<a name="l415"><span class="ln">415  </span></a>    &gt;&gt;&gt; A_real.is_real 
+<a name="l416"><span class="ln">416  </span></a>    True 
+<a name="l417"><span class="ln">417  </span></a>    &gt;&gt;&gt; A != A_real 
+<a name="l418"><span class="ln">418  </span></a>    True 
+<a name="l419"><span class="ln">419  </span></a> 
+<a name="l420"><span class="ln">420  </span></a>    Assumptions can also be inherited if a Symbol is used to initialize the IndexedBase: 
+<a name="l421"><span class="ln">421  </span></a> 
+<a name="l422"><span class="ln">422  </span></a>    &gt;&gt;&gt; I = symbols('I', integer=True) 
+<a name="l423"><span class="ln">423  </span></a>    &gt;&gt;&gt; C_inherit = IndexedBase(I) 
+<a name="l424"><span class="ln">424  </span></a>    &gt;&gt;&gt; C_explicit = IndexedBase('I', integer=True) 
+<a name="l425"><span class="ln">425  </span></a>    &gt;&gt;&gt; C_inherit == C_explicit 
+<a name="l426"><span class="ln">426  </span></a>    True 
+<a name="l427"><span class="ln">427  </span></a>    &quot;&quot;&quot;</span>
+<a name="l428"><span class="ln">428  </span></a>    <span class="s1">is_symbol </span><span class="s2">= True</span>
+<a name="l429"><span class="ln">429  </span></a>    <span class="s1">is_Atom </span><span class="s2">= True</span>
+<a name="l430"><span class="ln">430  </span></a>
+<a name="l431"><span class="ln">431  </span></a>    <span class="s2">@</span><span class="s1">staticmethod</span>
+<a name="l432"><span class="ln">432  </span></a>    <span class="s2">def </span><span class="s1">_set_assumptions</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">, </span><span class="s1">assumptions</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l433"><span class="ln">433  </span></a>        <span class="s0">&quot;&quot;&quot;Set assumptions on obj, making sure to apply consistent values.&quot;&quot;&quot;</span>
+<a name="l434"><span class="ln">434  </span></a>        <span class="s1">tmp_asm_copy </span><span class="s2">= </span><span class="s1">assumptions</span><span class="s3">.</span><span class="s1">copy</span><span class="s3">()</span>
+<a name="l435"><span class="ln">435  </span></a>        <span class="s1">is_commutative </span><span class="s2">= </span><span class="s1">fuzzy_bool</span><span class="s3">(</span><span class="s1">assumptions</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">'commutative'</span><span class="s3">, </span><span class="s2">True</span><span class="s3">))</span>
+<a name="l436"><span class="ln">436  </span></a>        <span class="s1">assumptions</span><span class="s3">[</span><span class="s4">'commutative'</span><span class="s3">] </span><span class="s2">= </span><span class="s1">is_commutative</span>
+<a name="l437"><span class="ln">437  </span></a>        <span class="s1">obj</span><span class="s3">.</span><span class="s1">_assumptions </span><span class="s2">= </span><span class="s1">StdFactKB</span><span class="s3">(</span><span class="s1">assumptions</span><span class="s3">)</span>
+<a name="l438"><span class="ln">438  </span></a>        <span class="s1">obj</span><span class="s3">.</span><span class="s1">_assumptions</span><span class="s3">.</span><span class="s1">_generator </span><span class="s2">= </span><span class="s1">tmp_asm_copy  </span><span class="s0"># Issue #8873</span>
+<a name="l439"><span class="ln">439  </span></a>
+<a name="l440"><span class="ln">440  </span></a>    <span class="s2">def </span><span class="s1">__new__</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s1">label</span><span class="s3">, </span><span class="s1">shape</span><span class="s2">=None</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">offset</span><span class="s2">=</span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span><span class="s3">, </span><span class="s1">strides</span><span class="s2">=None</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kw_args</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l441"><span class="ln">441  </span></a>        <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">matrices</span><span class="s3">.</span><span class="s1">matrixbase </span><span class="s2">import </span><span class="s1">MatrixBase</span>
+<a name="l442"><span class="ln">442  </span></a>        <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">tensor</span><span class="s3">.</span><span class="s1">array</span><span class="s3">.</span><span class="s1">ndim_array </span><span class="s2">import </span><span class="s1">NDimArray</span>
+<a name="l443"><span class="ln">443  </span></a>
+<a name="l444"><span class="ln">444  </span></a>        <span class="s1">assumptions</span><span class="s3">, </span><span class="s1">kw_args </span><span class="s2">= </span><span class="s1">_filter_assumptions</span><span class="s3">(</span><span class="s1">kw_args</span><span class="s3">)</span>
+<a name="l445"><span class="ln">445  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">label</span><span class="s3">, </span><span class="s1">str</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l446"><span class="ln">446  </span></a>            <span class="s1">label </span><span class="s2">= </span><span class="s1">Symbol</span><span class="s3">(</span><span class="s1">label</span><span class="s3">, </span><span class="s2">**</span><span class="s1">assumptions</span><span class="s3">)</span>
+<a name="l447"><span class="ln">447  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">label</span><span class="s3">, </span><span class="s1">Symbol</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l448"><span class="ln">448  </span></a>            <span class="s1">assumptions </span><span class="s2">= </span><span class="s1">label</span><span class="s3">.</span><span class="s1">_merge</span><span class="s3">(</span><span class="s1">assumptions</span><span class="s3">)</span>
+<a name="l449"><span class="ln">449  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">label</span><span class="s3">, (</span><span class="s1">MatrixBase</span><span class="s3">, </span><span class="s1">NDimArray</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l450"><span class="ln">450  </span></a>            <span class="s2">return </span><span class="s1">label</span>
+<a name="l451"><span class="ln">451  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">label</span><span class="s3">, </span><span class="s1">Iterable</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l452"><span class="ln">452  </span></a>            <span class="s2">return </span><span class="s1">_sympify</span><span class="s3">(</span><span class="s1">label</span><span class="s3">)</span>
+<a name="l453"><span class="ln">453  </span></a>        <span class="s2">else:</span>
+<a name="l454"><span class="ln">454  </span></a>            <span class="s1">label </span><span class="s2">= </span><span class="s1">_sympify</span><span class="s3">(</span><span class="s1">label</span><span class="s3">)</span>
+<a name="l455"><span class="ln">455  </span></a>
+<a name="l456"><span class="ln">456  </span></a>        <span class="s2">if </span><span class="s1">is_sequence</span><span class="s3">(</span><span class="s1">shape</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l457"><span class="ln">457  </span></a>            <span class="s1">shape </span><span class="s2">= </span><span class="s1">Tuple</span><span class="s3">(</span><span class="s2">*</span><span class="s1">shape</span><span class="s3">)</span>
+<a name="l458"><span class="ln">458  </span></a>        <span class="s2">elif </span><span class="s1">shape </span><span class="s2">is not None:</span>
+<a name="l459"><span class="ln">459  </span></a>            <span class="s1">shape </span><span class="s2">= </span><span class="s1">Tuple</span><span class="s3">(</span><span class="s1">shape</span><span class="s3">)</span>
+<a name="l460"><span class="ln">460  </span></a>
+<a name="l461"><span class="ln">461  </span></a>        <span class="s2">if </span><span class="s1">shape </span><span class="s2">is not None:</span>
+<a name="l462"><span class="ln">462  </span></a>            <span class="s1">obj </span><span class="s2">= </span><span class="s1">Expr</span><span class="s3">.</span><span class="s1">__new__</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s1">label</span><span class="s3">, </span><span class="s1">shape</span><span class="s3">)</span>
+<a name="l463"><span class="ln">463  </span></a>        <span class="s2">else:</span>
+<a name="l464"><span class="ln">464  </span></a>            <span class="s1">obj </span><span class="s2">= </span><span class="s1">Expr</span><span class="s3">.</span><span class="s1">__new__</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s1">label</span><span class="s3">)</span>
+<a name="l465"><span class="ln">465  </span></a>        <span class="s1">obj</span><span class="s3">.</span><span class="s1">_shape </span><span class="s2">= </span><span class="s1">shape</span>
+<a name="l466"><span class="ln">466  </span></a>        <span class="s1">obj</span><span class="s3">.</span><span class="s1">_offset </span><span class="s2">= </span><span class="s1">offset</span>
+<a name="l467"><span class="ln">467  </span></a>        <span class="s1">obj</span><span class="s3">.</span><span class="s1">_strides </span><span class="s2">= </span><span class="s1">strides</span>
+<a name="l468"><span class="ln">468  </span></a>        <span class="s1">obj</span><span class="s3">.</span><span class="s1">_name </span><span class="s2">= </span><span class="s1">str</span><span class="s3">(</span><span class="s1">label</span><span class="s3">)</span>
+<a name="l469"><span class="ln">469  </span></a>
+<a name="l470"><span class="ln">470  </span></a>        <span class="s1">IndexedBase</span><span class="s3">.</span><span class="s1">_set_assumptions</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">, </span><span class="s1">assumptions</span><span class="s3">)</span>
+<a name="l471"><span class="ln">471  </span></a>        <span class="s2">return </span><span class="s1">obj</span>
+<a name="l472"><span class="ln">472  </span></a>
+<a name="l473"><span class="ln">473  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l474"><span class="ln">474  </span></a>    <span class="s2">def </span><span class="s1">name</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l475"><span class="ln">475  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_name</span>
+<a name="l476"><span class="ln">476  </span></a>
+<a name="l477"><span class="ln">477  </span></a>    <span class="s2">def </span><span class="s1">_hashable_content</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l478"><span class="ln">478  </span></a>        <span class="s2">return </span><span class="s1">super</span><span class="s3">().</span><span class="s1">_hashable_content</span><span class="s3">() </span><span class="s2">+ </span><span class="s1">tuple</span><span class="s3">(</span><span class="s1">sorted</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">assumptions0</span><span class="s3">.</span><span class="s1">items</span><span class="s3">()))</span>
+<a name="l479"><span class="ln">479  </span></a>
+<a name="l480"><span class="ln">480  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l481"><span class="ln">481  </span></a>    <span class="s2">def </span><span class="s1">assumptions0</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l482"><span class="ln">482  </span></a>        <span class="s2">return </span><span class="s3">{</span><span class="s1">k</span><span class="s2">: </span><span class="s1">v </span><span class="s2">for </span><span class="s1">k</span><span class="s3">, </span><span class="s1">v </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_assumptions</span><span class="s3">.</span><span class="s1">items</span><span class="s3">() </span><span class="s2">if </span><span class="s1">v </span><span class="s2">is not None</span><span class="s3">}</span>
+<a name="l483"><span class="ln">483  </span></a>
+<a name="l484"><span class="ln">484  </span></a>    <span class="s2">def </span><span class="s1">__getitem__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">indices</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kw_args</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l485"><span class="ln">485  </span></a>        <span class="s2">if </span><span class="s1">is_sequence</span><span class="s3">(</span><span class="s1">indices</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l486"><span class="ln">486  </span></a>            <span class="s0"># Special case needed because M[*my_tuple] is a syntax error.</span>
+<a name="l487"><span class="ln">487  </span></a>            <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">shape </span><span class="s2">and </span><span class="s1">len</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">) </span><span class="s2">!= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">indices</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l488"><span class="ln">488  </span></a>                <span class="s2">raise </span><span class="s1">IndexException</span><span class="s3">(</span><span class="s4">&quot;Rank mismatch.&quot;</span><span class="s3">)</span>
+<a name="l489"><span class="ln">489  </span></a>            <span class="s2">return </span><span class="s1">Indexed</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s2">*</span><span class="s1">indices</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kw_args</span><span class="s3">)</span>
+<a name="l490"><span class="ln">490  </span></a>        <span class="s2">else:</span>
+<a name="l491"><span class="ln">491  </span></a>            <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">shape </span><span class="s2">and </span><span class="s1">len</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">) </span><span class="s2">!= </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l492"><span class="ln">492  </span></a>                <span class="s2">raise </span><span class="s1">IndexException</span><span class="s3">(</span><span class="s4">&quot;Rank mismatch.&quot;</span><span class="s3">)</span>
+<a name="l493"><span class="ln">493  </span></a>            <span class="s2">return </span><span class="s1">Indexed</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">indices</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kw_args</span><span class="s3">)</span>
+<a name="l494"><span class="ln">494  </span></a>
+<a name="l495"><span class="ln">495  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l496"><span class="ln">496  </span></a>    <span class="s2">def </span><span class="s1">shape</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l497"><span class="ln">497  </span></a>        <span class="s0">&quot;&quot;&quot;Returns the shape of the ``IndexedBase`` object. 
+<a name="l498"><span class="ln">498  </span></a> 
+<a name="l499"><span class="ln">499  </span></a>        Examples 
+<a name="l500"><span class="ln">500  </span></a>        ======== 
+<a name="l501"><span class="ln">501  </span></a> 
+<a name="l502"><span class="ln">502  </span></a>        &gt;&gt;&gt; from sympy import IndexedBase, Idx 
+<a name="l503"><span class="ln">503  </span></a>        &gt;&gt;&gt; from sympy.abc import x, y 
+<a name="l504"><span class="ln">504  </span></a>        &gt;&gt;&gt; IndexedBase('A', shape=(x, y)).shape 
+<a name="l505"><span class="ln">505  </span></a>        (x, y) 
+<a name="l506"><span class="ln">506  </span></a> 
+<a name="l507"><span class="ln">507  </span></a>        Note: If the shape of the ``IndexedBase`` is specified, it will override 
+<a name="l508"><span class="ln">508  </span></a>        any shape information given by the indices. 
+<a name="l509"><span class="ln">509  </span></a> 
+<a name="l510"><span class="ln">510  </span></a>        &gt;&gt;&gt; A = IndexedBase('A', shape=(x, y)) 
+<a name="l511"><span class="ln">511  </span></a>        &gt;&gt;&gt; B = IndexedBase('B') 
+<a name="l512"><span class="ln">512  </span></a>        &gt;&gt;&gt; i = Idx('i', 2) 
+<a name="l513"><span class="ln">513  </span></a>        &gt;&gt;&gt; j = Idx('j', 1) 
+<a name="l514"><span class="ln">514  </span></a>        &gt;&gt;&gt; A[i, j].shape 
+<a name="l515"><span class="ln">515  </span></a>        (x, y) 
+<a name="l516"><span class="ln">516  </span></a>        &gt;&gt;&gt; B[i, j].shape 
+<a name="l517"><span class="ln">517  </span></a>        (2, 1) 
+<a name="l518"><span class="ln">518  </span></a> 
+<a name="l519"><span class="ln">519  </span></a>        &quot;&quot;&quot;</span>
+<a name="l520"><span class="ln">520  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_shape</span>
+<a name="l521"><span class="ln">521  </span></a>
+<a name="l522"><span class="ln">522  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l523"><span class="ln">523  </span></a>    <span class="s2">def </span><span class="s1">strides</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l524"><span class="ln">524  </span></a>        <span class="s0">&quot;&quot;&quot;Returns the strided scheme for the ``IndexedBase`` object. 
+<a name="l525"><span class="ln">525  </span></a> 
+<a name="l526"><span class="ln">526  </span></a>        Normally this is a tuple denoting the number of 
+<a name="l527"><span class="ln">527  </span></a>        steps to take in the respective dimension when traversing 
+<a name="l528"><span class="ln">528  </span></a>        an array. For code generation purposes strides='C' and 
+<a name="l529"><span class="ln">529  </span></a>        strides='F' can also be used. 
+<a name="l530"><span class="ln">530  </span></a> 
+<a name="l531"><span class="ln">531  </span></a>        strides='C' would mean that code printer would unroll 
+<a name="l532"><span class="ln">532  </span></a>        in row-major order and 'F' means unroll in column major 
+<a name="l533"><span class="ln">533  </span></a>        order. 
+<a name="l534"><span class="ln">534  </span></a> 
+<a name="l535"><span class="ln">535  </span></a>        &quot;&quot;&quot;</span>
+<a name="l536"><span class="ln">536  </span></a>
+<a name="l537"><span class="ln">537  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_strides</span>
+<a name="l538"><span class="ln">538  </span></a>
+<a name="l539"><span class="ln">539  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l540"><span class="ln">540  </span></a>    <span class="s2">def </span><span class="s1">offset</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l541"><span class="ln">541  </span></a>        <span class="s0">&quot;&quot;&quot;Returns the offset for the ``IndexedBase`` object. 
+<a name="l542"><span class="ln">542  </span></a> 
+<a name="l543"><span class="ln">543  </span></a>        This is the value added to the resulting index when the 
+<a name="l544"><span class="ln">544  </span></a>        2D Indexed object is unrolled to a 1D form. Used in code 
+<a name="l545"><span class="ln">545  </span></a>        generation. 
+<a name="l546"><span class="ln">546  </span></a> 
+<a name="l547"><span class="ln">547  </span></a>        Examples 
+<a name="l548"><span class="ln">548  </span></a>        ========== 
+<a name="l549"><span class="ln">549  </span></a>        &gt;&gt;&gt; from sympy.printing import ccode 
+<a name="l550"><span class="ln">550  </span></a>        &gt;&gt;&gt; from sympy.tensor import IndexedBase, Idx 
+<a name="l551"><span class="ln">551  </span></a>        &gt;&gt;&gt; from sympy import symbols 
+<a name="l552"><span class="ln">552  </span></a>        &gt;&gt;&gt; l, m, n, o = symbols('l m n o', integer=True) 
+<a name="l553"><span class="ln">553  </span></a>        &gt;&gt;&gt; A = IndexedBase('A', strides=(l, m, n), offset=o) 
+<a name="l554"><span class="ln">554  </span></a>        &gt;&gt;&gt; i, j, k = map(Idx, 'ijk') 
+<a name="l555"><span class="ln">555  </span></a>        &gt;&gt;&gt; ccode(A[i, j, k]) 
+<a name="l556"><span class="ln">556  </span></a>        'A[l*i + m*j + n*k + o]' 
+<a name="l557"><span class="ln">557  </span></a> 
+<a name="l558"><span class="ln">558  </span></a>        &quot;&quot;&quot;</span>
+<a name="l559"><span class="ln">559  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_offset</span>
+<a name="l560"><span class="ln">560  </span></a>
+<a name="l561"><span class="ln">561  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l562"><span class="ln">562  </span></a>    <span class="s2">def </span><span class="s1">label</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l563"><span class="ln">563  </span></a>        <span class="s0">&quot;&quot;&quot;Returns the label of the ``IndexedBase`` object. 
+<a name="l564"><span class="ln">564  </span></a> 
+<a name="l565"><span class="ln">565  </span></a>        Examples 
+<a name="l566"><span class="ln">566  </span></a>        ======== 
+<a name="l567"><span class="ln">567  </span></a> 
+<a name="l568"><span class="ln">568  </span></a>        &gt;&gt;&gt; from sympy import IndexedBase 
+<a name="l569"><span class="ln">569  </span></a>        &gt;&gt;&gt; from sympy.abc import x, y 
+<a name="l570"><span class="ln">570  </span></a>        &gt;&gt;&gt; IndexedBase('A', shape=(x, y)).label 
+<a name="l571"><span class="ln">571  </span></a>        A 
+<a name="l572"><span class="ln">572  </span></a> 
+<a name="l573"><span class="ln">573  </span></a>        &quot;&quot;&quot;</span>
+<a name="l574"><span class="ln">574  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l575"><span class="ln">575  </span></a>
+<a name="l576"><span class="ln">576  </span></a>    <span class="s2">def </span><span class="s1">_sympystr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">p</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l577"><span class="ln">577  </span></a>        <span class="s2">return </span><span class="s1">p</span><span class="s3">.</span><span class="s1">doprint</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">label</span><span class="s3">)</span>
+<a name="l578"><span class="ln">578  </span></a>
+<a name="l579"><span class="ln">579  </span></a>
+<a name="l580"><span class="ln">580  </span></a><span class="s2">class </span><span class="s1">Idx</span><span class="s3">(</span><span class="s1">Expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l581"><span class="ln">581  </span></a>    <span class="s0">&quot;&quot;&quot;Represents an integer index as an ``Integer`` or integer expression. 
+<a name="l582"><span class="ln">582  </span></a> 
+<a name="l583"><span class="ln">583  </span></a>    There are a number of ways to create an ``Idx`` object.  The constructor 
+<a name="l584"><span class="ln">584  </span></a>    takes two arguments: 
+<a name="l585"><span class="ln">585  </span></a> 
+<a name="l586"><span class="ln">586  </span></a>    ``label`` 
+<a name="l587"><span class="ln">587  </span></a>        An integer or a symbol that labels the index. 
+<a name="l588"><span class="ln">588  </span></a>    ``range`` 
+<a name="l589"><span class="ln">589  </span></a>        Optionally you can specify a range as either 
+<a name="l590"><span class="ln">590  </span></a> 
+<a name="l591"><span class="ln">591  </span></a>        * ``Symbol`` or integer: This is interpreted as a dimension. Lower and 
+<a name="l592"><span class="ln">592  </span></a>          upper bounds are set to ``0`` and ``range - 1``, respectively. 
+<a name="l593"><span class="ln">593  </span></a>        * ``tuple``: The two elements are interpreted as the lower and upper 
+<a name="l594"><span class="ln">594  </span></a>          bounds of the range, respectively. 
+<a name="l595"><span class="ln">595  </span></a> 
+<a name="l596"><span class="ln">596  </span></a>    Note: bounds of the range are assumed to be either integer or infinite (oo 
+<a name="l597"><span class="ln">597  </span></a>    and -oo are allowed to specify an unbounded range). If ``n`` is given as a 
+<a name="l598"><span class="ln">598  </span></a>    bound, then ``n.is_integer`` must not return false. 
+<a name="l599"><span class="ln">599  </span></a> 
+<a name="l600"><span class="ln">600  </span></a>    For convenience, if the label is given as a string it is automatically 
+<a name="l601"><span class="ln">601  </span></a>    converted to an integer symbol.  (Note: this conversion is not done for 
+<a name="l602"><span class="ln">602  </span></a>    range or dimension arguments.) 
+<a name="l603"><span class="ln">603  </span></a> 
+<a name="l604"><span class="ln">604  </span></a>    Examples 
+<a name="l605"><span class="ln">605  </span></a>    ======== 
+<a name="l606"><span class="ln">606  </span></a> 
+<a name="l607"><span class="ln">607  </span></a>    &gt;&gt;&gt; from sympy import Idx, symbols, oo 
+<a name="l608"><span class="ln">608  </span></a>    &gt;&gt;&gt; n, i, L, U = symbols('n i L U', integer=True) 
+<a name="l609"><span class="ln">609  </span></a> 
+<a name="l610"><span class="ln">610  </span></a>    If a string is given for the label an integer ``Symbol`` is created and the 
+<a name="l611"><span class="ln">611  </span></a>    bounds are both ``None``: 
+<a name="l612"><span class="ln">612  </span></a> 
+<a name="l613"><span class="ln">613  </span></a>    &gt;&gt;&gt; idx = Idx('qwerty'); idx 
+<a name="l614"><span class="ln">614  </span></a>    qwerty 
+<a name="l615"><span class="ln">615  </span></a>    &gt;&gt;&gt; idx.lower, idx.upper 
+<a name="l616"><span class="ln">616  </span></a>    (None, None) 
+<a name="l617"><span class="ln">617  </span></a> 
+<a name="l618"><span class="ln">618  </span></a>    Both upper and lower bounds can be specified: 
+<a name="l619"><span class="ln">619  </span></a> 
+<a name="l620"><span class="ln">620  </span></a>    &gt;&gt;&gt; idx = Idx(i, (L, U)); idx 
+<a name="l621"><span class="ln">621  </span></a>    i 
+<a name="l622"><span class="ln">622  </span></a>    &gt;&gt;&gt; idx.lower, idx.upper 
+<a name="l623"><span class="ln">623  </span></a>    (L, U) 
+<a name="l624"><span class="ln">624  </span></a> 
+<a name="l625"><span class="ln">625  </span></a>    When only a single bound is given it is interpreted as the dimension 
+<a name="l626"><span class="ln">626  </span></a>    and the lower bound defaults to 0: 
+<a name="l627"><span class="ln">627  </span></a> 
+<a name="l628"><span class="ln">628  </span></a>    &gt;&gt;&gt; idx = Idx(i, n); idx.lower, idx.upper 
+<a name="l629"><span class="ln">629  </span></a>    (0, n - 1) 
+<a name="l630"><span class="ln">630  </span></a>    &gt;&gt;&gt; idx = Idx(i, 4); idx.lower, idx.upper 
+<a name="l631"><span class="ln">631  </span></a>    (0, 3) 
+<a name="l632"><span class="ln">632  </span></a>    &gt;&gt;&gt; idx = Idx(i, oo); idx.lower, idx.upper 
+<a name="l633"><span class="ln">633  </span></a>    (0, oo) 
+<a name="l634"><span class="ln">634  </span></a> 
+<a name="l635"><span class="ln">635  </span></a>    &quot;&quot;&quot;</span>
+<a name="l636"><span class="ln">636  </span></a>
+<a name="l637"><span class="ln">637  </span></a>    <span class="s1">is_integer </span><span class="s2">= True</span>
+<a name="l638"><span class="ln">638  </span></a>    <span class="s1">is_finite </span><span class="s2">= True</span>
+<a name="l639"><span class="ln">639  </span></a>    <span class="s1">is_real </span><span class="s2">= True</span>
+<a name="l640"><span class="ln">640  </span></a>    <span class="s1">is_symbol </span><span class="s2">= True</span>
+<a name="l641"><span class="ln">641  </span></a>    <span class="s1">is_Atom </span><span class="s2">= True</span>
+<a name="l642"><span class="ln">642  </span></a>    <span class="s1">_diff_wrt </span><span class="s2">= True</span>
+<a name="l643"><span class="ln">643  </span></a>
+<a name="l644"><span class="ln">644  </span></a>    <span class="s2">def </span><span class="s1">__new__</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s1">label</span><span class="s3">, </span><span class="s1">range</span><span class="s2">=None</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kw_args</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l645"><span class="ln">645  </span></a>
+<a name="l646"><span class="ln">646  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">label</span><span class="s3">, </span><span class="s1">str</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l647"><span class="ln">647  </span></a>            <span class="s1">label </span><span class="s2">= </span><span class="s1">Symbol</span><span class="s3">(</span><span class="s1">label</span><span class="s3">, </span><span class="s1">integer</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l648"><span class="ln">648  </span></a>        <span class="s1">label</span><span class="s3">, </span><span class="s1">range </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">map</span><span class="s3">(</span><span class="s1">sympify</span><span class="s3">, (</span><span class="s1">label</span><span class="s3">, </span><span class="s1">range</span><span class="s3">)))</span>
+<a name="l649"><span class="ln">649  </span></a>
+<a name="l650"><span class="ln">650  </span></a>        <span class="s2">if </span><span class="s1">label</span><span class="s3">.</span><span class="s1">is_Number</span><span class="s2">:</span>
+<a name="l651"><span class="ln">651  </span></a>            <span class="s2">if not </span><span class="s1">label</span><span class="s3">.</span><span class="s1">is_integer</span><span class="s2">:</span>
+<a name="l652"><span class="ln">652  </span></a>                <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;Index is not an integer number.&quot;</span><span class="s3">)</span>
+<a name="l653"><span class="ln">653  </span></a>            <span class="s2">return </span><span class="s1">label</span>
+<a name="l654"><span class="ln">654  </span></a>
+<a name="l655"><span class="ln">655  </span></a>        <span class="s2">if not </span><span class="s1">label</span><span class="s3">.</span><span class="s1">is_integer</span><span class="s2">:</span>
+<a name="l656"><span class="ln">656  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;Idx object requires an integer label.&quot;</span><span class="s3">)</span>
+<a name="l657"><span class="ln">657  </span></a>
+<a name="l658"><span class="ln">658  </span></a>        <span class="s2">elif </span><span class="s1">is_sequence</span><span class="s3">(</span><span class="s1">range</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l659"><span class="ln">659  </span></a>            <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">range</span><span class="s3">) </span><span class="s2">!= </span><span class="s5">2</span><span class="s2">:</span>
+<a name="l660"><span class="ln">660  </span></a>                <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s1">filldedent</span><span class="s3">(</span><span class="s4">&quot;&quot;&quot; 
+<a name="l661"><span class="ln">661  </span></a>                    Idx range tuple must have length 2, but got %s&quot;&quot;&quot; </span><span class="s2">% </span><span class="s1">len</span><span class="s3">(</span><span class="s1">range</span><span class="s3">)))</span>
+<a name="l662"><span class="ln">662  </span></a>            <span class="s2">for </span><span class="s1">bound </span><span class="s2">in </span><span class="s1">range</span><span class="s2">:</span>
+<a name="l663"><span class="ln">663  </span></a>                <span class="s2">if </span><span class="s3">(</span><span class="s1">bound</span><span class="s3">.</span><span class="s1">is_integer </span><span class="s2">is False and </span><span class="s1">bound </span><span class="s2">is not </span><span class="s1">S</span><span class="s3">.</span><span class="s1">Infinity</span>
+<a name="l664"><span class="ln">664  </span></a>                        <span class="s2">and </span><span class="s1">bound </span><span class="s2">is not </span><span class="s1">S</span><span class="s3">.</span><span class="s1">NegativeInfinity</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l665"><span class="ln">665  </span></a>                    <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;Idx object requires integer bounds.&quot;</span><span class="s3">)</span>
+<a name="l666"><span class="ln">666  </span></a>            <span class="s1">args </span><span class="s2">= </span><span class="s1">label</span><span class="s3">, </span><span class="s1">Tuple</span><span class="s3">(</span><span class="s2">*</span><span class="s1">range</span><span class="s3">)</span>
+<a name="l667"><span class="ln">667  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">range</span><span class="s3">, </span><span class="s1">Expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l668"><span class="ln">668  </span></a>            <span class="s2">if </span><span class="s1">range </span><span class="s2">is not </span><span class="s1">S</span><span class="s3">.</span><span class="s1">Infinity </span><span class="s2">and </span><span class="s1">fuzzy_not</span><span class="s3">(</span><span class="s1">range</span><span class="s3">.</span><span class="s1">is_integer</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l669"><span class="ln">669  </span></a>                <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;Idx object requires an integer dimension.&quot;</span><span class="s3">)</span>
+<a name="l670"><span class="ln">670  </span></a>            <span class="s1">args </span><span class="s2">= </span><span class="s1">label</span><span class="s3">, </span><span class="s1">Tuple</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s1">range </span><span class="s2">- </span><span class="s5">1</span><span class="s3">)</span>
+<a name="l671"><span class="ln">671  </span></a>        <span class="s2">elif </span><span class="s1">range</span><span class="s2">:</span>
+<a name="l672"><span class="ln">672  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s1">filldedent</span><span class="s3">(</span><span class="s4">&quot;&quot;&quot; 
+<a name="l673"><span class="ln">673  </span></a>                The range must be an ordered iterable or 
+<a name="l674"><span class="ln">674  </span></a>                integer SymPy expression.&quot;&quot;&quot;</span><span class="s3">))</span>
+<a name="l675"><span class="ln">675  </span></a>        <span class="s2">else:</span>
+<a name="l676"><span class="ln">676  </span></a>            <span class="s1">args </span><span class="s2">= </span><span class="s1">label</span><span class="s3">,</span>
+<a name="l677"><span class="ln">677  </span></a>
+<a name="l678"><span class="ln">678  </span></a>        <span class="s1">obj </span><span class="s2">= </span><span class="s1">Expr</span><span class="s3">.</span><span class="s1">__new__</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kw_args</span><span class="s3">)</span>
+<a name="l679"><span class="ln">679  </span></a>        <span class="s1">obj</span><span class="s3">.</span><span class="s1">_assumptions</span><span class="s3">[</span><span class="s4">&quot;finite&quot;</span><span class="s3">] </span><span class="s2">= True</span>
+<a name="l680"><span class="ln">680  </span></a>        <span class="s1">obj</span><span class="s3">.</span><span class="s1">_assumptions</span><span class="s3">[</span><span class="s4">&quot;real&quot;</span><span class="s3">] </span><span class="s2">= True</span>
+<a name="l681"><span class="ln">681  </span></a>        <span class="s2">return </span><span class="s1">obj</span>
+<a name="l682"><span class="ln">682  </span></a>
+<a name="l683"><span class="ln">683  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l684"><span class="ln">684  </span></a>    <span class="s2">def </span><span class="s1">label</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l685"><span class="ln">685  </span></a>        <span class="s0">&quot;&quot;&quot;Returns the label (Integer or integer expression) of the Idx object. 
+<a name="l686"><span class="ln">686  </span></a> 
+<a name="l687"><span class="ln">687  </span></a>        Examples 
+<a name="l688"><span class="ln">688  </span></a>        ======== 
+<a name="l689"><span class="ln">689  </span></a> 
+<a name="l690"><span class="ln">690  </span></a>        &gt;&gt;&gt; from sympy import Idx, Symbol 
+<a name="l691"><span class="ln">691  </span></a>        &gt;&gt;&gt; x = Symbol('x', integer=True) 
+<a name="l692"><span class="ln">692  </span></a>        &gt;&gt;&gt; Idx(x).label 
+<a name="l693"><span class="ln">693  </span></a>        x 
+<a name="l694"><span class="ln">694  </span></a>        &gt;&gt;&gt; j = Symbol('j', integer=True) 
+<a name="l695"><span class="ln">695  </span></a>        &gt;&gt;&gt; Idx(j).label 
+<a name="l696"><span class="ln">696  </span></a>        j 
+<a name="l697"><span class="ln">697  </span></a>        &gt;&gt;&gt; Idx(j + 1).label 
+<a name="l698"><span class="ln">698  </span></a>        j + 1 
+<a name="l699"><span class="ln">699  </span></a> 
+<a name="l700"><span class="ln">700  </span></a>        &quot;&quot;&quot;</span>
+<a name="l701"><span class="ln">701  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l702"><span class="ln">702  </span></a>
+<a name="l703"><span class="ln">703  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l704"><span class="ln">704  </span></a>    <span class="s2">def </span><span class="s1">lower</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l705"><span class="ln">705  </span></a>        <span class="s0">&quot;&quot;&quot;Returns the lower bound of the ``Idx``. 
+<a name="l706"><span class="ln">706  </span></a> 
+<a name="l707"><span class="ln">707  </span></a>        Examples 
+<a name="l708"><span class="ln">708  </span></a>        ======== 
+<a name="l709"><span class="ln">709  </span></a> 
+<a name="l710"><span class="ln">710  </span></a>        &gt;&gt;&gt; from sympy import Idx 
+<a name="l711"><span class="ln">711  </span></a>        &gt;&gt;&gt; Idx('j', 2).lower 
+<a name="l712"><span class="ln">712  </span></a>        0 
+<a name="l713"><span class="ln">713  </span></a>        &gt;&gt;&gt; Idx('j', 5).lower 
+<a name="l714"><span class="ln">714  </span></a>        0 
+<a name="l715"><span class="ln">715  </span></a>        &gt;&gt;&gt; Idx('j').lower is None 
+<a name="l716"><span class="ln">716  </span></a>        True 
+<a name="l717"><span class="ln">717  </span></a> 
+<a name="l718"><span class="ln">718  </span></a>        &quot;&quot;&quot;</span>
+<a name="l719"><span class="ln">719  </span></a>        <span class="s2">try:</span>
+<a name="l720"><span class="ln">720  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">1</span><span class="s3">][</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l721"><span class="ln">721  </span></a>        <span class="s2">except </span><span class="s1">IndexError</span><span class="s2">:</span>
+<a name="l722"><span class="ln">722  </span></a>            <span class="s2">return</span>
+<a name="l723"><span class="ln">723  </span></a>
+<a name="l724"><span class="ln">724  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l725"><span class="ln">725  </span></a>    <span class="s2">def </span><span class="s1">upper</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l726"><span class="ln">726  </span></a>        <span class="s0">&quot;&quot;&quot;Returns the upper bound of the ``Idx``. 
+<a name="l727"><span class="ln">727  </span></a> 
+<a name="l728"><span class="ln">728  </span></a>        Examples 
+<a name="l729"><span class="ln">729  </span></a>        ======== 
+<a name="l730"><span class="ln">730  </span></a> 
+<a name="l731"><span class="ln">731  </span></a>        &gt;&gt;&gt; from sympy import Idx 
+<a name="l732"><span class="ln">732  </span></a>        &gt;&gt;&gt; Idx('j', 2).upper 
+<a name="l733"><span class="ln">733  </span></a>        1 
+<a name="l734"><span class="ln">734  </span></a>        &gt;&gt;&gt; Idx('j', 5).upper 
+<a name="l735"><span class="ln">735  </span></a>        4 
+<a name="l736"><span class="ln">736  </span></a>        &gt;&gt;&gt; Idx('j').upper is None 
+<a name="l737"><span class="ln">737  </span></a>        True 
+<a name="l738"><span class="ln">738  </span></a> 
+<a name="l739"><span class="ln">739  </span></a>        &quot;&quot;&quot;</span>
+<a name="l740"><span class="ln">740  </span></a>        <span class="s2">try:</span>
+<a name="l741"><span class="ln">741  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">1</span><span class="s3">][</span><span class="s5">1</span><span class="s3">]</span>
+<a name="l742"><span class="ln">742  </span></a>        <span class="s2">except </span><span class="s1">IndexError</span><span class="s2">:</span>
+<a name="l743"><span class="ln">743  </span></a>            <span class="s2">return</span>
+<a name="l744"><span class="ln">744  </span></a>
+<a name="l745"><span class="ln">745  </span></a>    <span class="s2">def </span><span class="s1">_sympystr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">p</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l746"><span class="ln">746  </span></a>        <span class="s2">return </span><span class="s1">p</span><span class="s3">.</span><span class="s1">doprint</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">label</span><span class="s3">)</span>
+<a name="l747"><span class="ln">747  </span></a>
+<a name="l748"><span class="ln">748  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l749"><span class="ln">749  </span></a>    <span class="s2">def </span><span class="s1">name</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l750"><span class="ln">750  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">label</span><span class="s3">.</span><span class="s1">name </span><span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">label</span><span class="s3">.</span><span class="s1">is_Symbol </span><span class="s2">else </span><span class="s1">str</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">label</span><span class="s3">)</span>
+<a name="l751"><span class="ln">751  </span></a>
+<a name="l752"><span class="ln">752  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l753"><span class="ln">753  </span></a>    <span class="s2">def </span><span class="s1">free_symbols</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l754"><span class="ln">754  </span></a>        <span class="s2">return </span><span class="s3">{</span><span class="s1">self</span><span class="s3">}</span>
+<a name="l755"><span class="ln">755  </span></a>
+<a name="l756"><span class="ln">756  </span></a>
+<a name="l757"><span class="ln">757  </span></a><span class="s2">@</span><span class="s1">dispatch</span><span class="s3">(</span><span class="s1">Idx</span><span class="s3">, </span><span class="s1">Idx</span><span class="s3">)</span>
+<a name="l758"><span class="ln">758  </span></a><span class="s2">def </span><span class="s1">_eval_is_ge</span><span class="s3">(</span><span class="s1">lhs</span><span class="s3">, </span><span class="s1">rhs</span><span class="s3">)</span><span class="s2">: </span><span class="s0"># noqa:F811</span>
+<a name="l759"><span class="ln">759  </span></a>
+<a name="l760"><span class="ln">760  </span></a>    <span class="s1">other_upper </span><span class="s2">= </span><span class="s1">rhs </span><span class="s2">if </span><span class="s1">rhs</span><span class="s3">.</span><span class="s1">upper </span><span class="s2">is None else </span><span class="s1">rhs</span><span class="s3">.</span><span class="s1">upper</span>
+<a name="l761"><span class="ln">761  </span></a>    <span class="s1">other_lower </span><span class="s2">= </span><span class="s1">rhs </span><span class="s2">if </span><span class="s1">rhs</span><span class="s3">.</span><span class="s1">lower </span><span class="s2">is None else </span><span class="s1">rhs</span><span class="s3">.</span><span class="s1">lower</span>
+<a name="l762"><span class="ln">762  </span></a>
+<a name="l763"><span class="ln">763  </span></a>    <span class="s2">if </span><span class="s1">lhs</span><span class="s3">.</span><span class="s1">lower </span><span class="s2">is not None and </span><span class="s3">(</span><span class="s1">lhs</span><span class="s3">.</span><span class="s1">lower </span><span class="s2">&gt;= </span><span class="s1">other_upper</span><span class="s3">) </span><span class="s2">== True:</span>
+<a name="l764"><span class="ln">764  </span></a>        <span class="s2">return True</span>
+<a name="l765"><span class="ln">765  </span></a>    <span class="s2">if </span><span class="s1">lhs</span><span class="s3">.</span><span class="s1">upper </span><span class="s2">is not None and </span><span class="s3">(</span><span class="s1">lhs</span><span class="s3">.</span><span class="s1">upper </span><span class="s2">&lt; </span><span class="s1">other_lower</span><span class="s3">) </span><span class="s2">== True:</span>
+<a name="l766"><span class="ln">766  </span></a>        <span class="s2">return False</span>
+<a name="l767"><span class="ln">767  </span></a>    <span class="s2">return None</span>
+<a name="l768"><span class="ln">768  </span></a>
+<a name="l769"><span class="ln">769  </span></a>
+<a name="l770"><span class="ln">770  </span></a><span class="s2">@</span><span class="s1">dispatch</span><span class="s3">(</span><span class="s1">Idx</span><span class="s3">, </span><span class="s1">Number</span><span class="s3">)  </span><span class="s0"># type:ignore</span>
+<a name="l771"><span class="ln">771  </span></a><span class="s2">def </span><span class="s1">_eval_is_ge</span><span class="s3">(</span><span class="s1">lhs</span><span class="s3">, </span><span class="s1">rhs</span><span class="s3">)</span><span class="s2">: </span><span class="s0"># noqa:F811</span>
+<a name="l772"><span class="ln">772  </span></a>
+<a name="l773"><span class="ln">773  </span></a>    <span class="s1">other_upper </span><span class="s2">= </span><span class="s1">rhs</span>
+<a name="l774"><span class="ln">774  </span></a>    <span class="s1">other_lower </span><span class="s2">= </span><span class="s1">rhs</span>
+<a name="l775"><span class="ln">775  </span></a>
+<a name="l776"><span class="ln">776  </span></a>    <span class="s2">if </span><span class="s1">lhs</span><span class="s3">.</span><span class="s1">lower </span><span class="s2">is not None and </span><span class="s3">(</span><span class="s1">lhs</span><span class="s3">.</span><span class="s1">lower </span><span class="s2">&gt;= </span><span class="s1">other_upper</span><span class="s3">) </span><span class="s2">== True:</span>
+<a name="l777"><span class="ln">777  </span></a>        <span class="s2">return True</span>
+<a name="l778"><span class="ln">778  </span></a>    <span class="s2">if </span><span class="s1">lhs</span><span class="s3">.</span><span class="s1">upper </span><span class="s2">is not None and </span><span class="s3">(</span><span class="s1">lhs</span><span class="s3">.</span><span class="s1">upper </span><span class="s2">&lt; </span><span class="s1">other_lower</span><span class="s3">) </span><span class="s2">== True:</span>
+<a name="l779"><span class="ln">779  </span></a>        <span class="s2">return False</span>
+<a name="l780"><span class="ln">780  </span></a>    <span class="s2">return None</span>
+<a name="l781"><span class="ln">781  </span></a>
+<a name="l782"><span class="ln">782  </span></a>
+<a name="l783"><span class="ln">783  </span></a><span class="s2">@</span><span class="s1">dispatch</span><span class="s3">(</span><span class="s1">Number</span><span class="s3">, </span><span class="s1">Idx</span><span class="s3">)  </span><span class="s0"># type:ignore</span>
+<a name="l784"><span class="ln">784  </span></a><span class="s2">def </span><span class="s1">_eval_is_ge</span><span class="s3">(</span><span class="s1">lhs</span><span class="s3">, </span><span class="s1">rhs</span><span class="s3">)</span><span class="s2">: </span><span class="s0"># noqa:F811</span>
+<a name="l785"><span class="ln">785  </span></a>
+<a name="l786"><span class="ln">786  </span></a>    <span class="s1">other_upper </span><span class="s2">= </span><span class="s1">lhs</span>
+<a name="l787"><span class="ln">787  </span></a>    <span class="s1">other_lower </span><span class="s2">= </span><span class="s1">lhs</span>
+<a name="l788"><span class="ln">788  </span></a>
+<a name="l789"><span class="ln">789  </span></a>    <span class="s2">if </span><span class="s1">rhs</span><span class="s3">.</span><span class="s1">upper </span><span class="s2">is not None and </span><span class="s3">(</span><span class="s1">rhs</span><span class="s3">.</span><span class="s1">upper </span><span class="s2">&lt;= </span><span class="s1">other_lower</span><span class="s3">) </span><span class="s2">== True:</span>
+<a name="l790"><span class="ln">790  </span></a>        <span class="s2">return True</span>
+<a name="l791"><span class="ln">791  </span></a>    <span class="s2">if </span><span class="s1">rhs</span><span class="s3">.</span><span class="s1">lower </span><span class="s2">is not None and </span><span class="s3">(</span><span class="s1">rhs</span><span class="s3">.</span><span class="s1">lower </span><span class="s2">&gt; </span><span class="s1">other_upper</span><span class="s3">) </span><span class="s2">== True:</span>
+<a name="l792"><span class="ln">792  </span></a>        <span class="s2">return False</span>
+<a name="l793"><span class="ln">793  </span></a>    <span class="s2">return None</span>
+<a name="l794"><span class="ln">794  </span></a></pre>
+</body>
+</html>

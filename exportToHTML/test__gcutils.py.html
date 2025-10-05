@@ -1,0 +1,133 @@
+<html>
+<head>
+<title>test__gcutils.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+test__gcutils.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; Test for assert_deallocated context manager and gc utilities 
+<a name="l2"><span class="ln">2    </span></a>&quot;&quot;&quot;</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s2">import </span><span class="s1">gc</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">from </span><span class="s1">threading </span><span class="s2">import </span><span class="s1">Lock</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s2">from </span><span class="s1">scipy</span><span class="s3">.</span><span class="s1">_lib</span><span class="s3">.</span><span class="s1">_gcutils </span><span class="s2">import </span><span class="s3">(</span><span class="s1">set_gc_state</span><span class="s3">, </span><span class="s1">gc_state</span><span class="s3">, </span><span class="s1">assert_deallocated</span><span class="s3">,</span>
+<a name="l7"><span class="ln">7    </span></a>                                 <span class="s1">ReferenceError</span><span class="s3">, </span><span class="s1">IS_PYPY</span><span class="s3">)</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s2">from </span><span class="s1">numpy</span><span class="s3">.</span><span class="s1">testing </span><span class="s2">import </span><span class="s1">assert_equal</span>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">import </span><span class="s1">pytest</span>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">@</span><span class="s1">pytest</span><span class="s3">.</span><span class="s1">fixture</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">def </span><span class="s1">gc_lock</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s2">return </span><span class="s1">Lock</span><span class="s3">()</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">def </span><span class="s1">test_set_gc_state</span><span class="s3">(</span><span class="s1">gc_lock</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l20"><span class="ln">20   </span></a>    <span class="s2">with </span><span class="s1">gc_lock</span><span class="s2">:</span>
+<a name="l21"><span class="ln">21   </span></a>        <span class="s1">gc_status </span><span class="s2">= </span><span class="s1">gc</span><span class="s3">.</span><span class="s1">isenabled</span><span class="s3">()</span>
+<a name="l22"><span class="ln">22   </span></a>        <span class="s2">try:</span>
+<a name="l23"><span class="ln">23   </span></a>            <span class="s2">for </span><span class="s1">state </span><span class="s2">in </span><span class="s3">(</span><span class="s2">True</span><span class="s3">, </span><span class="s2">False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l24"><span class="ln">24   </span></a>                <span class="s1">gc</span><span class="s3">.</span><span class="s1">enable</span><span class="s3">()</span>
+<a name="l25"><span class="ln">25   </span></a>                <span class="s1">set_gc_state</span><span class="s3">(</span><span class="s1">state</span><span class="s3">)</span>
+<a name="l26"><span class="ln">26   </span></a>                <span class="s1">assert_equal</span><span class="s3">(</span><span class="s1">gc</span><span class="s3">.</span><span class="s1">isenabled</span><span class="s3">(), </span><span class="s1">state</span><span class="s3">)</span>
+<a name="l27"><span class="ln">27   </span></a>                <span class="s1">gc</span><span class="s3">.</span><span class="s1">disable</span><span class="s3">()</span>
+<a name="l28"><span class="ln">28   </span></a>                <span class="s1">set_gc_state</span><span class="s3">(</span><span class="s1">state</span><span class="s3">)</span>
+<a name="l29"><span class="ln">29   </span></a>                <span class="s1">assert_equal</span><span class="s3">(</span><span class="s1">gc</span><span class="s3">.</span><span class="s1">isenabled</span><span class="s3">(), </span><span class="s1">state</span><span class="s3">)</span>
+<a name="l30"><span class="ln">30   </span></a>        <span class="s2">finally:</span>
+<a name="l31"><span class="ln">31   </span></a>            <span class="s2">if </span><span class="s1">gc_status</span><span class="s2">:</span>
+<a name="l32"><span class="ln">32   </span></a>                <span class="s1">gc</span><span class="s3">.</span><span class="s1">enable</span><span class="s3">()</span>
+<a name="l33"><span class="ln">33   </span></a>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a><span class="s2">def </span><span class="s1">test_gc_state</span><span class="s3">(</span><span class="s1">gc_lock</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l36"><span class="ln">36   </span></a>    <span class="s0"># Test gc_state context manager</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s2">with </span><span class="s1">gc_lock</span><span class="s2">:</span>
+<a name="l38"><span class="ln">38   </span></a>        <span class="s1">gc_status </span><span class="s2">= </span><span class="s1">gc</span><span class="s3">.</span><span class="s1">isenabled</span><span class="s3">()</span>
+<a name="l39"><span class="ln">39   </span></a>        <span class="s2">try:</span>
+<a name="l40"><span class="ln">40   </span></a>            <span class="s2">for </span><span class="s1">pre_state </span><span class="s2">in </span><span class="s3">(</span><span class="s2">True</span><span class="s3">, </span><span class="s2">False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l41"><span class="ln">41   </span></a>                <span class="s1">set_gc_state</span><span class="s3">(</span><span class="s1">pre_state</span><span class="s3">)</span>
+<a name="l42"><span class="ln">42   </span></a>                <span class="s2">for </span><span class="s1">with_state </span><span class="s2">in </span><span class="s3">(</span><span class="s2">True</span><span class="s3">, </span><span class="s2">False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l43"><span class="ln">43   </span></a>                    <span class="s0"># Check the gc state is with_state in with block</span>
+<a name="l44"><span class="ln">44   </span></a>                    <span class="s2">with </span><span class="s1">gc_state</span><span class="s3">(</span><span class="s1">with_state</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l45"><span class="ln">45   </span></a>                        <span class="s1">assert_equal</span><span class="s3">(</span><span class="s1">gc</span><span class="s3">.</span><span class="s1">isenabled</span><span class="s3">(), </span><span class="s1">with_state</span><span class="s3">)</span>
+<a name="l46"><span class="ln">46   </span></a>                    <span class="s0"># And returns to previous state outside block</span>
+<a name="l47"><span class="ln">47   </span></a>                    <span class="s1">assert_equal</span><span class="s3">(</span><span class="s1">gc</span><span class="s3">.</span><span class="s1">isenabled</span><span class="s3">(), </span><span class="s1">pre_state</span><span class="s3">)</span>
+<a name="l48"><span class="ln">48   </span></a>                    <span class="s0"># Even if the gc state is set explicitly within the block</span>
+<a name="l49"><span class="ln">49   </span></a>                    <span class="s2">with </span><span class="s1">gc_state</span><span class="s3">(</span><span class="s1">with_state</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l50"><span class="ln">50   </span></a>                        <span class="s1">assert_equal</span><span class="s3">(</span><span class="s1">gc</span><span class="s3">.</span><span class="s1">isenabled</span><span class="s3">(), </span><span class="s1">with_state</span><span class="s3">)</span>
+<a name="l51"><span class="ln">51   </span></a>                        <span class="s1">set_gc_state</span><span class="s3">(</span><span class="s2">not </span><span class="s1">with_state</span><span class="s3">)</span>
+<a name="l52"><span class="ln">52   </span></a>                    <span class="s1">assert_equal</span><span class="s3">(</span><span class="s1">gc</span><span class="s3">.</span><span class="s1">isenabled</span><span class="s3">(), </span><span class="s1">pre_state</span><span class="s3">)</span>
+<a name="l53"><span class="ln">53   </span></a>        <span class="s2">finally:</span>
+<a name="l54"><span class="ln">54   </span></a>            <span class="s2">if </span><span class="s1">gc_status</span><span class="s2">:</span>
+<a name="l55"><span class="ln">55   </span></a>                <span class="s1">gc</span><span class="s3">.</span><span class="s1">enable</span><span class="s3">()</span>
+<a name="l56"><span class="ln">56   </span></a>
+<a name="l57"><span class="ln">57   </span></a>
+<a name="l58"><span class="ln">58   </span></a><span class="s2">@</span><span class="s1">pytest</span><span class="s3">.</span><span class="s1">mark</span><span class="s3">.</span><span class="s1">skipif</span><span class="s3">(</span><span class="s1">IS_PYPY</span><span class="s3">, </span><span class="s1">reason</span><span class="s2">=</span><span class="s4">&quot;Test not meaningful on PyPy&quot;</span><span class="s3">)</span>
+<a name="l59"><span class="ln">59   </span></a><span class="s2">def </span><span class="s1">test_assert_deallocated</span><span class="s3">(</span><span class="s1">gc_lock</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s0"># Ordinary use</span>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s2">class </span><span class="s1">C</span><span class="s2">:</span>
+<a name="l62"><span class="ln">62   </span></a>        <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">arg0</span><span class="s3">, </span><span class="s1">arg1</span><span class="s3">, </span><span class="s1">name</span><span class="s2">=</span><span class="s4">'myname'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l63"><span class="ln">63   </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">name </span><span class="s2">= </span><span class="s1">name</span>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s2">with </span><span class="s1">gc_lock</span><span class="s2">:</span>
+<a name="l65"><span class="ln">65   </span></a>        <span class="s2">for </span><span class="s1">gc_current </span><span class="s2">in </span><span class="s3">(</span><span class="s2">True</span><span class="s3">, </span><span class="s2">False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>            <span class="s2">with </span><span class="s1">gc_state</span><span class="s3">(</span><span class="s1">gc_current</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l67"><span class="ln">67   </span></a>                <span class="s0"># We are deleting from with-block context, so that's OK</span>
+<a name="l68"><span class="ln">68   </span></a>                <span class="s2">with </span><span class="s1">assert_deallocated</span><span class="s3">(</span><span class="s1">C</span><span class="s3">, </span><span class="s5">0</span><span class="s3">, </span><span class="s5">2</span><span class="s3">, </span><span class="s4">'another name'</span><span class="s3">) </span><span class="s2">as </span><span class="s1">c</span><span class="s2">:</span>
+<a name="l69"><span class="ln">69   </span></a>                    <span class="s1">assert_equal</span><span class="s3">(</span><span class="s1">c</span><span class="s3">.</span><span class="s1">name</span><span class="s3">, </span><span class="s4">'another name'</span><span class="s3">)</span>
+<a name="l70"><span class="ln">70   </span></a>                    <span class="s2">del </span><span class="s1">c</span>
+<a name="l71"><span class="ln">71   </span></a>                <span class="s0"># Or not using the thing in with-block context, also OK</span>
+<a name="l72"><span class="ln">72   </span></a>                <span class="s2">with </span><span class="s1">assert_deallocated</span><span class="s3">(</span><span class="s1">C</span><span class="s3">, </span><span class="s5">0</span><span class="s3">, </span><span class="s5">2</span><span class="s3">, </span><span class="s1">name</span><span class="s2">=</span><span class="s4">'third name'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l73"><span class="ln">73   </span></a>                    <span class="s2">pass</span>
+<a name="l74"><span class="ln">74   </span></a>                <span class="s1">assert_equal</span><span class="s3">(</span><span class="s1">gc</span><span class="s3">.</span><span class="s1">isenabled</span><span class="s3">(), </span><span class="s1">gc_current</span><span class="s3">)</span>
+<a name="l75"><span class="ln">75   </span></a>
+<a name="l76"><span class="ln">76   </span></a>
+<a name="l77"><span class="ln">77   </span></a><span class="s2">@</span><span class="s1">pytest</span><span class="s3">.</span><span class="s1">mark</span><span class="s3">.</span><span class="s1">skipif</span><span class="s3">(</span><span class="s1">IS_PYPY</span><span class="s3">, </span><span class="s1">reason</span><span class="s2">=</span><span class="s4">&quot;Test not meaningful on PyPy&quot;</span><span class="s3">)</span>
+<a name="l78"><span class="ln">78   </span></a><span class="s2">def </span><span class="s1">test_assert_deallocated_nodel</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l79"><span class="ln">79   </span></a>    <span class="s2">class </span><span class="s1">C</span><span class="s2">:</span>
+<a name="l80"><span class="ln">80   </span></a>        <span class="s2">pass</span>
+<a name="l81"><span class="ln">81   </span></a>    <span class="s2">with </span><span class="s1">pytest</span><span class="s3">.</span><span class="s1">raises</span><span class="s3">(</span><span class="s1">ReferenceError</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l82"><span class="ln">82   </span></a>        <span class="s0"># Need to delete after using if in with-block context</span>
+<a name="l83"><span class="ln">83   </span></a>        <span class="s0"># Note: assert_deallocated(C) needs to be assigned for the test</span>
+<a name="l84"><span class="ln">84   </span></a>        <span class="s0"># to function correctly.  It is assigned to _, but _ itself is</span>
+<a name="l85"><span class="ln">85   </span></a>        <span class="s0"># not referenced in the body of the with, it is only there for</span>
+<a name="l86"><span class="ln">86   </span></a>        <span class="s0"># the refcount.</span>
+<a name="l87"><span class="ln">87   </span></a>        <span class="s2">with </span><span class="s1">assert_deallocated</span><span class="s3">(</span><span class="s1">C</span><span class="s3">) </span><span class="s2">as </span><span class="s1">_</span><span class="s2">:</span>
+<a name="l88"><span class="ln">88   </span></a>            <span class="s2">pass</span>
+<a name="l89"><span class="ln">89   </span></a>
+<a name="l90"><span class="ln">90   </span></a>
+<a name="l91"><span class="ln">91   </span></a><span class="s2">@</span><span class="s1">pytest</span><span class="s3">.</span><span class="s1">mark</span><span class="s3">.</span><span class="s1">skipif</span><span class="s3">(</span><span class="s1">IS_PYPY</span><span class="s3">, </span><span class="s1">reason</span><span class="s2">=</span><span class="s4">&quot;Test not meaningful on PyPy&quot;</span><span class="s3">)</span>
+<a name="l92"><span class="ln">92   </span></a><span class="s2">def </span><span class="s1">test_assert_deallocated_circular</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s2">class </span><span class="s1">C</span><span class="s2">:</span>
+<a name="l94"><span class="ln">94   </span></a>        <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l95"><span class="ln">95   </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_circular </span><span class="s2">= </span><span class="s1">self</span>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s2">with </span><span class="s1">pytest</span><span class="s3">.</span><span class="s1">raises</span><span class="s3">(</span><span class="s1">ReferenceError</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l97"><span class="ln">97   </span></a>        <span class="s0"># Circular reference, no automatic garbage collection</span>
+<a name="l98"><span class="ln">98   </span></a>        <span class="s2">with </span><span class="s1">assert_deallocated</span><span class="s3">(</span><span class="s1">C</span><span class="s3">) </span><span class="s2">as </span><span class="s1">c</span><span class="s2">:</span>
+<a name="l99"><span class="ln">99   </span></a>            <span class="s2">del </span><span class="s1">c</span>
+<a name="l100"><span class="ln">100  </span></a>
+<a name="l101"><span class="ln">101  </span></a>
+<a name="l102"><span class="ln">102  </span></a><span class="s2">@</span><span class="s1">pytest</span><span class="s3">.</span><span class="s1">mark</span><span class="s3">.</span><span class="s1">skipif</span><span class="s3">(</span><span class="s1">IS_PYPY</span><span class="s3">, </span><span class="s1">reason</span><span class="s2">=</span><span class="s4">&quot;Test not meaningful on PyPy&quot;</span><span class="s3">)</span>
+<a name="l103"><span class="ln">103  </span></a><span class="s2">def </span><span class="s1">test_assert_deallocated_circular2</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l104"><span class="ln">104  </span></a>    <span class="s2">class </span><span class="s1">C</span><span class="s2">:</span>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l106"><span class="ln">106  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_circular </span><span class="s2">= </span><span class="s1">self</span>
+<a name="l107"><span class="ln">107  </span></a>    <span class="s2">with </span><span class="s1">pytest</span><span class="s3">.</span><span class="s1">raises</span><span class="s3">(</span><span class="s1">ReferenceError</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l108"><span class="ln">108  </span></a>        <span class="s0"># Still circular reference, no automatic garbage collection</span>
+<a name="l109"><span class="ln">109  </span></a>        <span class="s2">with </span><span class="s1">assert_deallocated</span><span class="s3">(</span><span class="s1">C</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l110"><span class="ln">110  </span></a>            <span class="s2">pass</span>
+<a name="l111"><span class="ln">111  </span></a></pre>
+</body>
+</html>

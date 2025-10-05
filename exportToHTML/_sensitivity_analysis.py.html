@@ -1,0 +1,736 @@
+<html>
+<head>
+<title>_sensitivity_analysis.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #969896;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_sensitivity_analysis.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">import </span><span class="s1">inspect</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s1">dataclasses </span><span class="s0">import </span><span class="s1">dataclass</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">from </span><span class="s1">typing </span><span class="s0">import </span><span class="s1">TYPE_CHECKING</span><span class="s2">, </span><span class="s1">Any</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s1">collections</span><span class="s2">.</span><span class="s1">abc </span><span class="s0">import </span><span class="s1">Callable</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">import </span><span class="s1">numpy </span><span class="s0">as </span><span class="s1">np</span>
+<a name="l7"><span class="ln">7    </span></a>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">stats</span><span class="s2">.</span><span class="s1">_common </span><span class="s0">import </span><span class="s1">ConfidenceInterval</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">stats</span><span class="s2">.</span><span class="s1">_qmc </span><span class="s0">import </span><span class="s1">check_random_state</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">stats</span><span class="s2">.</span><span class="s1">_resampling </span><span class="s0">import </span><span class="s1">BootstrapResult</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">stats </span><span class="s0">import </span><span class="s1">qmc</span><span class="s2">, </span><span class="s1">bootstrap</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">_lib</span><span class="s2">.</span><span class="s1">_util </span><span class="s0">import </span><span class="s1">_transition_to_rng</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s0">if </span><span class="s1">TYPE_CHECKING</span><span class="s0">:</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s0">import </span><span class="s1">numpy</span><span class="s2">.</span><span class="s1">typing </span><span class="s0">as </span><span class="s1">npt</span>
+<a name="l17"><span class="ln">17   </span></a>    <span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">_lib</span><span class="s2">.</span><span class="s1">_util </span><span class="s0">import </span><span class="s1">DecimalNumber</span><span class="s2">, </span><span class="s1">IntNumber</span>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span>
+<a name="l21"><span class="ln">21   </span></a>    <span class="s3">'sobol_indices'</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s2">]</span>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a><span class="s0">def </span><span class="s1">f_ishigami</span><span class="s2">(</span><span class="s1">x</span><span class="s0">: </span><span class="s3">&quot;npt.ArrayLike&quot;</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s3">&quot;npt.NDArray[np.inexact[Any]]&quot;</span><span class="s0">:</span>
+<a name="l26"><span class="ln">26   </span></a>    <span class="s4">r&quot;&quot;&quot;Ishigami function. 
+<a name="l27"><span class="ln">27   </span></a> 
+<a name="l28"><span class="ln">28   </span></a>    .. math:: 
+<a name="l29"><span class="ln">29   </span></a> 
+<a name="l30"><span class="ln">30   </span></a>        Y(\mathbf{x}) = \sin x_1 + 7 \sin^2 x_2 + 0.1 x_3^4 \sin x_1 
+<a name="l31"><span class="ln">31   </span></a> 
+<a name="l32"><span class="ln">32   </span></a>    with :math:`\mathbf{x} \in [-\pi, \pi]^3`. 
+<a name="l33"><span class="ln">33   </span></a> 
+<a name="l34"><span class="ln">34   </span></a>    Parameters 
+<a name="l35"><span class="ln">35   </span></a>    ---------- 
+<a name="l36"><span class="ln">36   </span></a>    x : array_like ([x1, x2, x3], n) 
+<a name="l37"><span class="ln">37   </span></a> 
+<a name="l38"><span class="ln">38   </span></a>    Returns 
+<a name="l39"><span class="ln">39   </span></a>    ------- 
+<a name="l40"><span class="ln">40   </span></a>    f : array_like (n,) 
+<a name="l41"><span class="ln">41   </span></a>        Function evaluation. 
+<a name="l42"><span class="ln">42   </span></a> 
+<a name="l43"><span class="ln">43   </span></a>    References 
+<a name="l44"><span class="ln">44   </span></a>    ---------- 
+<a name="l45"><span class="ln">45   </span></a>    .. [1] Ishigami, T. and T. Homma. &quot;An importance quantification technique 
+<a name="l46"><span class="ln">46   </span></a>       in uncertainty analysis for computer models.&quot; IEEE, 
+<a name="l47"><span class="ln">47   </span></a>       :doi:`10.1109/ISUMA.1990.151285`, 1990. 
+<a name="l48"><span class="ln">48   </span></a>    &quot;&quot;&quot;</span>
+<a name="l49"><span class="ln">49   </span></a>    <span class="s1">x </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">atleast_2d</span><span class="s2">(</span><span class="s1">x</span><span class="s2">)</span>
+<a name="l50"><span class="ln">50   </span></a>    <span class="s1">f_eval </span><span class="s0">= </span><span class="s2">(</span>
+<a name="l51"><span class="ln">51   </span></a>        <span class="s1">np</span><span class="s2">.</span><span class="s1">sin</span><span class="s2">(</span><span class="s1">x</span><span class="s2">[</span><span class="s5">0</span><span class="s2">])</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s0">+ </span><span class="s5">7 </span><span class="s0">* </span><span class="s1">np</span><span class="s2">.</span><span class="s1">sin</span><span class="s2">(</span><span class="s1">x</span><span class="s2">[</span><span class="s5">1</span><span class="s2">])</span><span class="s0">**</span><span class="s5">2</span>
+<a name="l53"><span class="ln">53   </span></a>        <span class="s0">+ </span><span class="s5">0.1 </span><span class="s0">* </span><span class="s2">(</span><span class="s1">x</span><span class="s2">[</span><span class="s5">2</span><span class="s2">]</span><span class="s0">**</span><span class="s5">4</span><span class="s2">) </span><span class="s0">* </span><span class="s1">np</span><span class="s2">.</span><span class="s1">sin</span><span class="s2">(</span><span class="s1">x</span><span class="s2">[</span><span class="s5">0</span><span class="s2">])</span>
+<a name="l54"><span class="ln">54   </span></a>    <span class="s2">)</span>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s0">return </span><span class="s1">f_eval</span>
+<a name="l56"><span class="ln">56   </span></a>
+<a name="l57"><span class="ln">57   </span></a>
+<a name="l58"><span class="ln">58   </span></a><span class="s0">def </span><span class="s1">sample_A_B</span><span class="s2">(</span>
+<a name="l59"><span class="ln">59   </span></a>    <span class="s1">n</span><span class="s2">,</span>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s1">dists</span><span class="s2">,</span>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s1">rng</span><span class="s0">=None</span>
+<a name="l62"><span class="ln">62   </span></a><span class="s2">)</span><span class="s0">:</span>
+<a name="l63"><span class="ln">63   </span></a>    <span class="s4">&quot;&quot;&quot;Sample two matrices A and B. 
+<a name="l64"><span class="ln">64   </span></a> 
+<a name="l65"><span class="ln">65   </span></a>    Uses a Sobol' sequence with 2`d` columns to have 2 uncorrelated matrices. 
+<a name="l66"><span class="ln">66   </span></a>    This is more efficient than using 2 random draw of Sobol'. 
+<a name="l67"><span class="ln">67   </span></a>    See sec. 5 from [1]_. 
+<a name="l68"><span class="ln">68   </span></a> 
+<a name="l69"><span class="ln">69   </span></a>    Output shape is (d, n). 
+<a name="l70"><span class="ln">70   </span></a> 
+<a name="l71"><span class="ln">71   </span></a>    References 
+<a name="l72"><span class="ln">72   </span></a>    ---------- 
+<a name="l73"><span class="ln">73   </span></a>    .. [1] Saltelli, A., P. Annoni, I. Azzini, F. Campolongo, M. Ratto, and 
+<a name="l74"><span class="ln">74   </span></a>       S. Tarantola. &quot;Variance based sensitivity analysis of model 
+<a name="l75"><span class="ln">75   </span></a>       output. Design and estimator for the total sensitivity index.&quot; 
+<a name="l76"><span class="ln">76   </span></a>       Computer Physics Communications, 181(2):259-270, 
+<a name="l77"><span class="ln">77   </span></a>       :doi:`10.1016/j.cpc.2009.09.018`, 2010. 
+<a name="l78"><span class="ln">78   </span></a>    &quot;&quot;&quot;</span>
+<a name="l79"><span class="ln">79   </span></a>    <span class="s1">d </span><span class="s0">= </span><span class="s1">len</span><span class="s2">(</span><span class="s1">dists</span><span class="s2">)</span>
+<a name="l80"><span class="ln">80   </span></a>    <span class="s1">A_B </span><span class="s0">= </span><span class="s1">qmc</span><span class="s2">.</span><span class="s1">Sobol</span><span class="s2">(</span><span class="s1">d</span><span class="s0">=</span><span class="s5">2</span><span class="s0">*</span><span class="s1">d</span><span class="s2">, </span><span class="s1">seed</span><span class="s0">=</span><span class="s1">rng</span><span class="s2">, </span><span class="s1">bits</span><span class="s0">=</span><span class="s5">64</span><span class="s2">).</span><span class="s1">random</span><span class="s2">(</span><span class="s1">n</span><span class="s2">).</span><span class="s1">T</span>
+<a name="l81"><span class="ln">81   </span></a>    <span class="s1">A_B </span><span class="s0">= </span><span class="s1">A_B</span><span class="s2">.</span><span class="s1">reshape</span><span class="s2">(</span><span class="s5">2</span><span class="s2">, </span><span class="s1">d</span><span class="s2">, </span><span class="s0">-</span><span class="s5">1</span><span class="s2">)</span>
+<a name="l82"><span class="ln">82   </span></a>    <span class="s0">try:</span>
+<a name="l83"><span class="ln">83   </span></a>        <span class="s0">for </span><span class="s1">d_</span><span class="s2">, </span><span class="s1">dist </span><span class="s0">in </span><span class="s1">enumerate</span><span class="s2">(</span><span class="s1">dists</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l84"><span class="ln">84   </span></a>            <span class="s1">A_B</span><span class="s2">[</span><span class="s0">:</span><span class="s2">, </span><span class="s1">d_</span><span class="s2">] </span><span class="s0">= </span><span class="s1">dist</span><span class="s2">.</span><span class="s1">ppf</span><span class="s2">(</span><span class="s1">A_B</span><span class="s2">[</span><span class="s0">:</span><span class="s2">, </span><span class="s1">d_</span><span class="s2">])</span>
+<a name="l85"><span class="ln">85   </span></a>    <span class="s0">except </span><span class="s1">AttributeError </span><span class="s0">as </span><span class="s1">exc</span><span class="s0">:</span>
+<a name="l86"><span class="ln">86   </span></a>        <span class="s1">message </span><span class="s0">= </span><span class="s3">&quot;Each distribution in `dists` must have method `ppf`.&quot;</span>
+<a name="l87"><span class="ln">87   </span></a>        <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s1">message</span><span class="s2">) </span><span class="s0">from </span><span class="s1">exc</span>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s0">return </span><span class="s1">A_B</span>
+<a name="l89"><span class="ln">89   </span></a>
+<a name="l90"><span class="ln">90   </span></a>
+<a name="l91"><span class="ln">91   </span></a><span class="s0">def </span><span class="s1">sample_AB</span><span class="s2">(</span><span class="s1">A</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span><span class="s2">, </span><span class="s1">B</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span><span class="s2">) </span><span class="s1">-&gt; np</span><span class="s2">.</span><span class="s1">ndarray</span><span class="s0">:</span>
+<a name="l92"><span class="ln">92   </span></a>    <span class="s4">&quot;&quot;&quot;AB matrix. 
+<a name="l93"><span class="ln">93   </span></a> 
+<a name="l94"><span class="ln">94   </span></a>    AB: rows of B into A. Shape (d, d, n). 
+<a name="l95"><span class="ln">95   </span></a>    - Copy A into d &quot;pages&quot; 
+<a name="l96"><span class="ln">96   </span></a>    - In the first page, replace 1st rows of A with 1st row of B. 
+<a name="l97"><span class="ln">97   </span></a>    ... 
+<a name="l98"><span class="ln">98   </span></a>    - In the dth page, replace dth row of A with dth row of B. 
+<a name="l99"><span class="ln">99   </span></a>    - return the stack of pages 
+<a name="l100"><span class="ln">100  </span></a>    &quot;&quot;&quot;</span>
+<a name="l101"><span class="ln">101  </span></a>    <span class="s1">d</span><span class="s2">, </span><span class="s1">n </span><span class="s0">= </span><span class="s1">A</span><span class="s2">.</span><span class="s1">shape</span>
+<a name="l102"><span class="ln">102  </span></a>    <span class="s1">AB </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">tile</span><span class="s2">(</span><span class="s1">A</span><span class="s2">, (</span><span class="s1">d</span><span class="s2">, </span><span class="s5">1</span><span class="s2">, </span><span class="s5">1</span><span class="s2">))</span>
+<a name="l103"><span class="ln">103  </span></a>    <span class="s1">i </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">arange</span><span class="s2">(</span><span class="s1">d</span><span class="s2">)</span>
+<a name="l104"><span class="ln">104  </span></a>    <span class="s1">AB</span><span class="s2">[</span><span class="s1">i</span><span class="s2">, </span><span class="s1">i</span><span class="s2">] </span><span class="s0">= </span><span class="s1">B</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]</span>
+<a name="l105"><span class="ln">105  </span></a>    <span class="s0">return </span><span class="s1">AB</span>
+<a name="l106"><span class="ln">106  </span></a>
+<a name="l107"><span class="ln">107  </span></a>
+<a name="l108"><span class="ln">108  </span></a><span class="s0">def </span><span class="s1">saltelli_2010</span><span class="s2">(</span>
+<a name="l109"><span class="ln">109  </span></a>    <span class="s1">f_A</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span><span class="s2">, </span><span class="s1">f_B</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span><span class="s2">, </span><span class="s1">f_AB</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span>
+<a name="l110"><span class="ln">110  </span></a><span class="s2">) </span><span class="s1">-&gt; tuple</span><span class="s2">[</span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span><span class="s2">, </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l111"><span class="ln">111  </span></a>    <span class="s4">r&quot;&quot;&quot;Saltelli2010 formulation. 
+<a name="l112"><span class="ln">112  </span></a> 
+<a name="l113"><span class="ln">113  </span></a>    .. math:: 
+<a name="l114"><span class="ln">114  </span></a> 
+<a name="l115"><span class="ln">115  </span></a>        S_i = \frac{1}{N} \sum_{j=1}^N 
+<a name="l116"><span class="ln">116  </span></a>        f(\mathbf{B})_j (f(\mathbf{AB}^{(i)})_j - f(\mathbf{A})_j) 
+<a name="l117"><span class="ln">117  </span></a> 
+<a name="l118"><span class="ln">118  </span></a>    .. math:: 
+<a name="l119"><span class="ln">119  </span></a> 
+<a name="l120"><span class="ln">120  </span></a>        S_{T_i} = \frac{1}{N} \sum_{j=1}^N 
+<a name="l121"><span class="ln">121  </span></a>        (f(\mathbf{A})_j - f(\mathbf{AB}^{(i)})_j)^2 
+<a name="l122"><span class="ln">122  </span></a> 
+<a name="l123"><span class="ln">123  </span></a>    Parameters 
+<a name="l124"><span class="ln">124  </span></a>    ---------- 
+<a name="l125"><span class="ln">125  </span></a>    f_A, f_B : array_like (s, n) 
+<a name="l126"><span class="ln">126  </span></a>        Function values at A and B, respectively 
+<a name="l127"><span class="ln">127  </span></a>    f_AB : array_like (d, s, n) 
+<a name="l128"><span class="ln">128  </span></a>        Function values at each of the AB pages 
+<a name="l129"><span class="ln">129  </span></a> 
+<a name="l130"><span class="ln">130  </span></a>    Returns 
+<a name="l131"><span class="ln">131  </span></a>    ------- 
+<a name="l132"><span class="ln">132  </span></a>    s, st : array_like (s, d) 
+<a name="l133"><span class="ln">133  </span></a>        First order and total order Sobol' indices. 
+<a name="l134"><span class="ln">134  </span></a> 
+<a name="l135"><span class="ln">135  </span></a>    References 
+<a name="l136"><span class="ln">136  </span></a>    ---------- 
+<a name="l137"><span class="ln">137  </span></a>    .. [1] Saltelli, A., P. Annoni, I. Azzini, F. Campolongo, M. Ratto, and 
+<a name="l138"><span class="ln">138  </span></a>       S. Tarantola. &quot;Variance based sensitivity analysis of model 
+<a name="l139"><span class="ln">139  </span></a>       output. Design and estimator for the total sensitivity index.&quot; 
+<a name="l140"><span class="ln">140  </span></a>       Computer Physics Communications, 181(2):259-270, 
+<a name="l141"><span class="ln">141  </span></a>       :doi:`10.1016/j.cpc.2009.09.018`, 2010. 
+<a name="l142"><span class="ln">142  </span></a>    &quot;&quot;&quot;</span>
+<a name="l143"><span class="ln">143  </span></a>    <span class="s4"># Empirical variance calculated using output from A and B which are</span>
+<a name="l144"><span class="ln">144  </span></a>    <span class="s4"># independent. Output of AB is not independent and cannot be used</span>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s1">var </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">var</span><span class="s2">([</span><span class="s1">f_A</span><span class="s2">, </span><span class="s1">f_B</span><span class="s2">], </span><span class="s1">axis</span><span class="s0">=</span><span class="s2">(</span><span class="s5">0</span><span class="s2">, </span><span class="s0">-</span><span class="s5">1</span><span class="s2">))</span>
+<a name="l146"><span class="ln">146  </span></a>
+<a name="l147"><span class="ln">147  </span></a>    <span class="s4"># We divide by the variance to have a ratio of variance</span>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s4"># this leads to eq. 2</span>
+<a name="l149"><span class="ln">149  </span></a>    <span class="s1">s </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">mean</span><span class="s2">(</span><span class="s1">f_B </span><span class="s0">* </span><span class="s2">(</span><span class="s1">f_AB </span><span class="s0">- </span><span class="s1">f_A</span><span class="s2">), </span><span class="s1">axis</span><span class="s0">=-</span><span class="s5">1</span><span class="s2">) </span><span class="s0">/ </span><span class="s1">var  </span><span class="s4"># Table 2 (b)</span>
+<a name="l150"><span class="ln">150  </span></a>    <span class="s1">st </span><span class="s0">= </span><span class="s5">0.5 </span><span class="s0">* </span><span class="s1">np</span><span class="s2">.</span><span class="s1">mean</span><span class="s2">((</span><span class="s1">f_A </span><span class="s0">- </span><span class="s1">f_AB</span><span class="s2">) </span><span class="s0">** </span><span class="s5">2</span><span class="s2">, </span><span class="s1">axis</span><span class="s0">=-</span><span class="s5">1</span><span class="s2">) </span><span class="s0">/ </span><span class="s1">var  </span><span class="s4"># Table 2 (f)</span>
+<a name="l151"><span class="ln">151  </span></a>
+<a name="l152"><span class="ln">152  </span></a>    <span class="s0">return </span><span class="s1">s</span><span class="s2">.</span><span class="s1">T</span><span class="s2">, </span><span class="s1">st</span><span class="s2">.</span><span class="s1">T</span>
+<a name="l153"><span class="ln">153  </span></a>
+<a name="l154"><span class="ln">154  </span></a>
+<a name="l155"><span class="ln">155  </span></a><span class="s0">@</span><span class="s1">dataclass</span>
+<a name="l156"><span class="ln">156  </span></a><span class="s0">class </span><span class="s1">BootstrapSobolResult</span><span class="s0">:</span>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s1">first_order</span><span class="s0">: </span><span class="s1">BootstrapResult</span>
+<a name="l158"><span class="ln">158  </span></a>    <span class="s1">total_order</span><span class="s0">: </span><span class="s1">BootstrapResult</span>
+<a name="l159"><span class="ln">159  </span></a>
+<a name="l160"><span class="ln">160  </span></a>
+<a name="l161"><span class="ln">161  </span></a><span class="s0">@</span><span class="s1">dataclass</span>
+<a name="l162"><span class="ln">162  </span></a><span class="s0">class </span><span class="s1">SobolResult</span><span class="s0">:</span>
+<a name="l163"><span class="ln">163  </span></a>    <span class="s1">first_order</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span>
+<a name="l164"><span class="ln">164  </span></a>    <span class="s1">total_order</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span>
+<a name="l165"><span class="ln">165  </span></a>    <span class="s1">_indices_method</span><span class="s0">: </span><span class="s1">Callable</span>
+<a name="l166"><span class="ln">166  </span></a>    <span class="s1">_f_A</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span>
+<a name="l167"><span class="ln">167  </span></a>    <span class="s1">_f_B</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span>
+<a name="l168"><span class="ln">168  </span></a>    <span class="s1">_f_AB</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span>
+<a name="l169"><span class="ln">169  </span></a>    <span class="s1">_A</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray </span><span class="s0">| None = None</span>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s1">_B</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray </span><span class="s0">| None = None</span>
+<a name="l171"><span class="ln">171  </span></a>    <span class="s1">_AB</span><span class="s0">: </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray </span><span class="s0">| None = None</span>
+<a name="l172"><span class="ln">172  </span></a>    <span class="s1">_bootstrap_result</span><span class="s0">: </span><span class="s1">BootstrapResult </span><span class="s0">| None = None</span>
+<a name="l173"><span class="ln">173  </span></a>
+<a name="l174"><span class="ln">174  </span></a>    <span class="s0">def </span><span class="s1">bootstrap</span><span class="s2">(</span>
+<a name="l175"><span class="ln">175  </span></a>        <span class="s1">self</span><span class="s2">,</span>
+<a name="l176"><span class="ln">176  </span></a>        <span class="s1">confidence_level</span><span class="s0">: </span><span class="s3">&quot;DecimalNumber&quot; </span><span class="s0">= </span><span class="s5">0.95</span><span class="s2">,</span>
+<a name="l177"><span class="ln">177  </span></a>        <span class="s1">n_resamples</span><span class="s0">: </span><span class="s3">&quot;IntNumber&quot; </span><span class="s0">= </span><span class="s5">999</span>
+<a name="l178"><span class="ln">178  </span></a>    <span class="s2">) </span><span class="s1">-&gt; BootstrapSobolResult</span><span class="s0">:</span>
+<a name="l179"><span class="ln">179  </span></a>        <span class="s4">&quot;&quot;&quot;Bootstrap Sobol' indices to provide confidence intervals. 
+<a name="l180"><span class="ln">180  </span></a> 
+<a name="l181"><span class="ln">181  </span></a>        Parameters 
+<a name="l182"><span class="ln">182  </span></a>        ---------- 
+<a name="l183"><span class="ln">183  </span></a>        confidence_level : float, default: ``0.95`` 
+<a name="l184"><span class="ln">184  </span></a>            The confidence level of the confidence intervals. 
+<a name="l185"><span class="ln">185  </span></a>        n_resamples : int, default: ``999`` 
+<a name="l186"><span class="ln">186  </span></a>            The number of resamples performed to form the bootstrap 
+<a name="l187"><span class="ln">187  </span></a>            distribution of the indices. 
+<a name="l188"><span class="ln">188  </span></a> 
+<a name="l189"><span class="ln">189  </span></a>        Returns 
+<a name="l190"><span class="ln">190  </span></a>        ------- 
+<a name="l191"><span class="ln">191  </span></a>        res : BootstrapSobolResult 
+<a name="l192"><span class="ln">192  </span></a>            Bootstrap result containing the confidence intervals and the 
+<a name="l193"><span class="ln">193  </span></a>            bootstrap distribution of the indices. 
+<a name="l194"><span class="ln">194  </span></a> 
+<a name="l195"><span class="ln">195  </span></a>            An object with attributes: 
+<a name="l196"><span class="ln">196  </span></a> 
+<a name="l197"><span class="ln">197  </span></a>            first_order : BootstrapResult 
+<a name="l198"><span class="ln">198  </span></a>                Bootstrap result of the first order indices. 
+<a name="l199"><span class="ln">199  </span></a>            total_order : BootstrapResult 
+<a name="l200"><span class="ln">200  </span></a>                Bootstrap result of the total order indices. 
+<a name="l201"><span class="ln">201  </span></a>            See `BootstrapResult` for more details. 
+<a name="l202"><span class="ln">202  </span></a> 
+<a name="l203"><span class="ln">203  </span></a>        &quot;&quot;&quot;</span>
+<a name="l204"><span class="ln">204  </span></a>        <span class="s0">def </span><span class="s1">statistic</span><span class="s2">(</span><span class="s1">idx</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l205"><span class="ln">205  </span></a>            <span class="s1">f_A_ </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_f_A</span><span class="s2">[</span><span class="s0">:</span><span class="s2">, </span><span class="s1">idx</span><span class="s2">]</span>
+<a name="l206"><span class="ln">206  </span></a>            <span class="s1">f_B_ </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_f_B</span><span class="s2">[</span><span class="s0">:</span><span class="s2">, </span><span class="s1">idx</span><span class="s2">]</span>
+<a name="l207"><span class="ln">207  </span></a>            <span class="s1">f_AB_ </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_f_AB</span><span class="s2">[..., </span><span class="s1">idx</span><span class="s2">]</span>
+<a name="l208"><span class="ln">208  </span></a>            <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_indices_method</span><span class="s2">(</span><span class="s1">f_A_</span><span class="s2">, </span><span class="s1">f_B_</span><span class="s2">, </span><span class="s1">f_AB_</span><span class="s2">)</span>
+<a name="l209"><span class="ln">209  </span></a>
+<a name="l210"><span class="ln">210  </span></a>        <span class="s1">n </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_f_A</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s5">1</span><span class="s2">]</span>
+<a name="l211"><span class="ln">211  </span></a>
+<a name="l212"><span class="ln">212  </span></a>        <span class="s1">res </span><span class="s0">= </span><span class="s1">bootstrap</span><span class="s2">(</span>
+<a name="l213"><span class="ln">213  </span></a>            <span class="s2">[</span><span class="s1">np</span><span class="s2">.</span><span class="s1">arange</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)], </span><span class="s1">statistic</span><span class="s0">=</span><span class="s1">statistic</span><span class="s2">, </span><span class="s1">method</span><span class="s0">=</span><span class="s3">&quot;BCa&quot;</span><span class="s2">,</span>
+<a name="l214"><span class="ln">214  </span></a>            <span class="s1">n_resamples</span><span class="s0">=</span><span class="s1">n_resamples</span><span class="s2">,</span>
+<a name="l215"><span class="ln">215  </span></a>            <span class="s1">confidence_level</span><span class="s0">=</span><span class="s1">confidence_level</span><span class="s2">,</span>
+<a name="l216"><span class="ln">216  </span></a>            <span class="s1">bootstrap_result</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">_bootstrap_result</span>
+<a name="l217"><span class="ln">217  </span></a>        <span class="s2">)</span>
+<a name="l218"><span class="ln">218  </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">_bootstrap_result </span><span class="s0">= </span><span class="s1">res</span>
+<a name="l219"><span class="ln">219  </span></a>
+<a name="l220"><span class="ln">220  </span></a>        <span class="s1">first_order </span><span class="s0">= </span><span class="s1">BootstrapResult</span><span class="s2">(</span>
+<a name="l221"><span class="ln">221  </span></a>            <span class="s1">confidence_interval</span><span class="s0">=</span><span class="s1">ConfidenceInterval</span><span class="s2">(</span>
+<a name="l222"><span class="ln">222  </span></a>                <span class="s1">res</span><span class="s2">.</span><span class="s1">confidence_interval</span><span class="s2">.</span><span class="s1">low</span><span class="s2">[</span><span class="s5">0</span><span class="s2">], </span><span class="s1">res</span><span class="s2">.</span><span class="s1">confidence_interval</span><span class="s2">.</span><span class="s1">high</span><span class="s2">[</span><span class="s5">0</span><span class="s2">]</span>
+<a name="l223"><span class="ln">223  </span></a>            <span class="s2">),</span>
+<a name="l224"><span class="ln">224  </span></a>            <span class="s1">bootstrap_distribution</span><span class="s0">=</span><span class="s1">res</span><span class="s2">.</span><span class="s1">bootstrap_distribution</span><span class="s2">[</span><span class="s5">0</span><span class="s2">],</span>
+<a name="l225"><span class="ln">225  </span></a>            <span class="s1">standard_error</span><span class="s0">=</span><span class="s1">res</span><span class="s2">.</span><span class="s1">standard_error</span><span class="s2">[</span><span class="s5">0</span><span class="s2">],</span>
+<a name="l226"><span class="ln">226  </span></a>        <span class="s2">)</span>
+<a name="l227"><span class="ln">227  </span></a>        <span class="s1">total_order </span><span class="s0">= </span><span class="s1">BootstrapResult</span><span class="s2">(</span>
+<a name="l228"><span class="ln">228  </span></a>            <span class="s1">confidence_interval</span><span class="s0">=</span><span class="s1">ConfidenceInterval</span><span class="s2">(</span>
+<a name="l229"><span class="ln">229  </span></a>                <span class="s1">res</span><span class="s2">.</span><span class="s1">confidence_interval</span><span class="s2">.</span><span class="s1">low</span><span class="s2">[</span><span class="s5">1</span><span class="s2">], </span><span class="s1">res</span><span class="s2">.</span><span class="s1">confidence_interval</span><span class="s2">.</span><span class="s1">high</span><span class="s2">[</span><span class="s5">1</span><span class="s2">]</span>
+<a name="l230"><span class="ln">230  </span></a>            <span class="s2">),</span>
+<a name="l231"><span class="ln">231  </span></a>            <span class="s1">bootstrap_distribution</span><span class="s0">=</span><span class="s1">res</span><span class="s2">.</span><span class="s1">bootstrap_distribution</span><span class="s2">[</span><span class="s5">1</span><span class="s2">],</span>
+<a name="l232"><span class="ln">232  </span></a>            <span class="s1">standard_error</span><span class="s0">=</span><span class="s1">res</span><span class="s2">.</span><span class="s1">standard_error</span><span class="s2">[</span><span class="s5">1</span><span class="s2">],</span>
+<a name="l233"><span class="ln">233  </span></a>        <span class="s2">)</span>
+<a name="l234"><span class="ln">234  </span></a>
+<a name="l235"><span class="ln">235  </span></a>        <span class="s0">return </span><span class="s1">BootstrapSobolResult</span><span class="s2">(</span>
+<a name="l236"><span class="ln">236  </span></a>            <span class="s1">first_order</span><span class="s0">=</span><span class="s1">first_order</span><span class="s2">, </span><span class="s1">total_order</span><span class="s0">=</span><span class="s1">total_order</span>
+<a name="l237"><span class="ln">237  </span></a>        <span class="s2">)</span>
+<a name="l238"><span class="ln">238  </span></a>
+<a name="l239"><span class="ln">239  </span></a><span class="s0">@</span><span class="s1">_transition_to_rng</span><span class="s2">(</span><span class="s3">'random_state'</span><span class="s2">, </span><span class="s1">replace_doc</span><span class="s0">=False</span><span class="s2">)</span>
+<a name="l240"><span class="ln">240  </span></a><span class="s0">def </span><span class="s1">sobol_indices</span><span class="s2">(</span>
+<a name="l241"><span class="ln">241  </span></a>    <span class="s0">*</span><span class="s2">,</span>
+<a name="l242"><span class="ln">242  </span></a>    <span class="s1">func</span><span class="s2">,</span>
+<a name="l243"><span class="ln">243  </span></a>    <span class="s1">n</span><span class="s2">,</span>
+<a name="l244"><span class="ln">244  </span></a>    <span class="s1">dists</span><span class="s0">=None</span><span class="s2">,</span>
+<a name="l245"><span class="ln">245  </span></a>    <span class="s1">method</span><span class="s0">=</span><span class="s3">'saltelli_2010'</span><span class="s2">,</span>
+<a name="l246"><span class="ln">246  </span></a>    <span class="s1">rng</span><span class="s0">=None</span>
+<a name="l247"><span class="ln">247  </span></a><span class="s2">)</span><span class="s0">:</span>
+<a name="l248"><span class="ln">248  </span></a>    <span class="s4">r&quot;&quot;&quot;Global sensitivity indices of Sobol'. 
+<a name="l249"><span class="ln">249  </span></a> 
+<a name="l250"><span class="ln">250  </span></a>    Parameters 
+<a name="l251"><span class="ln">251  </span></a>    ---------- 
+<a name="l252"><span class="ln">252  </span></a>    func : callable or dict(str, array_like) 
+<a name="l253"><span class="ln">253  </span></a>        If `func` is a callable, function to compute the Sobol' indices from. 
+<a name="l254"><span class="ln">254  </span></a>        Its signature must be:: 
+<a name="l255"><span class="ln">255  </span></a> 
+<a name="l256"><span class="ln">256  </span></a>            func(x: ArrayLike) -&gt; ArrayLike 
+<a name="l257"><span class="ln">257  </span></a> 
+<a name="l258"><span class="ln">258  </span></a>        with ``x`` of shape ``(d, n)`` and output of shape ``(s, n)`` where: 
+<a name="l259"><span class="ln">259  </span></a> 
+<a name="l260"><span class="ln">260  </span></a>        - ``d`` is the input dimensionality of `func` 
+<a name="l261"><span class="ln">261  </span></a>          (number of input variables), 
+<a name="l262"><span class="ln">262  </span></a>        - ``s`` is the output dimensionality of `func` 
+<a name="l263"><span class="ln">263  </span></a>          (number of output variables), and 
+<a name="l264"><span class="ln">264  </span></a>        - ``n`` is the number of samples (see `n` below). 
+<a name="l265"><span class="ln">265  </span></a> 
+<a name="l266"><span class="ln">266  </span></a>        Function evaluation values must be finite. 
+<a name="l267"><span class="ln">267  </span></a> 
+<a name="l268"><span class="ln">268  </span></a>        If `func` is a dictionary, contains the function evaluations from three 
+<a name="l269"><span class="ln">269  </span></a>        different arrays. Keys must be: ``f_A``, ``f_B`` and ``f_AB``. 
+<a name="l270"><span class="ln">270  </span></a>        ``f_A`` and ``f_B`` should have a shape ``(s, n)`` and ``f_AB`` 
+<a name="l271"><span class="ln">271  </span></a>        should have a shape ``(d, s, n)``. 
+<a name="l272"><span class="ln">272  </span></a>        This is an advanced feature and misuse can lead to wrong analysis. 
+<a name="l273"><span class="ln">273  </span></a>    n : int 
+<a name="l274"><span class="ln">274  </span></a>        Number of samples used to generate the matrices ``A`` and ``B``. 
+<a name="l275"><span class="ln">275  </span></a>        Must be a power of 2. The total number of points at which `func` is 
+<a name="l276"><span class="ln">276  </span></a>        evaluated will be ``n*(d+2)``. 
+<a name="l277"><span class="ln">277  </span></a>    dists : list(distributions), optional 
+<a name="l278"><span class="ln">278  </span></a>        List of each parameter's distribution. The distribution of parameters 
+<a name="l279"><span class="ln">279  </span></a>        depends on the application and should be carefully chosen. 
+<a name="l280"><span class="ln">280  </span></a>        Parameters are assumed to be independently distributed, meaning there 
+<a name="l281"><span class="ln">281  </span></a>        is no constraint nor relationship between their values. 
+<a name="l282"><span class="ln">282  </span></a> 
+<a name="l283"><span class="ln">283  </span></a>        Distributions must be an instance of a class with a ``ppf`` 
+<a name="l284"><span class="ln">284  </span></a>        method. 
+<a name="l285"><span class="ln">285  </span></a> 
+<a name="l286"><span class="ln">286  </span></a>        Must be specified if `func` is a callable, and ignored otherwise. 
+<a name="l287"><span class="ln">287  </span></a>    method : Callable or str, default: 'saltelli_2010' 
+<a name="l288"><span class="ln">288  </span></a>        Method used to compute the first and total Sobol' indices. 
+<a name="l289"><span class="ln">289  </span></a> 
+<a name="l290"><span class="ln">290  </span></a>        If a callable, its signature must be:: 
+<a name="l291"><span class="ln">291  </span></a> 
+<a name="l292"><span class="ln">292  </span></a>            func(f_A: np.ndarray, f_B: np.ndarray, f_AB: np.ndarray) 
+<a name="l293"><span class="ln">293  </span></a>            -&gt; Tuple[np.ndarray, np.ndarray] 
+<a name="l294"><span class="ln">294  </span></a> 
+<a name="l295"><span class="ln">295  </span></a>        with ``f_A, f_B`` of shape ``(s, n)`` and ``f_AB`` of shape 
+<a name="l296"><span class="ln">296  </span></a>        ``(d, s, n)``. 
+<a name="l297"><span class="ln">297  </span></a>        These arrays contain the function evaluations from three different sets 
+<a name="l298"><span class="ln">298  </span></a>        of samples. 
+<a name="l299"><span class="ln">299  </span></a>        The output is a tuple of the first and total indices with 
+<a name="l300"><span class="ln">300  </span></a>        shape ``(s, d)``. 
+<a name="l301"><span class="ln">301  </span></a>        This is an advanced feature and misuse can lead to wrong analysis. 
+<a name="l302"><span class="ln">302  </span></a>    rng : `numpy.random.Generator`, optional 
+<a name="l303"><span class="ln">303  </span></a>        Pseudorandom number generator state. When `rng` is None, a new 
+<a name="l304"><span class="ln">304  </span></a>        `numpy.random.Generator` is created using entropy from the 
+<a name="l305"><span class="ln">305  </span></a>        operating system. Types other than `numpy.random.Generator` are 
+<a name="l306"><span class="ln">306  </span></a>        passed to `numpy.random.default_rng` to instantiate a ``Generator``. 
+<a name="l307"><span class="ln">307  </span></a> 
+<a name="l308"><span class="ln">308  </span></a>        .. versionchanged:: 1.15.0 
+<a name="l309"><span class="ln">309  </span></a> 
+<a name="l310"><span class="ln">310  </span></a>            As part of the `SPEC-007 &lt;https://scientific-python.org/specs/spec-0007/&gt;`_ 
+<a name="l311"><span class="ln">311  </span></a>            transition from use of `numpy.random.RandomState` to 
+<a name="l312"><span class="ln">312  </span></a>            `numpy.random.Generator`, this keyword was changed from `random_state` to 
+<a name="l313"><span class="ln">313  </span></a>            `rng`. For an interim period, both keywords will continue to work, although 
+<a name="l314"><span class="ln">314  </span></a>            only one may be specified at a time. After the interim period, function 
+<a name="l315"><span class="ln">315  </span></a>            calls using the `random_state` keyword will emit warnings. Following a 
+<a name="l316"><span class="ln">316  </span></a>            deprecation period, the `random_state` keyword will be removed. 
+<a name="l317"><span class="ln">317  </span></a> 
+<a name="l318"><span class="ln">318  </span></a>    Returns 
+<a name="l319"><span class="ln">319  </span></a>    ------- 
+<a name="l320"><span class="ln">320  </span></a>    res : SobolResult 
+<a name="l321"><span class="ln">321  </span></a>        An object with attributes: 
+<a name="l322"><span class="ln">322  </span></a> 
+<a name="l323"><span class="ln">323  </span></a>        first_order : ndarray of shape (s, d) 
+<a name="l324"><span class="ln">324  </span></a>            First order Sobol' indices. 
+<a name="l325"><span class="ln">325  </span></a>        total_order : ndarray of shape (s, d) 
+<a name="l326"><span class="ln">326  </span></a>            Total order Sobol' indices. 
+<a name="l327"><span class="ln">327  </span></a> 
+<a name="l328"><span class="ln">328  </span></a>        And method: 
+<a name="l329"><span class="ln">329  </span></a> 
+<a name="l330"><span class="ln">330  </span></a>        bootstrap(confidence_level: float, n_resamples: int) 
+<a name="l331"><span class="ln">331  </span></a>        -&gt; BootstrapSobolResult 
+<a name="l332"><span class="ln">332  </span></a> 
+<a name="l333"><span class="ln">333  </span></a>            A method providing confidence intervals on the indices. 
+<a name="l334"><span class="ln">334  </span></a>            See `scipy.stats.bootstrap` for more details. 
+<a name="l335"><span class="ln">335  </span></a> 
+<a name="l336"><span class="ln">336  </span></a>            The bootstrapping is done on both first and total order indices, 
+<a name="l337"><span class="ln">337  </span></a>            and they are available in `BootstrapSobolResult` as attributes 
+<a name="l338"><span class="ln">338  </span></a>            ``first_order`` and ``total_order``. 
+<a name="l339"><span class="ln">339  </span></a> 
+<a name="l340"><span class="ln">340  </span></a>    Notes 
+<a name="l341"><span class="ln">341  </span></a>    ----- 
+<a name="l342"><span class="ln">342  </span></a>    The Sobol' method [1]_, [2]_ is a variance-based Sensitivity Analysis which 
+<a name="l343"><span class="ln">343  </span></a>    obtains the contribution of each parameter to the variance of the 
+<a name="l344"><span class="ln">344  </span></a>    quantities of interest (QoIs; i.e., the outputs of `func`). 
+<a name="l345"><span class="ln">345  </span></a>    Respective contributions can be used to rank the parameters and 
+<a name="l346"><span class="ln">346  </span></a>    also gauge the complexity of the model by computing the 
+<a name="l347"><span class="ln">347  </span></a>    model's effective (or mean) dimension. 
+<a name="l348"><span class="ln">348  </span></a> 
+<a name="l349"><span class="ln">349  </span></a>    .. note:: 
+<a name="l350"><span class="ln">350  </span></a> 
+<a name="l351"><span class="ln">351  </span></a>        Parameters are assumed to be independently distributed. Each 
+<a name="l352"><span class="ln">352  </span></a>        parameter can still follow any distribution. In fact, the distribution 
+<a name="l353"><span class="ln">353  </span></a>        is very important and should match the real distribution of the 
+<a name="l354"><span class="ln">354  </span></a>        parameters. 
+<a name="l355"><span class="ln">355  </span></a> 
+<a name="l356"><span class="ln">356  </span></a>    It uses a functional decomposition of the variance of the function to 
+<a name="l357"><span class="ln">357  </span></a>    explore 
+<a name="l358"><span class="ln">358  </span></a> 
+<a name="l359"><span class="ln">359  </span></a>    .. math:: 
+<a name="l360"><span class="ln">360  </span></a> 
+<a name="l361"><span class="ln">361  </span></a>        \mathbb{V}(Y) = \sum_{i}^{d} \mathbb{V}_i (Y) + \sum_{i&lt;j}^{d} 
+<a name="l362"><span class="ln">362  </span></a>        \mathbb{V}_{ij}(Y) + ... + \mathbb{V}_{1,2,...,d}(Y), 
+<a name="l363"><span class="ln">363  </span></a> 
+<a name="l364"><span class="ln">364  </span></a>    introducing conditional variances: 
+<a name="l365"><span class="ln">365  </span></a> 
+<a name="l366"><span class="ln">366  </span></a>    .. math:: 
+<a name="l367"><span class="ln">367  </span></a> 
+<a name="l368"><span class="ln">368  </span></a>        \mathbb{V}_i(Y) = \mathbb{\mathbb{V}}[\mathbb{E}(Y|x_i)] 
+<a name="l369"><span class="ln">369  </span></a>        \qquad 
+<a name="l370"><span class="ln">370  </span></a>        \mathbb{V}_{ij}(Y) = \mathbb{\mathbb{V}}[\mathbb{E}(Y|x_i x_j)] 
+<a name="l371"><span class="ln">371  </span></a>        - \mathbb{V}_i(Y) - \mathbb{V}_j(Y), 
+<a name="l372"><span class="ln">372  </span></a> 
+<a name="l373"><span class="ln">373  </span></a>    Sobol' indices are expressed as 
+<a name="l374"><span class="ln">374  </span></a> 
+<a name="l375"><span class="ln">375  </span></a>    .. math:: 
+<a name="l376"><span class="ln">376  </span></a> 
+<a name="l377"><span class="ln">377  </span></a>        S_i = \frac{\mathbb{V}_i(Y)}{\mathbb{V}[Y]} 
+<a name="l378"><span class="ln">378  </span></a>        \qquad 
+<a name="l379"><span class="ln">379  </span></a>        S_{ij} =\frac{\mathbb{V}_{ij}(Y)}{\mathbb{V}[Y]}. 
+<a name="l380"><span class="ln">380  </span></a> 
+<a name="l381"><span class="ln">381  </span></a>    :math:`S_{i}` corresponds to the first-order term which apprises the 
+<a name="l382"><span class="ln">382  </span></a>    contribution of the i-th parameter, while :math:`S_{ij}` corresponds to the 
+<a name="l383"><span class="ln">383  </span></a>    second-order term which informs about the contribution of interactions 
+<a name="l384"><span class="ln">384  </span></a>    between the i-th and the j-th parameters. These equations can be 
+<a name="l385"><span class="ln">385  </span></a>    generalized to compute higher order terms; however, they are expensive to 
+<a name="l386"><span class="ln">386  </span></a>    compute and their interpretation is complex. 
+<a name="l387"><span class="ln">387  </span></a>    This is why only first order indices are provided. 
+<a name="l388"><span class="ln">388  </span></a> 
+<a name="l389"><span class="ln">389  </span></a>    Total order indices represent the global contribution of the parameters 
+<a name="l390"><span class="ln">390  </span></a>    to the variance of the QoI and are defined as: 
+<a name="l391"><span class="ln">391  </span></a> 
+<a name="l392"><span class="ln">392  </span></a>    .. math:: 
+<a name="l393"><span class="ln">393  </span></a> 
+<a name="l394"><span class="ln">394  </span></a>        S_{T_i} = S_i + \sum_j S_{ij} + \sum_{j,k} S_{ijk} + ... 
+<a name="l395"><span class="ln">395  </span></a>        = 1 - \frac{\mathbb{V}[\mathbb{E}(Y|x_{\sim i})]}{\mathbb{V}[Y]}. 
+<a name="l396"><span class="ln">396  </span></a> 
+<a name="l397"><span class="ln">397  </span></a>    First order indices sum to at most 1, while total order indices sum to at 
+<a name="l398"><span class="ln">398  </span></a>    least 1. If there are no interactions, then first and total order indices 
+<a name="l399"><span class="ln">399  </span></a>    are equal, and both first and total order indices sum to 1. 
+<a name="l400"><span class="ln">400  </span></a> 
+<a name="l401"><span class="ln">401  </span></a>    .. warning:: 
+<a name="l402"><span class="ln">402  </span></a> 
+<a name="l403"><span class="ln">403  </span></a>        Negative Sobol' values are due to numerical errors. Increasing the 
+<a name="l404"><span class="ln">404  </span></a>        number of points `n` should help. 
+<a name="l405"><span class="ln">405  </span></a> 
+<a name="l406"><span class="ln">406  </span></a>        The number of sample required to have a good analysis increases with 
+<a name="l407"><span class="ln">407  </span></a>        the dimensionality of the problem. e.g. for a 3 dimension problem, 
+<a name="l408"><span class="ln">408  </span></a>        consider at minima ``n &gt;= 2**12``. The more complex the model is, 
+<a name="l409"><span class="ln">409  </span></a>        the more samples will be needed. 
+<a name="l410"><span class="ln">410  </span></a> 
+<a name="l411"><span class="ln">411  </span></a>        Even for a purely additive model, the indices may not sum to 1 due 
+<a name="l412"><span class="ln">412  </span></a>        to numerical noise. 
+<a name="l413"><span class="ln">413  </span></a> 
+<a name="l414"><span class="ln">414  </span></a>    References 
+<a name="l415"><span class="ln">415  </span></a>    ---------- 
+<a name="l416"><span class="ln">416  </span></a>    .. [1] Sobol, I. M.. &quot;Sensitivity analysis for nonlinear mathematical 
+<a name="l417"><span class="ln">417  </span></a>       models.&quot; Mathematical Modeling and Computational Experiment, 1:407-414, 
+<a name="l418"><span class="ln">418  </span></a>       1993. 
+<a name="l419"><span class="ln">419  </span></a>    .. [2] Sobol, I. M. (2001). &quot;Global sensitivity indices for nonlinear 
+<a name="l420"><span class="ln">420  </span></a>       mathematical models and their Monte Carlo estimates.&quot; Mathematics 
+<a name="l421"><span class="ln">421  </span></a>       and Computers in Simulation, 55(1-3):271-280, 
+<a name="l422"><span class="ln">422  </span></a>       :doi:`10.1016/S0378-4754(00)00270-6`, 2001. 
+<a name="l423"><span class="ln">423  </span></a>    .. [3] Saltelli, A. &quot;Making best use of model evaluations to 
+<a name="l424"><span class="ln">424  </span></a>       compute sensitivity indices.&quot;  Computer Physics Communications, 
+<a name="l425"><span class="ln">425  </span></a>       145(2):280-297, :doi:`10.1016/S0010-4655(02)00280-1`, 2002. 
+<a name="l426"><span class="ln">426  </span></a>    .. [4] Saltelli, A., M. Ratto, T. Andres, F. Campolongo, J. Cariboni, 
+<a name="l427"><span class="ln">427  </span></a>       D. Gatelli, M. Saisana, and S. Tarantola. &quot;Global Sensitivity Analysis. 
+<a name="l428"><span class="ln">428  </span></a>       The Primer.&quot; 2007. 
+<a name="l429"><span class="ln">429  </span></a>    .. [5] Saltelli, A., P. Annoni, I. Azzini, F. Campolongo, M. Ratto, and 
+<a name="l430"><span class="ln">430  </span></a>       S. Tarantola. &quot;Variance based sensitivity analysis of model 
+<a name="l431"><span class="ln">431  </span></a>       output. Design and estimator for the total sensitivity index.&quot; 
+<a name="l432"><span class="ln">432  </span></a>       Computer Physics Communications, 181(2):259-270, 
+<a name="l433"><span class="ln">433  </span></a>       :doi:`10.1016/j.cpc.2009.09.018`, 2010. 
+<a name="l434"><span class="ln">434  </span></a>    .. [6] Ishigami, T. and T. Homma. &quot;An importance quantification technique 
+<a name="l435"><span class="ln">435  </span></a>       in uncertainty analysis for computer models.&quot; IEEE, 
+<a name="l436"><span class="ln">436  </span></a>       :doi:`10.1109/ISUMA.1990.151285`, 1990. 
+<a name="l437"><span class="ln">437  </span></a> 
+<a name="l438"><span class="ln">438  </span></a>    Examples 
+<a name="l439"><span class="ln">439  </span></a>    -------- 
+<a name="l440"><span class="ln">440  </span></a>    The following is an example with the Ishigami function [6]_ 
+<a name="l441"><span class="ln">441  </span></a> 
+<a name="l442"><span class="ln">442  </span></a>    .. math:: 
+<a name="l443"><span class="ln">443  </span></a> 
+<a name="l444"><span class="ln">444  </span></a>        Y(\mathbf{x}) = \sin x_1 + 7 \sin^2 x_2 + 0.1 x_3^4 \sin x_1, 
+<a name="l445"><span class="ln">445  </span></a> 
+<a name="l446"><span class="ln">446  </span></a>    with :math:`\mathbf{x} \in [-\pi, \pi]^3`. This function exhibits strong 
+<a name="l447"><span class="ln">447  </span></a>    non-linearity and non-monotonicity. 
+<a name="l448"><span class="ln">448  </span></a> 
+<a name="l449"><span class="ln">449  </span></a>    Remember, Sobol' indices assumes that samples are independently 
+<a name="l450"><span class="ln">450  </span></a>    distributed. In this case we use a uniform distribution on each marginals. 
+<a name="l451"><span class="ln">451  </span></a> 
+<a name="l452"><span class="ln">452  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l453"><span class="ln">453  </span></a>    &gt;&gt;&gt; from scipy.stats import sobol_indices, uniform 
+<a name="l454"><span class="ln">454  </span></a>    &gt;&gt;&gt; rng = np.random.default_rng() 
+<a name="l455"><span class="ln">455  </span></a>    &gt;&gt;&gt; def f_ishigami(x): 
+<a name="l456"><span class="ln">456  </span></a>    ...     f_eval = ( 
+<a name="l457"><span class="ln">457  </span></a>    ...         np.sin(x[0]) 
+<a name="l458"><span class="ln">458  </span></a>    ...         + 7 * np.sin(x[1])**2 
+<a name="l459"><span class="ln">459  </span></a>    ...         + 0.1 * (x[2]**4) * np.sin(x[0]) 
+<a name="l460"><span class="ln">460  </span></a>    ...     ) 
+<a name="l461"><span class="ln">461  </span></a>    ...     return f_eval 
+<a name="l462"><span class="ln">462  </span></a>    &gt;&gt;&gt; indices = sobol_indices( 
+<a name="l463"><span class="ln">463  </span></a>    ...     func=f_ishigami, n=1024, 
+<a name="l464"><span class="ln">464  </span></a>    ...     dists=[ 
+<a name="l465"><span class="ln">465  </span></a>    ...         uniform(loc=-np.pi, scale=2*np.pi), 
+<a name="l466"><span class="ln">466  </span></a>    ...         uniform(loc=-np.pi, scale=2*np.pi), 
+<a name="l467"><span class="ln">467  </span></a>    ...         uniform(loc=-np.pi, scale=2*np.pi) 
+<a name="l468"><span class="ln">468  </span></a>    ...     ], 
+<a name="l469"><span class="ln">469  </span></a>    ...     rng=rng 
+<a name="l470"><span class="ln">470  </span></a>    ... ) 
+<a name="l471"><span class="ln">471  </span></a>    &gt;&gt;&gt; indices.first_order 
+<a name="l472"><span class="ln">472  </span></a>    array([0.31637954, 0.43781162, 0.00318825]) 
+<a name="l473"><span class="ln">473  </span></a>    &gt;&gt;&gt; indices.total_order 
+<a name="l474"><span class="ln">474  </span></a>    array([0.56122127, 0.44287857, 0.24229595]) 
+<a name="l475"><span class="ln">475  </span></a> 
+<a name="l476"><span class="ln">476  </span></a>    Confidence interval can be obtained using bootstrapping. 
+<a name="l477"><span class="ln">477  </span></a> 
+<a name="l478"><span class="ln">478  </span></a>    &gt;&gt;&gt; boot = indices.bootstrap() 
+<a name="l479"><span class="ln">479  </span></a> 
+<a name="l480"><span class="ln">480  </span></a>    Then, this information can be easily visualized. 
+<a name="l481"><span class="ln">481  </span></a> 
+<a name="l482"><span class="ln">482  </span></a>    &gt;&gt;&gt; import matplotlib.pyplot as plt 
+<a name="l483"><span class="ln">483  </span></a>    &gt;&gt;&gt; fig, axs = plt.subplots(1, 2, figsize=(9, 4)) 
+<a name="l484"><span class="ln">484  </span></a>    &gt;&gt;&gt; _ = axs[0].errorbar( 
+<a name="l485"><span class="ln">485  </span></a>    ...     [1, 2, 3], indices.first_order, fmt='o', 
+<a name="l486"><span class="ln">486  </span></a>    ...     yerr=[ 
+<a name="l487"><span class="ln">487  </span></a>    ...         indices.first_order - boot.first_order.confidence_interval.low, 
+<a name="l488"><span class="ln">488  </span></a>    ...         boot.first_order.confidence_interval.high - indices.first_order 
+<a name="l489"><span class="ln">489  </span></a>    ...     ], 
+<a name="l490"><span class="ln">490  </span></a>    ... ) 
+<a name="l491"><span class="ln">491  </span></a>    &gt;&gt;&gt; axs[0].set_ylabel(&quot;First order Sobol' indices&quot;) 
+<a name="l492"><span class="ln">492  </span></a>    &gt;&gt;&gt; axs[0].set_xlabel('Input parameters') 
+<a name="l493"><span class="ln">493  </span></a>    &gt;&gt;&gt; axs[0].set_xticks([1, 2, 3]) 
+<a name="l494"><span class="ln">494  </span></a>    &gt;&gt;&gt; _ = axs[1].errorbar( 
+<a name="l495"><span class="ln">495  </span></a>    ...     [1, 2, 3], indices.total_order, fmt='o', 
+<a name="l496"><span class="ln">496  </span></a>    ...     yerr=[ 
+<a name="l497"><span class="ln">497  </span></a>    ...         indices.total_order - boot.total_order.confidence_interval.low, 
+<a name="l498"><span class="ln">498  </span></a>    ...         boot.total_order.confidence_interval.high - indices.total_order 
+<a name="l499"><span class="ln">499  </span></a>    ...     ], 
+<a name="l500"><span class="ln">500  </span></a>    ... ) 
+<a name="l501"><span class="ln">501  </span></a>    &gt;&gt;&gt; axs[1].set_ylabel(&quot;Total order Sobol' indices&quot;) 
+<a name="l502"><span class="ln">502  </span></a>    &gt;&gt;&gt; axs[1].set_xlabel('Input parameters') 
+<a name="l503"><span class="ln">503  </span></a>    &gt;&gt;&gt; axs[1].set_xticks([1, 2, 3]) 
+<a name="l504"><span class="ln">504  </span></a>    &gt;&gt;&gt; plt.tight_layout() 
+<a name="l505"><span class="ln">505  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l506"><span class="ln">506  </span></a> 
+<a name="l507"><span class="ln">507  </span></a>    .. note:: 
+<a name="l508"><span class="ln">508  </span></a> 
+<a name="l509"><span class="ln">509  </span></a>        By default, `scipy.stats.uniform` has support ``[0, 1]``. 
+<a name="l510"><span class="ln">510  </span></a>        Using the parameters ``loc`` and ``scale``, one obtains the uniform 
+<a name="l511"><span class="ln">511  </span></a>        distribution on ``[loc, loc + scale]``. 
+<a name="l512"><span class="ln">512  </span></a> 
+<a name="l513"><span class="ln">513  </span></a>    This result is particularly interesting because the first order index 
+<a name="l514"><span class="ln">514  </span></a>    :math:`S_{x_3} = 0` whereas its total order is :math:`S_{T_{x_3}} = 0.244`. 
+<a name="l515"><span class="ln">515  </span></a>    This means that higher order interactions with :math:`x_3` are responsible 
+<a name="l516"><span class="ln">516  </span></a>    for the difference. Almost 25% of the observed variance 
+<a name="l517"><span class="ln">517  </span></a>    on the QoI is due to the correlations between :math:`x_3` and :math:`x_1`, 
+<a name="l518"><span class="ln">518  </span></a>    although :math:`x_3` by itself has no impact on the QoI. 
+<a name="l519"><span class="ln">519  </span></a> 
+<a name="l520"><span class="ln">520  </span></a>    The following gives a visual explanation of Sobol' indices on this 
+<a name="l521"><span class="ln">521  </span></a>    function. Let's generate 1024 samples in :math:`[-\pi, \pi]^3` and 
+<a name="l522"><span class="ln">522  </span></a>    calculate the value of the output. 
+<a name="l523"><span class="ln">523  </span></a> 
+<a name="l524"><span class="ln">524  </span></a>    &gt;&gt;&gt; from scipy.stats import qmc 
+<a name="l525"><span class="ln">525  </span></a>    &gt;&gt;&gt; n_dim = 3 
+<a name="l526"><span class="ln">526  </span></a>    &gt;&gt;&gt; p_labels = ['$x_1$', '$x_2$', '$x_3$'] 
+<a name="l527"><span class="ln">527  </span></a>    &gt;&gt;&gt; sample = qmc.Sobol(d=n_dim, seed=rng).random(1024) 
+<a name="l528"><span class="ln">528  </span></a>    &gt;&gt;&gt; sample = qmc.scale( 
+<a name="l529"><span class="ln">529  </span></a>    ...     sample=sample, 
+<a name="l530"><span class="ln">530  </span></a>    ...     l_bounds=[-np.pi, -np.pi, -np.pi], 
+<a name="l531"><span class="ln">531  </span></a>    ...     u_bounds=[np.pi, np.pi, np.pi] 
+<a name="l532"><span class="ln">532  </span></a>    ... ) 
+<a name="l533"><span class="ln">533  </span></a>    &gt;&gt;&gt; output = f_ishigami(sample.T) 
+<a name="l534"><span class="ln">534  </span></a> 
+<a name="l535"><span class="ln">535  </span></a>    Now we can do scatter plots of the output with respect to each parameter. 
+<a name="l536"><span class="ln">536  </span></a>    This gives a visual way to understand how each parameter impacts the 
+<a name="l537"><span class="ln">537  </span></a>    output of the function. 
+<a name="l538"><span class="ln">538  </span></a> 
+<a name="l539"><span class="ln">539  </span></a>    &gt;&gt;&gt; fig, ax = plt.subplots(1, n_dim, figsize=(12, 4)) 
+<a name="l540"><span class="ln">540  </span></a>    &gt;&gt;&gt; for i in range(n_dim): 
+<a name="l541"><span class="ln">541  </span></a>    ...     xi = sample[:, i] 
+<a name="l542"><span class="ln">542  </span></a>    ...     ax[i].scatter(xi, output, marker='+') 
+<a name="l543"><span class="ln">543  </span></a>    ...     ax[i].set_xlabel(p_labels[i]) 
+<a name="l544"><span class="ln">544  </span></a>    &gt;&gt;&gt; ax[0].set_ylabel('Y') 
+<a name="l545"><span class="ln">545  </span></a>    &gt;&gt;&gt; plt.tight_layout() 
+<a name="l546"><span class="ln">546  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l547"><span class="ln">547  </span></a> 
+<a name="l548"><span class="ln">548  </span></a>    Now Sobol' goes a step further: 
+<a name="l549"><span class="ln">549  </span></a>    by conditioning the output value by given values of the parameter 
+<a name="l550"><span class="ln">550  </span></a>    (black lines), the conditional output mean is computed. It corresponds to 
+<a name="l551"><span class="ln">551  </span></a>    the term :math:`\mathbb{E}(Y|x_i)`. Taking the variance of this term gives 
+<a name="l552"><span class="ln">552  </span></a>    the numerator of the Sobol' indices. 
+<a name="l553"><span class="ln">553  </span></a> 
+<a name="l554"><span class="ln">554  </span></a>    &gt;&gt;&gt; mini = np.min(output) 
+<a name="l555"><span class="ln">555  </span></a>    &gt;&gt;&gt; maxi = np.max(output) 
+<a name="l556"><span class="ln">556  </span></a>    &gt;&gt;&gt; n_bins = 10 
+<a name="l557"><span class="ln">557  </span></a>    &gt;&gt;&gt; bins = np.linspace(-np.pi, np.pi, num=n_bins, endpoint=False) 
+<a name="l558"><span class="ln">558  </span></a>    &gt;&gt;&gt; dx = bins[1] - bins[0] 
+<a name="l559"><span class="ln">559  </span></a>    &gt;&gt;&gt; fig, ax = plt.subplots(1, n_dim, figsize=(12, 4)) 
+<a name="l560"><span class="ln">560  </span></a>    &gt;&gt;&gt; for i in range(n_dim): 
+<a name="l561"><span class="ln">561  </span></a>    ...     xi = sample[:, i] 
+<a name="l562"><span class="ln">562  </span></a>    ...     ax[i].scatter(xi, output, marker='+') 
+<a name="l563"><span class="ln">563  </span></a>    ...     ax[i].set_xlabel(p_labels[i]) 
+<a name="l564"><span class="ln">564  </span></a>    ...     for bin_ in bins: 
+<a name="l565"><span class="ln">565  </span></a>    ...         idx = np.where((bin_ &lt;= xi) &amp; (xi &lt;= bin_ + dx)) 
+<a name="l566"><span class="ln">566  </span></a>    ...         xi_ = xi[idx] 
+<a name="l567"><span class="ln">567  </span></a>    ...         y_ = output[idx] 
+<a name="l568"><span class="ln">568  </span></a>    ...         ave_y_ = np.mean(y_) 
+<a name="l569"><span class="ln">569  </span></a>    ...         ax[i].plot([bin_ + dx/2] * 2, [mini, maxi], c='k') 
+<a name="l570"><span class="ln">570  </span></a>    ...         ax[i].scatter(bin_ + dx/2, ave_y_, c='r') 
+<a name="l571"><span class="ln">571  </span></a>    &gt;&gt;&gt; ax[0].set_ylabel('Y') 
+<a name="l572"><span class="ln">572  </span></a>    &gt;&gt;&gt; plt.tight_layout() 
+<a name="l573"><span class="ln">573  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l574"><span class="ln">574  </span></a> 
+<a name="l575"><span class="ln">575  </span></a>    Looking at :math:`x_3`, the variance 
+<a name="l576"><span class="ln">576  </span></a>    of the mean is zero leading to :math:`S_{x_3} = 0`. But we can further 
+<a name="l577"><span class="ln">577  </span></a>    observe that the variance of the output is not constant along the parameter 
+<a name="l578"><span class="ln">578  </span></a>    values of :math:`x_3`. This heteroscedasticity is explained by higher order 
+<a name="l579"><span class="ln">579  </span></a>    interactions. Moreover, an heteroscedasticity is also noticeable on 
+<a name="l580"><span class="ln">580  </span></a>    :math:`x_1` leading to an interaction between :math:`x_3` and :math:`x_1`. 
+<a name="l581"><span class="ln">581  </span></a>    On :math:`x_2`, the variance seems to be constant and thus null interaction 
+<a name="l582"><span class="ln">582  </span></a>    with this parameter can be supposed. 
+<a name="l583"><span class="ln">583  </span></a> 
+<a name="l584"><span class="ln">584  </span></a>    This case is fairly simple to analyse visually---although it is only a 
+<a name="l585"><span class="ln">585  </span></a>    qualitative analysis. Nevertheless, when the number of input parameters 
+<a name="l586"><span class="ln">586  </span></a>    increases such analysis becomes unrealistic as it would be difficult to 
+<a name="l587"><span class="ln">587  </span></a>    conclude on high-order terms. Hence the benefit of using Sobol' indices. 
+<a name="l588"><span class="ln">588  </span></a> 
+<a name="l589"><span class="ln">589  </span></a>    &quot;&quot;&quot;</span>
+<a name="l590"><span class="ln">590  </span></a>    <span class="s1">rng </span><span class="s0">= </span><span class="s1">check_random_state</span><span class="s2">(</span><span class="s1">rng</span><span class="s2">)</span>
+<a name="l591"><span class="ln">591  </span></a>
+<a name="l592"><span class="ln">592  </span></a>    <span class="s1">n_ </span><span class="s0">= </span><span class="s1">int</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span>
+<a name="l593"><span class="ln">593  </span></a>    <span class="s0">if not </span><span class="s2">(</span><span class="s1">n_ </span><span class="s0">&amp; </span><span class="s2">(</span><span class="s1">n_ </span><span class="s0">- </span><span class="s5">1</span><span class="s2">) </span><span class="s0">== </span><span class="s5">0</span><span class="s2">) </span><span class="s0">or </span><span class="s1">n </span><span class="s0">!= </span><span class="s1">n_</span><span class="s0">:</span>
+<a name="l594"><span class="ln">594  </span></a>        <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span>
+<a name="l595"><span class="ln">595  </span></a>            <span class="s3">&quot;The balance properties of Sobol' points require 'n' &quot;</span>
+<a name="l596"><span class="ln">596  </span></a>            <span class="s3">&quot;to be a power of 2.&quot;</span>
+<a name="l597"><span class="ln">597  </span></a>        <span class="s2">)</span>
+<a name="l598"><span class="ln">598  </span></a>    <span class="s1">n </span><span class="s0">= </span><span class="s1">n_</span>
+<a name="l599"><span class="ln">599  </span></a>
+<a name="l600"><span class="ln">600  </span></a>    <span class="s0">if not </span><span class="s1">callable</span><span class="s2">(</span><span class="s1">method</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l601"><span class="ln">601  </span></a>        <span class="s1">indices_methods </span><span class="s0">= </span><span class="s2">{</span>
+<a name="l602"><span class="ln">602  </span></a>            <span class="s3">&quot;saltelli_2010&quot;</span><span class="s0">: </span><span class="s1">saltelli_2010</span><span class="s2">,</span>
+<a name="l603"><span class="ln">603  </span></a>        <span class="s2">}</span>
+<a name="l604"><span class="ln">604  </span></a>        <span class="s0">try:</span>
+<a name="l605"><span class="ln">605  </span></a>            <span class="s1">method </span><span class="s0">= </span><span class="s1">method</span><span class="s2">.</span><span class="s1">lower</span><span class="s2">()  </span><span class="s4"># type: ignore[assignment]</span>
+<a name="l606"><span class="ln">606  </span></a>            <span class="s1">indices_method_ </span><span class="s0">= </span><span class="s1">indices_methods</span><span class="s2">[</span><span class="s1">method</span><span class="s2">]</span>
+<a name="l607"><span class="ln">607  </span></a>        <span class="s0">except </span><span class="s1">KeyError </span><span class="s0">as </span><span class="s1">exc</span><span class="s0">:</span>
+<a name="l608"><span class="ln">608  </span></a>            <span class="s1">message </span><span class="s0">= </span><span class="s2">(</span>
+<a name="l609"><span class="ln">609  </span></a>                <span class="s3">f&quot;{</span><span class="s1">method</span><span class="s3">!r} is not a valid 'method'. It must be one of&quot;</span>
+<a name="l610"><span class="ln">610  </span></a>                <span class="s3">f&quot; {</span><span class="s1">set</span><span class="s2">(</span><span class="s1">indices_methods</span><span class="s2">)</span><span class="s3">!r} or a callable.&quot;</span>
+<a name="l611"><span class="ln">611  </span></a>            <span class="s2">)</span>
+<a name="l612"><span class="ln">612  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s1">message</span><span class="s2">) </span><span class="s0">from </span><span class="s1">exc</span>
+<a name="l613"><span class="ln">613  </span></a>    <span class="s0">else:</span>
+<a name="l614"><span class="ln">614  </span></a>        <span class="s1">indices_method_ </span><span class="s0">= </span><span class="s1">method</span>
+<a name="l615"><span class="ln">615  </span></a>        <span class="s1">sig </span><span class="s0">= </span><span class="s1">inspect</span><span class="s2">.</span><span class="s1">signature</span><span class="s2">(</span><span class="s1">indices_method_</span><span class="s2">)</span>
+<a name="l616"><span class="ln">616  </span></a>
+<a name="l617"><span class="ln">617  </span></a>        <span class="s0">if </span><span class="s1">set</span><span class="s2">(</span><span class="s1">sig</span><span class="s2">.</span><span class="s1">parameters</span><span class="s2">) </span><span class="s0">!= </span><span class="s2">{</span><span class="s3">'f_A'</span><span class="s2">, </span><span class="s3">'f_B'</span><span class="s2">, </span><span class="s3">'f_AB'</span><span class="s2">}</span><span class="s0">:</span>
+<a name="l618"><span class="ln">618  </span></a>            <span class="s1">message </span><span class="s0">= </span><span class="s2">(</span>
+<a name="l619"><span class="ln">619  </span></a>                <span class="s3">&quot;If 'method' is a callable, it must have the following&quot;</span>
+<a name="l620"><span class="ln">620  </span></a>                <span class="s3">f&quot; signature: {</span><span class="s1">inspect</span><span class="s2">.</span><span class="s1">signature</span><span class="s2">(</span><span class="s1">saltelli_2010</span><span class="s2">)</span><span class="s3">}&quot;</span>
+<a name="l621"><span class="ln">621  </span></a>            <span class="s2">)</span>
+<a name="l622"><span class="ln">622  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s1">message</span><span class="s2">)</span>
+<a name="l623"><span class="ln">623  </span></a>
+<a name="l624"><span class="ln">624  </span></a>    <span class="s0">def </span><span class="s1">indices_method</span><span class="s2">(</span><span class="s1">f_A</span><span class="s2">, </span><span class="s1">f_B</span><span class="s2">, </span><span class="s1">f_AB</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l625"><span class="ln">625  </span></a>        <span class="s4">&quot;&quot;&quot;Wrap indices method to ensure proper output dimension. 
+<a name="l626"><span class="ln">626  </span></a> 
+<a name="l627"><span class="ln">627  </span></a>        1D when single output, 2D otherwise. 
+<a name="l628"><span class="ln">628  </span></a>        &quot;&quot;&quot;</span>
+<a name="l629"><span class="ln">629  </span></a>        <span class="s0">return </span><span class="s1">np</span><span class="s2">.</span><span class="s1">squeeze</span><span class="s2">(</span><span class="s1">indices_method_</span><span class="s2">(</span><span class="s1">f_A</span><span class="s0">=</span><span class="s1">f_A</span><span class="s2">, </span><span class="s1">f_B</span><span class="s0">=</span><span class="s1">f_B</span><span class="s2">, </span><span class="s1">f_AB</span><span class="s0">=</span><span class="s1">f_AB</span><span class="s2">))</span>
+<a name="l630"><span class="ln">630  </span></a>
+<a name="l631"><span class="ln">631  </span></a>    <span class="s0">if </span><span class="s1">callable</span><span class="s2">(</span><span class="s1">func</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l632"><span class="ln">632  </span></a>        <span class="s0">if </span><span class="s1">dists </span><span class="s0">is None:</span>
+<a name="l633"><span class="ln">633  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span>
+<a name="l634"><span class="ln">634  </span></a>                <span class="s3">&quot;'dists' must be defined when 'func' is a callable.&quot;</span>
+<a name="l635"><span class="ln">635  </span></a>            <span class="s2">)</span>
+<a name="l636"><span class="ln">636  </span></a>
+<a name="l637"><span class="ln">637  </span></a>        <span class="s0">def </span><span class="s1">wrapped_func</span><span class="s2">(</span><span class="s1">x</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l638"><span class="ln">638  </span></a>            <span class="s0">return </span><span class="s1">np</span><span class="s2">.</span><span class="s1">atleast_2d</span><span class="s2">(</span><span class="s1">func</span><span class="s2">(</span><span class="s1">x</span><span class="s2">))</span>
+<a name="l639"><span class="ln">639  </span></a>
+<a name="l640"><span class="ln">640  </span></a>        <span class="s1">A</span><span class="s2">, </span><span class="s1">B </span><span class="s0">= </span><span class="s1">sample_A_B</span><span class="s2">(</span><span class="s1">n</span><span class="s0">=</span><span class="s1">n</span><span class="s2">, </span><span class="s1">dists</span><span class="s0">=</span><span class="s1">dists</span><span class="s2">, </span><span class="s1">rng</span><span class="s0">=</span><span class="s1">rng</span><span class="s2">)</span>
+<a name="l641"><span class="ln">641  </span></a>        <span class="s1">AB </span><span class="s0">= </span><span class="s1">sample_AB</span><span class="s2">(</span><span class="s1">A</span><span class="s0">=</span><span class="s1">A</span><span class="s2">, </span><span class="s1">B</span><span class="s0">=</span><span class="s1">B</span><span class="s2">)</span>
+<a name="l642"><span class="ln">642  </span></a>
+<a name="l643"><span class="ln">643  </span></a>        <span class="s1">f_A </span><span class="s0">= </span><span class="s1">wrapped_func</span><span class="s2">(</span><span class="s1">A</span><span class="s2">)</span>
+<a name="l644"><span class="ln">644  </span></a>
+<a name="l645"><span class="ln">645  </span></a>        <span class="s0">if </span><span class="s1">f_A</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s5">1</span><span class="s2">] </span><span class="s0">!= </span><span class="s1">n</span><span class="s0">:</span>
+<a name="l646"><span class="ln">646  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span>
+<a name="l647"><span class="ln">647  </span></a>                <span class="s3">&quot;'func' output should have a shape ``(s, -1)`` with ``s`` &quot;</span>
+<a name="l648"><span class="ln">648  </span></a>                <span class="s3">&quot;the number of output.&quot;</span>
+<a name="l649"><span class="ln">649  </span></a>            <span class="s2">)</span>
+<a name="l650"><span class="ln">650  </span></a>
+<a name="l651"><span class="ln">651  </span></a>        <span class="s0">def </span><span class="s1">funcAB</span><span class="s2">(</span><span class="s1">AB</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l652"><span class="ln">652  </span></a>            <span class="s1">d</span><span class="s2">, </span><span class="s1">d</span><span class="s2">, </span><span class="s1">n </span><span class="s0">= </span><span class="s1">AB</span><span class="s2">.</span><span class="s1">shape</span>
+<a name="l653"><span class="ln">653  </span></a>            <span class="s1">AB </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">moveaxis</span><span class="s2">(</span><span class="s1">AB</span><span class="s2">, </span><span class="s5">0</span><span class="s2">, </span><span class="s0">-</span><span class="s5">1</span><span class="s2">).</span><span class="s1">reshape</span><span class="s2">(</span><span class="s1">d</span><span class="s2">, </span><span class="s1">n</span><span class="s0">*</span><span class="s1">d</span><span class="s2">)</span>
+<a name="l654"><span class="ln">654  </span></a>            <span class="s1">f_AB </span><span class="s0">= </span><span class="s1">wrapped_func</span><span class="s2">(</span><span class="s1">AB</span><span class="s2">)</span>
+<a name="l655"><span class="ln">655  </span></a>            <span class="s0">return </span><span class="s1">np</span><span class="s2">.</span><span class="s1">moveaxis</span><span class="s2">(</span><span class="s1">f_AB</span><span class="s2">.</span><span class="s1">reshape</span><span class="s2">((</span><span class="s0">-</span><span class="s5">1</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">d</span><span class="s2">)), </span><span class="s0">-</span><span class="s5">1</span><span class="s2">, </span><span class="s5">0</span><span class="s2">)</span>
+<a name="l656"><span class="ln">656  </span></a>
+<a name="l657"><span class="ln">657  </span></a>        <span class="s1">f_B </span><span class="s0">= </span><span class="s1">wrapped_func</span><span class="s2">(</span><span class="s1">B</span><span class="s2">)</span>
+<a name="l658"><span class="ln">658  </span></a>        <span class="s1">f_AB </span><span class="s0">= </span><span class="s1">funcAB</span><span class="s2">(</span><span class="s1">AB</span><span class="s2">)</span>
+<a name="l659"><span class="ln">659  </span></a>    <span class="s0">else:</span>
+<a name="l660"><span class="ln">660  </span></a>        <span class="s1">message </span><span class="s0">= </span><span class="s2">(</span>
+<a name="l661"><span class="ln">661  </span></a>            <span class="s3">&quot;When 'func' is a dictionary, it must contain the following &quot;</span>
+<a name="l662"><span class="ln">662  </span></a>            <span class="s3">&quot;keys: 'f_A', 'f_B' and 'f_AB'.&quot;</span>
+<a name="l663"><span class="ln">663  </span></a>            <span class="s3">&quot;'f_A' and 'f_B' should have a shape ``(s, n)`` and 'f_AB' &quot;</span>
+<a name="l664"><span class="ln">664  </span></a>            <span class="s3">&quot;should have a shape ``(d, s, n)``.&quot;</span>
+<a name="l665"><span class="ln">665  </span></a>        <span class="s2">)</span>
+<a name="l666"><span class="ln">666  </span></a>        <span class="s0">try:</span>
+<a name="l667"><span class="ln">667  </span></a>            <span class="s1">f_A</span><span class="s2">, </span><span class="s1">f_B</span><span class="s2">, </span><span class="s1">f_AB </span><span class="s0">= </span><span class="s1">map</span><span class="s2">(</span><span class="s0">lambda </span><span class="s1">arr</span><span class="s0">: </span><span class="s1">arr</span><span class="s2">.</span><span class="s1">copy</span><span class="s2">(), </span><span class="s1">np</span><span class="s2">.</span><span class="s1">atleast_2d</span><span class="s2">(</span>
+<a name="l668"><span class="ln">668  </span></a>                <span class="s1">func</span><span class="s2">[</span><span class="s3">'f_A'</span><span class="s2">], </span><span class="s1">func</span><span class="s2">[</span><span class="s3">'f_B'</span><span class="s2">], </span><span class="s1">func</span><span class="s2">[</span><span class="s3">'f_AB'</span><span class="s2">]</span>
+<a name="l669"><span class="ln">669  </span></a>            <span class="s2">))</span>
+<a name="l670"><span class="ln">670  </span></a>        <span class="s0">except </span><span class="s1">KeyError </span><span class="s0">as </span><span class="s1">exc</span><span class="s0">:</span>
+<a name="l671"><span class="ln">671  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s1">message</span><span class="s2">) </span><span class="s0">from </span><span class="s1">exc</span>
+<a name="l672"><span class="ln">672  </span></a>
+<a name="l673"><span class="ln">673  </span></a>        <span class="s0">if </span><span class="s1">f_A</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s5">1</span><span class="s2">] </span><span class="s0">!= </span><span class="s1">n </span><span class="s0">or </span><span class="s1">f_A</span><span class="s2">.</span><span class="s1">shape </span><span class="s0">!= </span><span class="s1">f_B</span><span class="s2">.</span><span class="s1">shape </span><span class="s0">or </span><span class="s1">\</span>
+<a name="l674"><span class="ln">674  </span></a>                <span class="s1">f_AB</span><span class="s2">.</span><span class="s1">shape </span><span class="s0">== </span><span class="s1">f_A</span><span class="s2">.</span><span class="s1">shape </span><span class="s0">or </span><span class="s1">f_AB</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s0">-</span><span class="s5">1</span><span class="s2">] </span><span class="s0">% </span><span class="s1">n </span><span class="s0">!= </span><span class="s5">0</span><span class="s0">:</span>
+<a name="l675"><span class="ln">675  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s1">message</span><span class="s2">)</span>
+<a name="l676"><span class="ln">676  </span></a>
+<a name="l677"><span class="ln">677  </span></a>    <span class="s4"># Normalization by mean</span>
+<a name="l678"><span class="ln">678  </span></a>    <span class="s4"># Sobol', I. and Levitan, Y. L. (1999). On the use of variance reducing</span>
+<a name="l679"><span class="ln">679  </span></a>    <span class="s4"># multipliers in monte carlo computations of a global sensitivity index.</span>
+<a name="l680"><span class="ln">680  </span></a>    <span class="s4"># Computer Physics Communications, 117(1) :52-61.</span>
+<a name="l681"><span class="ln">681  </span></a>    <span class="s1">mean </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">mean</span><span class="s2">([</span><span class="s1">f_A</span><span class="s2">, </span><span class="s1">f_B</span><span class="s2">], </span><span class="s1">axis</span><span class="s0">=</span><span class="s2">(</span><span class="s5">0</span><span class="s2">, </span><span class="s0">-</span><span class="s5">1</span><span class="s2">)).</span><span class="s1">reshape</span><span class="s2">(</span><span class="s0">-</span><span class="s5">1</span><span class="s2">, </span><span class="s5">1</span><span class="s2">)</span>
+<a name="l682"><span class="ln">682  </span></a>    <span class="s1">f_A </span><span class="s0">-= </span><span class="s1">mean</span>
+<a name="l683"><span class="ln">683  </span></a>    <span class="s1">f_B </span><span class="s0">-= </span><span class="s1">mean</span>
+<a name="l684"><span class="ln">684  </span></a>    <span class="s1">f_AB </span><span class="s0">-= </span><span class="s1">mean</span>
+<a name="l685"><span class="ln">685  </span></a>
+<a name="l686"><span class="ln">686  </span></a>    <span class="s4"># Compute indices</span>
+<a name="l687"><span class="ln">687  </span></a>    <span class="s4"># Filter warnings for constant output as var = 0</span>
+<a name="l688"><span class="ln">688  </span></a>    <span class="s0">with </span><span class="s1">np</span><span class="s2">.</span><span class="s1">errstate</span><span class="s2">(</span><span class="s1">divide</span><span class="s0">=</span><span class="s3">'ignore'</span><span class="s2">, </span><span class="s1">invalid</span><span class="s0">=</span><span class="s3">'ignore'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l689"><span class="ln">689  </span></a>        <span class="s1">first_order</span><span class="s2">, </span><span class="s1">total_order </span><span class="s0">= </span><span class="s1">indices_method</span><span class="s2">(</span><span class="s1">f_A</span><span class="s0">=</span><span class="s1">f_A</span><span class="s2">, </span><span class="s1">f_B</span><span class="s0">=</span><span class="s1">f_B</span><span class="s2">, </span><span class="s1">f_AB</span><span class="s0">=</span><span class="s1">f_AB</span><span class="s2">)</span>
+<a name="l690"><span class="ln">690  </span></a>
+<a name="l691"><span class="ln">691  </span></a>    <span class="s4"># null variance means null indices</span>
+<a name="l692"><span class="ln">692  </span></a>    <span class="s1">first_order</span><span class="s2">[</span><span class="s0">~</span><span class="s1">np</span><span class="s2">.</span><span class="s1">isfinite</span><span class="s2">(</span><span class="s1">first_order</span><span class="s2">)] </span><span class="s0">= </span><span class="s5">0</span>
+<a name="l693"><span class="ln">693  </span></a>    <span class="s1">total_order</span><span class="s2">[</span><span class="s0">~</span><span class="s1">np</span><span class="s2">.</span><span class="s1">isfinite</span><span class="s2">(</span><span class="s1">total_order</span><span class="s2">)] </span><span class="s0">= </span><span class="s5">0</span>
+<a name="l694"><span class="ln">694  </span></a>
+<a name="l695"><span class="ln">695  </span></a>    <span class="s1">res </span><span class="s0">= </span><span class="s1">dict</span><span class="s2">(</span>
+<a name="l696"><span class="ln">696  </span></a>        <span class="s1">first_order</span><span class="s0">=</span><span class="s1">first_order</span><span class="s2">,</span>
+<a name="l697"><span class="ln">697  </span></a>        <span class="s1">total_order</span><span class="s0">=</span><span class="s1">total_order</span><span class="s2">,</span>
+<a name="l698"><span class="ln">698  </span></a>        <span class="s1">_indices_method</span><span class="s0">=</span><span class="s1">indices_method</span><span class="s2">,</span>
+<a name="l699"><span class="ln">699  </span></a>        <span class="s1">_f_A</span><span class="s0">=</span><span class="s1">f_A</span><span class="s2">,</span>
+<a name="l700"><span class="ln">700  </span></a>        <span class="s1">_f_B</span><span class="s0">=</span><span class="s1">f_B</span><span class="s2">,</span>
+<a name="l701"><span class="ln">701  </span></a>        <span class="s1">_f_AB</span><span class="s0">=</span><span class="s1">f_AB</span>
+<a name="l702"><span class="ln">702  </span></a>    <span class="s2">)</span>
+<a name="l703"><span class="ln">703  </span></a>
+<a name="l704"><span class="ln">704  </span></a>    <span class="s0">if </span><span class="s1">callable</span><span class="s2">(</span><span class="s1">func</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l705"><span class="ln">705  </span></a>        <span class="s1">res</span><span class="s2">.</span><span class="s1">update</span><span class="s2">(</span>
+<a name="l706"><span class="ln">706  </span></a>            <span class="s1">dict</span><span class="s2">(</span>
+<a name="l707"><span class="ln">707  </span></a>                <span class="s1">_A</span><span class="s0">=</span><span class="s1">A</span><span class="s2">,</span>
+<a name="l708"><span class="ln">708  </span></a>                <span class="s1">_B</span><span class="s0">=</span><span class="s1">B</span><span class="s2">,</span>
+<a name="l709"><span class="ln">709  </span></a>                <span class="s1">_AB</span><span class="s0">=</span><span class="s1">AB</span><span class="s2">,</span>
+<a name="l710"><span class="ln">710  </span></a>            <span class="s2">)</span>
+<a name="l711"><span class="ln">711  </span></a>        <span class="s2">)</span>
+<a name="l712"><span class="ln">712  </span></a>
+<a name="l713"><span class="ln">713  </span></a>    <span class="s0">return </span><span class="s1">SobolResult</span><span class="s2">(</span><span class="s0">**</span><span class="s1">res</span><span class="s2">)</span>
+<a name="l714"><span class="ln">714  </span></a></pre>
+</body>
+</html>

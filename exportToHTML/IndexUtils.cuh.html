@@ -1,0 +1,61 @@
+<html>
+<head>
+<title>IndexUtils.cuh</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #63a35c;}
+.s1 { color: #a71d5d;}
+.s2 { color: #333333;}
+.s3 { color: #795da3;}
+.s4 { color: #183691;}
+.s5 { color: #333333;}
+.s6 { color: #0086b3;}
+.s7 { color: #969896;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+IndexUtils.cuh</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#</span><span class="s1">pragma </span><span class="s3">once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">ATen/core/TensorBase.h</span><span class="s0">&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">ATen/cuda/detail/TensorInfo.cuh</span><span class="s0">&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">ATen/native/CanUse32BitIndexMath.h</span><span class="s0">&gt;</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">namespace </span><span class="s5">at</span><span class="s0">::</span><span class="s5">cuda</span><span class="s0">::</span><span class="s5">detail </span><span class="s0">{</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s2">TORCH_CUDA_CU_API </span><span class="s1">bool </span><span class="s3">maybeOverlappingIndices</span><span class="s0">(</span><span class="s1">const </span><span class="s5">at</span><span class="s0">::</span><span class="s2">TensorBase </span><span class="s1">&amp;</span><span class="s2">t</span><span class="s0">);</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s1">using </span><span class="s5">at</span><span class="s0">::</span><span class="s5">native</span><span class="s0">::</span><span class="s2">canUse32BitIndexMath</span><span class="s0">;</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">typename scalar, typename IndexType</span><span class="s0">&gt; 
+<a name="l13"><span class="ln">13   </span></a></span><span class="s2">TensorInfo</span><span class="s1">&lt;</span><span class="s2">scalar</span><span class="s0">, </span><span class="s2">IndexType</span><span class="s1">&gt;</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s3">getTensorInfo</span><span class="s0">(</span><span class="s1">const </span><span class="s5">at</span><span class="s0">::</span><span class="s2">TensorBase </span><span class="s1">&amp;</span><span class="s2">t</span><span class="s0">) {</span>
+<a name="l15"><span class="ln">15   </span></a>  <span class="s2">IndexType </span><span class="s6">sz</span><span class="s0">[</span><span class="s2">MAX_TENSORINFO_DIMS</span><span class="s0">];</span>
+<a name="l16"><span class="ln">16   </span></a>  <span class="s2">IndexType </span><span class="s6">st</span><span class="s0">[</span><span class="s2">MAX_TENSORINFO_DIMS</span><span class="s0">];</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a>  <span class="s1">int </span><span class="s2">dims </span><span class="s1">= </span><span class="s6">t</span><span class="s0">.</span><span class="s3">dim</span><span class="s0">();</span>
+<a name="l19"><span class="ln">19   </span></a>  <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">i </span><span class="s1">= </span><span class="s6">0</span><span class="s0">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s2">dims</span><span class="s0">; </span><span class="s1">++</span><span class="s2">i</span><span class="s0">) {</span>
+<a name="l20"><span class="ln">20   </span></a>    <span class="s6">sz</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] </span><span class="s1">= </span><span class="s6">t</span><span class="s0">.</span><span class="s3">size</span><span class="s0">(</span><span class="s2">i</span><span class="s0">);</span>
+<a name="l21"><span class="ln">21   </span></a>    <span class="s6">st</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] </span><span class="s1">= </span><span class="s6">t</span><span class="s0">.</span><span class="s3">stride</span><span class="s0">(</span><span class="s2">i</span><span class="s0">);</span>
+<a name="l22"><span class="ln">22   </span></a>  <span class="s0">}</span>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a>  <span class="s2">scalar</span><span class="s1">* </span><span class="s2">data_ptr </span><span class="s1">= </span><span class="s6">nullptr</span><span class="s0">;</span>
+<a name="l25"><span class="ln">25   </span></a>
+<a name="l26"><span class="ln">26   </span></a>  <span class="s1">if constexpr </span><span class="s0">(</span><span class="s5">std</span><span class="s0">::</span><span class="s2">is_const_v</span><span class="s1">&lt;</span><span class="s2">scalar</span><span class="s1">&gt;</span><span class="s0">) {</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s2">data_ptr </span><span class="s1">= </span><span class="s6">t</span><span class="s0">.</span><span class="s6">const_data_ptr</span><span class="s1">&lt;</span><span class="s2">scalar</span><span class="s1">&gt;</span><span class="s0">();</span>
+<a name="l28"><span class="ln">28   </span></a>  <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s2">data_ptr </span><span class="s1">= </span><span class="s6">t</span><span class="s0">.</span><span class="s6">mutable_data_ptr</span><span class="s1">&lt;</span><span class="s2">scalar</span><span class="s1">&gt;</span><span class="s0">();</span>
+<a name="l30"><span class="ln">30   </span></a>  <span class="s0">}</span>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a>  <span class="s1">return </span><span class="s3">TensorInfo</span><span class="s2">&lt;scalar, IndexType&gt;</span><span class="s0">(</span>
+<a name="l33"><span class="ln">33   </span></a>    <span class="s2">data_ptr</span><span class="s0">, </span><span class="s2">dims</span><span class="s0">, </span><span class="s2">sz</span><span class="s0">, </span><span class="s2">st</span><span class="s0">);</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s0">}</span>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a><span class="s0">} // </span><span class="s7">namespace at::cuda::detail 
+<a name="l37"><span class="ln">37   </span></a></span></pre>
+</body>
+</html>

@@ -1,0 +1,185 @@
+<html>
+<head>
+<title>source_matcher_utils.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #969896;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+source_matcher_utils.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">import </span><span class="s1">logging</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">import </span><span class="s1">os</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">from </span><span class="s1">dataclasses </span><span class="s0">import </span><span class="s1">dataclass</span><span class="s2">, </span><span class="s1">field</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s1">typing </span><span class="s0">import </span><span class="s1">Any</span><span class="s2">, </span><span class="s1">Callable</span><span class="s2">, </span><span class="s1">Optional</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">from </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">fx</span><span class="s2">.</span><span class="s1">_compatibility </span><span class="s0">import </span><span class="s1">compatibility</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">from </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">fx</span><span class="s2">.</span><span class="s1">graph </span><span class="s0">import </span><span class="s1">Graph</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">from </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">fx</span><span class="s2">.</span><span class="s1">node </span><span class="s0">import </span><span class="s1">Node</span>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span><span class="s3">&quot;get_source_partitions&quot;</span><span class="s2">, </span><span class="s3">&quot;check_subgraphs_connected&quot;</span><span class="s2">, </span><span class="s3">&quot;SourcePartition&quot;</span><span class="s2">]</span>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s4"># Set`PYTORCH_MATCHER_LOGLEVEL=INFO` to see debug logs</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s0">def </span><span class="s1">_init_logger</span><span class="s2">() </span><span class="s1">-&gt; logging</span><span class="s2">.</span><span class="s1">Logger</span><span class="s0">:</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s1">logger </span><span class="s0">= </span><span class="s1">logging</span><span class="s2">.</span><span class="s1">getLogger</span><span class="s2">(</span><span class="s1">__name__</span><span class="s2">)</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s1">level </span><span class="s0">= </span><span class="s1">os</span><span class="s2">.</span><span class="s1">environ</span><span class="s2">.</span><span class="s1">get</span><span class="s2">(</span><span class="s3">&quot;PYTORCH_MATCHER_LOGLEVEL&quot;</span><span class="s2">, </span><span class="s3">&quot;WARNING&quot;</span><span class="s2">).</span><span class="s1">upper</span><span class="s2">()</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s1">logger</span><span class="s2">.</span><span class="s1">setLevel</span><span class="s2">(</span><span class="s1">level</span><span class="s2">)</span>
+<a name="l20"><span class="ln">20   </span></a>    <span class="s1">console </span><span class="s0">= </span><span class="s1">logging</span><span class="s2">.</span><span class="s1">StreamHandler</span><span class="s2">()</span>
+<a name="l21"><span class="ln">21   </span></a>    <span class="s1">formatter </span><span class="s0">= </span><span class="s1">logging</span><span class="s2">.</span><span class="s1">Formatter</span><span class="s2">(</span><span class="s3">&quot;%(filename)s &gt; %(message)s&quot;</span><span class="s2">)</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s1">console</span><span class="s2">.</span><span class="s1">setFormatter</span><span class="s2">(</span><span class="s1">formatter</span><span class="s2">)</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s1">console</span><span class="s2">.</span><span class="s1">setLevel</span><span class="s2">(</span><span class="s1">level</span><span class="s2">)</span>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s4"># add the handlers to the logger</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s1">logger</span><span class="s2">.</span><span class="s1">addHandler</span><span class="s2">(</span><span class="s1">console</span><span class="s2">)</span>
+<a name="l26"><span class="ln">26   </span></a>    <span class="s1">logger</span><span class="s2">.</span><span class="s1">propagate </span><span class="s0">= False</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s0">return </span><span class="s1">logger</span>
+<a name="l28"><span class="ln">28   </span></a>
+<a name="l29"><span class="ln">29   </span></a>
+<a name="l30"><span class="ln">30   </span></a><span class="s1">logger </span><span class="s0">= </span><span class="s1">_init_logger</span><span class="s2">()</span>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a>
+<a name="l33"><span class="ln">33   </span></a><span class="s0">@</span><span class="s1">compatibility</span><span class="s2">(</span><span class="s1">is_backward_compatible</span><span class="s0">=False</span><span class="s2">)</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s0">@</span><span class="s1">dataclass</span>
+<a name="l35"><span class="ln">35   </span></a><span class="s0">class </span><span class="s1">SourcePartition</span><span class="s0">:</span>
+<a name="l36"><span class="ln">36   </span></a>    <span class="s4"># Nodes in a particular partition</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s1">nodes</span><span class="s0">: </span><span class="s1">list</span><span class="s2">[</span><span class="s1">Node</span><span class="s2">]</span>
+<a name="l38"><span class="ln">38   </span></a>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s4"># The source these nodes decomposed from</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s1">source</span><span class="s0">: </span><span class="s1">Any</span>
+<a name="l41"><span class="ln">41   </span></a>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s4"># Nodes in the graph that are needed as inputs to the partition</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s4"># These do not include the params of the partition</span>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s1">input_nodes</span><span class="s0">: </span><span class="s1">list</span><span class="s2">[</span><span class="s1">Node</span><span class="s2">] </span><span class="s0">= </span><span class="s1">field</span><span class="s2">(</span><span class="s1">default_factory</span><span class="s0">=</span><span class="s1">list</span><span class="s2">)</span>
+<a name="l45"><span class="ln">45   </span></a>
+<a name="l46"><span class="ln">46   </span></a>    <span class="s4"># Nodes in the partition that are being used by nodes outside of the</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s4"># partition</span>
+<a name="l48"><span class="ln">48   </span></a>    <span class="s1">output_nodes</span><span class="s0">: </span><span class="s1">list</span><span class="s2">[</span><span class="s1">Node</span><span class="s2">] </span><span class="s0">= </span><span class="s1">field</span><span class="s2">(</span><span class="s1">default_factory</span><span class="s0">=</span><span class="s1">list</span><span class="s2">)</span>
+<a name="l49"><span class="ln">49   </span></a>
+<a name="l50"><span class="ln">50   </span></a>    <span class="s4"># Parameters that are being used</span>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s1">params</span><span class="s0">: </span><span class="s1">list</span><span class="s2">[</span><span class="s1">Node</span><span class="s2">] </span><span class="s0">= </span><span class="s1">field</span><span class="s2">(</span><span class="s1">default_factory</span><span class="s0">=</span><span class="s1">list</span><span class="s2">)</span>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a>
+<a name="l54"><span class="ln">54   </span></a><span class="s0">@</span><span class="s1">compatibility</span><span class="s2">(</span><span class="s1">is_backward_compatible</span><span class="s0">=False</span><span class="s2">)  </span><span class="s4"># type: ignore[misc]</span>
+<a name="l55"><span class="ln">55   </span></a><span class="s0">def </span><span class="s1">get_source_partitions</span><span class="s2">(</span>
+<a name="l56"><span class="ln">56   </span></a>    <span class="s1">graph</span><span class="s0">: </span><span class="s1">Graph</span><span class="s2">,</span>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s1">wanted_sources</span><span class="s0">: </span><span class="s1">list</span><span class="s2">[</span><span class="s1">Any</span><span class="s2">],</span>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s1">filter_fn</span><span class="s0">: </span><span class="s1">Optional</span><span class="s2">[</span><span class="s1">Callable</span><span class="s2">[[</span><span class="s1">Node</span><span class="s2">], </span><span class="s1">bool</span><span class="s2">]] </span><span class="s0">= None</span><span class="s2">,</span>
+<a name="l59"><span class="ln">59   </span></a><span class="s2">) </span><span class="s1">-&gt; dict</span><span class="s2">[</span><span class="s1">Any</span><span class="s2">, </span><span class="s1">list</span><span class="s2">[</span><span class="s1">SourcePartition</span><span class="s2">]]</span><span class="s0">:</span>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l61"><span class="ln">61   </span></a>    Args: 
+<a name="l62"><span class="ln">62   </span></a>        graph: The graph we want to partition 
+<a name="l63"><span class="ln">63   </span></a>        wanted_sources: List of sources of nodes that were decomposed from this 
+<a name="l64"><span class="ln">64   </span></a>            source. This can be a function (ex. torch.nn.functional.linear) or a 
+<a name="l65"><span class="ln">65   </span></a>            leaf module type (ex. torch.nn.Linear). 
+<a name="l66"><span class="ln">66   </span></a> 
+<a name="l67"><span class="ln">67   </span></a>    Returns: 
+<a name="l68"><span class="ln">68   </span></a>        Dictionary mapping sources that were given to a list of SourcePartitions 
+<a name="l69"><span class="ln">69   </span></a>        that correspond to the list of nodes that were decomposed from the given 
+<a name="l70"><span class="ln">70   </span></a>        source. 
+<a name="l71"><span class="ln">71   </span></a>    &quot;&quot;&quot;</span>
+<a name="l72"><span class="ln">72   </span></a>    <span class="s1">modules</span><span class="s0">: </span><span class="s1">dict</span><span class="s2">[</span><span class="s1">type</span><span class="s2">, </span><span class="s1">dict</span><span class="s2">[</span><span class="s1">str</span><span class="s2">, </span><span class="s1">list</span><span class="s2">[</span><span class="s1">Node</span><span class="s2">]]] </span><span class="s0">= </span><span class="s2">{}</span>
+<a name="l73"><span class="ln">73   </span></a>
+<a name="l74"><span class="ln">74   </span></a>    <span class="s0">for </span><span class="s1">node </span><span class="s0">in </span><span class="s1">graph</span><span class="s2">.</span><span class="s1">nodes</span><span class="s0">:</span>
+<a name="l75"><span class="ln">75   </span></a>        <span class="s4"># The metadata source_fn should contain a tuple of a unique name for the</span>
+<a name="l76"><span class="ln">76   </span></a>        <span class="s4"># source, and the source function if the node is decomposed from a</span>
+<a name="l77"><span class="ln">77   </span></a>        <span class="s4"># function, or the type of module if the node is decomposed from a leaf</span>
+<a name="l78"><span class="ln">78   </span></a>        <span class="s4"># module</span>
+<a name="l79"><span class="ln">79   </span></a>
+<a name="l80"><span class="ln">80   </span></a>        <span class="s4"># TODO: Bypass &quot;torch_fn&quot; when &quot;source_fn_stack&quot; because now &quot;torch_fn&quot; can</span>
+<a name="l81"><span class="ln">81   </span></a>        <span class="s4"># be different from &quot;source_fn_stack&quot;, for example for the add_ node</span>
+<a name="l82"><span class="ln">82   </span></a>        <span class="s4"># decomposed from batch norm. We should remove the check on &quot;source_fn_stack&quot;</span>
+<a name="l83"><span class="ln">83   </span></a>        <span class="s4"># after we fix &quot;torch_fn&quot;. T199561090</span>
+<a name="l84"><span class="ln">84   </span></a>        <span class="s0">if </span><span class="s2">(</span><span class="s1">source_fn_st </span><span class="s0">:= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">get</span><span class="s2">(</span><span class="s3">&quot;source_fn_stack&quot;</span><span class="s2">, </span><span class="s0">None</span><span class="s2">)) </span><span class="s0">is None and </span><span class="s2">(</span>
+<a name="l85"><span class="ln">85   </span></a>            <span class="s1">torch_fn </span><span class="s0">:= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">get</span><span class="s2">(</span><span class="s3">&quot;torch_fn&quot;</span><span class="s2">, </span><span class="s0">None</span><span class="s2">)</span>
+<a name="l86"><span class="ln">86   </span></a>        <span class="s2">) </span><span class="s0">is not None:</span>
+<a name="l87"><span class="ln">87   </span></a>            <span class="s1">node_fqn</span><span class="s2">, </span><span class="s1">source_fn </span><span class="s0">= </span><span class="s1">torch_fn</span>
+<a name="l88"><span class="ln">88   </span></a>            <span class="s1">source_fn_name </span><span class="s0">= </span><span class="s1">source_fn</span><span class="s2">.</span><span class="s1">split</span><span class="s2">(</span><span class="s3">&quot;.&quot;</span><span class="s2">)[</span><span class="s5">1</span><span class="s2">]</span>
+<a name="l89"><span class="ln">89   </span></a>            <span class="s0">if </span><span class="s1">source_fn_name </span><span class="s0">in </span><span class="s1">wanted_sources</span><span class="s0">:</span>
+<a name="l90"><span class="ln">90   </span></a>                <span class="s1">diff_modules </span><span class="s0">= </span><span class="s1">modules</span><span class="s2">.</span><span class="s1">setdefault</span><span class="s2">(</span><span class="s1">source_fn_name</span><span class="s2">, {})</span>
+<a name="l91"><span class="ln">91   </span></a>                <span class="s1">partition </span><span class="s0">= </span><span class="s1">diff_modules</span><span class="s2">.</span><span class="s1">setdefault</span><span class="s2">(</span><span class="s1">node_fqn</span><span class="s2">, [])</span>
+<a name="l92"><span class="ln">92   </span></a>                <span class="s1">partition</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">node</span><span class="s2">)</span>
+<a name="l93"><span class="ln">93   </span></a>
+<a name="l94"><span class="ln">94   </span></a>        <span class="s0">if </span><span class="s2">(</span><span class="s1">source_fn_st </span><span class="s0">:= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">get</span><span class="s2">(</span><span class="s3">&quot;source_fn_stack&quot;</span><span class="s2">, </span><span class="s0">None</span><span class="s2">)) </span><span class="s0">is not None:</span>
+<a name="l95"><span class="ln">95   </span></a>            <span class="s1">source_fn </span><span class="s0">= </span><span class="s1">source_fn_st</span><span class="s2">[</span><span class="s0">-</span><span class="s5">1</span><span class="s2">]</span>
+<a name="l96"><span class="ln">96   </span></a>            <span class="s0">if </span><span class="s1">source_fn</span><span class="s2">[</span><span class="s5">1</span><span class="s2">] </span><span class="s0">in </span><span class="s1">wanted_sources</span><span class="s0">:</span>
+<a name="l97"><span class="ln">97   </span></a>                <span class="s1">diff_modules </span><span class="s0">= </span><span class="s1">modules</span><span class="s2">.</span><span class="s1">setdefault</span><span class="s2">(</span><span class="s1">source_fn</span><span class="s2">[</span><span class="s5">1</span><span class="s2">], {})</span>
+<a name="l98"><span class="ln">98   </span></a>                <span class="s1">partition </span><span class="s0">= </span><span class="s1">diff_modules</span><span class="s2">.</span><span class="s1">setdefault</span><span class="s2">(</span><span class="s1">source_fn</span><span class="s2">[</span><span class="s5">0</span><span class="s2">], [])</span>
+<a name="l99"><span class="ln">99   </span></a>                <span class="s1">partition</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">node</span><span class="s2">)</span>
+<a name="l100"><span class="ln">100  </span></a>
+<a name="l101"><span class="ln">101  </span></a>    <span class="s0">def </span><span class="s1">make_partition</span><span class="s2">(</span><span class="s1">nodes</span><span class="s0">: </span><span class="s1">list</span><span class="s2">[</span><span class="s1">Node</span><span class="s2">], </span><span class="s1">module_type</span><span class="s0">: </span><span class="s1">type</span><span class="s2">) </span><span class="s1">-&gt; SourcePartition</span><span class="s0">:</span>
+<a name="l102"><span class="ln">102  </span></a>        <span class="s1">input_nodes </span><span class="s0">= </span><span class="s1">set</span><span class="s2">()</span>
+<a name="l103"><span class="ln">103  </span></a>        <span class="s1">output_nodes </span><span class="s0">= </span><span class="s1">set</span><span class="s2">()</span>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s1">params </span><span class="s0">= </span><span class="s1">set</span><span class="s2">()</span>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s0">for </span><span class="s1">node </span><span class="s0">in </span><span class="s1">nodes</span><span class="s0">:</span>
+<a name="l106"><span class="ln">106  </span></a>            <span class="s0">for </span><span class="s1">arg </span><span class="s0">in </span><span class="s1">node</span><span class="s2">.</span><span class="s1">args</span><span class="s0">:</span>
+<a name="l107"><span class="ln">107  </span></a>                <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">arg</span><span class="s2">, </span><span class="s1">Node</span><span class="s2">) </span><span class="s0">and </span><span class="s1">arg </span><span class="s0">not in </span><span class="s1">nodes </span><span class="s0">and </span><span class="s1">arg</span><span class="s2">.</span><span class="s1">op </span><span class="s0">!= </span><span class="s3">&quot;get_attr&quot;</span><span class="s0">:</span>
+<a name="l108"><span class="ln">108  </span></a>                    <span class="s1">input_nodes</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">arg</span><span class="s2">)</span>
+<a name="l109"><span class="ln">109  </span></a>
+<a name="l110"><span class="ln">110  </span></a>            <span class="s0">if </span><span class="s1">node</span><span class="s2">.</span><span class="s1">op </span><span class="s0">== </span><span class="s3">&quot;get_attr&quot;</span><span class="s0">:</span>
+<a name="l111"><span class="ln">111  </span></a>                <span class="s1">params</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">node</span><span class="s2">)</span>
+<a name="l112"><span class="ln">112  </span></a>                <span class="s4"># get_attr nodes won't be output nodes</span>
+<a name="l113"><span class="ln">113  </span></a>                <span class="s0">continue</span>
+<a name="l114"><span class="ln">114  </span></a>
+<a name="l115"><span class="ln">115  </span></a>            <span class="s0">for </span><span class="s1">user </span><span class="s0">in </span><span class="s1">node</span><span class="s2">.</span><span class="s1">users</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l116"><span class="ln">116  </span></a>                <span class="s0">if </span><span class="s1">user </span><span class="s0">not in </span><span class="s1">nodes</span><span class="s0">:</span>
+<a name="l117"><span class="ln">117  </span></a>                    <span class="s1">output_nodes</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">node</span><span class="s2">)</span>
+<a name="l118"><span class="ln">118  </span></a>
+<a name="l119"><span class="ln">119  </span></a>        <span class="s0">return </span><span class="s1">SourcePartition</span><span class="s2">(</span>
+<a name="l120"><span class="ln">120  </span></a>            <span class="s1">nodes</span><span class="s2">,</span>
+<a name="l121"><span class="ln">121  </span></a>            <span class="s1">module_type</span><span class="s2">,</span>
+<a name="l122"><span class="ln">122  </span></a>            <span class="s1">list</span><span class="s2">(</span><span class="s1">input_nodes</span><span class="s2">),</span>
+<a name="l123"><span class="ln">123  </span></a>            <span class="s1">list</span><span class="s2">(</span><span class="s1">output_nodes</span><span class="s2">),</span>
+<a name="l124"><span class="ln">124  </span></a>            <span class="s1">list</span><span class="s2">(</span><span class="s1">params</span><span class="s2">),  </span><span class="s4"># type: ignore[arg-type]</span>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s2">)</span>
+<a name="l126"><span class="ln">126  </span></a>
+<a name="l127"><span class="ln">127  </span></a>    <span class="s1">ret</span><span class="s0">: </span><span class="s1">dict</span><span class="s2">[</span><span class="s1">type</span><span class="s2">[</span><span class="s1">Any</span><span class="s2">], </span><span class="s1">list</span><span class="s2">[</span><span class="s1">SourcePartition</span><span class="s2">]] </span><span class="s0">= </span><span class="s2">{}</span>
+<a name="l128"><span class="ln">128  </span></a>
+<a name="l129"><span class="ln">129  </span></a>    <span class="s0">if </span><span class="s1">filter_fn</span><span class="s0">:</span>
+<a name="l130"><span class="ln">130  </span></a>        <span class="s4"># for each partition, we apply filter_fn to filter out all partitions that doesn't satisfy the</span>
+<a name="l131"><span class="ln">131  </span></a>        <span class="s4"># filter condition</span>
+<a name="l132"><span class="ln">132  </span></a>        <span class="s1">filtered_modules </span><span class="s0">= </span><span class="s2">{}</span>
+<a name="l133"><span class="ln">133  </span></a>        <span class="s0">for </span><span class="s1">tp</span><span class="s2">, </span><span class="s1">name_to_partition </span><span class="s0">in </span><span class="s1">modules</span><span class="s2">.</span><span class="s1">items</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l134"><span class="ln">134  </span></a>            <span class="s1">filtered_name_to_partition </span><span class="s0">= </span><span class="s2">{</span>
+<a name="l135"><span class="ln">135  </span></a>                <span class="s1">name</span><span class="s0">: </span><span class="s1">partition</span>
+<a name="l136"><span class="ln">136  </span></a>                <span class="s0">for </span><span class="s1">name</span><span class="s2">, </span><span class="s1">partition </span><span class="s0">in </span><span class="s1">name_to_partition</span><span class="s2">.</span><span class="s1">items</span><span class="s2">()</span>
+<a name="l137"><span class="ln">137  </span></a>                <span class="s0">if </span><span class="s1">all</span><span class="s2">(</span><span class="s1">map</span><span class="s2">(</span><span class="s1">filter_fn</span><span class="s2">, </span><span class="s1">partition</span><span class="s2">))</span>
+<a name="l138"><span class="ln">138  </span></a>            <span class="s2">}</span>
+<a name="l139"><span class="ln">139  </span></a>            <span class="s1">filtered_modules</span><span class="s2">[</span><span class="s1">tp</span><span class="s2">] </span><span class="s0">= </span><span class="s1">filtered_name_to_partition</span>
+<a name="l140"><span class="ln">140  </span></a>        <span class="s1">modules </span><span class="s0">= </span><span class="s1">filtered_modules</span>
+<a name="l141"><span class="ln">141  </span></a>
+<a name="l142"><span class="ln">142  </span></a>    <span class="s0">for </span><span class="s1">k</span><span class="s2">, </span><span class="s1">v </span><span class="s0">in </span><span class="s1">modules</span><span class="s2">.</span><span class="s1">items</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s1">ret</span><span class="s2">[</span><span class="s1">k</span><span class="s2">] </span><span class="s0">= </span><span class="s2">[</span><span class="s1">make_partition</span><span class="s2">(</span><span class="s1">partition</span><span class="s2">, </span><span class="s1">k</span><span class="s2">) </span><span class="s0">for </span><span class="s1">partition </span><span class="s0">in </span><span class="s1">v</span><span class="s2">.</span><span class="s1">values</span><span class="s2">()]</span>
+<a name="l144"><span class="ln">144  </span></a>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s0">return </span><span class="s1">ret</span>
+<a name="l146"><span class="ln">146  </span></a>
+<a name="l147"><span class="ln">147  </span></a>
+<a name="l148"><span class="ln">148  </span></a><span class="s0">@</span><span class="s1">compatibility</span><span class="s2">(</span><span class="s1">is_backward_compatible</span><span class="s0">=False</span><span class="s2">)  </span><span class="s4"># type: ignore[misc]</span>
+<a name="l149"><span class="ln">149  </span></a><span class="s0">def </span><span class="s1">check_subgraphs_connected</span><span class="s2">(</span>
+<a name="l150"><span class="ln">150  </span></a>    <span class="s1">subgraph1</span><span class="s0">: </span><span class="s1">SourcePartition</span><span class="s2">, </span><span class="s1">subgraph2</span><span class="s0">: </span><span class="s1">SourcePartition</span>
+<a name="l151"><span class="ln">151  </span></a><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l152"><span class="ln">152  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l153"><span class="ln">153  </span></a>    Given two subgraphs A and B (in the form of a list of nodes), checks if 
+<a name="l154"><span class="ln">154  </span></a>    A has nodes connecting to at least one node in B -- aka there exists a node 
+<a name="l155"><span class="ln">155  </span></a>    in B that uses a node in A (not the other way around). 
+<a name="l156"><span class="ln">156  </span></a>    &quot;&quot;&quot;</span>
+<a name="l157"><span class="ln">157  </span></a>
+<a name="l158"><span class="ln">158  </span></a>    <span class="s0">for </span><span class="s1">node </span><span class="s0">in </span><span class="s1">reversed</span><span class="s2">(</span><span class="s1">subgraph1</span><span class="s2">.</span><span class="s1">nodes</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l159"><span class="ln">159  </span></a>        <span class="s0">for </span><span class="s1">user </span><span class="s0">in </span><span class="s1">node</span><span class="s2">.</span><span class="s1">users</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l160"><span class="ln">160  </span></a>            <span class="s0">if </span><span class="s1">user </span><span class="s0">in </span><span class="s1">subgraph2</span><span class="s2">.</span><span class="s1">nodes</span><span class="s0">:</span>
+<a name="l161"><span class="ln">161  </span></a>                <span class="s0">return True</span>
+<a name="l162"><span class="ln">162  </span></a>    <span class="s0">return False</span>
+<a name="l163"><span class="ln">163  </span></a></pre>
+</body>
+</html>

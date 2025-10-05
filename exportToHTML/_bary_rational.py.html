@@ -1,0 +1,738 @@
+<html>
+<head>
+<title>_bary_rational.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_bary_rational.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># Copyright (c) 2017, The Chancellor, Masters and Scholars of the University</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0"># of Oxford, and the Chebfun Developers. All rights reserved.</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">#</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0"># Redistribution and use in source and binary forms, with or without</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0"># modification, are permitted provided that the following conditions are met:</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">#     * Redistributions of source code must retain the above copyright</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">#       notice, this list of conditions and the following disclaimer.</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">#     * Redistributions in binary form must reproduce the above copyright</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">#       notice, this list of conditions and the following disclaimer in the</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">#       documentation and/or other materials provided with the distribution.</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s0">#     * Neither the name of the University of Oxford nor the names of its</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s0">#       contributors may be used to endorse or promote products derived from</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s0">#       this software without specific prior written permission.</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s0">#</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s0"># THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot; AND</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s0"># ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s0"># WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s0"># DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s0"># ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s0"># (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s0"># LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s0"># ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s0"># (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s0"># SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</span>
+<a name="l25"><span class="ln">25   </span></a>
+<a name="l26"><span class="ln">26   </span></a><span class="s2">import </span><span class="s1">warnings</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s2">import </span><span class="s1">operator</span>
+<a name="l28"><span class="ln">28   </span></a>
+<a name="l29"><span class="ln">29   </span></a><span class="s2">import </span><span class="s1">numpy </span><span class="s2">as </span><span class="s1">np</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s2">import </span><span class="s1">scipy</span>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a>
+<a name="l33"><span class="ln">33   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">&quot;AAA&quot;</span><span class="s3">, </span><span class="s4">&quot;FloaterHormannInterpolator&quot;</span><span class="s3">]</span>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a><span class="s2">class </span><span class="s1">_BarycentricRational</span><span class="s2">:</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s0">&quot;&quot;&quot;Base class for Barycentric representation of a rational function.&quot;&quot;&quot;</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l39"><span class="ln">39   </span></a>        <span class="s0"># input validation</span>
+<a name="l40"><span class="ln">40   </span></a>        <span class="s1">z </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span>
+<a name="l41"><span class="ln">41   </span></a>        <span class="s1">f </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">y</span><span class="s3">)</span>
+<a name="l42"><span class="ln">42   </span></a>
+<a name="l43"><span class="ln">43   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_input_validation</span><span class="s3">(</span><span class="s1">z</span><span class="s3">, </span><span class="s1">f</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l44"><span class="ln">44   </span></a>
+<a name="l45"><span class="ln">45   </span></a>        <span class="s0"># Remove infinite or NaN function values and repeated entries</span>
+<a name="l46"><span class="ln">46   </span></a>        <span class="s1">to_keep </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">logical_and</span><span class="s3">.</span><span class="s1">reduce</span><span class="s3">(</span>
+<a name="l47"><span class="ln">47   </span></a>            <span class="s3">((</span><span class="s1">np</span><span class="s3">.</span><span class="s1">isfinite</span><span class="s3">(</span><span class="s1">f</span><span class="s3">)) </span><span class="s2">&amp; </span><span class="s3">(</span><span class="s2">~</span><span class="s1">np</span><span class="s3">.</span><span class="s1">isnan</span><span class="s3">(</span><span class="s1">f</span><span class="s3">))).</span><span class="s1">reshape</span><span class="s3">(</span><span class="s1">f</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s2">-</span><span class="s5">1</span><span class="s3">),</span>
+<a name="l48"><span class="ln">48   </span></a>            <span class="s1">axis</span><span class="s2">=-</span><span class="s5">1</span>
+<a name="l49"><span class="ln">49   </span></a>        <span class="s3">)</span>
+<a name="l50"><span class="ln">50   </span></a>        <span class="s1">f </span><span class="s2">= </span><span class="s1">f</span><span class="s3">[</span><span class="s1">to_keep</span><span class="s3">, ...]</span>
+<a name="l51"><span class="ln">51   </span></a>        <span class="s1">z </span><span class="s2">= </span><span class="s1">z</span><span class="s3">[</span><span class="s1">to_keep</span><span class="s3">]</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s1">z</span><span class="s3">, </span><span class="s1">uni </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">unique</span><span class="s3">(</span><span class="s1">z</span><span class="s3">, </span><span class="s1">return_index</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l53"><span class="ln">53   </span></a>        <span class="s1">f </span><span class="s2">= </span><span class="s1">f</span><span class="s3">[</span><span class="s1">uni</span><span class="s3">, ...]</span>
+<a name="l54"><span class="ln">54   </span></a>
+<a name="l55"><span class="ln">55   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_shape </span><span class="s2">= </span><span class="s1">f</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">]</span>
+<a name="l56"><span class="ln">56   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_values</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">weights </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l57"><span class="ln">57   </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_compute_weights</span><span class="s3">(</span><span class="s1">z</span><span class="s3">, </span><span class="s1">f</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l58"><span class="ln">58   </span></a>        <span class="s3">)</span>
+<a name="l59"><span class="ln">59   </span></a>
+<a name="l60"><span class="ln">60   </span></a>        <span class="s0"># only compute once</span>
+<a name="l61"><span class="ln">61   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_poles </span><span class="s2">= None</span>
+<a name="l62"><span class="ln">62   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_residues </span><span class="s2">= None</span>
+<a name="l63"><span class="ln">63   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_roots </span><span class="s2">= None</span>
+<a name="l64"><span class="ln">64   </span></a>
+<a name="l65"><span class="ln">65   </span></a>    <span class="s2">def </span><span class="s1">_input_validation</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s2">if </span><span class="s1">x</span><span class="s3">.</span><span class="s1">ndim </span><span class="s2">!= </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l67"><span class="ln">67   </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;`x` must be 1-D.&quot;</span><span class="s3">)</span>
+<a name="l68"><span class="ln">68   </span></a>
+<a name="l69"><span class="ln">69   </span></a>        <span class="s2">if not </span><span class="s1">y</span><span class="s3">.</span><span class="s1">ndim </span><span class="s2">&gt;= </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l70"><span class="ln">70   </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;`y` must be at least 1-D.&quot;</span><span class="s3">)</span>
+<a name="l71"><span class="ln">71   </span></a>
+<a name="l72"><span class="ln">72   </span></a>        <span class="s2">if </span><span class="s1">x</span><span class="s3">.</span><span class="s1">size </span><span class="s2">!= </span><span class="s1">y</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l73"><span class="ln">73   </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;`x` be the same size as the first dimension of `y`.&quot;</span><span class="s3">)</span>
+<a name="l74"><span class="ln">74   </span></a>
+<a name="l75"><span class="ln">75   </span></a>        <span class="s2">if not </span><span class="s1">np</span><span class="s3">.</span><span class="s1">all</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">isfinite</span><span class="s3">(</span><span class="s1">x</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l76"><span class="ln">76   </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;`x` must be finite.&quot;</span><span class="s3">)</span>
+<a name="l77"><span class="ln">77   </span></a>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s2">def </span><span class="s1">_compute_weights</span><span class="s3">(</span><span class="s1">z</span><span class="s3">, </span><span class="s1">f</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l79"><span class="ln">79   </span></a>        <span class="s2">raise </span><span class="s1">NotImplementedError</span>
+<a name="l80"><span class="ln">80   </span></a>
+<a name="l81"><span class="ln">81   </span></a>    <span class="s2">def </span><span class="s1">__call__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">z</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l82"><span class="ln">82   </span></a>        <span class="s0">&quot;&quot;&quot;Evaluate the rational approximation at given values. 
+<a name="l83"><span class="ln">83   </span></a> 
+<a name="l84"><span class="ln">84   </span></a>        Parameters 
+<a name="l85"><span class="ln">85   </span></a>        ---------- 
+<a name="l86"><span class="ln">86   </span></a>        z : array_like 
+<a name="l87"><span class="ln">87   </span></a>            Input values. 
+<a name="l88"><span class="ln">88   </span></a>        &quot;&quot;&quot;</span>
+<a name="l89"><span class="ln">89   </span></a>        <span class="s0"># evaluate rational function in barycentric form.</span>
+<a name="l90"><span class="ln">90   </span></a>        <span class="s1">z </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">z</span><span class="s3">)</span>
+<a name="l91"><span class="ln">91   </span></a>        <span class="s1">zv </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ravel</span><span class="s3">(</span><span class="s1">z</span><span class="s3">)</span>
+<a name="l92"><span class="ln">92   </span></a>
+<a name="l93"><span class="ln">93   </span></a>        <span class="s1">support_values </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_values</span><span class="s3">.</span><span class="s1">reshape</span><span class="s3">(</span>
+<a name="l94"><span class="ln">94   </span></a>            <span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_values</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s2">-</span><span class="s5">1</span><span class="s3">)</span>
+<a name="l95"><span class="ln">95   </span></a>        <span class="s3">)</span>
+<a name="l96"><span class="ln">96   </span></a>        <span class="s1">weights </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">weights</span><span class="s3">[..., </span><span class="s1">np</span><span class="s3">.</span><span class="s1">newaxis</span><span class="s3">]</span>
+<a name="l97"><span class="ln">97   </span></a>
+<a name="l98"><span class="ln">98   </span></a>        <span class="s0"># Cauchy matrix</span>
+<a name="l99"><span class="ln">99   </span></a>        <span class="s0"># Ignore errors due to inf/inf at support points, these will be fixed later</span>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s2">with </span><span class="s1">np</span><span class="s3">.</span><span class="s1">errstate</span><span class="s3">(</span><span class="s1">invalid</span><span class="s2">=</span><span class="s4">&quot;ignore&quot;</span><span class="s3">, </span><span class="s1">divide</span><span class="s2">=</span><span class="s4">&quot;ignore&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l101"><span class="ln">101  </span></a>            <span class="s1">CC </span><span class="s2">= </span><span class="s5">1 </span><span class="s2">/ </span><span class="s1">np</span><span class="s3">.</span><span class="s1">subtract</span><span class="s3">.</span><span class="s1">outer</span><span class="s3">(</span><span class="s1">zv</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">)</span>
+<a name="l102"><span class="ln">102  </span></a>            <span class="s0"># Vector of values</span>
+<a name="l103"><span class="ln">103  </span></a>            <span class="s1">r </span><span class="s2">= </span><span class="s1">CC </span><span class="s2">@ </span><span class="s3">(</span><span class="s1">weights </span><span class="s2">* </span><span class="s1">support_values</span><span class="s3">) </span><span class="s2">/ </span><span class="s3">(</span><span class="s1">CC </span><span class="s2">@ </span><span class="s1">weights</span><span class="s3">)</span>
+<a name="l104"><span class="ln">104  </span></a>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s0"># Deal with input inf: `r(inf) = lim r(z) = sum(w*f) / sum(w)`</span>
+<a name="l106"><span class="ln">106  </span></a>        <span class="s2">if </span><span class="s1">np</span><span class="s3">.</span><span class="s1">any</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">isinf</span><span class="s3">(</span><span class="s1">zv</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l107"><span class="ln">107  </span></a>            <span class="s1">r</span><span class="s3">[</span><span class="s1">np</span><span class="s3">.</span><span class="s1">isinf</span><span class="s3">(</span><span class="s1">zv</span><span class="s3">)] </span><span class="s2">= </span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">sum</span><span class="s3">(</span><span class="s1">weights </span><span class="s2">* </span><span class="s1">support_values</span><span class="s3">)</span>
+<a name="l108"><span class="ln">108  </span></a>                               <span class="s2">/ </span><span class="s1">np</span><span class="s3">.</span><span class="s1">sum</span><span class="s3">(</span><span class="s1">weights</span><span class="s3">))</span>
+<a name="l109"><span class="ln">109  </span></a>
+<a name="l110"><span class="ln">110  </span></a>        <span class="s0"># Deal with NaN</span>
+<a name="l111"><span class="ln">111  </span></a>        <span class="s1">ii </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">nonzero</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">isnan</span><span class="s3">(</span><span class="s1">r</span><span class="s3">))[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l112"><span class="ln">112  </span></a>        <span class="s2">for </span><span class="s1">jj </span><span class="s2">in </span><span class="s1">ii</span><span class="s2">:</span>
+<a name="l113"><span class="ln">113  </span></a>            <span class="s2">if </span><span class="s1">np</span><span class="s3">.</span><span class="s1">isnan</span><span class="s3">(</span><span class="s1">zv</span><span class="s3">[</span><span class="s1">jj</span><span class="s3">]) </span><span class="s2">or not </span><span class="s1">np</span><span class="s3">.</span><span class="s1">any</span><span class="s3">(</span><span class="s1">zv</span><span class="s3">[</span><span class="s1">jj</span><span class="s3">] </span><span class="s2">== </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l114"><span class="ln">114  </span></a>                <span class="s0"># r(NaN) = NaN is fine.</span>
+<a name="l115"><span class="ln">115  </span></a>                <span class="s0"># The second case may happen if `r(zv[ii]) = 0/0` at some point.</span>
+<a name="l116"><span class="ln">116  </span></a>                <span class="s2">pass</span>
+<a name="l117"><span class="ln">117  </span></a>            <span class="s2">else:</span>
+<a name="l118"><span class="ln">118  </span></a>                <span class="s0"># Clean up values `NaN = inf/inf` at support points.</span>
+<a name="l119"><span class="ln">119  </span></a>                <span class="s0"># Find the corresponding node and set entry to correct value:</span>
+<a name="l120"><span class="ln">120  </span></a>                <span class="s1">r</span><span class="s3">[</span><span class="s1">jj</span><span class="s3">] </span><span class="s2">= </span><span class="s1">support_values</span><span class="s3">[</span><span class="s1">zv</span><span class="s3">[</span><span class="s1">jj</span><span class="s3">] </span><span class="s2">== </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">].</span><span class="s1">squeeze</span><span class="s3">()</span>
+<a name="l121"><span class="ln">121  </span></a>
+<a name="l122"><span class="ln">122  </span></a>        <span class="s2">return </span><span class="s1">np</span><span class="s3">.</span><span class="s1">reshape</span><span class="s3">(</span><span class="s1">r</span><span class="s3">, </span><span class="s1">z</span><span class="s3">.</span><span class="s1">shape </span><span class="s2">+ </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_shape</span><span class="s3">)</span>
+<a name="l123"><span class="ln">123  </span></a>
+<a name="l124"><span class="ln">124  </span></a>    <span class="s2">def </span><span class="s1">poles</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s0">&quot;&quot;&quot;Compute the poles of the rational approximation. 
+<a name="l126"><span class="ln">126  </span></a> 
+<a name="l127"><span class="ln">127  </span></a>        Returns 
+<a name="l128"><span class="ln">128  </span></a>        ------- 
+<a name="l129"><span class="ln">129  </span></a>        poles : array 
+<a name="l130"><span class="ln">130  </span></a>            Poles of the AAA approximation, repeated according to their multiplicity 
+<a name="l131"><span class="ln">131  </span></a>            but not in any specific order. 
+<a name="l132"><span class="ln">132  </span></a>        &quot;&quot;&quot;</span>
+<a name="l133"><span class="ln">133  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_poles </span><span class="s2">is None:</span>
+<a name="l134"><span class="ln">134  </span></a>            <span class="s0"># Compute poles via generalized eigenvalue problem</span>
+<a name="l135"><span class="ln">135  </span></a>            <span class="s1">m </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">weights</span><span class="s3">.</span><span class="s1">size</span>
+<a name="l136"><span class="ln">136  </span></a>            <span class="s1">B </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">eye</span><span class="s3">(</span><span class="s1">m </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">self</span><span class="s3">.</span><span class="s1">weights</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l137"><span class="ln">137  </span></a>            <span class="s1">B</span><span class="s3">[</span><span class="s5">0</span><span class="s3">, </span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l138"><span class="ln">138  </span></a>
+<a name="l139"><span class="ln">139  </span></a>            <span class="s1">E </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">zeros_like</span><span class="s3">(</span><span class="s1">B</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">np</span><span class="s3">.</span><span class="s1">result_type</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">weights</span><span class="s3">,</span>
+<a name="l140"><span class="ln">140  </span></a>                                                      <span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">))</span>
+<a name="l141"><span class="ln">141  </span></a>            <span class="s1">E</span><span class="s3">[</span><span class="s5">0</span><span class="s3">, </span><span class="s5">1</span><span class="s2">:</span><span class="s3">] </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">weights</span>
+<a name="l142"><span class="ln">142  </span></a>            <span class="s1">E</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">, </span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s5">1</span>
+<a name="l143"><span class="ln">143  </span></a>            <span class="s1">np</span><span class="s3">.</span><span class="s1">fill_diagonal</span><span class="s3">(</span><span class="s1">E</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">, </span><span class="s5">1</span><span class="s2">:</span><span class="s3">], </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">)</span>
+<a name="l144"><span class="ln">144  </span></a>
+<a name="l145"><span class="ln">145  </span></a>            <span class="s1">pol </span><span class="s2">= </span><span class="s1">scipy</span><span class="s3">.</span><span class="s1">linalg</span><span class="s3">.</span><span class="s1">eigvals</span><span class="s3">(</span><span class="s1">E</span><span class="s3">, </span><span class="s1">B</span><span class="s3">)</span>
+<a name="l146"><span class="ln">146  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_poles </span><span class="s2">= </span><span class="s1">pol</span><span class="s3">[</span><span class="s1">np</span><span class="s3">.</span><span class="s1">isfinite</span><span class="s3">(</span><span class="s1">pol</span><span class="s3">)]</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_poles</span>
+<a name="l148"><span class="ln">148  </span></a>
+<a name="l149"><span class="ln">149  </span></a>    <span class="s2">def </span><span class="s1">residues</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s0">&quot;&quot;&quot;Compute the residues of the poles of the approximation. 
+<a name="l151"><span class="ln">151  </span></a> 
+<a name="l152"><span class="ln">152  </span></a>        Returns 
+<a name="l153"><span class="ln">153  </span></a>        ------- 
+<a name="l154"><span class="ln">154  </span></a>        residues : array 
+<a name="l155"><span class="ln">155  </span></a>            Residues associated with the `poles` of the approximation 
+<a name="l156"><span class="ln">156  </span></a>        &quot;&quot;&quot;</span>
+<a name="l157"><span class="ln">157  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_residues </span><span class="s2">is None:</span>
+<a name="l158"><span class="ln">158  </span></a>            <span class="s0"># Compute residues via formula for res of quotient of analytic functions</span>
+<a name="l159"><span class="ln">159  </span></a>            <span class="s2">with </span><span class="s1">np</span><span class="s3">.</span><span class="s1">errstate</span><span class="s3">(</span><span class="s1">divide</span><span class="s2">=</span><span class="s4">&quot;ignore&quot;</span><span class="s3">, </span><span class="s1">invalid</span><span class="s2">=</span><span class="s4">&quot;ignore&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l160"><span class="ln">160  </span></a>                <span class="s1">N </span><span class="s2">= </span><span class="s3">(</span><span class="s5">1</span><span class="s2">/</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">subtract</span><span class="s3">.</span><span class="s1">outer</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">poles</span><span class="s3">(), </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">))) </span><span class="s2">@ </span><span class="s3">(</span>
+<a name="l161"><span class="ln">161  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">_support_values </span><span class="s2">* </span><span class="s1">self</span><span class="s3">.</span><span class="s1">weights</span>
+<a name="l162"><span class="ln">162  </span></a>                <span class="s3">)</span>
+<a name="l163"><span class="ln">163  </span></a>                <span class="s1">Ddiff </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l164"><span class="ln">164  </span></a>                    <span class="s2">-</span><span class="s3">((</span><span class="s5">1</span><span class="s2">/</span><span class="s1">np</span><span class="s3">.</span><span class="s1">subtract</span><span class="s3">.</span><span class="s1">outer</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">poles</span><span class="s3">(), </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">))</span><span class="s2">**</span><span class="s5">2</span><span class="s3">)</span>
+<a name="l165"><span class="ln">165  </span></a>                    <span class="s2">@ </span><span class="s1">self</span><span class="s3">.</span><span class="s1">weights</span>
+<a name="l166"><span class="ln">166  </span></a>                <span class="s3">)</span>
+<a name="l167"><span class="ln">167  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">_residues </span><span class="s2">= </span><span class="s1">N </span><span class="s2">/ </span><span class="s1">Ddiff</span>
+<a name="l168"><span class="ln">168  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_residues</span>
+<a name="l169"><span class="ln">169  </span></a>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s2">def </span><span class="s1">roots</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l171"><span class="ln">171  </span></a>        <span class="s0">&quot;&quot;&quot;Compute the zeros of the rational approximation. 
+<a name="l172"><span class="ln">172  </span></a> 
+<a name="l173"><span class="ln">173  </span></a>        Returns 
+<a name="l174"><span class="ln">174  </span></a>        ------- 
+<a name="l175"><span class="ln">175  </span></a>        zeros : array 
+<a name="l176"><span class="ln">176  </span></a>            Zeros of the AAA approximation, repeated according to their multiplicity 
+<a name="l177"><span class="ln">177  </span></a>            but not in any specific order. 
+<a name="l178"><span class="ln">178  </span></a>        &quot;&quot;&quot;</span>
+<a name="l179"><span class="ln">179  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_roots </span><span class="s2">is None:</span>
+<a name="l180"><span class="ln">180  </span></a>            <span class="s0"># Compute zeros via generalized eigenvalue problem</span>
+<a name="l181"><span class="ln">181  </span></a>            <span class="s1">m </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">weights</span><span class="s3">.</span><span class="s1">size</span>
+<a name="l182"><span class="ln">182  </span></a>            <span class="s1">B </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">eye</span><span class="s3">(</span><span class="s1">m </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">self</span><span class="s3">.</span><span class="s1">weights</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l183"><span class="ln">183  </span></a>            <span class="s1">B</span><span class="s3">[</span><span class="s5">0</span><span class="s3">, </span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l184"><span class="ln">184  </span></a>            <span class="s1">E </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">zeros_like</span><span class="s3">(</span><span class="s1">B</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">np</span><span class="s3">.</span><span class="s1">result_type</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">weights</span><span class="s3">,</span>
+<a name="l185"><span class="ln">185  </span></a>                                                      <span class="s1">self</span><span class="s3">.</span><span class="s1">_support_values</span><span class="s3">,</span>
+<a name="l186"><span class="ln">186  </span></a>                                                      <span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">))</span>
+<a name="l187"><span class="ln">187  </span></a>            <span class="s1">E</span><span class="s3">[</span><span class="s5">0</span><span class="s3">, </span><span class="s5">1</span><span class="s2">:</span><span class="s3">] </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">weights </span><span class="s2">* </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_values</span>
+<a name="l188"><span class="ln">188  </span></a>            <span class="s1">E</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">, </span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s5">1</span>
+<a name="l189"><span class="ln">189  </span></a>            <span class="s1">np</span><span class="s3">.</span><span class="s1">fill_diagonal</span><span class="s3">(</span><span class="s1">E</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">, </span><span class="s5">1</span><span class="s2">:</span><span class="s3">], </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">)</span>
+<a name="l190"><span class="ln">190  </span></a>
+<a name="l191"><span class="ln">191  </span></a>            <span class="s1">zer </span><span class="s2">= </span><span class="s1">scipy</span><span class="s3">.</span><span class="s1">linalg</span><span class="s3">.</span><span class="s1">eigvals</span><span class="s3">(</span><span class="s1">E</span><span class="s3">, </span><span class="s1">B</span><span class="s3">)</span>
+<a name="l192"><span class="ln">192  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_roots </span><span class="s2">= </span><span class="s1">zer</span><span class="s3">[</span><span class="s1">np</span><span class="s3">.</span><span class="s1">isfinite</span><span class="s3">(</span><span class="s1">zer</span><span class="s3">)]</span>
+<a name="l193"><span class="ln">193  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_roots</span>
+<a name="l194"><span class="ln">194  </span></a>
+<a name="l195"><span class="ln">195  </span></a>
+<a name="l196"><span class="ln">196  </span></a><span class="s2">class </span><span class="s1">AAA</span><span class="s3">(</span><span class="s1">_BarycentricRational</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l197"><span class="ln">197  </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l198"><span class="ln">198  </span></a>    AAA real or complex rational approximation. 
+<a name="l199"><span class="ln">199  </span></a> 
+<a name="l200"><span class="ln">200  </span></a>    As described in [1]_, the AAA algorithm is a greedy algorithm for approximation by 
+<a name="l201"><span class="ln">201  </span></a>    rational functions on a real or complex set of points. The rational approximation is 
+<a name="l202"><span class="ln">202  </span></a>    represented in a barycentric form from which the roots (zeros), poles, and residues 
+<a name="l203"><span class="ln">203  </span></a>    can be computed. 
+<a name="l204"><span class="ln">204  </span></a> 
+<a name="l205"><span class="ln">205  </span></a>    Parameters 
+<a name="l206"><span class="ln">206  </span></a>    ---------- 
+<a name="l207"><span class="ln">207  </span></a>    x : 1D array_like, shape (n,) 
+<a name="l208"><span class="ln">208  </span></a>        1-D array containing values of the independent variable. Values may be real or 
+<a name="l209"><span class="ln">209  </span></a>        complex but must be finite. 
+<a name="l210"><span class="ln">210  </span></a>    y : 1D array_like, shape (n,) 
+<a name="l211"><span class="ln">211  </span></a>        Function values ``f(x)``. Infinite and NaN values of `values` and 
+<a name="l212"><span class="ln">212  </span></a>        corresponding values of `points` will be discarded. 
+<a name="l213"><span class="ln">213  </span></a>    rtol : float, optional 
+<a name="l214"><span class="ln">214  </span></a>        Relative tolerance, defaults to ``eps**0.75``. If a small subset of the entries 
+<a name="l215"><span class="ln">215  </span></a>        in `values` are much larger than the rest the default tolerance may be too 
+<a name="l216"><span class="ln">216  </span></a>        loose. If the tolerance is too tight then the approximation may contain 
+<a name="l217"><span class="ln">217  </span></a>        Froissart doublets or the algorithm may fail to converge entirely. 
+<a name="l218"><span class="ln">218  </span></a>    max_terms : int, optional 
+<a name="l219"><span class="ln">219  </span></a>        Maximum number of terms in the barycentric representation, defaults to ``100``. 
+<a name="l220"><span class="ln">220  </span></a>        Must be greater than or equal to one. 
+<a name="l221"><span class="ln">221  </span></a>    clean_up : bool, optional 
+<a name="l222"><span class="ln">222  </span></a>        Automatic removal of Froissart doublets, defaults to ``True``. See notes for 
+<a name="l223"><span class="ln">223  </span></a>        more details. 
+<a name="l224"><span class="ln">224  </span></a>    clean_up_tol : float, optional 
+<a name="l225"><span class="ln">225  </span></a>        Poles with residues less than this number times the geometric mean 
+<a name="l226"><span class="ln">226  </span></a>        of `values` times the minimum distance to `points` are deemed spurious by the 
+<a name="l227"><span class="ln">227  </span></a>        cleanup procedure, defaults to 1e-13. See notes for more details. 
+<a name="l228"><span class="ln">228  </span></a> 
+<a name="l229"><span class="ln">229  </span></a>    Attributes 
+<a name="l230"><span class="ln">230  </span></a>    ---------- 
+<a name="l231"><span class="ln">231  </span></a>    support_points : array 
+<a name="l232"><span class="ln">232  </span></a>        Support points of the approximation. These are a subset of the provided `x` at 
+<a name="l233"><span class="ln">233  </span></a>        which the approximation strictly interpolates `y`. 
+<a name="l234"><span class="ln">234  </span></a>        See notes for more details. 
+<a name="l235"><span class="ln">235  </span></a>    support_values : array 
+<a name="l236"><span class="ln">236  </span></a>        Value of the approximation at the `support_points`. 
+<a name="l237"><span class="ln">237  </span></a>    weights : array 
+<a name="l238"><span class="ln">238  </span></a>        Weights of the barycentric approximation. 
+<a name="l239"><span class="ln">239  </span></a>    errors : array 
+<a name="l240"><span class="ln">240  </span></a>        Error :math:`|f(z) - r(z)|_\infty` over `points` in the successive iterations 
+<a name="l241"><span class="ln">241  </span></a>        of AAA. 
+<a name="l242"><span class="ln">242  </span></a> 
+<a name="l243"><span class="ln">243  </span></a>    Warns 
+<a name="l244"><span class="ln">244  </span></a>    ----- 
+<a name="l245"><span class="ln">245  </span></a>    RuntimeWarning 
+<a name="l246"><span class="ln">246  </span></a>        If `rtol` is not achieved in `max_terms` iterations. 
+<a name="l247"><span class="ln">247  </span></a> 
+<a name="l248"><span class="ln">248  </span></a>    See Also 
+<a name="l249"><span class="ln">249  </span></a>    -------- 
+<a name="l250"><span class="ln">250  </span></a>    FloaterHormannInterpolator : Floater-Hormann barycentric rational interpolation. 
+<a name="l251"><span class="ln">251  </span></a>    pade : Padé approximation. 
+<a name="l252"><span class="ln">252  </span></a> 
+<a name="l253"><span class="ln">253  </span></a>    Notes 
+<a name="l254"><span class="ln">254  </span></a>    ----- 
+<a name="l255"><span class="ln">255  </span></a>    At iteration :math:`m` (at which point there are :math:`m` terms in the both the 
+<a name="l256"><span class="ln">256  </span></a>    numerator and denominator of the approximation), the 
+<a name="l257"><span class="ln">257  </span></a>    rational approximation in the AAA algorithm takes the barycentric form 
+<a name="l258"><span class="ln">258  </span></a> 
+<a name="l259"><span class="ln">259  </span></a>    .. math:: 
+<a name="l260"><span class="ln">260  </span></a> 
+<a name="l261"><span class="ln">261  </span></a>        r(z) = n(z)/d(z) = 
+<a name="l262"><span class="ln">262  </span></a>        \frac{\sum_{j=1}^m\ w_j f_j / (z - z_j)}{\sum_{j=1}^m w_j / (z - z_j)}, 
+<a name="l263"><span class="ln">263  </span></a> 
+<a name="l264"><span class="ln">264  </span></a>    where :math:`z_1,\dots,z_m` are real or complex support points selected from 
+<a name="l265"><span class="ln">265  </span></a>    `x`, :math:`f_1,\dots,f_m` are the corresponding real or complex data values 
+<a name="l266"><span class="ln">266  </span></a>    from `y`, and :math:`w_1,\dots,w_m` are real or complex weights. 
+<a name="l267"><span class="ln">267  </span></a> 
+<a name="l268"><span class="ln">268  </span></a>    Each iteration of the algorithm has two parts: the greedy selection the next support 
+<a name="l269"><span class="ln">269  </span></a>    point and the computation of the weights. The first part of each iteration is to 
+<a name="l270"><span class="ln">270  </span></a>    select the next support point to be added :math:`z_{m+1}` from the remaining 
+<a name="l271"><span class="ln">271  </span></a>    unselected `x`, such that the nonlinear residual 
+<a name="l272"><span class="ln">272  </span></a>    :math:`|f(z_{m+1}) - n(z_{m+1})/d(z_{m+1})|` is maximised. The algorithm terminates 
+<a name="l273"><span class="ln">273  </span></a>    when this maximum is less than ``rtol * np.linalg.norm(f, ord=np.inf)``. This means 
+<a name="l274"><span class="ln">274  </span></a>    the interpolation property is only satisfied up to a tolerance, except at the 
+<a name="l275"><span class="ln">275  </span></a>    support points where approximation exactly interpolates the supplied data. 
+<a name="l276"><span class="ln">276  </span></a> 
+<a name="l277"><span class="ln">277  </span></a>    In the second part of each iteration, the weights :math:`w_j` are selected to solve 
+<a name="l278"><span class="ln">278  </span></a>    the least-squares problem 
+<a name="l279"><span class="ln">279  </span></a> 
+<a name="l280"><span class="ln">280  </span></a>    .. math:: 
+<a name="l281"><span class="ln">281  </span></a> 
+<a name="l282"><span class="ln">282  </span></a>        \text{minimise}_{w_j}|fd - n| \quad \text{subject to} \quad 
+<a name="l283"><span class="ln">283  </span></a>        \sum_{j=1}^{m+1} w_j = 1, 
+<a name="l284"><span class="ln">284  </span></a> 
+<a name="l285"><span class="ln">285  </span></a>    over the unselected elements of `x`. 
+<a name="l286"><span class="ln">286  </span></a> 
+<a name="l287"><span class="ln">287  </span></a>    One of the challenges with working with rational approximations is the presence of 
+<a name="l288"><span class="ln">288  </span></a>    Froissart doublets, which are either poles with vanishingly small residues or 
+<a name="l289"><span class="ln">289  </span></a>    pole-zero pairs that are close enough together to nearly cancel, see [2]_. The 
+<a name="l290"><span class="ln">290  </span></a>    greedy nature of the AAA algorithm means Froissart doublets are rare. However, if 
+<a name="l291"><span class="ln">291  </span></a>    `rtol` is set too tight then the approximation will stagnate and many Froissart 
+<a name="l292"><span class="ln">292  </span></a>    doublets will appear. Froissart doublets can usually be removed by removing support 
+<a name="l293"><span class="ln">293  </span></a>    points and then resolving the least squares problem. The support point :math:`z_j`, 
+<a name="l294"><span class="ln">294  </span></a>    which is the closest support point to the pole :math:`a` with residue 
+<a name="l295"><span class="ln">295  </span></a>    :math:`\alpha`, is removed if the following is satisfied 
+<a name="l296"><span class="ln">296  </span></a> 
+<a name="l297"><span class="ln">297  </span></a>    .. math:: 
+<a name="l298"><span class="ln">298  </span></a> 
+<a name="l299"><span class="ln">299  </span></a>        |\alpha| / |z_j - a| &lt; \verb|clean_up_tol| \cdot \tilde{f}, 
+<a name="l300"><span class="ln">300  </span></a> 
+<a name="l301"><span class="ln">301  </span></a>    where :math:`\tilde{f}` is the geometric mean of `support_values`. 
+<a name="l302"><span class="ln">302  </span></a> 
+<a name="l303"><span class="ln">303  </span></a> 
+<a name="l304"><span class="ln">304  </span></a>    References 
+<a name="l305"><span class="ln">305  </span></a>    ---------- 
+<a name="l306"><span class="ln">306  </span></a>    .. [1] Y. Nakatsukasa, O. Sete, and L. N. Trefethen, &quot;The AAA algorithm for 
+<a name="l307"><span class="ln">307  </span></a>            rational approximation&quot;, SIAM J. Sci. Comp. 40 (2018), A1494-A1522. 
+<a name="l308"><span class="ln">308  </span></a>            :doi:`10.1137/16M1106122` 
+<a name="l309"><span class="ln">309  </span></a>    .. [2] J. Gilewicz and M. Pindor, Pade approximants and noise: rational functions, 
+<a name="l310"><span class="ln">310  </span></a>           J. Comp. Appl. Math. 105 (1999), pp. 285-297. 
+<a name="l311"><span class="ln">311  </span></a>           :doi:`10.1016/S0377-0427(02)00674-X` 
+<a name="l312"><span class="ln">312  </span></a> 
+<a name="l313"><span class="ln">313  </span></a>    Examples 
+<a name="l314"><span class="ln">314  </span></a>    -------- 
+<a name="l315"><span class="ln">315  </span></a> 
+<a name="l316"><span class="ln">316  </span></a>    Here we reproduce a number of the numerical examples from [1]_ as a demonstration 
+<a name="l317"><span class="ln">317  </span></a>    of the functionality offered by this method. 
+<a name="l318"><span class="ln">318  </span></a> 
+<a name="l319"><span class="ln">319  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l320"><span class="ln">320  </span></a>    &gt;&gt;&gt; import matplotlib.pyplot as plt 
+<a name="l321"><span class="ln">321  </span></a>    &gt;&gt;&gt; from scipy.interpolate import AAA 
+<a name="l322"><span class="ln">322  </span></a>    &gt;&gt;&gt; import warnings 
+<a name="l323"><span class="ln">323  </span></a> 
+<a name="l324"><span class="ln">324  </span></a>    For the first example we approximate the gamma function on ``[-3.5, 4.5]`` by 
+<a name="l325"><span class="ln">325  </span></a>    extrapolating from 100 samples in ``[-1.5, 1.5]``. 
+<a name="l326"><span class="ln">326  </span></a> 
+<a name="l327"><span class="ln">327  </span></a>    &gt;&gt;&gt; from scipy.special import gamma 
+<a name="l328"><span class="ln">328  </span></a>    &gt;&gt;&gt; sample_points = np.linspace(-1.5, 1.5, num=100) 
+<a name="l329"><span class="ln">329  </span></a>    &gt;&gt;&gt; r = AAA(sample_points, gamma(sample_points)) 
+<a name="l330"><span class="ln">330  </span></a>    &gt;&gt;&gt; z = np.linspace(-3.5, 4.5, num=1000) 
+<a name="l331"><span class="ln">331  </span></a>    &gt;&gt;&gt; fig, ax = plt.subplots() 
+<a name="l332"><span class="ln">332  </span></a>    &gt;&gt;&gt; ax.plot(z, gamma(z), label=&quot;Gamma&quot;) 
+<a name="l333"><span class="ln">333  </span></a>    &gt;&gt;&gt; ax.plot(sample_points, gamma(sample_points), label=&quot;Sample points&quot;) 
+<a name="l334"><span class="ln">334  </span></a>    &gt;&gt;&gt; ax.plot(z, r(z).real, '--', label=&quot;AAA approximation&quot;) 
+<a name="l335"><span class="ln">335  </span></a>    &gt;&gt;&gt; ax.set(xlabel=&quot;z&quot;, ylabel=&quot;r(z)&quot;, ylim=[-8, 8], xlim=[-3.5, 4.5]) 
+<a name="l336"><span class="ln">336  </span></a>    &gt;&gt;&gt; ax.legend() 
+<a name="l337"><span class="ln">337  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l338"><span class="ln">338  </span></a> 
+<a name="l339"><span class="ln">339  </span></a>    We can also view the poles of the rational approximation and their residues: 
+<a name="l340"><span class="ln">340  </span></a> 
+<a name="l341"><span class="ln">341  </span></a>    &gt;&gt;&gt; order = np.argsort(r.poles()) 
+<a name="l342"><span class="ln">342  </span></a>    &gt;&gt;&gt; r.poles()[order] 
+<a name="l343"><span class="ln">343  </span></a>    array([-3.81591039e+00+0.j        , -3.00269049e+00+0.j        , 
+<a name="l344"><span class="ln">344  </span></a>           -1.99999988e+00+0.j        , -1.00000000e+00+0.j        , 
+<a name="l345"><span class="ln">345  </span></a>            5.85842812e-17+0.j        ,  4.77485458e+00-3.06919376j, 
+<a name="l346"><span class="ln">346  </span></a>            4.77485458e+00+3.06919376j,  5.29095868e+00-0.97373072j, 
+<a name="l347"><span class="ln">347  </span></a>            5.29095868e+00+0.97373072j]) 
+<a name="l348"><span class="ln">348  </span></a>    &gt;&gt;&gt; r.residues()[order] 
+<a name="l349"><span class="ln">349  </span></a>    array([ 0.03658074 +0.j        , -0.16915426 -0.j        , 
+<a name="l350"><span class="ln">350  </span></a>            0.49999915 +0.j        , -1.         +0.j        , 
+<a name="l351"><span class="ln">351  </span></a>            1.         +0.j        , -0.81132013 -2.30193429j, 
+<a name="l352"><span class="ln">352  </span></a>           -0.81132013 +2.30193429j,  0.87326839+10.70148546j, 
+<a name="l353"><span class="ln">353  </span></a>            0.87326839-10.70148546j]) 
+<a name="l354"><span class="ln">354  </span></a> 
+<a name="l355"><span class="ln">355  </span></a>    For the second example, we call `AAA` with a spiral of 1000 points that wind 7.5 
+<a name="l356"><span class="ln">356  </span></a>    times around the origin in the complex plane. 
+<a name="l357"><span class="ln">357  </span></a> 
+<a name="l358"><span class="ln">358  </span></a>    &gt;&gt;&gt; z = np.exp(np.linspace(-0.5, 0.5 + 15j*np.pi, 1000)) 
+<a name="l359"><span class="ln">359  </span></a>    &gt;&gt;&gt; r = AAA(z, np.tan(np.pi*z/2), rtol=1e-13) 
+<a name="l360"><span class="ln">360  </span></a> 
+<a name="l361"><span class="ln">361  </span></a>    We see that AAA takes 12 steps to converge with the following errors: 
+<a name="l362"><span class="ln">362  </span></a> 
+<a name="l363"><span class="ln">363  </span></a>    &gt;&gt;&gt; r.errors.size 
+<a name="l364"><span class="ln">364  </span></a>    12 
+<a name="l365"><span class="ln">365  </span></a>    &gt;&gt;&gt; r.errors 
+<a name="l366"><span class="ln">366  </span></a>    array([2.49261500e+01, 4.28045609e+01, 1.71346935e+01, 8.65055336e-02, 
+<a name="l367"><span class="ln">367  </span></a>           1.27106444e-02, 9.90889874e-04, 5.86910543e-05, 1.28735561e-06, 
+<a name="l368"><span class="ln">368  </span></a>           3.57007424e-08, 6.37007837e-10, 1.67103357e-11, 1.17112299e-13]) 
+<a name="l369"><span class="ln">369  </span></a> 
+<a name="l370"><span class="ln">370  </span></a>    We can also plot the computed poles: 
+<a name="l371"><span class="ln">371  </span></a> 
+<a name="l372"><span class="ln">372  </span></a>    &gt;&gt;&gt; fig, ax = plt.subplots() 
+<a name="l373"><span class="ln">373  </span></a>    &gt;&gt;&gt; ax.plot(z.real, z.imag, '.', markersize=2, label=&quot;Sample points&quot;) 
+<a name="l374"><span class="ln">374  </span></a>    &gt;&gt;&gt; ax.plot(r.poles().real, r.poles().imag, '.', markersize=5, 
+<a name="l375"><span class="ln">375  </span></a>    ...         label=&quot;Computed poles&quot;) 
+<a name="l376"><span class="ln">376  </span></a>    &gt;&gt;&gt; ax.set(xlim=[-3.5, 3.5], ylim=[-3.5, 3.5], aspect=&quot;equal&quot;) 
+<a name="l377"><span class="ln">377  </span></a>    &gt;&gt;&gt; ax.legend() 
+<a name="l378"><span class="ln">378  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l379"><span class="ln">379  </span></a> 
+<a name="l380"><span class="ln">380  </span></a>    We now demonstrate the removal of Froissart doublets using the `clean_up` method 
+<a name="l381"><span class="ln">381  </span></a>    using an example from [1]_. Here we approximate the function 
+<a name="l382"><span class="ln">382  </span></a>    :math:`f(z)=\log(2 + z^4)/(1 + 16z^4)` by sampling it at 1000 roots of unity. The 
+<a name="l383"><span class="ln">383  </span></a>    algorithm is run with ``rtol=0`` and ``clean_up=False`` to deliberately cause 
+<a name="l384"><span class="ln">384  </span></a>    Froissart doublets to appear. 
+<a name="l385"><span class="ln">385  </span></a> 
+<a name="l386"><span class="ln">386  </span></a>    &gt;&gt;&gt; z = np.exp(1j*2*np.pi*np.linspace(0,1, num=1000)) 
+<a name="l387"><span class="ln">387  </span></a>    &gt;&gt;&gt; def f(z): 
+<a name="l388"><span class="ln">388  </span></a>    ...     return np.log(2 + z**4)/(1 - 16*z**4) 
+<a name="l389"><span class="ln">389  </span></a>    &gt;&gt;&gt; with warnings.catch_warnings():  # filter convergence warning due to rtol=0 
+<a name="l390"><span class="ln">390  </span></a>    ...     warnings.simplefilter('ignore', RuntimeWarning) 
+<a name="l391"><span class="ln">391  </span></a>    ...     r = AAA(z, f(z), rtol=0, max_terms=50, clean_up=False) 
+<a name="l392"><span class="ln">392  </span></a>    &gt;&gt;&gt; mask = np.abs(r.residues()) &lt; 1e-13 
+<a name="l393"><span class="ln">393  </span></a>    &gt;&gt;&gt; fig, axs = plt.subplots(ncols=2) 
+<a name="l394"><span class="ln">394  </span></a>    &gt;&gt;&gt; axs[0].plot(r.poles().real[~mask], r.poles().imag[~mask], '.') 
+<a name="l395"><span class="ln">395  </span></a>    &gt;&gt;&gt; axs[0].plot(r.poles().real[mask], r.poles().imag[mask], 'r.') 
+<a name="l396"><span class="ln">396  </span></a> 
+<a name="l397"><span class="ln">397  </span></a>    Now we call the `clean_up` method to remove Froissart doublets. 
+<a name="l398"><span class="ln">398  </span></a> 
+<a name="l399"><span class="ln">399  </span></a>    &gt;&gt;&gt; with warnings.catch_warnings(): 
+<a name="l400"><span class="ln">400  </span></a>    ...     warnings.simplefilter('ignore', RuntimeWarning) 
+<a name="l401"><span class="ln">401  </span></a>    ...     r.clean_up() 
+<a name="l402"><span class="ln">402  </span></a>    4 
+<a name="l403"><span class="ln">403  </span></a>    &gt;&gt;&gt; mask = np.abs(r.residues()) &lt; 1e-13 
+<a name="l404"><span class="ln">404  </span></a>    &gt;&gt;&gt; axs[1].plot(r.poles().real[~mask], r.poles().imag[~mask], '.') 
+<a name="l405"><span class="ln">405  </span></a>    &gt;&gt;&gt; axs[1].plot(r.poles().real[mask], r.poles().imag[mask], 'r.') 
+<a name="l406"><span class="ln">406  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l407"><span class="ln">407  </span></a> 
+<a name="l408"><span class="ln">408  </span></a>    The left image shows the poles prior of the approximation ``clean_up=False`` with 
+<a name="l409"><span class="ln">409  </span></a>    poles with residue less than ``10^-13`` in absolute value shown in red. The right 
+<a name="l410"><span class="ln">410  </span></a>    image then shows the poles after the `clean_up` method has been called. 
+<a name="l411"><span class="ln">411  </span></a>    &quot;&quot;&quot;</span>
+<a name="l412"><span class="ln">412  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">rtol</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">max_terms</span><span class="s2">=</span><span class="s5">100</span><span class="s3">, </span><span class="s1">clean_up</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l413"><span class="ln">413  </span></a>                 <span class="s1">clean_up_tol</span><span class="s2">=</span><span class="s5">1e-13</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l414"><span class="ln">414  </span></a>        <span class="s1">super</span><span class="s3">().</span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">rtol</span><span class="s2">=</span><span class="s1">rtol</span><span class="s3">, </span><span class="s1">max_terms</span><span class="s2">=</span><span class="s1">max_terms</span><span class="s3">)</span>
+<a name="l415"><span class="ln">415  </span></a>
+<a name="l416"><span class="ln">416  </span></a>        <span class="s2">if </span><span class="s1">clean_up</span><span class="s2">:</span>
+<a name="l417"><span class="ln">417  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">clean_up</span><span class="s3">(</span><span class="s1">clean_up_tol</span><span class="s3">)</span>
+<a name="l418"><span class="ln">418  </span></a>
+<a name="l419"><span class="ln">419  </span></a>    <span class="s2">def </span><span class="s1">_input_validation</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">rtol</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">max_terms</span><span class="s2">=</span><span class="s5">100</span><span class="s3">, </span><span class="s1">clean_up</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l420"><span class="ln">420  </span></a>                          <span class="s1">clean_up_tol</span><span class="s2">=</span><span class="s5">1e-13</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l421"><span class="ln">421  </span></a>        <span class="s1">max_terms </span><span class="s2">= </span><span class="s1">operator</span><span class="s3">.</span><span class="s1">index</span><span class="s3">(</span><span class="s1">max_terms</span><span class="s3">)</span>
+<a name="l422"><span class="ln">422  </span></a>        <span class="s2">if </span><span class="s1">max_terms </span><span class="s2">&lt; </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l423"><span class="ln">423  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;`max_terms` must be an integer value greater than or &quot;</span>
+<a name="l424"><span class="ln">424  </span></a>                             <span class="s4">&quot;equal to one.&quot;</span><span class="s3">)</span>
+<a name="l425"><span class="ln">425  </span></a>
+<a name="l426"><span class="ln">426  </span></a>        <span class="s2">if </span><span class="s1">y</span><span class="s3">.</span><span class="s1">ndim </span><span class="s2">!= </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l427"><span class="ln">427  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;`y` must be 1-D.&quot;</span><span class="s3">)</span>
+<a name="l428"><span class="ln">428  </span></a>
+<a name="l429"><span class="ln">429  </span></a>        <span class="s1">super</span><span class="s3">().</span><span class="s1">_input_validation</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">)</span>
+<a name="l430"><span class="ln">430  </span></a>
+<a name="l431"><span class="ln">431  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l432"><span class="ln">432  </span></a>    <span class="s2">def </span><span class="s1">support_points</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l433"><span class="ln">433  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span>
+<a name="l434"><span class="ln">434  </span></a>
+<a name="l435"><span class="ln">435  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l436"><span class="ln">436  </span></a>    <span class="s2">def </span><span class="s1">support_values</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l437"><span class="ln">437  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_values</span>
+<a name="l438"><span class="ln">438  </span></a>
+<a name="l439"><span class="ln">439  </span></a>    <span class="s2">def </span><span class="s1">_compute_weights</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">z</span><span class="s3">, </span><span class="s1">f</span><span class="s3">, </span><span class="s1">rtol</span><span class="s3">, </span><span class="s1">max_terms</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l440"><span class="ln">440  </span></a>        <span class="s0"># Initialization for AAA iteration</span>
+<a name="l441"><span class="ln">441  </span></a>        <span class="s1">M </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">size</span><span class="s3">(</span><span class="s1">z</span><span class="s3">)</span>
+<a name="l442"><span class="ln">442  </span></a>        <span class="s1">mask </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ones</span><span class="s3">(</span><span class="s1">M</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">np</span><span class="s3">.</span><span class="s1">bool_</span><span class="s3">)</span>
+<a name="l443"><span class="ln">443  </span></a>        <span class="s1">dtype </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">result_type</span><span class="s3">(</span><span class="s1">z</span><span class="s3">, </span><span class="s1">f</span><span class="s3">, </span><span class="s5">1.0</span><span class="s3">)</span>
+<a name="l444"><span class="ln">444  </span></a>        <span class="s1">rtol </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">finfo</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">).</span><span class="s1">eps</span><span class="s2">**</span><span class="s5">0.75 </span><span class="s2">if </span><span class="s1">rtol </span><span class="s2">is None else </span><span class="s1">rtol</span>
+<a name="l445"><span class="ln">445  </span></a>        <span class="s1">atol </span><span class="s2">= </span><span class="s1">rtol </span><span class="s2">* </span><span class="s1">np</span><span class="s3">.</span><span class="s1">linalg</span><span class="s3">.</span><span class="s1">norm</span><span class="s3">(</span><span class="s1">f</span><span class="s3">, </span><span class="s1">ord</span><span class="s2">=</span><span class="s1">np</span><span class="s3">.</span><span class="s1">inf</span><span class="s3">)</span>
+<a name="l446"><span class="ln">446  </span></a>        <span class="s1">zj </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">empty</span><span class="s3">(</span><span class="s1">max_terms</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l447"><span class="ln">447  </span></a>        <span class="s1">fj </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">empty</span><span class="s3">(</span><span class="s1">max_terms</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l448"><span class="ln">448  </span></a>        <span class="s0"># Cauchy matrix</span>
+<a name="l449"><span class="ln">449  </span></a>        <span class="s1">C </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">empty</span><span class="s3">((</span><span class="s1">M</span><span class="s3">, </span><span class="s1">max_terms</span><span class="s3">), </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l450"><span class="ln">450  </span></a>        <span class="s0"># Loewner matrix</span>
+<a name="l451"><span class="ln">451  </span></a>        <span class="s1">A </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">empty</span><span class="s3">((</span><span class="s1">M</span><span class="s3">, </span><span class="s1">max_terms</span><span class="s3">), </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l452"><span class="ln">452  </span></a>        <span class="s1">errors </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">empty</span><span class="s3">(</span><span class="s1">max_terms</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">A</span><span class="s3">.</span><span class="s1">real</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l453"><span class="ln">453  </span></a>        <span class="s1">R </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">repeat</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">mean</span><span class="s3">(</span><span class="s1">f</span><span class="s3">), </span><span class="s1">M</span><span class="s3">)</span>
+<a name="l454"><span class="ln">454  </span></a>
+<a name="l455"><span class="ln">455  </span></a>        <span class="s0"># AAA iteration</span>
+<a name="l456"><span class="ln">456  </span></a>        <span class="s2">for </span><span class="s1">m </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">max_terms</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l457"><span class="ln">457  </span></a>            <span class="s0"># Introduce next support point</span>
+<a name="l458"><span class="ln">458  </span></a>            <span class="s0"># Select next support point</span>
+<a name="l459"><span class="ln">459  </span></a>            <span class="s1">jj </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">argmax</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">f</span><span class="s3">[</span><span class="s1">mask</span><span class="s3">] </span><span class="s2">- </span><span class="s1">R</span><span class="s3">[</span><span class="s1">mask</span><span class="s3">]))</span>
+<a name="l460"><span class="ln">460  </span></a>            <span class="s0"># Update support points</span>
+<a name="l461"><span class="ln">461  </span></a>            <span class="s1">zj</span><span class="s3">[</span><span class="s1">m</span><span class="s3">] </span><span class="s2">= </span><span class="s1">z</span><span class="s3">[</span><span class="s1">mask</span><span class="s3">][</span><span class="s1">jj</span><span class="s3">]</span>
+<a name="l462"><span class="ln">462  </span></a>            <span class="s0"># Update data values</span>
+<a name="l463"><span class="ln">463  </span></a>            <span class="s1">fj</span><span class="s3">[</span><span class="s1">m</span><span class="s3">] </span><span class="s2">= </span><span class="s1">f</span><span class="s3">[</span><span class="s1">mask</span><span class="s3">][</span><span class="s1">jj</span><span class="s3">]</span>
+<a name="l464"><span class="ln">464  </span></a>            <span class="s0"># Next column of Cauchy matrix</span>
+<a name="l465"><span class="ln">465  </span></a>            <span class="s0"># Ignore errors as we manually interpolate at support points</span>
+<a name="l466"><span class="ln">466  </span></a>            <span class="s2">with </span><span class="s1">np</span><span class="s3">.</span><span class="s1">errstate</span><span class="s3">(</span><span class="s1">divide</span><span class="s2">=</span><span class="s4">&quot;ignore&quot;</span><span class="s3">, </span><span class="s1">invalid</span><span class="s2">=</span><span class="s4">&quot;ignore&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l467"><span class="ln">467  </span></a>                <span class="s1">C</span><span class="s3">[</span><span class="s2">:</span><span class="s3">, </span><span class="s1">m</span><span class="s3">] </span><span class="s2">= </span><span class="s5">1 </span><span class="s2">/ </span><span class="s3">(</span><span class="s1">z </span><span class="s2">- </span><span class="s1">z</span><span class="s3">[</span><span class="s1">mask</span><span class="s3">][</span><span class="s1">jj</span><span class="s3">])</span>
+<a name="l468"><span class="ln">468  </span></a>            <span class="s0"># Update mask</span>
+<a name="l469"><span class="ln">469  </span></a>            <span class="s1">mask</span><span class="s3">[</span><span class="s1">np</span><span class="s3">.</span><span class="s1">nonzero</span><span class="s3">(</span><span class="s1">mask</span><span class="s3">)[</span><span class="s5">0</span><span class="s3">][</span><span class="s1">jj</span><span class="s3">]] </span><span class="s2">= False</span>
+<a name="l470"><span class="ln">470  </span></a>            <span class="s0"># Update Loewner matrix</span>
+<a name="l471"><span class="ln">471  </span></a>            <span class="s0"># Ignore errors as inf values will be masked out in SVD call</span>
+<a name="l472"><span class="ln">472  </span></a>            <span class="s2">with </span><span class="s1">np</span><span class="s3">.</span><span class="s1">errstate</span><span class="s3">(</span><span class="s1">invalid</span><span class="s2">=</span><span class="s4">&quot;ignore&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l473"><span class="ln">473  </span></a>                <span class="s1">A</span><span class="s3">[</span><span class="s2">:</span><span class="s3">, </span><span class="s1">m</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span><span class="s1">f </span><span class="s2">- </span><span class="s1">fj</span><span class="s3">[</span><span class="s1">m</span><span class="s3">]) </span><span class="s2">* </span><span class="s1">C</span><span class="s3">[</span><span class="s2">:</span><span class="s3">, </span><span class="s1">m</span><span class="s3">]</span>
+<a name="l474"><span class="ln">474  </span></a>
+<a name="l475"><span class="ln">475  </span></a>            <span class="s0"># Compute weights</span>
+<a name="l476"><span class="ln">476  </span></a>            <span class="s1">rows </span><span class="s2">= </span><span class="s1">mask</span><span class="s3">.</span><span class="s1">sum</span><span class="s3">()</span>
+<a name="l477"><span class="ln">477  </span></a>            <span class="s2">if </span><span class="s1">rows </span><span class="s2">&gt;= </span><span class="s1">m </span><span class="s2">+ </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l478"><span class="ln">478  </span></a>                <span class="s0"># The usual tall-skinny case</span>
+<a name="l479"><span class="ln">479  </span></a>                <span class="s1">_</span><span class="s3">, </span><span class="s1">s</span><span class="s3">, </span><span class="s1">V </span><span class="s2">= </span><span class="s1">scipy</span><span class="s3">.</span><span class="s1">linalg</span><span class="s3">.</span><span class="s1">svd</span><span class="s3">(</span>
+<a name="l480"><span class="ln">480  </span></a>                    <span class="s1">A</span><span class="s3">[</span><span class="s1">mask</span><span class="s3">, </span><span class="s2">: </span><span class="s1">m </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">], </span><span class="s1">full_matrices</span><span class="s2">=False</span><span class="s3">, </span><span class="s1">check_finite</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l481"><span class="ln">481  </span></a>                <span class="s3">)</span>
+<a name="l482"><span class="ln">482  </span></a>                <span class="s0"># Treat case of multiple min singular values</span>
+<a name="l483"><span class="ln">483  </span></a>                <span class="s1">mm </span><span class="s2">= </span><span class="s1">s </span><span class="s2">== </span><span class="s1">np</span><span class="s3">.</span><span class="s1">min</span><span class="s3">(</span><span class="s1">s</span><span class="s3">)</span>
+<a name="l484"><span class="ln">484  </span></a>                <span class="s0"># Aim for non-sparse weight vector</span>
+<a name="l485"><span class="ln">485  </span></a>                <span class="s1">wj </span><span class="s2">= </span><span class="s3">(</span><span class="s1">V</span><span class="s3">.</span><span class="s1">conj</span><span class="s3">()[</span><span class="s1">mm</span><span class="s3">, </span><span class="s2">:</span><span class="s3">].</span><span class="s1">sum</span><span class="s3">(</span><span class="s1">axis</span><span class="s2">=</span><span class="s5">0</span><span class="s3">) </span><span class="s2">/ </span><span class="s1">np</span><span class="s3">.</span><span class="s1">sqrt</span><span class="s3">(</span><span class="s1">mm</span><span class="s3">.</span><span class="s1">sum</span><span class="s3">())).</span><span class="s1">astype</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l486"><span class="ln">486  </span></a>            <span class="s2">else:</span>
+<a name="l487"><span class="ln">487  </span></a>                <span class="s0"># Fewer rows than columns</span>
+<a name="l488"><span class="ln">488  </span></a>                <span class="s1">V </span><span class="s2">= </span><span class="s1">scipy</span><span class="s3">.</span><span class="s1">linalg</span><span class="s3">.</span><span class="s1">null_space</span><span class="s3">(</span><span class="s1">A</span><span class="s3">[</span><span class="s1">mask</span><span class="s3">, </span><span class="s2">: </span><span class="s1">m </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">], </span><span class="s1">check_finite</span><span class="s2">=False</span><span class="s3">)</span>
+<a name="l489"><span class="ln">489  </span></a>                <span class="s1">nm </span><span class="s2">= </span><span class="s1">V</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s2">-</span><span class="s5">1</span><span class="s3">]</span>
+<a name="l490"><span class="ln">490  </span></a>                <span class="s0"># Aim for non-sparse wt vector</span>
+<a name="l491"><span class="ln">491  </span></a>                <span class="s1">wj </span><span class="s2">= </span><span class="s1">V</span><span class="s3">.</span><span class="s1">sum</span><span class="s3">(</span><span class="s1">axis</span><span class="s2">=-</span><span class="s5">1</span><span class="s3">) </span><span class="s2">/ </span><span class="s1">np</span><span class="s3">.</span><span class="s1">sqrt</span><span class="s3">(</span><span class="s1">nm</span><span class="s3">)</span>
+<a name="l492"><span class="ln">492  </span></a>
+<a name="l493"><span class="ln">493  </span></a>            <span class="s0"># Compute rational approximant</span>
+<a name="l494"><span class="ln">494  </span></a>            <span class="s0"># Omit columns with `wj == 0`</span>
+<a name="l495"><span class="ln">495  </span></a>            <span class="s1">i0 </span><span class="s2">= </span><span class="s1">wj </span><span class="s2">!= </span><span class="s5">0</span>
+<a name="l496"><span class="ln">496  </span></a>            <span class="s0"># Ignore errors as we manually interpolate at support points</span>
+<a name="l497"><span class="ln">497  </span></a>            <span class="s2">with </span><span class="s1">np</span><span class="s3">.</span><span class="s1">errstate</span><span class="s3">(</span><span class="s1">invalid</span><span class="s2">=</span><span class="s4">&quot;ignore&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l498"><span class="ln">498  </span></a>                <span class="s0"># Numerator</span>
+<a name="l499"><span class="ln">499  </span></a>                <span class="s1">N </span><span class="s2">= </span><span class="s1">C</span><span class="s3">[</span><span class="s2">:</span><span class="s3">, </span><span class="s2">: </span><span class="s1">m </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">][</span><span class="s2">:</span><span class="s3">, </span><span class="s1">i0</span><span class="s3">] </span><span class="s2">@ </span><span class="s3">(</span><span class="s1">wj</span><span class="s3">[</span><span class="s1">i0</span><span class="s3">] </span><span class="s2">* </span><span class="s1">fj</span><span class="s3">[</span><span class="s2">: </span><span class="s1">m </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">][</span><span class="s1">i0</span><span class="s3">])</span>
+<a name="l500"><span class="ln">500  </span></a>                <span class="s0"># Denominator</span>
+<a name="l501"><span class="ln">501  </span></a>                <span class="s1">D </span><span class="s2">= </span><span class="s1">C</span><span class="s3">[</span><span class="s2">:</span><span class="s3">, </span><span class="s2">: </span><span class="s1">m </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">][</span><span class="s2">:</span><span class="s3">, </span><span class="s1">i0</span><span class="s3">] </span><span class="s2">@ </span><span class="s1">wj</span><span class="s3">[</span><span class="s1">i0</span><span class="s3">]</span>
+<a name="l502"><span class="ln">502  </span></a>            <span class="s0"># Interpolate at support points with `wj !=0`</span>
+<a name="l503"><span class="ln">503  </span></a>            <span class="s1">D_inf </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">isinf</span><span class="s3">(</span><span class="s1">D</span><span class="s3">) </span><span class="s2">| </span><span class="s1">np</span><span class="s3">.</span><span class="s1">isnan</span><span class="s3">(</span><span class="s1">D</span><span class="s3">)</span>
+<a name="l504"><span class="ln">504  </span></a>            <span class="s1">D</span><span class="s3">[</span><span class="s1">D_inf</span><span class="s3">] </span><span class="s2">= </span><span class="s5">1</span>
+<a name="l505"><span class="ln">505  </span></a>            <span class="s1">N</span><span class="s3">[</span><span class="s1">D_inf</span><span class="s3">] </span><span class="s2">= </span><span class="s1">f</span><span class="s3">[</span><span class="s1">D_inf</span><span class="s3">]</span>
+<a name="l506"><span class="ln">506  </span></a>            <span class="s1">R </span><span class="s2">= </span><span class="s1">N </span><span class="s2">/ </span><span class="s1">D</span>
+<a name="l507"><span class="ln">507  </span></a>
+<a name="l508"><span class="ln">508  </span></a>            <span class="s0"># Check if converged</span>
+<a name="l509"><span class="ln">509  </span></a>            <span class="s1">max_error </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">linalg</span><span class="s3">.</span><span class="s1">norm</span><span class="s3">(</span><span class="s1">f </span><span class="s2">- </span><span class="s1">R</span><span class="s3">, </span><span class="s1">ord</span><span class="s2">=</span><span class="s1">np</span><span class="s3">.</span><span class="s1">inf</span><span class="s3">)</span>
+<a name="l510"><span class="ln">510  </span></a>            <span class="s1">errors</span><span class="s3">[</span><span class="s1">m</span><span class="s3">] </span><span class="s2">= </span><span class="s1">max_error</span>
+<a name="l511"><span class="ln">511  </span></a>            <span class="s2">if </span><span class="s1">max_error </span><span class="s2">&lt;= </span><span class="s1">atol</span><span class="s2">:</span>
+<a name="l512"><span class="ln">512  </span></a>                <span class="s2">break</span>
+<a name="l513"><span class="ln">513  </span></a>
+<a name="l514"><span class="ln">514  </span></a>        <span class="s2">if </span><span class="s1">m </span><span class="s2">== </span><span class="s1">max_terms </span><span class="s2">- </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l515"><span class="ln">515  </span></a>            <span class="s1">warnings</span><span class="s3">.</span><span class="s1">warn</span><span class="s3">(</span><span class="s4">f&quot;AAA failed to converge within {</span><span class="s1">max_terms</span><span class="s4">} iterations.&quot;</span><span class="s3">,</span>
+<a name="l516"><span class="ln">516  </span></a>                          <span class="s1">RuntimeWarning</span><span class="s3">, </span><span class="s1">stacklevel</span><span class="s2">=</span><span class="s5">2</span><span class="s3">)</span>
+<a name="l517"><span class="ln">517  </span></a>
+<a name="l518"><span class="ln">518  </span></a>        <span class="s0"># Trim off unused array allocation</span>
+<a name="l519"><span class="ln">519  </span></a>        <span class="s1">zj </span><span class="s2">= </span><span class="s1">zj</span><span class="s3">[</span><span class="s2">: </span><span class="s1">m </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">]</span>
+<a name="l520"><span class="ln">520  </span></a>        <span class="s1">fj </span><span class="s2">= </span><span class="s1">fj</span><span class="s3">[</span><span class="s2">: </span><span class="s1">m </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">]</span>
+<a name="l521"><span class="ln">521  </span></a>
+<a name="l522"><span class="ln">522  </span></a>        <span class="s0"># Remove support points with zero weight</span>
+<a name="l523"><span class="ln">523  </span></a>        <span class="s1">i_non_zero </span><span class="s2">= </span><span class="s1">wj </span><span class="s2">!= </span><span class="s5">0</span>
+<a name="l524"><span class="ln">524  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">errors </span><span class="s2">= </span><span class="s1">errors</span><span class="s3">[</span><span class="s2">: </span><span class="s1">m </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">]</span>
+<a name="l525"><span class="ln">525  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_points </span><span class="s2">= </span><span class="s1">z</span>
+<a name="l526"><span class="ln">526  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_values </span><span class="s2">= </span><span class="s1">f</span>
+<a name="l527"><span class="ln">527  </span></a>        <span class="s2">return </span><span class="s1">zj</span><span class="s3">[</span><span class="s1">i_non_zero</span><span class="s3">], </span><span class="s1">fj</span><span class="s3">[</span><span class="s1">i_non_zero</span><span class="s3">], </span><span class="s1">wj</span><span class="s3">[</span><span class="s1">i_non_zero</span><span class="s3">]</span>
+<a name="l528"><span class="ln">528  </span></a>
+<a name="l529"><span class="ln">529  </span></a>    <span class="s2">def </span><span class="s1">clean_up</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">cleanup_tol</span><span class="s2">=</span><span class="s5">1e-13</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l530"><span class="ln">530  </span></a>        <span class="s0">&quot;&quot;&quot;Automatic removal of Froissart doublets. 
+<a name="l531"><span class="ln">531  </span></a> 
+<a name="l532"><span class="ln">532  </span></a>        Parameters 
+<a name="l533"><span class="ln">533  </span></a>        ---------- 
+<a name="l534"><span class="ln">534  </span></a>        cleanup_tol : float, optional 
+<a name="l535"><span class="ln">535  </span></a>            Poles with residues less than this number times the geometric mean 
+<a name="l536"><span class="ln">536  </span></a>            of `values` times the minimum distance to `points` are deemed spurious by 
+<a name="l537"><span class="ln">537  </span></a>            the cleanup procedure, defaults to 1e-13. 
+<a name="l538"><span class="ln">538  </span></a> 
+<a name="l539"><span class="ln">539  </span></a>        Returns 
+<a name="l540"><span class="ln">540  </span></a>        ------- 
+<a name="l541"><span class="ln">541  </span></a>        int 
+<a name="l542"><span class="ln">542  </span></a>            Number of Froissart doublets detected 
+<a name="l543"><span class="ln">543  </span></a>        &quot;&quot;&quot;</span>
+<a name="l544"><span class="ln">544  </span></a>        <span class="s0"># Find negligible residues</span>
+<a name="l545"><span class="ln">545  </span></a>        <span class="s1">geom_mean_abs_f </span><span class="s2">= </span><span class="s1">scipy</span><span class="s3">.</span><span class="s1">stats</span><span class="s3">.</span><span class="s1">gmean</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_values</span><span class="s3">))</span>
+<a name="l546"><span class="ln">546  </span></a>
+<a name="l547"><span class="ln">547  </span></a>        <span class="s1">Z_distances </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">min</span><span class="s3">(</span>
+<a name="l548"><span class="ln">548  </span></a>            <span class="s1">np</span><span class="s3">.</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">subtract</span><span class="s3">.</span><span class="s1">outer</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">poles</span><span class="s3">(), </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_points</span><span class="s3">)), </span><span class="s1">axis</span><span class="s2">=</span><span class="s5">1</span>
+<a name="l549"><span class="ln">549  </span></a>        <span class="s3">)</span>
+<a name="l550"><span class="ln">550  </span></a>
+<a name="l551"><span class="ln">551  </span></a>        <span class="s2">with </span><span class="s1">np</span><span class="s3">.</span><span class="s1">errstate</span><span class="s3">(</span><span class="s1">divide</span><span class="s2">=</span><span class="s4">&quot;ignore&quot;</span><span class="s3">, </span><span class="s1">invalid</span><span class="s2">=</span><span class="s4">&quot;ignore&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l552"><span class="ln">552  </span></a>            <span class="s1">ii </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">nonzero</span><span class="s3">(</span>
+<a name="l553"><span class="ln">553  </span></a>                <span class="s1">np</span><span class="s3">.</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">residues</span><span class="s3">()) </span><span class="s2">/ </span><span class="s1">Z_distances </span><span class="s2">&lt; </span><span class="s1">cleanup_tol </span><span class="s2">* </span><span class="s1">geom_mean_abs_f</span>
+<a name="l554"><span class="ln">554  </span></a>            <span class="s3">)</span>
+<a name="l555"><span class="ln">555  </span></a>
+<a name="l556"><span class="ln">556  </span></a>        <span class="s1">ni </span><span class="s2">= </span><span class="s1">ii</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">size</span>
+<a name="l557"><span class="ln">557  </span></a>        <span class="s2">if </span><span class="s1">ni </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l558"><span class="ln">558  </span></a>            <span class="s2">return </span><span class="s1">ni</span>
+<a name="l559"><span class="ln">559  </span></a>
+<a name="l560"><span class="ln">560  </span></a>        <span class="s1">warnings</span><span class="s3">.</span><span class="s1">warn</span><span class="s3">(</span><span class="s4">f&quot;{</span><span class="s1">ni</span><span class="s4">} Froissart doublets detected.&quot;</span><span class="s3">, </span><span class="s1">RuntimeWarning</span><span class="s3">,</span>
+<a name="l561"><span class="ln">561  </span></a>                        <span class="s1">stacklevel</span><span class="s2">=</span><span class="s5">2</span><span class="s3">)</span>
+<a name="l562"><span class="ln">562  </span></a>
+<a name="l563"><span class="ln">563  </span></a>        <span class="s0"># For each spurious pole find and remove closest support point</span>
+<a name="l564"><span class="ln">564  </span></a>        <span class="s1">closest_spt_point </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">argmin</span><span class="s3">(</span>
+<a name="l565"><span class="ln">565  </span></a>            <span class="s1">np</span><span class="s3">.</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">subtract</span><span class="s3">.</span><span class="s1">outer</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">poles</span><span class="s3">()[</span><span class="s1">ii</span><span class="s3">])), </span><span class="s1">axis</span><span class="s2">=</span><span class="s5">0</span>
+<a name="l566"><span class="ln">566  </span></a>        <span class="s3">)</span>
+<a name="l567"><span class="ln">567  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">delete</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">, </span><span class="s1">closest_spt_point</span><span class="s3">)</span>
+<a name="l568"><span class="ln">568  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_support_values </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">delete</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_values</span><span class="s3">, </span><span class="s1">closest_spt_point</span><span class="s3">)</span>
+<a name="l569"><span class="ln">569  </span></a>
+<a name="l570"><span class="ln">570  </span></a>        <span class="s0"># Remove support points z from sample set</span>
+<a name="l571"><span class="ln">571  </span></a>        <span class="s1">mask </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">logical_and</span><span class="s3">.</span><span class="s1">reduce</span><span class="s3">(</span>
+<a name="l572"><span class="ln">572  </span></a>            <span class="s1">np</span><span class="s3">.</span><span class="s1">not_equal</span><span class="s3">.</span><span class="s1">outer</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_points</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">), </span><span class="s1">axis</span><span class="s2">=</span><span class="s5">1</span>
+<a name="l573"><span class="ln">573  </span></a>        <span class="s3">)</span>
+<a name="l574"><span class="ln">574  </span></a>        <span class="s1">f </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_values</span><span class="s3">[</span><span class="s1">mask</span><span class="s3">]</span>
+<a name="l575"><span class="ln">575  </span></a>        <span class="s1">z </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_points</span><span class="s3">[</span><span class="s1">mask</span><span class="s3">]</span>
+<a name="l576"><span class="ln">576  </span></a>
+<a name="l577"><span class="ln">577  </span></a>        <span class="s0"># recompute weights, we resolve the least squares problem for the remaining</span>
+<a name="l578"><span class="ln">578  </span></a>        <span class="s0"># support points</span>
+<a name="l579"><span class="ln">579  </span></a>
+<a name="l580"><span class="ln">580  </span></a>        <span class="s1">m </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">.</span><span class="s1">size</span>
+<a name="l581"><span class="ln">581  </span></a>
+<a name="l582"><span class="ln">582  </span></a>        <span class="s0"># Cauchy matrix</span>
+<a name="l583"><span class="ln">583  </span></a>        <span class="s1">C </span><span class="s2">= </span><span class="s5">1 </span><span class="s2">/ </span><span class="s1">np</span><span class="s3">.</span><span class="s1">subtract</span><span class="s3">.</span><span class="s1">outer</span><span class="s3">(</span><span class="s1">z</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_points</span><span class="s3">)</span>
+<a name="l584"><span class="ln">584  </span></a>        <span class="s0"># Loewner matrix</span>
+<a name="l585"><span class="ln">585  </span></a>        <span class="s1">A </span><span class="s2">= </span><span class="s1">f</span><span class="s3">[</span><span class="s2">:</span><span class="s3">, </span><span class="s1">np</span><span class="s3">.</span><span class="s1">newaxis</span><span class="s3">] </span><span class="s2">* </span><span class="s1">C </span><span class="s2">- </span><span class="s1">C </span><span class="s2">* </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_support_values</span>
+<a name="l586"><span class="ln">586  </span></a>
+<a name="l587"><span class="ln">587  </span></a>        <span class="s0"># Solve least-squares problem to obtain weights</span>
+<a name="l588"><span class="ln">588  </span></a>        <span class="s1">_</span><span class="s3">, </span><span class="s1">_</span><span class="s3">, </span><span class="s1">V </span><span class="s2">= </span><span class="s1">scipy</span><span class="s3">.</span><span class="s1">linalg</span><span class="s3">.</span><span class="s1">svd</span><span class="s3">(</span><span class="s1">A</span><span class="s3">, </span><span class="s1">check_finite</span><span class="s2">=False</span><span class="s3">)</span>
+<a name="l589"><span class="ln">589  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">weights </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">conj</span><span class="s3">(</span><span class="s1">V</span><span class="s3">[</span><span class="s1">m </span><span class="s2">- </span><span class="s5">1</span><span class="s3">,</span><span class="s2">:</span><span class="s3">])</span>
+<a name="l590"><span class="ln">590  </span></a>
+<a name="l591"><span class="ln">591  </span></a>        <span class="s0"># reset roots, poles, residues as cached values will be wrong with new weights</span>
+<a name="l592"><span class="ln">592  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_poles </span><span class="s2">= None</span>
+<a name="l593"><span class="ln">593  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_residues </span><span class="s2">= None</span>
+<a name="l594"><span class="ln">594  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_roots </span><span class="s2">= None</span>
+<a name="l595"><span class="ln">595  </span></a>
+<a name="l596"><span class="ln">596  </span></a>        <span class="s2">return </span><span class="s1">ni</span>
+<a name="l597"><span class="ln">597  </span></a>
+<a name="l598"><span class="ln">598  </span></a>
+<a name="l599"><span class="ln">599  </span></a><span class="s2">class </span><span class="s1">FloaterHormannInterpolator</span><span class="s3">(</span><span class="s1">_BarycentricRational</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l600"><span class="ln">600  </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l601"><span class="ln">601  </span></a>    Floater-Hormann barycentric rational interpolation. 
+<a name="l602"><span class="ln">602  </span></a> 
+<a name="l603"><span class="ln">603  </span></a>    As described in [1]_, the method of Floater and Hormann computes weights for a 
+<a name="l604"><span class="ln">604  </span></a>    Barycentric rational interpolant with no poles on the real axis. 
+<a name="l605"><span class="ln">605  </span></a> 
+<a name="l606"><span class="ln">606  </span></a>    Parameters 
+<a name="l607"><span class="ln">607  </span></a>    ---------- 
+<a name="l608"><span class="ln">608  </span></a>    x : 1D array_like, shape (n,) 
+<a name="l609"><span class="ln">609  </span></a>        1-D array containing values of the independent variable. Values may be real or 
+<a name="l610"><span class="ln">610  </span></a>        complex but must be finite. 
+<a name="l611"><span class="ln">611  </span></a>    y : array_like, shape (n, ...) 
+<a name="l612"><span class="ln">612  </span></a>        Array containing values of the dependent variable. Infinite and NaN values 
+<a name="l613"><span class="ln">613  </span></a>        of `values` and corresponding values of `x` will be discarded. 
+<a name="l614"><span class="ln">614  </span></a>    d : int, optional 
+<a name="l615"><span class="ln">615  </span></a>        Blends ``n - d`` degree `d` polynomials together. For ``d = n - 1`` it is 
+<a name="l616"><span class="ln">616  </span></a>        equivalent to polynomial interpolation. Must satisfy ``0 &lt;= d &lt; n``, 
+<a name="l617"><span class="ln">617  </span></a>        defaults to 3. 
+<a name="l618"><span class="ln">618  </span></a> 
+<a name="l619"><span class="ln">619  </span></a>    Attributes 
+<a name="l620"><span class="ln">620  </span></a>    ---------- 
+<a name="l621"><span class="ln">621  </span></a>    weights : array 
+<a name="l622"><span class="ln">622  </span></a>        Weights of the barycentric approximation. 
+<a name="l623"><span class="ln">623  </span></a> 
+<a name="l624"><span class="ln">624  </span></a>    See Also 
+<a name="l625"><span class="ln">625  </span></a>    -------- 
+<a name="l626"><span class="ln">626  </span></a>    AAA : Barycentric rational approximation of real and complex functions. 
+<a name="l627"><span class="ln">627  </span></a>    pade : Padé approximation. 
+<a name="l628"><span class="ln">628  </span></a> 
+<a name="l629"><span class="ln">629  </span></a>    Notes 
+<a name="l630"><span class="ln">630  </span></a>    ----- 
+<a name="l631"><span class="ln">631  </span></a>    The Floater-Hormann interpolant is a rational function that interpolates the data 
+<a name="l632"><span class="ln">632  </span></a>    with approximation order :math:`O(h^{d+1})`. The rational function blends ``n - d`` 
+<a name="l633"><span class="ln">633  </span></a>    polynomials of degree `d` together to produce a rational interpolant that contains 
+<a name="l634"><span class="ln">634  </span></a>    no poles on the real axis, unlike `AAA`. The interpolant is given 
+<a name="l635"><span class="ln">635  </span></a>    by 
+<a name="l636"><span class="ln">636  </span></a> 
+<a name="l637"><span class="ln">637  </span></a>    .. math:: 
+<a name="l638"><span class="ln">638  </span></a> 
+<a name="l639"><span class="ln">639  </span></a>        r(x) = \frac{\sum_{i=0}^{n-d} \lambda_i(x) p_i(x)} 
+<a name="l640"><span class="ln">640  </span></a>        {\sum_{i=0}^{n-d} \lambda_i(x)}, 
+<a name="l641"><span class="ln">641  </span></a> 
+<a name="l642"><span class="ln">642  </span></a>    where :math:`p_i(x)` is an interpolating polynomials of at most degree `d` through 
+<a name="l643"><span class="ln">643  </span></a>    the points :math:`(x_i,y_i),\dots,(x_{i+d},y_{i+d}), and :math:`\lambda_i(z)` are 
+<a name="l644"><span class="ln">644  </span></a>    blending functions defined by 
+<a name="l645"><span class="ln">645  </span></a> 
+<a name="l646"><span class="ln">646  </span></a>    .. math:: 
+<a name="l647"><span class="ln">647  </span></a> 
+<a name="l648"><span class="ln">648  </span></a>        \lambda_i(x) = \frac{(-1)^i}{(x - x_i)\cdots(x - x_{i+d})}. 
+<a name="l649"><span class="ln">649  </span></a> 
+<a name="l650"><span class="ln">650  </span></a>    When ``d = n - 1`` this reduces to polynomial interpolation. 
+<a name="l651"><span class="ln">651  </span></a> 
+<a name="l652"><span class="ln">652  </span></a>    Due to its stability following barycentric representation of the above equation 
+<a name="l653"><span class="ln">653  </span></a>    is used instead for computation 
+<a name="l654"><span class="ln">654  </span></a> 
+<a name="l655"><span class="ln">655  </span></a>    .. math:: 
+<a name="l656"><span class="ln">656  </span></a> 
+<a name="l657"><span class="ln">657  </span></a>        r(z) = \frac{\sum_{k=1}^m\ w_k f_k / (x - x_k)}{\sum_{k=1}^m w_k / (x - x_k)}, 
+<a name="l658"><span class="ln">658  </span></a> 
+<a name="l659"><span class="ln">659  </span></a>    where the weights :math:`w_j` are computed as 
+<a name="l660"><span class="ln">660  </span></a> 
+<a name="l661"><span class="ln">661  </span></a>    .. math:: 
+<a name="l662"><span class="ln">662  </span></a> 
+<a name="l663"><span class="ln">663  </span></a>        w_k &amp;= (-1)^{k - d} \sum_{i \in J_k} \prod_{j = i, j \neq k}^{i + d} 
+<a name="l664"><span class="ln">664  </span></a>        1/|x_k - x_j|, \\ 
+<a name="l665"><span class="ln">665  </span></a>        J_k &amp;= \{ i \in I: k - d \leq i \leq k\},\\ 
+<a name="l666"><span class="ln">666  </span></a>        I &amp;= \{0, 1, \dots, n - d\}. 
+<a name="l667"><span class="ln">667  </span></a> 
+<a name="l668"><span class="ln">668  </span></a>    References 
+<a name="l669"><span class="ln">669  </span></a>    ---------- 
+<a name="l670"><span class="ln">670  </span></a>    .. [1] M.S. Floater and K. Hormann, &quot;Barycentric rational interpolation with no 
+<a name="l671"><span class="ln">671  </span></a>           poles and high rates of approximation&quot;, Numer. Math. 107, 315 (2007). 
+<a name="l672"><span class="ln">672  </span></a>           :doi:`10.1007/s00211-007-0093-y` 
+<a name="l673"><span class="ln">673  </span></a> 
+<a name="l674"><span class="ln">674  </span></a>    Examples 
+<a name="l675"><span class="ln">675  </span></a>    -------- 
+<a name="l676"><span class="ln">676  </span></a> 
+<a name="l677"><span class="ln">677  </span></a>    Here we compare the method against polynomial interpolation for an example where 
+<a name="l678"><span class="ln">678  </span></a>    the polynomial interpolation fails due to Runge's phenomenon. 
+<a name="l679"><span class="ln">679  </span></a> 
+<a name="l680"><span class="ln">680  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l681"><span class="ln">681  </span></a>    &gt;&gt;&gt; from scipy.interpolate import (FloaterHormannInterpolator, 
+<a name="l682"><span class="ln">682  </span></a>    ...                                BarycentricInterpolator) 
+<a name="l683"><span class="ln">683  </span></a>    &gt;&gt;&gt; def f(z): 
+<a name="l684"><span class="ln">684  </span></a>    ...     return 1/(1 + z**2) 
+<a name="l685"><span class="ln">685  </span></a>    &gt;&gt;&gt; z = np.linspace(-5, 5, num=15) 
+<a name="l686"><span class="ln">686  </span></a>    &gt;&gt;&gt; r = FloaterHormannInterpolator(z, f(z)) 
+<a name="l687"><span class="ln">687  </span></a>    &gt;&gt;&gt; p = BarycentricInterpolator(z, f(z)) 
+<a name="l688"><span class="ln">688  </span></a>    &gt;&gt;&gt; zz = np.linspace(-5, 5, num=1000) 
+<a name="l689"><span class="ln">689  </span></a>    &gt;&gt;&gt; import matplotlib.pyplot as plt 
+<a name="l690"><span class="ln">690  </span></a>    &gt;&gt;&gt; fig, ax = plt.subplots() 
+<a name="l691"><span class="ln">691  </span></a>    &gt;&gt;&gt; ax.plot(zz, r(zz), label=&quot;Floater=Hormann&quot;) 
+<a name="l692"><span class="ln">692  </span></a>    &gt;&gt;&gt; ax.plot(zz, p(zz), label=&quot;Polynomial&quot;) 
+<a name="l693"><span class="ln">693  </span></a>    &gt;&gt;&gt; ax.legend() 
+<a name="l694"><span class="ln">694  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l695"><span class="ln">695  </span></a>    &quot;&quot;&quot;</span>
+<a name="l696"><span class="ln">696  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">points</span><span class="s3">, </span><span class="s1">values</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">d</span><span class="s2">=</span><span class="s5">3</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l697"><span class="ln">697  </span></a>        <span class="s1">super</span><span class="s3">().</span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">points</span><span class="s3">, </span><span class="s1">values</span><span class="s3">, </span><span class="s1">d</span><span class="s2">=</span><span class="s1">d</span><span class="s3">)</span>
+<a name="l698"><span class="ln">698  </span></a>
+<a name="l699"><span class="ln">699  </span></a>    <span class="s2">def </span><span class="s1">_input_validation</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">d</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l700"><span class="ln">700  </span></a>        <span class="s1">d </span><span class="s2">= </span><span class="s1">operator</span><span class="s3">.</span><span class="s1">index</span><span class="s3">(</span><span class="s1">d</span><span class="s3">)</span>
+<a name="l701"><span class="ln">701  </span></a>        <span class="s2">if not </span><span class="s3">(</span><span class="s5">0 </span><span class="s2">&lt;= </span><span class="s1">d </span><span class="s2">&lt; </span><span class="s1">len</span><span class="s3">(</span><span class="s1">x</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l702"><span class="ln">702  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;`d` must satisfy 0 &lt;= d &lt; n&quot;</span><span class="s3">)</span>
+<a name="l703"><span class="ln">703  </span></a>
+<a name="l704"><span class="ln">704  </span></a>        <span class="s1">super</span><span class="s3">().</span><span class="s1">_input_validation</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">)</span>
+<a name="l705"><span class="ln">705  </span></a>
+<a name="l706"><span class="ln">706  </span></a>    <span class="s2">def </span><span class="s1">_compute_weights</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">z</span><span class="s3">, </span><span class="s1">f</span><span class="s3">, </span><span class="s1">d</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l707"><span class="ln">707  </span></a>        <span class="s0"># Floater and Hormann 2007 Eqn. (18) 3 equations later</span>
+<a name="l708"><span class="ln">708  </span></a>        <span class="s1">w </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">zeros_like</span><span class="s3">(</span><span class="s1">z</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">np</span><span class="s3">.</span><span class="s1">result_type</span><span class="s3">(</span><span class="s1">z</span><span class="s3">, </span><span class="s5">1.0</span><span class="s3">))</span>
+<a name="l709"><span class="ln">709  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">w</span><span class="s3">.</span><span class="s1">size</span>
+<a name="l710"><span class="ln">710  </span></a>        <span class="s2">for </span><span class="s1">k </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l711"><span class="ln">711  </span></a>            <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">max</span><span class="s3">(</span><span class="s1">k</span><span class="s2">-</span><span class="s1">d</span><span class="s3">, </span><span class="s5">0</span><span class="s3">), </span><span class="s1">min</span><span class="s3">(</span><span class="s1">k</span><span class="s2">+</span><span class="s5">1</span><span class="s3">, </span><span class="s1">n</span><span class="s2">-</span><span class="s1">d</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l712"><span class="ln">712  </span></a>                <span class="s1">w</span><span class="s3">[</span><span class="s1">k</span><span class="s3">] </span><span class="s2">+= </span><span class="s5">1</span><span class="s2">/</span><span class="s1">np</span><span class="s3">.</span><span class="s1">prod</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">delete</span><span class="s3">(</span><span class="s1">z</span><span class="s3">[</span><span class="s1">k</span><span class="s3">] </span><span class="s2">- </span><span class="s1">z</span><span class="s3">[</span><span class="s1">i </span><span class="s2">: </span><span class="s1">i </span><span class="s2">+ </span><span class="s1">d </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">], </span><span class="s1">k </span><span class="s2">- </span><span class="s1">i</span><span class="s3">)))</span>
+<a name="l713"><span class="ln">713  </span></a>        <span class="s1">w </span><span class="s2">*= </span><span class="s3">(</span><span class="s2">-</span><span class="s5">1.</span><span class="s3">)</span><span class="s2">**</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">arange</span><span class="s3">(</span><span class="s1">n</span><span class="s3">) </span><span class="s2">- </span><span class="s1">d</span><span class="s3">)</span>
+<a name="l714"><span class="ln">714  </span></a>
+<a name="l715"><span class="ln">715  </span></a>        <span class="s2">return </span><span class="s1">z</span><span class="s3">, </span><span class="s1">f</span><span class="s3">, </span><span class="s1">w</span>
+<a name="l716"><span class="ln">716  </span></a></pre>
+</body>
+</html>

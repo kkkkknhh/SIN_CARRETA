@@ -1,0 +1,272 @@
+<html>
+<head>
+<title>_check.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_check.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: allow-untyped-defs</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s2">import </span><span class="s1">ast</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s2">import </span><span class="s1">inspect</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">import </span><span class="s1">textwrap</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s2">import </span><span class="s1">warnings</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">import </span><span class="s1">torch</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">class </span><span class="s1">AttributeTypeIsSupportedChecker</span><span class="s3">(</span><span class="s1">ast</span><span class="s3">.</span><span class="s1">NodeVisitor</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l11"><span class="ln">11   </span></a>    <span class="s0">&quot;&quot;&quot;Check the ``__init__`` method of a given ``nn.Module``. 
+<a name="l12"><span class="ln">12   </span></a> 
+<a name="l13"><span class="ln">13   </span></a>    It ensures that all instance-level attributes can be properly initialized. 
+<a name="l14"><span class="ln">14   </span></a> 
+<a name="l15"><span class="ln">15   </span></a>    Specifically, we do type inference based on attribute values...even 
+<a name="l16"><span class="ln">16   </span></a>    if the attribute in question has already been typed using 
+<a name="l17"><span class="ln">17   </span></a>    Python3-style annotations or ``torch.jit.annotate``. This means that 
+<a name="l18"><span class="ln">18   </span></a>    setting an instance-level attribute to ``[]`` (for ``List``), 
+<a name="l19"><span class="ln">19   </span></a>    ``{}`` for ``Dict``), or ``None`` (for ``Optional``) isn't enough 
+<a name="l20"><span class="ln">20   </span></a>    information for us to properly initialize that attribute. 
+<a name="l21"><span class="ln">21   </span></a> 
+<a name="l22"><span class="ln">22   </span></a>    An object of this class can walk a given ``nn.Module``'s AST and 
+<a name="l23"><span class="ln">23   </span></a>    determine if it meets our requirements or not. 
+<a name="l24"><span class="ln">24   </span></a> 
+<a name="l25"><span class="ln">25   </span></a>    Known limitations 
+<a name="l26"><span class="ln">26   </span></a>    1. We can only check the AST nodes for certain constructs; we can't 
+<a name="l27"><span class="ln">27   </span></a>    ``eval`` arbitrary expressions. This means that function calls, 
+<a name="l28"><span class="ln">28   </span></a>    class instantiations, and complex expressions that resolve to one of 
+<a name="l29"><span class="ln">29   </span></a>    the &quot;empty&quot; values specified above will NOT be flagged as 
+<a name="l30"><span class="ln">30   </span></a>    problematic. 
+<a name="l31"><span class="ln">31   </span></a>    2. We match on string literals, so if the user decides to use a 
+<a name="l32"><span class="ln">32   </span></a>    non-standard import (e.g. `from typing import List as foo`), we 
+<a name="l33"><span class="ln">33   </span></a>    won't catch it. 
+<a name="l34"><span class="ln">34   </span></a> 
+<a name="l35"><span class="ln">35   </span></a>    Example: 
+<a name="l36"><span class="ln">36   </span></a>        .. code-block:: python 
+<a name="l37"><span class="ln">37   </span></a> 
+<a name="l38"><span class="ln">38   </span></a>            class M(torch.nn.Module): 
+<a name="l39"><span class="ln">39   </span></a>                def fn(self): 
+<a name="l40"><span class="ln">40   </span></a>                    return [] 
+<a name="l41"><span class="ln">41   </span></a> 
+<a name="l42"><span class="ln">42   </span></a>                def __init__(self) -&gt; None: 
+<a name="l43"><span class="ln">43   </span></a>                    super().__init__() 
+<a name="l44"><span class="ln">44   </span></a>                    self.x: List[int] = [] 
+<a name="l45"><span class="ln">45   </span></a> 
+<a name="l46"><span class="ln">46   </span></a>                def forward(self, x: List[int]): 
+<a name="l47"><span class="ln">47   </span></a>                    self.x = x 
+<a name="l48"><span class="ln">48   </span></a>                    return 1 
+<a name="l49"><span class="ln">49   </span></a> 
+<a name="l50"><span class="ln">50   </span></a>        The above code will pass the ``AttributeTypeIsSupportedChecker`` 
+<a name="l51"><span class="ln">51   </span></a>        check since we have a function call in ``__init__``. However, 
+<a name="l52"><span class="ln">52   </span></a>        it will still fail later with the ``RuntimeError`` &quot;Tried to set 
+<a name="l53"><span class="ln">53   </span></a>        nonexistent attribute: x. Did you forget to initialize it in 
+<a name="l54"><span class="ln">54   </span></a>        __init__()?&quot;. 
+<a name="l55"><span class="ln">55   </span></a> 
+<a name="l56"><span class="ln">56   </span></a>    Args: 
+<a name="l57"><span class="ln">57   </span></a>        nn_module - The instance of ``torch.nn.Module`` whose 
+<a name="l58"><span class="ln">58   </span></a>            ``__init__`` method we wish to check 
+<a name="l59"><span class="ln">59   </span></a>    &quot;&quot;&quot;</span>
+<a name="l60"><span class="ln">60   </span></a>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s2">def </span><span class="s1">check</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">nn_module</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">nn</span><span class="s3">.</span><span class="s1">Module</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l62"><span class="ln">62   </span></a>        <span class="s1">source_lines </span><span class="s2">= </span><span class="s1">inspect</span><span class="s3">.</span><span class="s1">getsource</span><span class="s3">(</span><span class="s1">nn_module</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">.</span><span class="s1">__init__</span><span class="s3">)</span>
+<a name="l63"><span class="ln">63   </span></a>
+<a name="l64"><span class="ln">64   </span></a>        <span class="s0"># Ignore comments no matter the indentation</span>
+<a name="l65"><span class="ln">65   </span></a>        <span class="s2">def </span><span class="s1">is_useless_comment</span><span class="s3">(</span><span class="s1">line</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>            <span class="s1">line </span><span class="s2">= </span><span class="s1">line</span><span class="s3">.</span><span class="s1">strip</span><span class="s3">()</span>
+<a name="l67"><span class="ln">67   </span></a>            <span class="s2">return </span><span class="s1">line</span><span class="s3">.</span><span class="s1">startswith</span><span class="s3">(</span><span class="s4">&quot;#&quot;</span><span class="s3">) </span><span class="s2">and not </span><span class="s1">line</span><span class="s3">.</span><span class="s1">startswith</span><span class="s3">(</span><span class="s4">&quot;# type:&quot;</span><span class="s3">)</span>
+<a name="l68"><span class="ln">68   </span></a>
+<a name="l69"><span class="ln">69   </span></a>        <span class="s1">source_lines </span><span class="s2">= </span><span class="s4">&quot;\n&quot;</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span>
+<a name="l70"><span class="ln">70   </span></a>            <span class="s3">[</span><span class="s1">l </span><span class="s2">for </span><span class="s1">l </span><span class="s2">in </span><span class="s1">source_lines</span><span class="s3">.</span><span class="s1">split</span><span class="s3">(</span><span class="s4">&quot;\n&quot;</span><span class="s3">) </span><span class="s2">if not </span><span class="s1">is_useless_comment</span><span class="s3">(</span><span class="s1">l</span><span class="s3">)]</span>
+<a name="l71"><span class="ln">71   </span></a>        <span class="s3">)</span>
+<a name="l72"><span class="ln">72   </span></a>
+<a name="l73"><span class="ln">73   </span></a>        <span class="s0"># This AST only contains the `__init__` method of the nn.Module</span>
+<a name="l74"><span class="ln">74   </span></a>        <span class="s1">init_ast </span><span class="s2">= </span><span class="s1">ast</span><span class="s3">.</span><span class="s1">parse</span><span class="s3">(</span><span class="s1">textwrap</span><span class="s3">.</span><span class="s1">dedent</span><span class="s3">(</span><span class="s1">source_lines</span><span class="s3">))</span>
+<a name="l75"><span class="ln">75   </span></a>
+<a name="l76"><span class="ln">76   </span></a>        <span class="s0"># Get items annotated in the class body</span>
+<a name="l77"><span class="ln">77   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">class_level_annotations </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">nn_module</span><span class="s3">.</span><span class="s1">__annotations__</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">())</span>
+<a name="l78"><span class="ln">78   </span></a>
+<a name="l79"><span class="ln">79   </span></a>        <span class="s0"># Flag for later</span>
+<a name="l80"><span class="ln">80   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">visiting_class_level_ann </span><span class="s2">= False</span>
+<a name="l81"><span class="ln">81   </span></a>
+<a name="l82"><span class="ln">82   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">visit</span><span class="s3">(</span><span class="s1">init_ast</span><span class="s3">)</span>
+<a name="l83"><span class="ln">83   </span></a>
+<a name="l84"><span class="ln">84   </span></a>    <span class="s2">def </span><span class="s1">_is_empty_container</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">node</span><span class="s2">: </span><span class="s1">ast</span><span class="s3">.</span><span class="s1">AST</span><span class="s3">, </span><span class="s1">ann_type</span><span class="s2">: </span><span class="s1">str</span><span class="s3">) </span><span class="s1">-&gt; bool</span><span class="s2">:</span>
+<a name="l85"><span class="ln">85   </span></a>        <span class="s2">if </span><span class="s1">ann_type </span><span class="s2">== </span><span class="s4">&quot;List&quot;</span><span class="s2">:</span>
+<a name="l86"><span class="ln">86   </span></a>            <span class="s0"># Assigning `[]` to a `List` type gives you a Node where</span>
+<a name="l87"><span class="ln">87   </span></a>            <span class="s0"># value=List(elts=[], ctx=Load())</span>
+<a name="l88"><span class="ln">88   </span></a>            <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">node</span><span class="s3">, </span><span class="s1">ast</span><span class="s3">.</span><span class="s1">List</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l89"><span class="ln">89   </span></a>                <span class="s2">return False</span>
+<a name="l90"><span class="ln">90   </span></a>            <span class="s2">if </span><span class="s1">node</span><span class="s3">.</span><span class="s1">elts</span><span class="s2">:</span>
+<a name="l91"><span class="ln">91   </span></a>                <span class="s2">return False</span>
+<a name="l92"><span class="ln">92   </span></a>        <span class="s2">elif </span><span class="s1">ann_type </span><span class="s2">== </span><span class="s4">&quot;Dict&quot;</span><span class="s2">:</span>
+<a name="l93"><span class="ln">93   </span></a>            <span class="s0"># Assigning `{}` to a `Dict` type gives you a Node where</span>
+<a name="l94"><span class="ln">94   </span></a>            <span class="s0"># value=Dict(keys=[], values=[])</span>
+<a name="l95"><span class="ln">95   </span></a>            <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">node</span><span class="s3">, </span><span class="s1">ast</span><span class="s3">.</span><span class="s1">Dict</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l96"><span class="ln">96   </span></a>                <span class="s2">return False</span>
+<a name="l97"><span class="ln">97   </span></a>            <span class="s2">if </span><span class="s1">node</span><span class="s3">.</span><span class="s1">keys</span><span class="s2">:</span>
+<a name="l98"><span class="ln">98   </span></a>                <span class="s2">return False</span>
+<a name="l99"><span class="ln">99   </span></a>        <span class="s2">elif </span><span class="s1">ann_type </span><span class="s2">== </span><span class="s4">&quot;Optional&quot;</span><span class="s2">:</span>
+<a name="l100"><span class="ln">100  </span></a>            <span class="s0"># Assigning `None` to an `Optional` type gives you a</span>
+<a name="l101"><span class="ln">101  </span></a>            <span class="s0"># Node where value=Constant(value=None, kind=None)</span>
+<a name="l102"><span class="ln">102  </span></a>            <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">node</span><span class="s3">, </span><span class="s1">ast</span><span class="s3">.</span><span class="s1">Constant</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l103"><span class="ln">103  </span></a>                <span class="s2">return False</span>
+<a name="l104"><span class="ln">104  </span></a>            <span class="s2">if </span><span class="s1">node</span><span class="s3">.</span><span class="s1">value</span><span class="s2">:  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l105"><span class="ln">105  </span></a>                <span class="s2">return False</span>
+<a name="l106"><span class="ln">106  </span></a>
+<a name="l107"><span class="ln">107  </span></a>        <span class="s2">return True</span>
+<a name="l108"><span class="ln">108  </span></a>
+<a name="l109"><span class="ln">109  </span></a>    <span class="s2">def </span><span class="s1">visit_Assign</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">node</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l110"><span class="ln">110  </span></a>        <span class="s0">&quot;&quot;&quot;Store assignment state when assigning to a Call Node. 
+<a name="l111"><span class="ln">111  </span></a> 
+<a name="l112"><span class="ln">112  </span></a>        If we're visiting a Call Node (the right-hand side of an 
+<a name="l113"><span class="ln">113  </span></a>        assignment statement), we won't be able to check the variable 
+<a name="l114"><span class="ln">114  </span></a>        that we're assigning to (the left-hand side of an assignment). 
+<a name="l115"><span class="ln">115  </span></a>        Because of this, we need to store this state in visitAssign. 
+<a name="l116"><span class="ln">116  </span></a>        (Luckily, we only have to do this if we're assigning to a Call 
+<a name="l117"><span class="ln">117  </span></a>        Node, i.e. ``torch.jit.annotate``. If we're using normal Python 
+<a name="l118"><span class="ln">118  </span></a>        annotations, we'll be visiting an AnnAssign Node, which has its 
+<a name="l119"><span class="ln">119  </span></a>        target built in.) 
+<a name="l120"><span class="ln">120  </span></a>        &quot;&quot;&quot;</span>
+<a name="l121"><span class="ln">121  </span></a>        <span class="s2">try:</span>
+<a name="l122"><span class="ln">122  </span></a>            <span class="s2">if </span><span class="s3">(</span>
+<a name="l123"><span class="ln">123  </span></a>                <span class="s1">isinstance</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">value</span><span class="s3">, </span><span class="s1">ast</span><span class="s3">.</span><span class="s1">Call</span><span class="s3">)</span>
+<a name="l124"><span class="ln">124  </span></a>                <span class="s2">and </span><span class="s1">node</span><span class="s3">.</span><span class="s1">targets</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">attr </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">class_level_annotations</span>
+<a name="l125"><span class="ln">125  </span></a>            <span class="s3">)</span><span class="s2">:</span>
+<a name="l126"><span class="ln">126  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">visiting_class_level_ann </span><span class="s2">= True</span>
+<a name="l127"><span class="ln">127  </span></a>        <span class="s2">except </span><span class="s1">AttributeError</span><span class="s2">:</span>
+<a name="l128"><span class="ln">128  </span></a>            <span class="s2">return</span>
+<a name="l129"><span class="ln">129  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">generic_visit</span><span class="s3">(</span><span class="s1">node</span><span class="s3">)</span>
+<a name="l130"><span class="ln">130  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">visiting_class_level_ann </span><span class="s2">= False</span>
+<a name="l131"><span class="ln">131  </span></a>
+<a name="l132"><span class="ln">132  </span></a>    <span class="s2">def </span><span class="s1">visit_AnnAssign</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">node</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l133"><span class="ln">133  </span></a>        <span class="s0">&quot;&quot;&quot;Visit an AnnAssign node in an ``nn.Module``'s ``__init__`` method. 
+<a name="l134"><span class="ln">134  </span></a> 
+<a name="l135"><span class="ln">135  </span></a>        It checks if it conforms to our attribute annotation rules.&quot;&quot;&quot;</span>
+<a name="l136"><span class="ln">136  </span></a>        <span class="s0"># If we have a local variable</span>
+<a name="l137"><span class="ln">137  </span></a>        <span class="s2">try:</span>
+<a name="l138"><span class="ln">138  </span></a>            <span class="s2">if </span><span class="s1">node</span><span class="s3">.</span><span class="s1">target</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">id </span><span class="s2">!= </span><span class="s4">&quot;self&quot;</span><span class="s2">:</span>
+<a name="l139"><span class="ln">139  </span></a>                <span class="s2">return</span>
+<a name="l140"><span class="ln">140  </span></a>        <span class="s2">except </span><span class="s1">AttributeError</span><span class="s2">:</span>
+<a name="l141"><span class="ln">141  </span></a>            <span class="s2">return</span>
+<a name="l142"><span class="ln">142  </span></a>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s0"># If we have an attribute that's already been annotated at the</span>
+<a name="l144"><span class="ln">144  </span></a>        <span class="s0"># class level</span>
+<a name="l145"><span class="ln">145  </span></a>        <span class="s2">if </span><span class="s1">node</span><span class="s3">.</span><span class="s1">target</span><span class="s3">.</span><span class="s1">attr </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">class_level_annotations</span><span class="s2">:</span>
+<a name="l146"><span class="ln">146  </span></a>            <span class="s2">return</span>
+<a name="l147"><span class="ln">147  </span></a>
+<a name="l148"><span class="ln">148  </span></a>        <span class="s0"># TODO @ansley: add `Union` once landed</span>
+<a name="l149"><span class="ln">149  </span></a>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s0"># NB: Even though `Tuple` is a &quot;container&quot;, we don't want to</span>
+<a name="l151"><span class="ln">151  </span></a>        <span class="s0"># check for it here. `Tuple` functions as an type with an</span>
+<a name="l152"><span class="ln">152  </span></a>        <span class="s0"># &quot;infinite&quot; number of subtypes, in the sense that you can have</span>
+<a name="l153"><span class="ln">153  </span></a>        <span class="s0"># `Tuple[())]`, `Tuple[T1]`, `Tuple[T2]`, `Tuple[T1, T2]`,</span>
+<a name="l154"><span class="ln">154  </span></a>        <span class="s0"># `Tuple[T2, T1]` and so on, and none of these subtypes can be</span>
+<a name="l155"><span class="ln">155  </span></a>        <span class="s0"># used in place of the other. Therefore, assigning an empty</span>
+<a name="l156"><span class="ln">156  </span></a>        <span class="s0"># tuple in `__init__` CORRECTLY means that that variable</span>
+<a name="l157"><span class="ln">157  </span></a>        <span class="s0"># cannot be reassigned later to a non-empty tuple. Same</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s0"># deal with `NamedTuple`</span>
+<a name="l159"><span class="ln">159  </span></a>
+<a name="l160"><span class="ln">160  </span></a>        <span class="s1">containers </span><span class="s2">= </span><span class="s3">{</span><span class="s4">&quot;List&quot;</span><span class="s3">, </span><span class="s4">&quot;list&quot;</span><span class="s3">, </span><span class="s4">&quot;Dict&quot;</span><span class="s3">, </span><span class="s4">&quot;dict&quot;</span><span class="s3">, </span><span class="s4">&quot;Optional&quot;</span><span class="s3">}</span>
+<a name="l161"><span class="ln">161  </span></a>
+<a name="l162"><span class="ln">162  </span></a>        <span class="s0"># If we're not evaluating one of the specified problem types</span>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s2">try:</span>
+<a name="l164"><span class="ln">164  </span></a>            <span class="s2">if </span><span class="s1">node</span><span class="s3">.</span><span class="s1">annotation</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">id </span><span class="s2">not in </span><span class="s1">containers</span><span class="s2">:</span>
+<a name="l165"><span class="ln">165  </span></a>                <span class="s2">return</span>
+<a name="l166"><span class="ln">166  </span></a>        <span class="s2">except </span><span class="s1">AttributeError</span><span class="s2">:</span>
+<a name="l167"><span class="ln">167  </span></a>            <span class="s0"># To evaluate a base type (`str`, `int`, etc.), we would</span>
+<a name="l168"><span class="ln">168  </span></a>            <span class="s0"># have needed to get the name through `node.annotation.id`</span>
+<a name="l169"><span class="ln">169  </span></a>            <span class="s0"># instead of `node.annotation.value.id`. Seems that we're</span>
+<a name="l170"><span class="ln">170  </span></a>            <span class="s0"># not evaluating one of our &quot;containers&quot;</span>
+<a name="l171"><span class="ln">171  </span></a>            <span class="s2">return</span>
+<a name="l172"><span class="ln">172  </span></a>
+<a name="l173"><span class="ln">173  </span></a>        <span class="s0"># Check if the assigned variable is empty</span>
+<a name="l174"><span class="ln">174  </span></a>        <span class="s1">ann_type </span><span class="s2">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">annotation</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">id</span>
+<a name="l175"><span class="ln">175  </span></a>        <span class="s2">if not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_is_empty_container</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">value</span><span class="s3">, </span><span class="s1">ann_type</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l176"><span class="ln">176  </span></a>            <span class="s2">return</span>
+<a name="l177"><span class="ln">177  </span></a>
+<a name="l178"><span class="ln">178  </span></a>        <span class="s1">warnings</span><span class="s3">.</span><span class="s1">warn</span><span class="s3">(</span>
+<a name="l179"><span class="ln">179  </span></a>            <span class="s4">&quot;The TorchScript type system doesn't support &quot;</span>
+<a name="l180"><span class="ln">180  </span></a>            <span class="s4">&quot;instance-level annotations on empty non-base &quot;</span>
+<a name="l181"><span class="ln">181  </span></a>            <span class="s4">&quot;types in `__init__`. Instead, either 1) use a &quot;</span>
+<a name="l182"><span class="ln">182  </span></a>            <span class="s4">&quot;type annotation in the class body, or 2) wrap &quot;</span>
+<a name="l183"><span class="ln">183  </span></a>            <span class="s4">&quot;the type in `torch.jit.Attribute`.&quot;</span>
+<a name="l184"><span class="ln">184  </span></a>        <span class="s3">)</span>
+<a name="l185"><span class="ln">185  </span></a>
+<a name="l186"><span class="ln">186  </span></a>    <span class="s2">def </span><span class="s1">visit_Call</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">node</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l187"><span class="ln">187  </span></a>        <span class="s0">&quot;&quot;&quot;Determine if a Call node is 'torch.jit.annotate' in __init__. 
+<a name="l188"><span class="ln">188  </span></a> 
+<a name="l189"><span class="ln">189  </span></a>        Visit a Call node in an ``nn.Module``'s ``__init__`` 
+<a name="l190"><span class="ln">190  </span></a>        method and determine if it's ``torch.jit.annotate``. If so, 
+<a name="l191"><span class="ln">191  </span></a>        see if it conforms to our attribute annotation rules. 
+<a name="l192"><span class="ln">192  </span></a>        &quot;&quot;&quot;</span>
+<a name="l193"><span class="ln">193  </span></a>        <span class="s0"># If we have an attribute that's already been annotated at the</span>
+<a name="l194"><span class="ln">194  </span></a>        <span class="s0"># class level</span>
+<a name="l195"><span class="ln">195  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">visiting_class_level_ann</span><span class="s2">:</span>
+<a name="l196"><span class="ln">196  </span></a>            <span class="s2">return</span>
+<a name="l197"><span class="ln">197  </span></a>
+<a name="l198"><span class="ln">198  </span></a>        <span class="s0"># If this isn't a call to `torch.jit.annotate`</span>
+<a name="l199"><span class="ln">199  </span></a>        <span class="s2">try:</span>
+<a name="l200"><span class="ln">200  </span></a>            <span class="s2">if </span><span class="s3">(</span>
+<a name="l201"><span class="ln">201  </span></a>                <span class="s1">node</span><span class="s3">.</span><span class="s1">func</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">id </span><span class="s2">!= </span><span class="s4">&quot;torch&quot;</span>
+<a name="l202"><span class="ln">202  </span></a>                <span class="s2">or </span><span class="s1">node</span><span class="s3">.</span><span class="s1">func</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">attr </span><span class="s2">!= </span><span class="s4">&quot;jit&quot;</span>
+<a name="l203"><span class="ln">203  </span></a>                <span class="s2">or </span><span class="s1">node</span><span class="s3">.</span><span class="s1">func</span><span class="s3">.</span><span class="s1">attr </span><span class="s2">!= </span><span class="s4">&quot;annotate&quot;</span>
+<a name="l204"><span class="ln">204  </span></a>            <span class="s3">)</span><span class="s2">:</span>
+<a name="l205"><span class="ln">205  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">generic_visit</span><span class="s3">(</span><span class="s1">node</span><span class="s3">)</span>
+<a name="l206"><span class="ln">206  </span></a>            <span class="s2">elif </span><span class="s3">(</span>
+<a name="l207"><span class="ln">207  </span></a>                <span class="s1">node</span><span class="s3">.</span><span class="s1">func</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">id </span><span class="s2">!= </span><span class="s4">&quot;jit&quot; </span><span class="s2">or </span><span class="s1">node</span><span class="s3">.</span><span class="s1">func</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">attr </span><span class="s2">!= </span><span class="s4">&quot;annotate&quot;</span>
+<a name="l208"><span class="ln">208  </span></a>            <span class="s3">)</span><span class="s2">:</span>
+<a name="l209"><span class="ln">209  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">generic_visit</span><span class="s3">(</span><span class="s1">node</span><span class="s3">)</span>
+<a name="l210"><span class="ln">210  </span></a>        <span class="s2">except </span><span class="s1">AttributeError</span><span class="s2">:</span>
+<a name="l211"><span class="ln">211  </span></a>            <span class="s0"># Looks like we didn't even have the right node structure</span>
+<a name="l212"><span class="ln">212  </span></a>            <span class="s0"># to check for `torch.jit.annotate` in the first place</span>
+<a name="l213"><span class="ln">213  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">generic_visit</span><span class="s3">(</span><span class="s1">node</span><span class="s3">)</span>
+<a name="l214"><span class="ln">214  </span></a>
+<a name="l215"><span class="ln">215  </span></a>        <span class="s0"># Invariant: we have a `torch.jit.annotate` or a</span>
+<a name="l216"><span class="ln">216  </span></a>        <span class="s0"># `torch.annotate` call</span>
+<a name="l217"><span class="ln">217  </span></a>
+<a name="l218"><span class="ln">218  </span></a>        <span class="s0"># A Call Node for `torch.jit.annotate` should have an `args`</span>
+<a name="l219"><span class="ln">219  </span></a>        <span class="s0"># list of length 2 where args[0] represents the annotation and</span>
+<a name="l220"><span class="ln">220  </span></a>        <span class="s0"># args[1] represents the actual value</span>
+<a name="l221"><span class="ln">221  </span></a>        <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">args</span><span class="s3">) </span><span class="s2">!= </span><span class="s5">2</span><span class="s2">:</span>
+<a name="l222"><span class="ln">222  </span></a>            <span class="s2">return</span>
+<a name="l223"><span class="ln">223  </span></a>
+<a name="l224"><span class="ln">224  </span></a>        <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">ast</span><span class="s3">.</span><span class="s1">Subscript</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l225"><span class="ln">225  </span></a>            <span class="s2">return</span>
+<a name="l226"><span class="ln">226  </span></a>
+<a name="l227"><span class="ln">227  </span></a>        <span class="s0"># See notes in `visit_AnnAssign` r.e. containers</span>
+<a name="l228"><span class="ln">228  </span></a>
+<a name="l229"><span class="ln">229  </span></a>        <span class="s1">containers </span><span class="s2">= </span><span class="s3">{</span><span class="s4">&quot;List&quot;</span><span class="s3">, </span><span class="s4">&quot;Dict&quot;</span><span class="s3">, </span><span class="s4">&quot;Optional&quot;</span><span class="s3">}</span>
+<a name="l230"><span class="ln">230  </span></a>
+<a name="l231"><span class="ln">231  </span></a>        <span class="s2">try:</span>
+<a name="l232"><span class="ln">232  </span></a>            <span class="s1">ann_type </span><span class="s2">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">value</span><span class="s3">.</span><span class="s1">id  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l233"><span class="ln">233  </span></a>        <span class="s2">except </span><span class="s1">AttributeError</span><span class="s2">:</span>
+<a name="l234"><span class="ln">234  </span></a>            <span class="s2">return</span>
+<a name="l235"><span class="ln">235  </span></a>
+<a name="l236"><span class="ln">236  </span></a>        <span class="s2">if </span><span class="s1">ann_type </span><span class="s2">not in </span><span class="s1">containers</span><span class="s2">:</span>
+<a name="l237"><span class="ln">237  </span></a>            <span class="s2">return</span>
+<a name="l238"><span class="ln">238  </span></a>
+<a name="l239"><span class="ln">239  </span></a>        <span class="s0"># Check if the assigned variable is empty</span>
+<a name="l240"><span class="ln">240  </span></a>        <span class="s2">if not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_is_empty_container</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">1</span><span class="s3">], </span><span class="s1">ann_type</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l241"><span class="ln">241  </span></a>            <span class="s2">return</span>
+<a name="l242"><span class="ln">242  </span></a>
+<a name="l243"><span class="ln">243  </span></a>        <span class="s1">warnings</span><span class="s3">.</span><span class="s1">warn</span><span class="s3">(</span>
+<a name="l244"><span class="ln">244  </span></a>            <span class="s4">&quot;The TorchScript type system doesn't support &quot;</span>
+<a name="l245"><span class="ln">245  </span></a>            <span class="s4">&quot;instance-level annotations on empty non-base &quot;</span>
+<a name="l246"><span class="ln">246  </span></a>            <span class="s4">&quot;types in `__init__`. Instead, either 1) use a &quot;</span>
+<a name="l247"><span class="ln">247  </span></a>            <span class="s4">&quot;type annotation in the class body, or 2) wrap &quot;</span>
+<a name="l248"><span class="ln">248  </span></a>            <span class="s4">&quot;the type in `torch.jit.Attribute`.&quot;</span>
+<a name="l249"><span class="ln">249  </span></a>        <span class="s3">)</span>
+<a name="l250"><span class="ln">250  </span></a></pre>
+</body>
+</html>

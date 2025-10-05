@@ -1,0 +1,1080 @@
+<html>
+<head>
+<title>TensorBase.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #000080; font-weight: bold;}
+.s2 { color: #0086b3;}
+.s3 { color: #660e7a; font-weight: bold;}
+.s4 { color: #969896; font-style: italic;}
+.s5 { color: #183691; font-weight: bold;}
+.s6 { color: #006666; font-weight: bold;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+TensorBase.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/Device.h&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/Layout.h&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/MemoryFormat.h&gt;</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/ScalarType.h&gt;</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/ScalarTypeToTypeMeta.h&gt;</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/Storage.h&gt;</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/SymIntArrayRef.h&gt;</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/TensorImpl.h&gt;</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/TensorOptions.h&gt;</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/UndefinedTensorImpl.h&gt;</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/WrapDimMinimal.h&gt;</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/C++</span><span class="s2">17</span><span class="s0">.h&gt;</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/Exception.h&gt;</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/ExclusivelyOwned.h&gt;</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/ExclusivelyOwnedTensorTraits.h&gt;</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/MaybeOwned.h&gt;</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s1">#include </span><span class="s0">&lt;optional&gt;</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/intrusive_ptr.h&gt;</span>
+<a name="l21"><span class="ln">21   </span></a>
+<a name="l22"><span class="ln">22   </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/core/NamedTensor.h&gt;</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/core/QuantizerBase.h&gt;</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/core/TensorAccessor.h&gt;</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/StorageUtils.h&gt;</span>
+<a name="l26"><span class="ln">26   </span></a>
+<a name="l27"><span class="ln">27   </span></a><span class="s3">namespace </span><span class="s0">c10 {</span>
+<a name="l28"><span class="ln">28   </span></a><span class="s3">class </span><span class="s0">Scalar;</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s0">}</span>
+<a name="l30"><span class="ln">30   </span></a>
+<a name="l31"><span class="ln">31   </span></a><span class="s3">namespace </span><span class="s0">torch::autograd {</span>
+<a name="l32"><span class="ln">32   </span></a>
+<a name="l33"><span class="ln">33   </span></a><span class="s1">struct </span><span class="s0">Node;</span>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a><span class="s0">} </span><span class="s4">// namespace torch::autograd</span>
+<a name="l36"><span class="ln">36   </span></a>
+<a name="l37"><span class="ln">37   </span></a><span class="s3">namespace </span><span class="s0">at {</span>
+<a name="l38"><span class="ln">38   </span></a>
+<a name="l39"><span class="ln">39   </span></a><span class="s3">class </span><span class="s0">Tensor;</span>
+<a name="l40"><span class="ln">40   </span></a><span class="s3">class </span><span class="s0">TensorBase;</span>
+<a name="l41"><span class="ln">41   </span></a>
+<a name="l42"><span class="ln">42   </span></a><span class="s4">// Convert Tensor to TensorBase without any need to include Tensor.h</span>
+<a name="l43"><span class="ln">43   </span></a><span class="s0">TORCH_API </span><span class="s1">const </span><span class="s0">TensorBase&amp; get_tensor_base(</span><span class="s1">const </span><span class="s0">Tensor&amp; t);</span>
+<a name="l44"><span class="ln">44   </span></a>
+<a name="l45"><span class="ln">45   </span></a><span class="s3">namespace </span><span class="s0">impl {</span>
+<a name="l46"><span class="ln">46   </span></a><span class="s3">inline </span><span class="s1">bool </span><span class="s0">variable_excluded_from_dispatch() {</span>
+<a name="l47"><span class="ln">47   </span></a><span class="s1">#ifdef </span><span class="s0">C10_MOBILE</span>
+<a name="l48"><span class="ln">48   </span></a>  <span class="s4">// Please read the comment in `VariableFallbackKernel.cpp` about the background of this change.</span>
+<a name="l49"><span class="ln">49   </span></a>  <span class="s1">return </span><span class="s3">true</span><span class="s0">;</span>
+<a name="l50"><span class="ln">50   </span></a><span class="s1">#else</span>
+<a name="l51"><span class="ln">51   </span></a>  <span class="s1">return </span><span class="s0">c10::impl::tls_local_dispatch_key_set().excluded_.isSupersetOf(c10::autograd_dispatch_keyset);</span>
+<a name="l52"><span class="ln">52   </span></a><span class="s1">#endif</span>
+<a name="l53"><span class="ln">53   </span></a><span class="s0">}</span>
+<a name="l54"><span class="ln">54   </span></a>
+<a name="l55"><span class="ln">55   </span></a><span class="s0">}</span>
+<a name="l56"><span class="ln">56   </span></a>
+<a name="l57"><span class="ln">57   </span></a><span class="s4">// NOTE: [Tensor vs. TensorBase]</span>
+<a name="l58"><span class="ln">58   </span></a><span class="s4">//</span>
+<a name="l59"><span class="ln">59   </span></a><span class="s4">// Tensor, being the central data structure in PyTorch, gets used and</span>
+<a name="l60"><span class="ln">60   </span></a><span class="s4">// its header included almost everywhere. Unfortunately this means</span>
+<a name="l61"><span class="ln">61   </span></a><span class="s4">// every time an operator signature is updated or changed in</span>
+<a name="l62"><span class="ln">62   </span></a><span class="s4">// native_functions.yaml, you (and every other PyTorch developer) need</span>
+<a name="l63"><span class="ln">63   </span></a><span class="s4">// to recompile all of ATen and its dependencies.</span>
+<a name="l64"><span class="ln">64   </span></a><span class="s4">//</span>
+<a name="l65"><span class="ln">65   </span></a><span class="s4">// TensorBase aims to break up these header dependencies, and improve</span>
+<a name="l66"><span class="ln">66   </span></a><span class="s4">// incremental build times for all PyTorch developers. TensorBase</span>
+<a name="l67"><span class="ln">67   </span></a><span class="s4">// represents a reference counted handle to TensorImpl, exactly the</span>
+<a name="l68"><span class="ln">68   </span></a><span class="s4">// same as Tensor. However, TensorBase doesn't have code generated</span>
+<a name="l69"><span class="ln">69   </span></a><span class="s4">// methods in its API and thus no dependence on native_functions.yaml.</span>
+<a name="l70"><span class="ln">70   </span></a><span class="s4">//</span>
+<a name="l71"><span class="ln">71   </span></a><span class="s4">// Usage tips</span>
+<a name="l72"><span class="ln">72   </span></a><span class="s4">// ----------</span>
+<a name="l73"><span class="ln">73   </span></a><span class="s4">// - You can `#define TORCH_ASSERT_NO_OPERATORS` at the top of a .cpp</span>
+<a name="l74"><span class="ln">74   </span></a><span class="s4">//   or .cu file to ensure it has no header dependencies on</span>
+<a name="l75"><span class="ln">75   </span></a><span class="s4">//   native_functions.yaml (direct or indirect).</span>
+<a name="l76"><span class="ln">76   </span></a><span class="s4">// - Tensor inherits from TensorBase, so functions taking</span>
+<a name="l77"><span class="ln">77   </span></a><span class="s4">//   `const TensorBase &amp;` are callable with Tensor as well.</span>
+<a name="l78"><span class="ln">78   </span></a><span class="s4">// - TensorBase can be converted to Tensor with `Tensor(tensor_base)`,</span>
+<a name="l79"><span class="ln">79   </span></a><span class="s4">//   but this requires a reference-count bump. OptionalTensorRef, on</span>
+<a name="l80"><span class="ln">80   </span></a><span class="s4">//   the other hand, can materialize a `const Tensor &amp;` without</span>
+<a name="l81"><span class="ln">81   </span></a><span class="s4">//   touching the reference-count.</span>
+<a name="l82"><span class="ln">82   </span></a><span class="s3">class </span><span class="s0">TORCH_API TensorBase {</span>
+<a name="l83"><span class="ln">83   </span></a> <span class="s3">public</span><span class="s0">:</span>
+<a name="l84"><span class="ln">84   </span></a>  <span class="s1">struct </span><span class="s0">unsafe_borrow_t { </span><span class="s3">explicit </span><span class="s0">unsafe_borrow_t() = </span><span class="s1">default</span><span class="s0">; };</span>
+<a name="l85"><span class="ln">85   </span></a>
+<a name="l86"><span class="ln">86   </span></a> <span class="s3">protected</span><span class="s0">:</span>
+<a name="l87"><span class="ln">87   </span></a>  <span class="s4">// Create a Tensor with a +0 reference count. Special care must be</span>
+<a name="l88"><span class="ln">88   </span></a>  <span class="s4">// taken to avoid decrementing this reference count at destruction</span>
+<a name="l89"><span class="ln">89   </span></a>  <span class="s4">// time. Intended to support MaybeOwnedTraits&lt;Tensor&gt;.</span>
+<a name="l90"><span class="ln">90   </span></a>  <span class="s3">explicit </span><span class="s0">TensorBase(unsafe_borrow_t, </span><span class="s1">const </span><span class="s0">TensorBase&amp; rhs)</span>
+<a name="l91"><span class="ln">91   </span></a>      <span class="s0">: impl_(c10::intrusive_ptr&lt;at::TensorImpl, UndefinedTensorImpl&gt;(rhs.impl_.get(), c10::raw::DontIncreaseRefcount{})) {}</span>
+<a name="l92"><span class="ln">92   </span></a>  <span class="s3">friend </span><span class="s0">MaybeOwnedTraits&lt;TensorBase&gt;;</span>
+<a name="l93"><span class="ln">93   </span></a>
+<a name="l94"><span class="ln">94   </span></a> <span class="s3">public</span><span class="s0">:</span>
+<a name="l95"><span class="ln">95   </span></a>  <span class="s0">TensorBase() = </span><span class="s1">default</span><span class="s0">;</span>
+<a name="l96"><span class="ln">96   </span></a>  <span class="s4">// This constructor should not be used by end users and is an implementation</span>
+<a name="l97"><span class="ln">97   </span></a>  <span class="s4">// detail invoked by autogenerated code.</span>
+<a name="l98"><span class="ln">98   </span></a>  <span class="s3">explicit </span><span class="s0">TensorBase(</span>
+<a name="l99"><span class="ln">99   </span></a>      <span class="s0">c10::intrusive_ptr&lt;TensorImpl, UndefinedTensorImpl&gt; tensor_impl)</span>
+<a name="l100"><span class="ln">100  </span></a>      <span class="s0">: impl_(std::move(tensor_impl)) {</span>
+<a name="l101"><span class="ln">101  </span></a>    <span class="s1">if </span><span class="s0">(impl_.get() == nullptr) {</span>
+<a name="l102"><span class="ln">102  </span></a>      <span class="s3">throw </span><span class="s0">std::runtime_error(</span><span class="s5">&quot;TensorImpl with nullptr is not supported&quot;</span><span class="s0">);</span>
+<a name="l103"><span class="ln">103  </span></a>    <span class="s0">}</span>
+<a name="l104"><span class="ln">104  </span></a>  <span class="s0">}</span>
+<a name="l105"><span class="ln">105  </span></a>  <span class="s0">TensorBase(</span><span class="s1">const </span><span class="s0">TensorBase&amp;) = </span><span class="s1">default</span><span class="s0">;</span>
+<a name="l106"><span class="ln">106  </span></a>  <span class="s0">TensorBase(TensorBase&amp;&amp;) noexcept = </span><span class="s1">default</span><span class="s0">;</span>
+<a name="l107"><span class="ln">107  </span></a>  <span class="s0">~TensorBase() noexcept = </span><span class="s1">default</span><span class="s0">;</span>
+<a name="l108"><span class="ln">108  </span></a>
+<a name="l109"><span class="ln">109  </span></a> <span class="s3">public</span><span class="s0">:</span>
+<a name="l110"><span class="ln">110  </span></a>  <span class="s4">// Creates a new wrapper from TensorImpl. Intentionally a free method because</span>
+<a name="l111"><span class="ln">111  </span></a>  <span class="s4">// it should be used with care. Checks necessary invariants</span>
+<a name="l112"><span class="ln">112  </span></a>  <span class="s1">static </span><span class="s0">TensorBase wrap_tensor_impl(</span>
+<a name="l113"><span class="ln">113  </span></a>      <span class="s0">c10::intrusive_ptr&lt;TensorImpl, UndefinedTensorImpl&gt; tensor_impl) {</span>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s0">TensorBase r(std::move(tensor_impl));</span>
+<a name="l115"><span class="ln">115  </span></a>    <span class="s0">r.enforce_invariants();</span>
+<a name="l116"><span class="ln">116  </span></a>    <span class="s1">return </span><span class="s0">r;</span>
+<a name="l117"><span class="ln">117  </span></a>  <span class="s0">}</span>
+<a name="l118"><span class="ln">118  </span></a>
+<a name="l119"><span class="ln">119  </span></a>  <span class="s0">int64_t dim() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">dim();</span>
+<a name="l121"><span class="ln">121  </span></a>  <span class="s0">}</span>
+<a name="l122"><span class="ln">122  </span></a>  <span class="s0">int64_t storage_offset() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l123"><span class="ln">123  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">storage_offset();</span>
+<a name="l124"><span class="ln">124  </span></a>  <span class="s0">}</span>
+<a name="l125"><span class="ln">125  </span></a>
+<a name="l126"><span class="ln">126  </span></a>  <span class="s0">TensorBase contiguous(MemoryFormat memory_format=MemoryFormat::Contiguous) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l127"><span class="ln">127  </span></a>    <span class="s1">if </span><span class="s0">(is_contiguous(memory_format)) {</span>
+<a name="l128"><span class="ln">128  </span></a>      <span class="s1">return </span><span class="s0">*</span><span class="s3">this</span><span class="s0">;</span>
+<a name="l129"><span class="ln">129  </span></a>    <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l130"><span class="ln">130  </span></a>      <span class="s1">return </span><span class="s0">__dispatch_contiguous(memory_format);</span>
+<a name="l131"><span class="ln">131  </span></a>    <span class="s0">}</span>
+<a name="l132"><span class="ln">132  </span></a>  <span class="s0">}</span>
+<a name="l133"><span class="ln">133  </span></a>
+<a name="l134"><span class="ln">134  </span></a>  <span class="s4">/// Should be used if *this can reasonably be expected to be contiguous and</span>
+<a name="l135"><span class="ln">135  </span></a>  <span class="s4">/// performance is important.</span>
+<a name="l136"><span class="ln">136  </span></a>  <span class="s4">/// Compared to contiguous, it saves a reference count</span>
+<a name="l137"><span class="ln">137  </span></a>  <span class="s4">/// increment/decrement if *this is already contiguous, at the cost</span>
+<a name="l138"><span class="ln">138  </span></a>  <span class="s4">/// in all cases of an extra pointer of stack usage, an extra branch</span>
+<a name="l139"><span class="ln">139  </span></a>  <span class="s4">/// to access, and an extra branch at destruction time.</span>
+<a name="l140"><span class="ln">140  </span></a>  <span class="s0">c10::MaybeOwned&lt;TensorBase&gt; expect_contiguous(</span>
+<a name="l141"><span class="ln">141  </span></a>      <span class="s0">MemoryFormat memory_format=MemoryFormat::Contiguous) </span><span class="s1">const </span><span class="s0">&amp;;</span>
+<a name="l142"><span class="ln">142  </span></a>
+<a name="l143"><span class="ln">143  </span></a>  <span class="s4">// Use .contiguous() instead. Trying to borrow from a prvalue</span>
+<a name="l144"><span class="ln">144  </span></a>  <span class="s4">// will only lead to trouble and dangling references.</span>
+<a name="l145"><span class="ln">145  </span></a>  <span class="s0">c10::MaybeOwned&lt;TensorBase&gt; expect_contiguous(</span>
+<a name="l146"><span class="ln">146  </span></a>      <span class="s0">MemoryFormat memory_format=MemoryFormat::Contiguous) &amp;&amp; = </span><span class="s1">delete</span><span class="s0">;</span>
+<a name="l147"><span class="ln">147  </span></a>
+<a name="l148"><span class="ln">148  </span></a>  <span class="s1">const </span><span class="s0">TensorBase&amp; fill_(</span><span class="s1">const </span><span class="s0">c10::Scalar&amp; scalar) </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l149"><span class="ln">149  </span></a>  <span class="s1">const </span><span class="s0">TensorBase&amp; zero_() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l150"><span class="ln">150  </span></a>
+<a name="l151"><span class="ln">151  </span></a>  <span class="s0">TensorBase to(at::TensorOptions options={}, </span><span class="s1">bool </span><span class="s0">non_blocking=</span><span class="s1">false</span><span class="s0">, </span><span class="s1">bool </span><span class="s0">copy=</span><span class="s1">false</span><span class="s0">, std::optional&lt;at::MemoryFormat&gt; memory_format=std::nullopt) </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l152"><span class="ln">152  </span></a>
+<a name="l153"><span class="ln">153  </span></a>  <span class="s1">bool </span><span class="s0">is_complex() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s1">return </span><span class="s0">at::isComplexType(</span><span class="s3">this</span><span class="s6">-&gt;</span><span class="s0">scalar_type());</span>
+<a name="l155"><span class="ln">155  </span></a>  <span class="s0">}</span>
+<a name="l156"><span class="ln">156  </span></a>
+<a name="l157"><span class="ln">157  </span></a>  <span class="s1">bool </span><span class="s0">is_floating_point() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l158"><span class="ln">158  </span></a>    <span class="s1">return </span><span class="s0">at::isFloatingType(</span><span class="s3">this</span><span class="s6">-&gt;</span><span class="s0">scalar_type());</span>
+<a name="l159"><span class="ln">159  </span></a>  <span class="s0">}</span>
+<a name="l160"><span class="ln">160  </span></a>
+<a name="l161"><span class="ln">161  </span></a>  <span class="s1">bool </span><span class="s0">is_signed() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l162"><span class="ln">162  </span></a>    <span class="s1">return </span><span class="s0">at::isSignedType(</span><span class="s3">this</span><span class="s6">-&gt;</span><span class="s0">scalar_type());</span>
+<a name="l163"><span class="ln">163  </span></a>  <span class="s0">}</span>
+<a name="l164"><span class="ln">164  </span></a>
+<a name="l165"><span class="ln">165  </span></a>  <span class="s0">c10::SymInt sym_size(int64_t dim) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l166"><span class="ln">166  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">sym_size(dim);</span>
+<a name="l167"><span class="ln">167  </span></a>  <span class="s0">}</span>
+<a name="l168"><span class="ln">168  </span></a>
+<a name="l169"><span class="ln">169  </span></a>  <span class="s0">c10::SymInt sym_stride(int64_t dim) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s1">const auto </span><span class="s0">sizes = </span><span class="s3">this</span><span class="s6">-&gt;</span><span class="s0">sym_strides();</span>
+<a name="l171"><span class="ln">171  </span></a>    <span class="s1">const auto </span><span class="s0">ndim = </span><span class="s3">static_cast</span><span class="s0">&lt;int64_t&gt;(sizes.size());</span>
+<a name="l172"><span class="ln">172  </span></a>    <span class="s4">// false is passed to maybe_wrap_dim so behavior is identical to array access (but with wrapping)</span>
+<a name="l173"><span class="ln">173  </span></a>    <span class="s1">return </span><span class="s0">sizes[c10::maybe_wrap_dim(dim, ndim, </span><span class="s4">/*wrap_scalar=*/</span><span class="s1">false</span><span class="s0">)];</span>
+<a name="l174"><span class="ln">174  </span></a>
+<a name="l175"><span class="ln">175  </span></a>  <span class="s0">}</span>
+<a name="l176"><span class="ln">176  </span></a>
+<a name="l177"><span class="ln">177  </span></a>  <span class="s0">int64_t size(int64_t dim) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l178"><span class="ln">178  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">size(dim);</span>
+<a name="l179"><span class="ln">179  </span></a>  <span class="s0">}</span>
+<a name="l180"><span class="ln">180  </span></a>
+<a name="l181"><span class="ln">181  </span></a>  <span class="s0">int64_t stride(int64_t dim) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l182"><span class="ln">182  </span></a>    <span class="s1">const auto </span><span class="s0">strides = </span><span class="s3">this</span><span class="s6">-&gt;</span><span class="s0">strides();</span>
+<a name="l183"><span class="ln">183  </span></a>    <span class="s1">const auto </span><span class="s0">ndim = </span><span class="s3">static_cast</span><span class="s0">&lt;int64_t&gt;(strides.size());</span>
+<a name="l184"><span class="ln">184  </span></a>    <span class="s4">// false is passed to maybe_wrap_dim so behavior is identical to array access (but with wrapping)</span>
+<a name="l185"><span class="ln">185  </span></a>    <span class="s1">return </span><span class="s0">strides[c10::maybe_wrap_dim(dim, ndim, </span><span class="s4">/*wrap_scalar=*/</span><span class="s1">false</span><span class="s0">)];</span>
+<a name="l186"><span class="ln">186  </span></a>  <span class="s0">}</span>
+<a name="l187"><span class="ln">187  </span></a>
+<a name="l188"><span class="ln">188  </span></a>  <span class="s0">TensorImpl * unsafeGetTensorImpl() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l189"><span class="ln">189  </span></a>    <span class="s1">return </span><span class="s0">impl_.get();</span>
+<a name="l190"><span class="ln">190  </span></a>  <span class="s0">}</span>
+<a name="l191"><span class="ln">191  </span></a>  <span class="s0">TensorImpl * unsafeReleaseTensorImpl() {</span>
+<a name="l192"><span class="ln">192  </span></a>    <span class="s1">return </span><span class="s0">impl_.release();</span>
+<a name="l193"><span class="ln">193  </span></a>  <span class="s0">}</span>
+<a name="l194"><span class="ln">194  </span></a>  <span class="s1">const </span><span class="s0">c10::intrusive_ptr&lt;TensorImpl, UndefinedTensorImpl&gt;&amp; getIntrusivePtr() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l195"><span class="ln">195  </span></a>    <span class="s1">return </span><span class="s0">impl_;</span>
+<a name="l196"><span class="ln">196  </span></a>  <span class="s0">}</span>
+<a name="l197"><span class="ln">197  </span></a>
+<a name="l198"><span class="ln">198  </span></a>  <span class="s0">c10::intrusive_ptr&lt;TensorImpl, UndefinedTensorImpl&gt; unsafeReleaseIntrusivePtr() {</span>
+<a name="l199"><span class="ln">199  </span></a>    <span class="s1">return </span><span class="s0">std::move(impl_);</span>
+<a name="l200"><span class="ln">200  </span></a>  <span class="s0">}</span>
+<a name="l201"><span class="ln">201  </span></a>
+<a name="l202"><span class="ln">202  </span></a>  <span class="s1">bool </span><span class="s0">defined() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l203"><span class="ln">203  </span></a>    <span class="s1">return </span><span class="s0">impl_;</span>
+<a name="l204"><span class="ln">204  </span></a>  <span class="s0">}</span>
+<a name="l205"><span class="ln">205  </span></a>
+<a name="l206"><span class="ln">206  </span></a>  <span class="s1">void </span><span class="s0">reset() {</span>
+<a name="l207"><span class="ln">207  </span></a>    <span class="s0">impl_.reset();</span>
+<a name="l208"><span class="ln">208  </span></a>  <span class="s0">}</span>
+<a name="l209"><span class="ln">209  </span></a>
+<a name="l210"><span class="ln">210  </span></a><span class="s1">#if </span><span class="s0">defined (_MSC_VER)</span>
+<a name="l211"><span class="ln">211  </span></a>  <span class="s0">TensorBase&amp; </span><span class="s3">operator</span><span class="s0">=(</span><span class="s1">const </span><span class="s0">TensorBase&amp; x) &amp; {</span>
+<a name="l212"><span class="ln">212  </span></a>    <span class="s0">impl_ = x.impl_;</span>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s1">return </span><span class="s0">*</span><span class="s3">this</span><span class="s0">;</span>
+<a name="l214"><span class="ln">214  </span></a>  <span class="s0">};</span>
+<a name="l215"><span class="ln">215  </span></a>  <span class="s0">TensorBase&amp; </span><span class="s3">operator</span><span class="s0">=(TensorBase&amp;&amp; x) &amp; noexcept {</span>
+<a name="l216"><span class="ln">216  </span></a>    <span class="s0">impl_ = std::move(x.impl_);</span>
+<a name="l217"><span class="ln">217  </span></a>    <span class="s1">return </span><span class="s0">*</span><span class="s3">this</span><span class="s0">;</span>
+<a name="l218"><span class="ln">218  </span></a>  <span class="s0">}</span>
+<a name="l219"><span class="ln">219  </span></a><span class="s1">#else</span>
+<a name="l220"><span class="ln">220  </span></a>  <span class="s0">TensorBase&amp; </span><span class="s3">operator</span><span class="s0">=(</span><span class="s1">const </span><span class="s0">TensorBase&amp; x) &amp; = </span><span class="s1">default</span><span class="s0">;</span>
+<a name="l221"><span class="ln">221  </span></a>  <span class="s0">TensorBase&amp; </span><span class="s3">operator</span><span class="s0">=(TensorBase&amp;&amp; x) &amp; noexcept = </span><span class="s1">default</span><span class="s0">;</span>
+<a name="l222"><span class="ln">222  </span></a><span class="s1">#endif</span>
+<a name="l223"><span class="ln">223  </span></a>
+<a name="l224"><span class="ln">224  </span></a>  <span class="s4">// Ban assignment to rvalues, since at::Tensor (weirdly) performs a deep copy here</span>
+<a name="l225"><span class="ln">225  </span></a>  <span class="s0">TensorBase&amp; </span><span class="s3">operator</span><span class="s0">=(</span><span class="s1">const </span><span class="s0">TensorBase&amp;) &amp;&amp; = </span><span class="s1">delete</span><span class="s0">;</span>
+<a name="l226"><span class="ln">226  </span></a>  <span class="s0">TensorBase&amp; </span><span class="s3">operator</span><span class="s0">=(TensorBase&amp;&amp;) &amp;&amp; noexcept = </span><span class="s1">delete</span><span class="s0">;</span>
+<a name="l227"><span class="ln">227  </span></a>
+<a name="l228"><span class="ln">228  </span></a>  <span class="s1">bool </span><span class="s0">is_same(</span><span class="s1">const </span><span class="s0">TensorBase&amp; other) </span><span class="s1">const </span><span class="s0">noexcept {</span>
+<a name="l229"><span class="ln">229  </span></a>    <span class="s1">return </span><span class="s0">impl_ == other.impl_;</span>
+<a name="l230"><span class="ln">230  </span></a>  <span class="s0">}</span>
+<a name="l231"><span class="ln">231  </span></a>  <span class="s0">size_t use_count() </span><span class="s1">const </span><span class="s0">noexcept {</span>
+<a name="l232"><span class="ln">232  </span></a>    <span class="s1">return </span><span class="s0">impl_.use_count();</span>
+<a name="l233"><span class="ln">233  </span></a>  <span class="s0">}</span>
+<a name="l234"><span class="ln">234  </span></a>  <span class="s0">size_t weak_use_count() </span><span class="s1">const </span><span class="s0">noexcept {</span>
+<a name="l235"><span class="ln">235  </span></a>    <span class="s1">return </span><span class="s0">impl_.weak_use_count();</span>
+<a name="l236"><span class="ln">236  </span></a>  <span class="s0">}</span>
+<a name="l237"><span class="ln">237  </span></a>
+<a name="l238"><span class="ln">238  </span></a>  <span class="s0">std::string toString() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l239"><span class="ln">239  </span></a>
+<a name="l240"><span class="ln">240  </span></a>  <span class="s0">IntArrayRef sizes() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l241"><span class="ln">241  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">sizes();</span>
+<a name="l242"><span class="ln">242  </span></a>  <span class="s0">}</span>
+<a name="l243"><span class="ln">243  </span></a>  <span class="s0">c10::SymIntArrayRef sym_sizes() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l244"><span class="ln">244  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">sym_sizes();</span>
+<a name="l245"><span class="ln">245  </span></a>  <span class="s0">}</span>
+<a name="l246"><span class="ln">246  </span></a>  <span class="s0">c10::SymIntArrayRef sym_strides() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l247"><span class="ln">247  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">sym_strides();</span>
+<a name="l248"><span class="ln">248  </span></a>  <span class="s0">}</span>
+<a name="l249"><span class="ln">249  </span></a>  <span class="s0">IntArrayRef strides() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l250"><span class="ln">250  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">strides();</span>
+<a name="l251"><span class="ln">251  </span></a>  <span class="s0">}</span>
+<a name="l252"><span class="ln">252  </span></a>  <span class="s4">// See impl::get_opt_names in ATen/NamedTensor.h for docs.</span>
+<a name="l253"><span class="ln">253  </span></a>  <span class="s0">std::optional&lt;DimnameList&gt; opt_names() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l254"><span class="ln">254  </span></a>    <span class="s1">return </span><span class="s0">impl::get_opt_names(unsafeGetTensorImpl());</span>
+<a name="l255"><span class="ln">255  </span></a>  <span class="s0">}</span>
+<a name="l256"><span class="ln">256  </span></a>  <span class="s4">// See impl::get_names in ATen/NamedTensor.h for docs.</span>
+<a name="l257"><span class="ln">257  </span></a>  <span class="s0">DimnameList names() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l258"><span class="ln">258  </span></a>    <span class="s1">return </span><span class="s0">impl::get_names(unsafeGetTensorImpl());</span>
+<a name="l259"><span class="ln">259  </span></a>  <span class="s0">}</span>
+<a name="l260"><span class="ln">260  </span></a>  <span class="s0">int64_t ndimension() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l261"><span class="ln">261  </span></a>    <span class="s1">return </span><span class="s0">dim();</span>
+<a name="l262"><span class="ln">262  </span></a>  <span class="s0">}</span>
+<a name="l263"><span class="ln">263  </span></a>
+<a name="l264"><span class="ln">264  </span></a>  <span class="s1">bool </span><span class="s0">is_contiguous(at::MemoryFormat memory_format=at::MemoryFormat::Contiguous) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l265"><span class="ln">265  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_contiguous(memory_format);</span>
+<a name="l266"><span class="ln">266  </span></a>  <span class="s0">}</span>
+<a name="l267"><span class="ln">267  </span></a>
+<a name="l268"><span class="ln">268  </span></a>  <span class="s1">bool </span><span class="s0">is_non_overlapping_and_dense() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l269"><span class="ln">269  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_non_overlapping_and_dense();</span>
+<a name="l270"><span class="ln">270  </span></a>  <span class="s0">}</span>
+<a name="l271"><span class="ln">271  </span></a>
+<a name="l272"><span class="ln">272  </span></a>  <span class="s0">at::MemoryFormat suggest_memory_format(</span>
+<a name="l273"><span class="ln">273  </span></a>      <span class="s1">bool </span><span class="s0">channels_last_strides_exact_match = </span><span class="s1">false</span><span class="s0">) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l274"><span class="ln">274  </span></a>    <span class="s4">// Setting channels_last_strides_exact_match to true forces function to</span>
+<a name="l275"><span class="ln">275  </span></a>    <span class="s4">// check 0,1 - sized dimension strides.</span>
+<a name="l276"><span class="ln">276  </span></a>    <span class="s1">if </span><span class="s0">(layout() == at::kStrided) {</span>
+<a name="l277"><span class="ln">277  </span></a>      <span class="s1">if </span><span class="s0">(impl_</span><span class="s6">-&gt;</span><span class="s0">is_strides_like_channels_last()) {</span>
+<a name="l278"><span class="ln">278  </span></a>        <span class="s1">if </span><span class="s0">(!channels_last_strides_exact_match ||</span>
+<a name="l279"><span class="ln">279  </span></a>            <span class="s0">get_channels_last_strides_2d(sizes()) == strides()) {</span>
+<a name="l280"><span class="ln">280  </span></a>          <span class="s1">return </span><span class="s0">at::MemoryFormat::ChannelsLast;</span>
+<a name="l281"><span class="ln">281  </span></a>        <span class="s0">}</span>
+<a name="l282"><span class="ln">282  </span></a>      <span class="s0">}</span>
+<a name="l283"><span class="ln">283  </span></a>      <span class="s1">else if </span><span class="s0">(impl_</span><span class="s6">-&gt;</span><span class="s0">is_strides_like_channels_last_3d()) {</span>
+<a name="l284"><span class="ln">284  </span></a>        <span class="s1">if </span><span class="s0">(!channels_last_strides_exact_match ||</span>
+<a name="l285"><span class="ln">285  </span></a>            <span class="s0">get_channels_last_strides_3d(sizes()) == strides()) {</span>
+<a name="l286"><span class="ln">286  </span></a>          <span class="s1">return </span><span class="s0">at::MemoryFormat::ChannelsLast3d;</span>
+<a name="l287"><span class="ln">287  </span></a>        <span class="s0">}</span>
+<a name="l288"><span class="ln">288  </span></a>      <span class="s0">}</span>
+<a name="l289"><span class="ln">289  </span></a>    <span class="s0">}</span>
+<a name="l290"><span class="ln">290  </span></a>    <span class="s1">return </span><span class="s0">at::MemoryFormat::Contiguous;</span>
+<a name="l291"><span class="ln">291  </span></a>  <span class="s0">}</span>
+<a name="l292"><span class="ln">292  </span></a>
+<a name="l293"><span class="ln">293  </span></a>  <span class="s4">// Total bytes consumed by the &quot;view&quot; of elements of the array.  Does not</span>
+<a name="l294"><span class="ln">294  </span></a>  <span class="s4">// include size of metadata.  The number reported here does not necessarily</span>
+<a name="l295"><span class="ln">295  </span></a>  <span class="s4">// correspond to the true physical memory consumed by a tensor; instead,</span>
+<a name="l296"><span class="ln">296  </span></a>  <span class="s4">// it reports the memory the tensor would take *if* it were contiguous.</span>
+<a name="l297"><span class="ln">297  </span></a>  <span class="s4">// Defined to be numel() * itemsize()</span>
+<a name="l298"><span class="ln">298  </span></a>  <span class="s0">size_t nbytes() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l299"><span class="ln">299  </span></a>    <span class="s0">TORCH_CHECK(layout () != at::kSparse,</span>
+<a name="l300"><span class="ln">300  </span></a>                <span class="s5">&quot;nbytes is not defined for sparse tensors.  If you want the size of the constituent &quot; </span><span class="s0">\</span>
+<a name="l301"><span class="ln">301  </span></a>                <span class="s5">&quot;tensors, add the nbytes of the indices and values.  If you want the size of the  &quot; </span><span class="s0">\</span>
+<a name="l302"><span class="ln">302  </span></a>                <span class="s5">&quot;equivalent dense tensor, multiply numel() by element_size()&quot;</span><span class="s0">);</span>
+<a name="l303"><span class="ln">303  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">numel() * impl_</span><span class="s6">-&gt;</span><span class="s0">itemsize();</span>
+<a name="l304"><span class="ln">304  </span></a>  <span class="s0">}</span>
+<a name="l305"><span class="ln">305  </span></a>
+<a name="l306"><span class="ln">306  </span></a>  <span class="s0">c10::SymInt sym_nbytes() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l307"><span class="ln">307  </span></a>    <span class="s0">TORCH_CHECK(layout () != at::kSparse,</span>
+<a name="l308"><span class="ln">308  </span></a>                <span class="s5">&quot;nbytes is not defined for sparse tensors.  If you want the size of the constituent &quot; </span><span class="s0">\</span>
+<a name="l309"><span class="ln">309  </span></a>                <span class="s5">&quot;tensors, add the nbytes of the indices and values.  If you want the size of the  &quot; </span><span class="s0">\</span>
+<a name="l310"><span class="ln">310  </span></a>                <span class="s5">&quot;equivalent dense tensor, multiply numel() by element_size()&quot;</span><span class="s0">);</span>
+<a name="l311"><span class="ln">311  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">sym_numel() * impl_</span><span class="s6">-&gt;</span><span class="s0">itemsize();</span>
+<a name="l312"><span class="ln">312  </span></a>  <span class="s0">}</span>
+<a name="l313"><span class="ln">313  </span></a>
+<a name="l314"><span class="ln">314  </span></a>  <span class="s0">int64_t numel() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l315"><span class="ln">315  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">numel();</span>
+<a name="l316"><span class="ln">316  </span></a>  <span class="s0">}</span>
+<a name="l317"><span class="ln">317  </span></a>
+<a name="l318"><span class="ln">318  </span></a>  <span class="s0">c10::SymInt sym_numel() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l319"><span class="ln">319  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">sym_numel();</span>
+<a name="l320"><span class="ln">320  </span></a>  <span class="s0">}</span>
+<a name="l321"><span class="ln">321  </span></a>
+<a name="l322"><span class="ln">322  </span></a>  <span class="s0">c10::SymInt sym_storage_offset() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l323"><span class="ln">323  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">sym_storage_offset();</span>
+<a name="l324"><span class="ln">324  </span></a>  <span class="s0">}</span>
+<a name="l325"><span class="ln">325  </span></a>
+<a name="l326"><span class="ln">326  </span></a>  <span class="s4">// Length of one array element in bytes.  This is the traditional</span>
+<a name="l327"><span class="ln">327  </span></a>  <span class="s4">// Numpy naming.</span>
+<a name="l328"><span class="ln">328  </span></a>  <span class="s0">size_t itemsize() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l329"><span class="ln">329  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">itemsize();</span>
+<a name="l330"><span class="ln">330  </span></a>  <span class="s0">}</span>
+<a name="l331"><span class="ln">331  </span></a>
+<a name="l332"><span class="ln">332  </span></a>  <span class="s4">// Same as itemsize().  This is the PyTorch naming.</span>
+<a name="l333"><span class="ln">333  </span></a>  <span class="s0">int64_t element_size() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l334"><span class="ln">334  </span></a>    <span class="s1">return </span><span class="s3">static_cast</span><span class="s0">&lt;int64_t&gt;(impl_</span><span class="s6">-&gt;</span><span class="s0">itemsize());</span>
+<a name="l335"><span class="ln">335  </span></a>  <span class="s0">}</span>
+<a name="l336"><span class="ln">336  </span></a>
+<a name="l337"><span class="ln">337  </span></a>  <span class="s0">DispatchKeySet key_set() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l338"><span class="ln">338  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">key_set();</span>
+<a name="l339"><span class="ln">339  </span></a>  <span class="s0">}</span>
+<a name="l340"><span class="ln">340  </span></a>  <span class="s0">ScalarType scalar_type() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l341"><span class="ln">341  </span></a>    <span class="s1">return </span><span class="s0">typeMetaToScalarType(impl_</span><span class="s6">-&gt;</span><span class="s0">dtype());</span>
+<a name="l342"><span class="ln">342  </span></a>  <span class="s0">}</span>
+<a name="l343"><span class="ln">343  </span></a>  <span class="s1">bool </span><span class="s0">has_storage() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l344"><span class="ln">344  </span></a>    <span class="s1">return </span><span class="s0">defined() &amp;&amp; impl_</span><span class="s6">-&gt;</span><span class="s0">has_storage();</span>
+<a name="l345"><span class="ln">345  </span></a>  <span class="s0">}</span>
+<a name="l346"><span class="ln">346  </span></a>  <span class="s1">const </span><span class="s0">Storage&amp; storage() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l347"><span class="ln">347  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">storage();</span>
+<a name="l348"><span class="ln">348  </span></a>  <span class="s0">}</span>
+<a name="l349"><span class="ln">349  </span></a>  <span class="s1">bool </span><span class="s0">is_alias_of(</span><span class="s1">const </span><span class="s0">at::TensorBase&amp; other) </span><span class="s1">const</span><span class="s0">{</span>
+<a name="l350"><span class="ln">350  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">storage().is_alias_of(other.storage());</span>
+<a name="l351"><span class="ln">351  </span></a>  <span class="s0">}</span>
+<a name="l352"><span class="ln">352  </span></a>
+<a name="l353"><span class="ln">353  </span></a>  <span class="s4">// Move the storage backend to shm based</span>
+<a name="l354"><span class="ln">354  </span></a>  <span class="s4">// to enable memory sharing across processes.</span>
+<a name="l355"><span class="ln">355  </span></a>  <span class="s4">//</span>
+<a name="l356"><span class="ln">356  </span></a>  <span class="s4">// NB1: the ideal behavior of this API still requires further discussion</span>
+<a name="l357"><span class="ln">357  </span></a>  <span class="s4">// but for now we are inclined to keep it consistent with existing THP behavior</span>
+<a name="l358"><span class="ln">358  </span></a>  <span class="s4">// https://github.com/pytorch/pytorch/blob/4dca9bde0552afc67b5b74f4a0696fe6055709c4/torch/storage.py#L196-L212</span>
+<a name="l359"><span class="ln">359  </span></a>  <span class="s4">// so we don't assert on anything here and rely on caller knowing</span>
+<a name="l360"><span class="ln">360  </span></a>  <span class="s4">// what it's doing.</span>
+<a name="l361"><span class="ln">361  </span></a>  <span class="s4">//</span>
+<a name="l362"><span class="ln">362  </span></a>  <span class="s4">// NB2: this currently provides Linux fd based shm support only</span>
+<a name="l363"><span class="ln">363  </span></a>  <span class="s4">// to simplify the storage lifetime management logic in ATen</span>
+<a name="l364"><span class="ln">364  </span></a>  <span class="s4">// and similarly for now we are not adding support for file system based</span>
+<a name="l365"><span class="ln">365  </span></a>  <span class="s4">// shm support like in THP due to additional GC manager support needed</span>
+<a name="l366"><span class="ln">366  </span></a>  <span class="s4">// to prevent leaks.</span>
+<a name="l367"><span class="ln">367  </span></a>  <span class="s4">// As such, calling this from non supported systems (e.g. Windows) would fail.</span>
+<a name="l368"><span class="ln">368  </span></a>  <span class="s1">void </span><span class="s0">share_memory_() {</span>
+<a name="l369"><span class="ln">369  </span></a>    <span class="s0">at::share_memory_(*</span><span class="s3">this</span><span class="s0">);</span>
+<a name="l370"><span class="ln">370  </span></a>  <span class="s0">}</span>
+<a name="l371"><span class="ln">371  </span></a>
+<a name="l372"><span class="ln">372  </span></a>  <span class="s3">inline </span><span class="s1">bool </span><span class="s0">_is_zerotensor() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l373"><span class="ln">373  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">_is_zerotensor();</span>
+<a name="l374"><span class="ln">374  </span></a>  <span class="s0">}</span>
+<a name="l375"><span class="ln">375  </span></a>
+<a name="l376"><span class="ln">376  </span></a>  <span class="s3">inline </span><span class="s1">void </span><span class="s0">_set_zero(</span><span class="s1">bool </span><span class="s0">zero) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l377"><span class="ln">377  </span></a>    <span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">_set_zero(zero);</span>
+<a name="l378"><span class="ln">378  </span></a>  <span class="s0">}</span>
+<a name="l379"><span class="ln">379  </span></a>
+<a name="l380"><span class="ln">380  </span></a>  <span class="s3">inline </span><span class="s1">bool </span><span class="s0">is_conj() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l381"><span class="ln">381  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_conj();</span>
+<a name="l382"><span class="ln">382  </span></a>  <span class="s0">}</span>
+<a name="l383"><span class="ln">383  </span></a>
+<a name="l384"><span class="ln">384  </span></a>  <span class="s4">// sets the conjugate bit of a tensor.</span>
+<a name="l385"><span class="ln">385  </span></a>  <span class="s4">// NOTE: Conjugate bit is supposed to be a read-only field. Only change this, if you are sure</span>
+<a name="l386"><span class="ln">386  </span></a>  <span class="s4">// that's what you want. Changing this might lead to incorrect behavior since conjugation is</span>
+<a name="l387"><span class="ln">387  </span></a>  <span class="s4">// a lazy operation and we rely on this bit to determine if a conjugation needs to be materialized.</span>
+<a name="l388"><span class="ln">388  </span></a>  <span class="s3">inline </span><span class="s1">void </span><span class="s0">_set_conj(</span><span class="s1">bool </span><span class="s0">conjugate) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l389"><span class="ln">389  </span></a>    <span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">_set_conj(conjugate);</span>
+<a name="l390"><span class="ln">390  </span></a>  <span class="s0">}</span>
+<a name="l391"><span class="ln">391  </span></a>
+<a name="l392"><span class="ln">392  </span></a>  <span class="s3">inline </span><span class="s1">bool </span><span class="s0">is_neg() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l393"><span class="ln">393  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_neg();</span>
+<a name="l394"><span class="ln">394  </span></a>  <span class="s0">}</span>
+<a name="l395"><span class="ln">395  </span></a>
+<a name="l396"><span class="ln">396  </span></a>  <span class="s4">// sets the negative bit of a tensor.</span>
+<a name="l397"><span class="ln">397  </span></a>  <span class="s4">// NOTE: Negative bit is supposed to be a read-only field. Only change this, if you are sure</span>
+<a name="l398"><span class="ln">398  </span></a>  <span class="s4">// that's what you want. Changing this might lead to incorrect behavior since we rely on this</span>
+<a name="l399"><span class="ln">399  </span></a>  <span class="s4">// bit to determine if a negation needs to be materialized.</span>
+<a name="l400"><span class="ln">400  </span></a>  <span class="s3">inline </span><span class="s1">void </span><span class="s0">_set_neg(</span><span class="s1">bool </span><span class="s0">negative) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l401"><span class="ln">401  </span></a>    <span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">_set_neg(negative);</span>
+<a name="l402"><span class="ln">402  </span></a>  <span class="s0">}</span>
+<a name="l403"><span class="ln">403  </span></a>
+<a name="l404"><span class="ln">404  </span></a>  <span class="s4">/// Returns a `Tensor`'s layout.</span>
+<a name="l405"><span class="ln">405  </span></a>  <span class="s0">Layout layout() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l406"><span class="ln">406  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">layout();</span>
+<a name="l407"><span class="ln">407  </span></a>  <span class="s0">}</span>
+<a name="l408"><span class="ln">408  </span></a>
+<a name="l409"><span class="ln">409  </span></a>  <span class="s4">/// Returns a `Tensor`'s dtype (`TypeMeta`).</span>
+<a name="l410"><span class="ln">410  </span></a>  <span class="s0">caffe2::TypeMeta dtype() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l411"><span class="ln">411  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">dtype();</span>
+<a name="l412"><span class="ln">412  </span></a>  <span class="s0">}</span>
+<a name="l413"><span class="ln">413  </span></a>
+<a name="l414"><span class="ln">414  </span></a>  <span class="s4">/// Returns a `Tensor`'s device.</span>
+<a name="l415"><span class="ln">415  </span></a>  <span class="s3">inline </span><span class="s0">Device device() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l416"><span class="ln">416  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">device();</span>
+<a name="l417"><span class="ln">417  </span></a>  <span class="s0">}</span>
+<a name="l418"><span class="ln">418  </span></a>
+<a name="l419"><span class="ln">419  </span></a>  <span class="s4">/// Returns a `Tensor`'s device index.</span>
+<a name="l420"><span class="ln">420  </span></a>  <span class="s0">DeviceIndex get_device() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l421"><span class="ln">421  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l422"><span class="ln">422  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">get_device();</span>
+<a name="l423"><span class="ln">423  </span></a>  <span class="s0">}</span>
+<a name="l424"><span class="ln">424  </span></a>
+<a name="l425"><span class="ln">425  </span></a>  <span class="s4">/// Returns if a `Tensor` has CPU backend.</span>
+<a name="l426"><span class="ln">426  </span></a>  <span class="s1">bool </span><span class="s0">is_cpu() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l427"><span class="ln">427  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l428"><span class="ln">428  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_cpu();</span>
+<a name="l429"><span class="ln">429  </span></a>  <span class="s0">}</span>
+<a name="l430"><span class="ln">430  </span></a>
+<a name="l431"><span class="ln">431  </span></a>  <span class="s4">/// Returns if a `Tensor` has CUDA backend.</span>
+<a name="l432"><span class="ln">432  </span></a>  <span class="s1">bool </span><span class="s0">is_cuda() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l433"><span class="ln">433  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l434"><span class="ln">434  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_cuda();</span>
+<a name="l435"><span class="ln">435  </span></a>  <span class="s0">}</span>
+<a name="l436"><span class="ln">436  </span></a>
+<a name="l437"><span class="ln">437  </span></a>  <span class="s4">/// Returns if a `Tensor` has IPU backend.</span>
+<a name="l438"><span class="ln">438  </span></a>  <span class="s1">bool </span><span class="s0">is_ipu() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l439"><span class="ln">439  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l440"><span class="ln">440  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_ipu();</span>
+<a name="l441"><span class="ln">441  </span></a>  <span class="s0">}</span>
+<a name="l442"><span class="ln">442  </span></a>
+<a name="l443"><span class="ln">443  </span></a>  <span class="s4">/// Returns if a `Tensor` has XPU backend.</span>
+<a name="l444"><span class="ln">444  </span></a>  <span class="s1">bool </span><span class="s0">is_xpu() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l445"><span class="ln">445  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l446"><span class="ln">446  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_xpu();</span>
+<a name="l447"><span class="ln">447  </span></a>  <span class="s0">}</span>
+<a name="l448"><span class="ln">448  </span></a>
+<a name="l449"><span class="ln">449  </span></a>  <span class="s4">/// Returns if a `Tensor` has XLA backend.</span>
+<a name="l450"><span class="ln">450  </span></a>  <span class="s1">bool </span><span class="s0">is_xla() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l451"><span class="ln">451  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_xla();</span>
+<a name="l452"><span class="ln">452  </span></a>  <span class="s0">}</span>
+<a name="l453"><span class="ln">453  </span></a>
+<a name="l454"><span class="ln">454  </span></a>  <span class="s4">/// Returns if a `Tensor` has MTIA backend.</span>
+<a name="l455"><span class="ln">455  </span></a>  <span class="s1">bool </span><span class="s0">is_mtia() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l456"><span class="ln">456  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_mtia();</span>
+<a name="l457"><span class="ln">457  </span></a>  <span class="s0">}</span>
+<a name="l458"><span class="ln">458  </span></a>
+<a name="l459"><span class="ln">459  </span></a>  <span class="s4">/// Returns if a `Tensor` has HPU backend.</span>
+<a name="l460"><span class="ln">460  </span></a>  <span class="s1">bool </span><span class="s0">is_hpu() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l461"><span class="ln">461  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_hpu();</span>
+<a name="l462"><span class="ln">462  </span></a>  <span class="s0">}</span>
+<a name="l463"><span class="ln">463  </span></a>
+<a name="l464"><span class="ln">464  </span></a>  <span class="s4">/// Returns if a `Tensor` has Lazy backend.</span>
+<a name="l465"><span class="ln">465  </span></a>  <span class="s1">bool </span><span class="s0">is_lazy() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l466"><span class="ln">466  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_lazy();</span>
+<a name="l467"><span class="ln">467  </span></a>  <span class="s0">}</span>
+<a name="l468"><span class="ln">468  </span></a>
+<a name="l469"><span class="ln">469  </span></a>  <span class="s4">/// Returns if a `Tensor` has HIP backend.</span>
+<a name="l470"><span class="ln">470  </span></a>  <span class="s1">bool </span><span class="s0">is_hip() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l471"><span class="ln">471  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l472"><span class="ln">472  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_hip();</span>
+<a name="l473"><span class="ln">473  </span></a>  <span class="s0">}</span>
+<a name="l474"><span class="ln">474  </span></a>
+<a name="l475"><span class="ln">475  </span></a>  <span class="s4">/// Returns if a `Tensor` has VE backend.</span>
+<a name="l476"><span class="ln">476  </span></a>  <span class="s1">bool </span><span class="s0">is_ve() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l477"><span class="ln">477  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l478"><span class="ln">478  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_ve();</span>
+<a name="l479"><span class="ln">479  </span></a>  <span class="s0">}</span>
+<a name="l480"><span class="ln">480  </span></a>
+<a name="l481"><span class="ln">481  </span></a>  <span class="s4">/// Returns if a `Tensor` has PrivateUse1 backend.</span>
+<a name="l482"><span class="ln">482  </span></a>  <span class="s1">bool </span><span class="s0">is_privateuseone() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l483"><span class="ln">483  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l484"><span class="ln">484  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_privateuseone();</span>
+<a name="l485"><span class="ln">485  </span></a>  <span class="s0">}</span>
+<a name="l486"><span class="ln">486  </span></a>
+<a name="l487"><span class="ln">487  </span></a>  <span class="s4">/// Returns if a `Tensor` has sparse backend.</span>
+<a name="l488"><span class="ln">488  </span></a>  <span class="s1">bool </span><span class="s0">is_sparse() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l489"><span class="ln">489  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l490"><span class="ln">490  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_sparse();</span>
+<a name="l491"><span class="ln">491  </span></a>  <span class="s0">}</span>
+<a name="l492"><span class="ln">492  </span></a>
+<a name="l493"><span class="ln">493  </span></a>  <span class="s4">/// Returns is a `Tensor` has a sparse CSR backend.</span>
+<a name="l494"><span class="ln">494  </span></a>  <span class="s1">bool </span><span class="s0">is_sparse_csr() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l495"><span class="ln">495  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l496"><span class="ln">496  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_sparse_csr();</span>
+<a name="l497"><span class="ln">497  </span></a>  <span class="s0">}</span>
+<a name="l498"><span class="ln">498  </span></a>
+<a name="l499"><span class="ln">499  </span></a>  <span class="s4">/// Returns if a `Tensor` is mkldnn tensor.</span>
+<a name="l500"><span class="ln">500  </span></a>  <span class="s1">bool </span><span class="s0">is_mkldnn() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l501"><span class="ln">501  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l502"><span class="ln">502  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_mkldnn();</span>
+<a name="l503"><span class="ln">503  </span></a>  <span class="s0">}</span>
+<a name="l504"><span class="ln">504  </span></a>
+<a name="l505"><span class="ln">505  </span></a>  <span class="s4">/// Returns if a `Tensor` is mps tensor.</span>
+<a name="l506"><span class="ln">506  </span></a>  <span class="s1">bool </span><span class="s0">is_mps() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l507"><span class="ln">507  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l508"><span class="ln">508  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_mps();</span>
+<a name="l509"><span class="ln">509  </span></a>  <span class="s0">}</span>
+<a name="l510"><span class="ln">510  </span></a>
+<a name="l511"><span class="ln">511  </span></a>  <span class="s4">/// Returns if a `Tensor` is maia tensor.</span>
+<a name="l512"><span class="ln">512  </span></a>  <span class="s1">bool </span><span class="s0">is_maia() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l513"><span class="ln">513  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l514"><span class="ln">514  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_maia();</span>
+<a name="l515"><span class="ln">515  </span></a>  <span class="s0">}</span>
+<a name="l516"><span class="ln">516  </span></a>
+<a name="l517"><span class="ln">517  </span></a>  <span class="s4">/// Returns if a `Tensor` is vulkan tensor.</span>
+<a name="l518"><span class="ln">518  </span></a>  <span class="s1">bool </span><span class="s0">is_vulkan() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l519"><span class="ln">519  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l520"><span class="ln">520  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_vulkan();</span>
+<a name="l521"><span class="ln">521  </span></a>  <span class="s0">}</span>
+<a name="l522"><span class="ln">522  </span></a>
+<a name="l523"><span class="ln">523  </span></a>  <span class="s4">/// Returns if a `Tensor` is metal tensor.</span>
+<a name="l524"><span class="ln">524  </span></a>  <span class="s1">bool </span><span class="s0">is_metal() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l525"><span class="ln">525  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l526"><span class="ln">526  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_metal();</span>
+<a name="l527"><span class="ln">527  </span></a>  <span class="s0">}</span>
+<a name="l528"><span class="ln">528  </span></a>
+<a name="l529"><span class="ln">529  </span></a>  <span class="s4">/// Returns if a `Tensor` has quantized backend.</span>
+<a name="l530"><span class="ln">530  </span></a>  <span class="s1">bool </span><span class="s0">is_quantized() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l531"><span class="ln">531  </span></a>    <span class="s4">// NB: this is not a native function to avoid dispatching overhead.</span>
+<a name="l532"><span class="ln">532  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_quantized();</span>
+<a name="l533"><span class="ln">533  </span></a>  <span class="s0">}</span>
+<a name="l534"><span class="ln">534  </span></a>
+<a name="l535"><span class="ln">535  </span></a>  <span class="s4">/// Returns if a `Tensor` is a meta tensor.  Meta tensors can</span>
+<a name="l536"><span class="ln">536  </span></a>  <span class="s4">/// also have other designations.</span>
+<a name="l537"><span class="ln">537  </span></a>  <span class="s1">bool </span><span class="s0">is_meta() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l538"><span class="ln">538  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_meta();</span>
+<a name="l539"><span class="ln">539  </span></a>  <span class="s0">}</span>
+<a name="l540"><span class="ln">540  </span></a>
+<a name="l541"><span class="ln">541  </span></a>  <span class="s4">/// Returns if a `Tensor` is an inference tensor.</span>
+<a name="l542"><span class="ln">542  </span></a>  <span class="s1">bool </span><span class="s0">is_inference() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l543"><span class="ln">543  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_inference();</span>
+<a name="l544"><span class="ln">544  </span></a>  <span class="s0">}</span>
+<a name="l545"><span class="ln">545  </span></a>
+<a name="l546"><span class="ln">546  </span></a>  <span class="s4">// Returns if a `Tensor` is a NestedTensor.</span>
+<a name="l547"><span class="ln">547  </span></a>  <span class="s1">bool </span><span class="s0">is_nested() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l548"><span class="ln">548  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">is_nested();</span>
+<a name="l549"><span class="ln">549  </span></a>  <span class="s0">}</span>
+<a name="l550"><span class="ln">550  </span></a>
+<a name="l551"><span class="ln">551  </span></a>  <span class="s4">/// If a tensor is a quantized tensor, returns its quantizer</span>
+<a name="l552"><span class="ln">552  </span></a>  <span class="s4">/// TODO: it's not in native_functions.yaml yet as it's not exposed to python</span>
+<a name="l553"><span class="ln">553  </span></a>  <span class="s0">QuantizerPtr quantizer() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l554"><span class="ln">554  </span></a>
+<a name="l555"><span class="ln">555  </span></a>  <span class="s4">/// Returns if a `Tensor` has any dimension names</span>
+<a name="l556"><span class="ln">556  </span></a>  <span class="s1">bool </span><span class="s0">has_names() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l557"><span class="ln">557  </span></a>    <span class="s4">// If a user is using unnamed tensors, then we can short-circuit right here.</span>
+<a name="l558"><span class="ln">558  </span></a>    <span class="s4">// Otherwise, impl::has_names attempts to retrieve names.</span>
+<a name="l559"><span class="ln">559  </span></a>    <span class="s1">if </span><span class="s0">(!impl_</span><span class="s6">-&gt;</span><span class="s0">has_named_tensor_meta()) {</span>
+<a name="l560"><span class="ln">560  </span></a>      <span class="s1">return false</span><span class="s0">;</span>
+<a name="l561"><span class="ln">561  </span></a>    <span class="s0">}</span>
+<a name="l562"><span class="ln">562  </span></a>    <span class="s1">return </span><span class="s0">impl::has_names(unsafeGetTensorImpl());</span>
+<a name="l563"><span class="ln">563  </span></a>  <span class="s0">}</span>
+<a name="l564"><span class="ln">564  </span></a>
+<a name="l565"><span class="ln">565  </span></a>  <span class="s4">/// Returns a `Tensor`'s dimension names data structure</span>
+<a name="l566"><span class="ln">566  </span></a>  <span class="s1">const </span><span class="s0">NamedTensorMeta* get_named_tensor_meta() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l567"><span class="ln">567  </span></a>    <span class="s1">return </span><span class="s3">static_cast</span><span class="s0">&lt;NamedTensorMeta*&gt;(impl_</span><span class="s6">-&gt;</span><span class="s0">named_tensor_meta());</span>
+<a name="l568"><span class="ln">568  </span></a>  <span class="s0">}</span>
+<a name="l569"><span class="ln">569  </span></a>
+<a name="l570"><span class="ln">570  </span></a>  <span class="s0">NamedTensorMeta* get_named_tensor_meta() {</span>
+<a name="l571"><span class="ln">571  </span></a>    <span class="s1">return </span><span class="s3">static_cast</span><span class="s0">&lt;NamedTensorMeta*&gt;(impl_</span><span class="s6">-&gt;</span><span class="s0">named_tensor_meta());</span>
+<a name="l572"><span class="ln">572  </span></a>  <span class="s0">}</span>
+<a name="l573"><span class="ln">573  </span></a>
+<a name="l574"><span class="ln">574  </span></a>  <span class="s4">/// Returns the `TensorOptions` corresponding to this `Tensor`. Defined in</span>
+<a name="l575"><span class="ln">575  </span></a>  <span class="s4">/// TensorOptions.h.</span>
+<a name="l576"><span class="ln">576  </span></a>  <span class="s0">TensorOptions options() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l577"><span class="ln">577  </span></a>    <span class="s1">return </span><span class="s0">TensorOptions().dtype(dtype())</span>
+<a name="l578"><span class="ln">578  </span></a>                          <span class="s0">.device(device())</span>
+<a name="l579"><span class="ln">579  </span></a>                          <span class="s0">.layout(layout());</span>
+<a name="l580"><span class="ln">580  </span></a>  <span class="s0">}</span>
+<a name="l581"><span class="ln">581  </span></a>
+<a name="l582"><span class="ln">582  </span></a>  <span class="s1">const void</span><span class="s0">* const_data_ptr() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l583"><span class="ln">583  </span></a>    <span class="s1">return </span><span class="s3">this</span><span class="s6">-&gt;</span><span class="s0">unsafeGetTensorImpl()</span><span class="s6">-&gt;</span><span class="s0">data();</span>
+<a name="l584"><span class="ln">584  </span></a>  <span class="s0">}</span>
+<a name="l585"><span class="ln">585  </span></a>
+<a name="l586"><span class="ln">586  </span></a>  <span class="s1">void</span><span class="s0">* mutable_data_ptr() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l587"><span class="ln">587  </span></a>    <span class="s1">return </span><span class="s3">this</span><span class="s6">-&gt;</span><span class="s0">unsafeGetTensorImpl()</span><span class="s6">-&gt;</span><span class="s0">mutable_data();</span>
+<a name="l588"><span class="ln">588  </span></a>  <span class="s0">}</span>
+<a name="l589"><span class="ln">589  </span></a>
+<a name="l590"><span class="ln">590  </span></a>  <span class="s4">// TODO(#97856) Make this return a const pointer. This currently</span>
+<a name="l591"><span class="ln">591  </span></a>  <span class="s4">//              returns a non-const pointer because of the large</span>
+<a name="l592"><span class="ln">592  </span></a>  <span class="s4">//              number of clients that we still want to audit before</span>
+<a name="l593"><span class="ln">593  </span></a>  <span class="s4">//              migrating to mutable_data_ptr().</span>
+<a name="l594"><span class="ln">594  </span></a>  <span class="s1">void</span><span class="s0">* data_ptr() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l595"><span class="ln">595  </span></a>    <span class="s1">return </span><span class="s0">mutable_data_ptr();</span>
+<a name="l596"><span class="ln">596  </span></a>  <span class="s0">}</span>
+<a name="l597"><span class="ln">597  </span></a>
+<a name="l598"><span class="ln">598  </span></a>  <span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T, std::enable_if_t&lt;!std::is_const_v&lt;T&gt;, </span><span class="s1">int</span><span class="s0">&gt; = </span><span class="s2">0</span><span class="s0">&gt;</span>
+<a name="l599"><span class="ln">599  </span></a>  <span class="s1">const </span><span class="s0">T* const_data_ptr() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l600"><span class="ln">600  </span></a>
+<a name="l601"><span class="ln">601  </span></a>  <span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T, std::enable_if_t&lt;std::is_const_v&lt;T&gt;, </span><span class="s1">int</span><span class="s0">&gt; = </span><span class="s2">0</span><span class="s0">&gt;</span>
+<a name="l602"><span class="ln">602  </span></a>  <span class="s1">const </span><span class="s0">std::remove_const_t&lt;T&gt;* const_data_ptr() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l603"><span class="ln">603  </span></a>
+<a name="l604"><span class="ln">604  </span></a>  <span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T&gt;</span>
+<a name="l605"><span class="ln">605  </span></a>  <span class="s0">T* mutable_data_ptr() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l606"><span class="ln">606  </span></a>
+<a name="l607"><span class="ln">607  </span></a>  <span class="s4">// Legacy interface during the migration to indicate that a callsite</span>
+<a name="l608"><span class="ln">608  </span></a>  <span class="s4">// has not been audited for mutability.</span>
+<a name="l609"><span class="ln">609  </span></a>  <span class="s4">//</span>
+<a name="l610"><span class="ln">610  </span></a>  <span class="s4">// Do not add new uses of this, use const_data_ptr() if possible,</span>
+<a name="l611"><span class="ln">611  </span></a>  <span class="s4">// mutable_data_ptr() otherwise.</span>
+<a name="l612"><span class="ln">612  </span></a>  <span class="s4">//</span>
+<a name="l613"><span class="ln">613  </span></a>  <span class="s4">// TODO(#97856) Make this return a const pointer. This is currently</span>
+<a name="l614"><span class="ln">614  </span></a>  <span class="s4">//              const because of the vast number of clients that</span>
+<a name="l615"><span class="ln">615  </span></a>  <span class="s4">//              rely on this.</span>
+<a name="l616"><span class="ln">616  </span></a>  <span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T&gt;</span>
+<a name="l617"><span class="ln">617  </span></a>  <span class="s0">T* data_ptr() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l618"><span class="ln">618  </span></a>
+<a name="l619"><span class="ln">619  </span></a>  <span class="s4">// Purposely not defined here to avoid inlining</span>
+<a name="l620"><span class="ln">620  </span></a>  <span class="s1">void </span><span class="s0">print() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l621"><span class="ln">621  </span></a>
+<a name="l622"><span class="ln">622  </span></a>  <span class="s4">// Return a `TensorAccessor` for CPU `Tensor`s. You have to specify scalar type and</span>
+<a name="l623"><span class="ln">623  </span></a>  <span class="s4">// dimension.</span>
+<a name="l624"><span class="ln">624  </span></a>  <span class="s0">template&lt;</span><span class="s3">typename </span><span class="s0">T, size_t N&gt;</span>
+<a name="l625"><span class="ln">625  </span></a>  <span class="s0">TensorAccessor&lt;T,N&gt; accessor() </span><span class="s1">const</span><span class="s0">&amp; {</span>
+<a name="l626"><span class="ln">626  </span></a>    <span class="s0">static_assert(N &gt; </span><span class="s2">0</span><span class="s0">, </span><span class="s5">&quot;accessor is used for indexing tensor, for scalars use *data_ptr&lt;T&gt;()&quot;</span><span class="s0">);</span>
+<a name="l627"><span class="ln">627  </span></a>    <span class="s0">TORCH_CHECK(dim() == N, </span><span class="s5">&quot;TensorAccessor expected &quot;</span><span class="s0">, N, </span><span class="s5">&quot; dims but tensor has &quot;</span><span class="s0">, dim());</span>
+<a name="l628"><span class="ln">628  </span></a>    <span class="s0">T* ptr = nullptr;</span>
+<a name="l629"><span class="ln">629  </span></a>    <span class="s1">if </span><span class="s0">constexpr (std::is_const_v&lt;T&gt;) {</span>
+<a name="l630"><span class="ln">630  </span></a>      <span class="s0">ptr = const_data_ptr&lt;T&gt;();</span>
+<a name="l631"><span class="ln">631  </span></a>    <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l632"><span class="ln">632  </span></a>      <span class="s0">ptr = mutable_data_ptr&lt;T&gt;();</span>
+<a name="l633"><span class="ln">633  </span></a>    <span class="s0">}</span>
+<a name="l634"><span class="ln">634  </span></a>    <span class="s1">return </span><span class="s0">TensorAccessor&lt;T,N&gt;(ptr,sizes().data(),strides().data());</span>
+<a name="l635"><span class="ln">635  </span></a>  <span class="s0">}</span>
+<a name="l636"><span class="ln">636  </span></a>  <span class="s0">template&lt;</span><span class="s3">typename </span><span class="s0">T, size_t N&gt;</span>
+<a name="l637"><span class="ln">637  </span></a>  <span class="s0">TensorAccessor&lt;T,N&gt; accessor() &amp;&amp; = </span><span class="s1">delete</span><span class="s0">;</span>
+<a name="l638"><span class="ln">638  </span></a>
+<a name="l639"><span class="ln">639  </span></a>  <span class="s4">// Return a `GenericPackedTensorAccessor` for CUDA `Tensor`s. You have to specify scalar type and</span>
+<a name="l640"><span class="ln">640  </span></a>  <span class="s4">// dimension. You can optionally specify RestrictPtrTraits as a template parameter to</span>
+<a name="l641"><span class="ln">641  </span></a>  <span class="s4">// cast the data pointer to a __restrict__ pointer.</span>
+<a name="l642"><span class="ln">642  </span></a>  <span class="s4">// In order to use this, your CUDA kernel has to take a corresponding GenericPackedTensorAccessor</span>
+<a name="l643"><span class="ln">643  </span></a>  <span class="s4">// as an argument.</span>
+<a name="l644"><span class="ln">644  </span></a>  <span class="s0">template&lt;</span><span class="s3">typename </span><span class="s0">T, size_t N, template &lt;</span><span class="s3">typename </span><span class="s0">U&gt; </span><span class="s3">class </span><span class="s0">PtrTraits = DefaultPtrTraits, </span><span class="s3">typename </span><span class="s0">index_t = int64_t&gt;</span>
+<a name="l645"><span class="ln">645  </span></a>  <span class="s0">GenericPackedTensorAccessor&lt;T,N,PtrTraits,index_t&gt; generic_packed_accessor() </span><span class="s1">const</span><span class="s0">&amp; {</span>
+<a name="l646"><span class="ln">646  </span></a>    <span class="s0">static_assert(N &gt; </span><span class="s2">0</span><span class="s0">, </span><span class="s5">&quot;accessor is used for indexing tensor, for scalars use *data_ptr&lt;T&gt;()&quot;</span><span class="s0">);</span>
+<a name="l647"><span class="ln">647  </span></a>    <span class="s0">TORCH_CHECK(dim() == N, </span><span class="s5">&quot;TensorAccessor expected &quot;</span><span class="s0">, N, </span><span class="s5">&quot; dims but tensor has &quot;</span><span class="s0">, dim());</span>
+<a name="l648"><span class="ln">648  </span></a>    <span class="s0">T* ptr = nullptr;</span>
+<a name="l649"><span class="ln">649  </span></a>    <span class="s1">if </span><span class="s0">constexpr (std::is_const_v&lt;T&gt;) {</span>
+<a name="l650"><span class="ln">650  </span></a>      <span class="s0">ptr = const_data_ptr&lt;T&gt;();</span>
+<a name="l651"><span class="ln">651  </span></a>    <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l652"><span class="ln">652  </span></a>      <span class="s0">ptr = mutable_data_ptr&lt;T&gt;();</span>
+<a name="l653"><span class="ln">653  </span></a>    <span class="s0">}</span>
+<a name="l654"><span class="ln">654  </span></a>    <span class="s1">return </span><span class="s0">GenericPackedTensorAccessor&lt;T,N,PtrTraits,index_t&gt;(</span><span class="s3">static_cast</span><span class="s0">&lt;</span><span class="s3">typename </span><span class="s0">PtrTraits&lt;T&gt;::PtrType&gt;(ptr),sizes().data(),strides().data());</span>
+<a name="l655"><span class="ln">655  </span></a>  <span class="s0">}</span>
+<a name="l656"><span class="ln">656  </span></a>  <span class="s0">template&lt;</span><span class="s3">typename </span><span class="s0">T, size_t N, template &lt;</span><span class="s3">typename </span><span class="s0">U&gt; </span><span class="s3">class </span><span class="s0">PtrTraits = DefaultPtrTraits, </span><span class="s3">typename </span><span class="s0">index_t = int64_t&gt;</span>
+<a name="l657"><span class="ln">657  </span></a>  <span class="s0">GenericPackedTensorAccessor&lt;T,N&gt; generic_packed_accessor() &amp;&amp; = </span><span class="s1">delete</span><span class="s0">;</span>
+<a name="l658"><span class="ln">658  </span></a>
+<a name="l659"><span class="ln">659  </span></a>  <span class="s0">template&lt;</span><span class="s3">typename </span><span class="s0">T, size_t N, template &lt;</span><span class="s3">typename </span><span class="s0">U&gt; </span><span class="s3">class </span><span class="s0">PtrTraits = DefaultPtrTraits&gt;</span>
+<a name="l660"><span class="ln">660  </span></a>  <span class="s0">PackedTensorAccessor32&lt;T,N,PtrTraits&gt; packed_accessor32() </span><span class="s1">const</span><span class="s0">&amp; {</span>
+<a name="l661"><span class="ln">661  </span></a>    <span class="s0">TORCH_CHECK(</span>
+<a name="l662"><span class="ln">662  </span></a>        <span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">numel() &lt;=</span>
+<a name="l663"><span class="ln">663  </span></a>            <span class="s3">static_cast</span><span class="s0">&lt;int64_t&gt;(std::numeric_limits&lt;int32_t&gt;::max()),</span>
+<a name="l664"><span class="ln">664  </span></a>        <span class="s5">&quot;numel needs to be smaller than int32_t max; otherwise, please use packed_accessor64&quot;</span><span class="s0">);</span>
+<a name="l665"><span class="ln">665  </span></a>    <span class="s1">return </span><span class="s0">generic_packed_accessor&lt;T,N,PtrTraits,int32_t&gt;();</span>
+<a name="l666"><span class="ln">666  </span></a>  <span class="s0">}</span>
+<a name="l667"><span class="ln">667  </span></a>  <span class="s0">template&lt;</span><span class="s3">typename </span><span class="s0">T, size_t N, template &lt;</span><span class="s3">typename </span><span class="s0">U&gt; </span><span class="s3">class </span><span class="s0">PtrTraits = DefaultPtrTraits&gt;</span>
+<a name="l668"><span class="ln">668  </span></a>  <span class="s0">PackedTensorAccessor32&lt;T,N,PtrTraits&gt; packed_accessor32() &amp;&amp; = </span><span class="s1">delete</span><span class="s0">;</span>
+<a name="l669"><span class="ln">669  </span></a>
+<a name="l670"><span class="ln">670  </span></a>  <span class="s0">template&lt;</span><span class="s3">typename </span><span class="s0">T, size_t N, template &lt;</span><span class="s3">typename </span><span class="s0">U&gt; </span><span class="s3">class </span><span class="s0">PtrTraits = DefaultPtrTraits&gt;</span>
+<a name="l671"><span class="ln">671  </span></a>  <span class="s0">PackedTensorAccessor64&lt;T,N,PtrTraits&gt; packed_accessor64() </span><span class="s1">const</span><span class="s0">&amp; {</span>
+<a name="l672"><span class="ln">672  </span></a>    <span class="s1">return </span><span class="s0">generic_packed_accessor&lt;T,N,PtrTraits,int64_t&gt;();</span>
+<a name="l673"><span class="ln">673  </span></a>  <span class="s0">}</span>
+<a name="l674"><span class="ln">674  </span></a>  <span class="s0">template&lt;</span><span class="s3">typename </span><span class="s0">T, size_t N, template &lt;</span><span class="s3">typename </span><span class="s0">U&gt; </span><span class="s3">class </span><span class="s0">PtrTraits = DefaultPtrTraits&gt;</span>
+<a name="l675"><span class="ln">675  </span></a>  <span class="s0">PackedTensorAccessor64&lt;T,N,PtrTraits&gt; packed_accessor64() &amp;&amp; = </span><span class="s1">delete</span><span class="s0">;</span>
+<a name="l676"><span class="ln">676  </span></a>
+<a name="l677"><span class="ln">677  </span></a>  <span class="s4">// ~~~~~ Autograd API ~~~~~</span>
+<a name="l678"><span class="ln">678  </span></a>
+<a name="l679"><span class="ln">679  </span></a>  <span class="s4">/// \fn bool is_leaf() const;</span>
+<a name="l680"><span class="ln">680  </span></a>  <span class="s4">///</span>
+<a name="l681"><span class="ln">681  </span></a>  <span class="s4">/// All Tensors that have `requires_grad()` which is ``false`` will be leaf Tensors by convention.</span>
+<a name="l682"><span class="ln">682  </span></a>  <span class="s4">///</span>
+<a name="l683"><span class="ln">683  </span></a>  <span class="s4">/// For Tensors that have `requires_grad()` which is ``true``, they will be leaf Tensors if they were</span>
+<a name="l684"><span class="ln">684  </span></a>  <span class="s4">/// created by the user. This means that they are not the result of an operation and so</span>
+<a name="l685"><span class="ln">685  </span></a>  <span class="s4">/// `grad_fn()` is `nullptr`.</span>
+<a name="l686"><span class="ln">686  </span></a>  <span class="s4">///</span>
+<a name="l687"><span class="ln">687  </span></a>  <span class="s4">/// Only leaf Tensors will have their `grad()` populated during a call to `backward()`.</span>
+<a name="l688"><span class="ln">688  </span></a>  <span class="s4">/// To get `grad()` populated for non-leaf Tensors, you can use `retain_grad()`.</span>
+<a name="l689"><span class="ln">689  </span></a>  <span class="s4">///</span>
+<a name="l690"><span class="ln">690  </span></a>  <span class="s4">/// Example:</span>
+<a name="l691"><span class="ln">691  </span></a>  <span class="s4">/// @code</span>
+<a name="l692"><span class="ln">692  </span></a>  <span class="s4">/// auto a = torch::rand(10, torch::requires_grad());</span>
+<a name="l693"><span class="ln">693  </span></a>  <span class="s4">/// std::cout &lt;&lt; a.is_leaf() &lt;&lt; std::endl; // prints `true`</span>
+<a name="l694"><span class="ln">694  </span></a>  <span class="s4">///</span>
+<a name="l695"><span class="ln">695  </span></a>  <span class="s4">/// auto b = torch::rand(10, torch::requires_grad()).to(torch::kCUDA);</span>
+<a name="l696"><span class="ln">696  </span></a>  <span class="s4">/// std::cout &lt;&lt; b.is_leaf() &lt;&lt; std::endl; // prints `false`</span>
+<a name="l697"><span class="ln">697  </span></a>  <span class="s4">/// // b was created by the operation that cast a cpu Tensor into a cuda Tensor</span>
+<a name="l698"><span class="ln">698  </span></a>  <span class="s4">///</span>
+<a name="l699"><span class="ln">699  </span></a>  <span class="s4">/// auto c = torch::rand(10, torch::requires_grad()) + 2;</span>
+<a name="l700"><span class="ln">700  </span></a>  <span class="s4">/// std::cout &lt;&lt; c.is_leaf() &lt;&lt; std::endl; // prints `false`</span>
+<a name="l701"><span class="ln">701  </span></a>  <span class="s4">/// // c was created by the addition operation</span>
+<a name="l702"><span class="ln">702  </span></a>  <span class="s4">///</span>
+<a name="l703"><span class="ln">703  </span></a>  <span class="s4">/// auto d = torch::rand(10).cuda();</span>
+<a name="l704"><span class="ln">704  </span></a>  <span class="s4">/// std::cout &lt;&lt; d.is_leaf() &lt;&lt; std::endl; // prints `true`</span>
+<a name="l705"><span class="ln">705  </span></a>  <span class="s4">/// // d does not require gradients and so has no operation creating it (that is tracked by the autograd engine)</span>
+<a name="l706"><span class="ln">706  </span></a>  <span class="s4">///</span>
+<a name="l707"><span class="ln">707  </span></a>  <span class="s4">/// auto e = torch::rand(10).cuda().requires_grad_();</span>
+<a name="l708"><span class="ln">708  </span></a>  <span class="s4">/// std::cout &lt;&lt; e.is_leaf() &lt;&lt; std::endl; // prints `true`</span>
+<a name="l709"><span class="ln">709  </span></a>  <span class="s4">/// // e requires gradients and has no operations creating it</span>
+<a name="l710"><span class="ln">710  </span></a>  <span class="s4">///</span>
+<a name="l711"><span class="ln">711  </span></a>  <span class="s4">/// auto f = torch::rand(10, torch::device(torch::kCUDA).requires_grad(true));</span>
+<a name="l712"><span class="ln">712  </span></a>  <span class="s4">/// std::cout &lt;&lt; f.is_leaf() &lt;&lt; std::endl; // prints `true`</span>
+<a name="l713"><span class="ln">713  </span></a>  <span class="s4">/// // f requires grad, has no operation creating it</span>
+<a name="l714"><span class="ln">714  </span></a>  <span class="s4">/// @endcode</span>
+<a name="l715"><span class="ln">715  </span></a>
+<a name="l716"><span class="ln">716  </span></a>  <span class="s4">/// \fn void backward(const Tensor &amp; gradient={}, std::optional&lt;bool&gt; retain_graph=std::nullopt, bool create_graph=false, std::optional&lt;TensorList&gt; inputs=std::nullopt) const;</span>
+<a name="l717"><span class="ln">717  </span></a>  <span class="s4">///</span>
+<a name="l718"><span class="ln">718  </span></a>  <span class="s4">/// Computes the gradient of current tensor with respect to graph leaves.</span>
+<a name="l719"><span class="ln">719  </span></a>  <span class="s4">///</span>
+<a name="l720"><span class="ln">720  </span></a>  <span class="s4">/// The graph is differentiated using the chain rule. If the tensor is</span>
+<a name="l721"><span class="ln">721  </span></a>  <span class="s4">/// non-scalar (i.e. its data has more than one element) and requires</span>
+<a name="l722"><span class="ln">722  </span></a>  <span class="s4">/// gradient, the function additionally requires specifying ``gradient``.</span>
+<a name="l723"><span class="ln">723  </span></a>  <span class="s4">/// It should be a tensor of matching type and location, that contains</span>
+<a name="l724"><span class="ln">724  </span></a>  <span class="s4">/// the gradient of the differentiated function w.r.t. this Tensor.</span>
+<a name="l725"><span class="ln">725  </span></a>  <span class="s4">///</span>
+<a name="l726"><span class="ln">726  </span></a>  <span class="s4">/// This function accumulates gradients in the leaves - you might need to</span>
+<a name="l727"><span class="ln">727  </span></a>  <span class="s4">/// zero them before calling it.</span>
+<a name="l728"><span class="ln">728  </span></a>  <span class="s4">///</span>
+<a name="l729"><span class="ln">729  </span></a>  <span class="s4">/// \param gradient Gradient w.r.t. the</span>
+<a name="l730"><span class="ln">730  </span></a>  <span class="s4">///     tensor. If it is a tensor, it will be automatically converted</span>
+<a name="l731"><span class="ln">731  </span></a>  <span class="s4">///     to a Tensor that does not require grad unless ``create_graph`` is True.</span>
+<a name="l732"><span class="ln">732  </span></a>  <span class="s4">///     None values can be specified for scalar Tensors or ones that</span>
+<a name="l733"><span class="ln">733  </span></a>  <span class="s4">///     don't require grad. If a None value would be acceptable then</span>
+<a name="l734"><span class="ln">734  </span></a>  <span class="s4">///     this argument is optional.</span>
+<a name="l735"><span class="ln">735  </span></a>  <span class="s4">/// \param retain_graph If ``false``, the graph used to compute</span>
+<a name="l736"><span class="ln">736  </span></a>  <span class="s4">///     the grads will be freed. Note that in nearly all cases setting</span>
+<a name="l737"><span class="ln">737  </span></a>  <span class="s4">///     this option to True is not needed and often can be worked around</span>
+<a name="l738"><span class="ln">738  </span></a>  <span class="s4">///     in a much more efficient way. Defaults to the value of</span>
+<a name="l739"><span class="ln">739  </span></a>  <span class="s4">///     ``create_graph``.</span>
+<a name="l740"><span class="ln">740  </span></a>  <span class="s4">/// \param create_graph If ``true``, graph of the derivative will</span>
+<a name="l741"><span class="ln">741  </span></a>  <span class="s4">///     be constructed, allowing to compute higher order derivative</span>
+<a name="l742"><span class="ln">742  </span></a>  <span class="s4">///     products. Defaults to ``false``.</span>
+<a name="l743"><span class="ln">743  </span></a>  <span class="s4">/// \param inputs Inputs w.r.t. which the gradient will be accumulated into</span>
+<a name="l744"><span class="ln">744  </span></a>  <span class="s4">///     ``at::Tensor::grad``. All other Tensors will be ignored. If not</span>
+<a name="l745"><span class="ln">745  </span></a>  <span class="s4">///     provided, the gradient is accumulated into all the leaf Tensors</span>
+<a name="l746"><span class="ln">746  </span></a>  <span class="s4">///     that were used to compute the current tensor.</span>
+<a name="l747"><span class="ln">747  </span></a>  <span class="s4">///     When inputs are provided and a given input is not a leaf,</span>
+<a name="l748"><span class="ln">748  </span></a>  <span class="s4">///     the current implementation will call its grad_fn (even though it is not strictly needed to get this gradients).</span>
+<a name="l749"><span class="ln">749  </span></a>  <span class="s4">///     It is an implementation detail on which the user should not rely.</span>
+<a name="l750"><span class="ln">750  </span></a>  <span class="s4">///     See https://github.com/pytorch/pytorch/pull/60521#issuecomment-867061780 for more details.</span>
+<a name="l751"><span class="ln">751  </span></a>
+<a name="l752"><span class="ln">752  </span></a>  <span class="s4">/// \fn Tensor detach() const;</span>
+<a name="l753"><span class="ln">753  </span></a>  <span class="s4">///</span>
+<a name="l754"><span class="ln">754  </span></a>  <span class="s4">/// Returns a new Tensor, detached from the current graph.</span>
+<a name="l755"><span class="ln">755  </span></a>  <span class="s4">/// The result will never require gradient.</span>
+<a name="l756"><span class="ln">756  </span></a>
+<a name="l757"><span class="ln">757  </span></a>  <span class="s4">/// \fn Tensor &amp; detach_() const;</span>
+<a name="l758"><span class="ln">758  </span></a>  <span class="s4">///</span>
+<a name="l759"><span class="ln">759  </span></a>  <span class="s4">/// Detaches the Tensor from the graph that created it, making it a leaf.</span>
+<a name="l760"><span class="ln">760  </span></a>  <span class="s4">/// Views cannot be detached in-place.</span>
+<a name="l761"><span class="ln">761  </span></a>
+<a name="l762"><span class="ln">762  </span></a>  <span class="s4">/// \fn void retain_grad() const;</span>
+<a name="l763"><span class="ln">763  </span></a>  <span class="s4">///</span>
+<a name="l764"><span class="ln">764  </span></a>  <span class="s4">/// Enables this Tensor to have their :attr:`grad` populated during</span>
+<a name="l765"><span class="ln">765  </span></a>  <span class="s4">/// :func:`backward`. This is a no-op for leaf tensors.</span>
+<a name="l766"><span class="ln">766  </span></a>
+<a name="l767"><span class="ln">767  </span></a>  <span class="s4">/// \fn bool retains_grad() const;</span>
+<a name="l768"><span class="ln">768  </span></a>  <span class="s4">///</span>
+<a name="l769"><span class="ln">769  </span></a>  <span class="s4">/// Is ``true`` if this Tensor is non-leaf and its :attr:`grad` is enabled to be</span>
+<a name="l770"><span class="ln">770  </span></a>  <span class="s4">/// populated during :func:`backward`, ``false`` otherwise.</span>
+<a name="l771"><span class="ln">771  </span></a>
+<a name="l772"><span class="ln">772  </span></a>  <span class="s1">const </span><span class="s0">TensorBase&amp; set_requires_grad(</span><span class="s1">bool </span><span class="s0">requires_grad) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l773"><span class="ln">773  </span></a>    <span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">set_requires_grad(requires_grad);</span>
+<a name="l774"><span class="ln">774  </span></a>    <span class="s1">return </span><span class="s0">*</span><span class="s3">this</span><span class="s0">;</span>
+<a name="l775"><span class="ln">775  </span></a>  <span class="s0">}</span>
+<a name="l776"><span class="ln">776  </span></a>  <span class="s1">bool </span><span class="s0">requires_grad() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l777"><span class="ln">777  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">requires_grad();</span>
+<a name="l778"><span class="ln">778  </span></a>  <span class="s0">}</span>
+<a name="l779"><span class="ln">779  </span></a>
+<a name="l780"><span class="ln">780  </span></a>  <span class="s4">// The Forward AD API functions below are low level and are not to be used by end</span>
+<a name="l781"><span class="ln">781  </span></a>  <span class="s4">// users who should use the API provided in torch/csrc/autograd.h</span>
+<a name="l782"><span class="ln">782  </span></a>
+<a name="l783"><span class="ln">783  </span></a>  <span class="s4">/// This function returns the forward gradient for this Tensor at the given level.</span>
+<a name="l784"><span class="ln">784  </span></a>  <span class="s1">const </span><span class="s0">Tensor&amp; _fw_grad(uint64_t level) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l785"><span class="ln">785  </span></a>    <span class="s1">return </span><span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">_fw_grad(level, *</span><span class="s3">this</span><span class="s0">);</span>
+<a name="l786"><span class="ln">786  </span></a>  <span class="s0">}</span>
+<a name="l787"><span class="ln">787  </span></a>
+<a name="l788"><span class="ln">788  </span></a>  <span class="s4">/// This function can be used to set the value of the forward grad.</span>
+<a name="l789"><span class="ln">789  </span></a>  <span class="s4">/// Note that the given new_grad might not be used directly if it has different</span>
+<a name="l790"><span class="ln">790  </span></a>  <span class="s4">/// metadata (size/stride/storage offset) compared to this Tensor. In that case,</span>
+<a name="l791"><span class="ln">791  </span></a>  <span class="s4">/// new_grad content will be copied into a new Tensor</span>
+<a name="l792"><span class="ln">792  </span></a>  <span class="s1">void </span><span class="s0">_set_fw_grad(</span><span class="s1">const </span><span class="s0">TensorBase&amp; new_grad, uint64_t level, </span><span class="s1">bool </span><span class="s0">is_inplace_op) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l793"><span class="ln">793  </span></a>    <span class="s0">impl_</span><span class="s6">-&gt;</span><span class="s0">_set_fw_grad(new_grad, *</span><span class="s3">this</span><span class="s0">, level, is_inplace_op);</span>
+<a name="l794"><span class="ln">794  </span></a>  <span class="s0">}</span>
+<a name="l795"><span class="ln">795  </span></a>
+<a name="l796"><span class="ln">796  </span></a>  <span class="s4">/// NOTE: This is similar to the legacy `.data()` function on `Variable`, and is intended</span>
+<a name="l797"><span class="ln">797  </span></a>  <span class="s4">/// to be used from functions that need to access the `Variable`'s equivalent `Tensor`</span>
+<a name="l798"><span class="ln">798  </span></a>  <span class="s4">/// (i.e. `Tensor` that shares the same storage and tensor metadata with the `Variable`).</span>
+<a name="l799"><span class="ln">799  </span></a>  <span class="s4">///</span>
+<a name="l800"><span class="ln">800  </span></a>  <span class="s4">/// One notable difference with the legacy `.data()` function is that changes to the</span>
+<a name="l801"><span class="ln">801  </span></a>  <span class="s4">/// returned `Tensor`'s tensor metadata (e.g. sizes / strides / storage / storage_offset)</span>
+<a name="l802"><span class="ln">802  </span></a>  <span class="s4">/// will not update the original `Variable`, due to the fact that this function</span>
+<a name="l803"><span class="ln">803  </span></a>  <span class="s4">/// shallow-copies the `Variable`'s underlying TensorImpl.</span>
+<a name="l804"><span class="ln">804  </span></a>  <span class="s0">at::TensorBase tensor_data() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l805"><span class="ln">805  </span></a>
+<a name="l806"><span class="ln">806  </span></a>  <span class="s4">/// NOTE: `var.variable_data()` in C++ has the same semantics as `tensor.data`</span>
+<a name="l807"><span class="ln">807  </span></a>  <span class="s4">/// in Python, which create a new `Variable` that shares the same storage and</span>
+<a name="l808"><span class="ln">808  </span></a>  <span class="s4">/// tensor metadata with the original `Variable`, but with a completely new</span>
+<a name="l809"><span class="ln">809  </span></a>  <span class="s4">/// autograd history.</span>
+<a name="l810"><span class="ln">810  </span></a>  <span class="s4">///</span>
+<a name="l811"><span class="ln">811  </span></a>  <span class="s4">/// NOTE: If we change the tensor metadata (e.g. sizes / strides /</span>
+<a name="l812"><span class="ln">812  </span></a>  <span class="s4">/// storage / storage_offset) of a variable created from `var.variable_data()`, those</span>
+<a name="l813"><span class="ln">813  </span></a>  <span class="s4">/// changes will not update the original variable `var`. In `.variable_data()`, we set</span>
+<a name="l814"><span class="ln">814  </span></a>  <span class="s4">/// `allow_tensor_metadata_change_` to false to make such changes explicitly illegal,</span>
+<a name="l815"><span class="ln">815  </span></a>  <span class="s4">/// in order to prevent users from changing metadata of `var.variable_data()`</span>
+<a name="l816"><span class="ln">816  </span></a>  <span class="s4">/// and expecting the original variable `var` to also be updated.</span>
+<a name="l817"><span class="ln">817  </span></a>  <span class="s0">at::TensorBase variable_data() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l818"><span class="ln">818  </span></a>
+<a name="l819"><span class="ln">819  </span></a>  <span class="s4">// Gradient Node and Edges</span>
+<a name="l820"><span class="ln">820  </span></a>  <span class="s4">//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span>
+<a name="l821"><span class="ln">821  </span></a>
+<a name="l822"><span class="ln">822  </span></a>  <span class="s4">/// Gets the gradient function of the `Variable`. If this is a leaf variable,</span>
+<a name="l823"><span class="ln">823  </span></a>  <span class="s4">/// the pointer returned will be null.</span>
+<a name="l824"><span class="ln">824  </span></a>  <span class="s4">///</span>
+<a name="l825"><span class="ln">825  </span></a>  <span class="s4">/// For View Variables:</span>
+<a name="l826"><span class="ln">826  </span></a>  <span class="s4">/// Gets the up-to-date grad_fn. If the shared data or base was modified, we</span>
+<a name="l827"><span class="ln">827  </span></a>  <span class="s4">/// re-create the grad_fn to express the up-to-date view relationship between</span>
+<a name="l828"><span class="ln">828  </span></a>  <span class="s4">/// this and the base Variable.</span>
+<a name="l829"><span class="ln">829  </span></a>  <span class="s1">const </span><span class="s0">std::shared_ptr&lt;torch::autograd::Node&gt;&amp; grad_fn() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l830"><span class="ln">830  </span></a>
+<a name="l831"><span class="ln">831  </span></a>  <span class="s4">// Hooks</span>
+<a name="l832"><span class="ln">832  </span></a>  <span class="s4">//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span>
+<a name="l833"><span class="ln">833  </span></a>
+<a name="l834"><span class="ln">834  </span></a>  <span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T&gt;</span>
+<a name="l835"><span class="ln">835  </span></a>  <span class="s3">using </span><span class="s0">hook_return_void_t = std::enable_if_t&lt;std::is_void_v&lt;</span><span class="s3">typename </span><span class="s0">std::invoke_result_t&lt;T&amp;, TensorBase&gt;&gt;, </span><span class="s1">unsigned</span><span class="s0">&gt;;</span>
+<a name="l836"><span class="ln">836  </span></a>  <span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T&gt;</span>
+<a name="l837"><span class="ln">837  </span></a>  <span class="s3">using </span><span class="s0">hook_return_var_t = std::enable_if_t&lt;std::is_same_v&lt;</span><span class="s3">typename </span><span class="s0">std::invoke_result_t&lt;T&amp;, TensorBase&gt;, TensorBase&gt;, </span><span class="s1">unsigned</span><span class="s0">&gt;;</span>
+<a name="l838"><span class="ln">838  </span></a>
+<a name="l839"><span class="ln">839  </span></a>  <span class="s4">/// Registers a backward hook.</span>
+<a name="l840"><span class="ln">840  </span></a>  <span class="s4">///</span>
+<a name="l841"><span class="ln">841  </span></a>  <span class="s4">/// The hook will be called every time a gradient with respect to the Tensor is computed.</span>
+<a name="l842"><span class="ln">842  </span></a>  <span class="s4">/// The hook should have one of the following signature:</span>
+<a name="l843"><span class="ln">843  </span></a>  <span class="s4">/// ```</span>
+<a name="l844"><span class="ln">844  </span></a>  <span class="s4">/// hook(TensorBase grad) -&gt; TensorBase</span>
+<a name="l845"><span class="ln">845  </span></a>  <span class="s4">/// ```</span>
+<a name="l846"><span class="ln">846  </span></a>  <span class="s4">/// ```</span>
+<a name="l847"><span class="ln">847  </span></a>  <span class="s4">/// hook(TensorBase grad) -&gt; void</span>
+<a name="l848"><span class="ln">848  </span></a>  <span class="s4">/// ```</span>
+<a name="l849"><span class="ln">849  </span></a>  <span class="s4">/// The hook should not modify its argument, but it can optionally return a new gradient</span>
+<a name="l850"><span class="ln">850  </span></a>  <span class="s4">/// which will be used in place of `grad`.</span>
+<a name="l851"><span class="ln">851  </span></a>  <span class="s4">///</span>
+<a name="l852"><span class="ln">852  </span></a>  <span class="s4">/// This function returns the index of the hook in the list which can be used to remove hook.</span>
+<a name="l853"><span class="ln">853  </span></a>  <span class="s4">///</span>
+<a name="l854"><span class="ln">854  </span></a>  <span class="s4">/// Example:</span>
+<a name="l855"><span class="ln">855  </span></a>  <span class="s4">/// @code</span>
+<a name="l856"><span class="ln">856  </span></a>  <span class="s4">/// auto v = torch::tensor({0., 0., 0.}, torch::requires_grad());</span>
+<a name="l857"><span class="ln">857  </span></a>  <span class="s4">/// auto h = v.register_hook([](torch::Tensor grad){ return grad * 2; }); // double the gradient</span>
+<a name="l858"><span class="ln">858  </span></a>  <span class="s4">/// v.backward(torch::tensor({1., 2., 3.}));</span>
+<a name="l859"><span class="ln">859  </span></a>  <span class="s4">/// // This prints:</span>
+<a name="l860"><span class="ln">860  </span></a>  <span class="s4">/// // ```</span>
+<a name="l861"><span class="ln">861  </span></a>  <span class="s4">/// //  2</span>
+<a name="l862"><span class="ln">862  </span></a>  <span class="s4">/// //  4</span>
+<a name="l863"><span class="ln">863  </span></a>  <span class="s4">/// //  6</span>
+<a name="l864"><span class="ln">864  </span></a>  <span class="s4">/// // [ CPUFloatType{3} ]</span>
+<a name="l865"><span class="ln">865  </span></a>  <span class="s4">/// // ```</span>
+<a name="l866"><span class="ln">866  </span></a>  <span class="s4">/// std::cout &lt;&lt; v.grad() &lt;&lt; std::endl;</span>
+<a name="l867"><span class="ln">867  </span></a>  <span class="s4">/// v.remove_hook(h);  // removes the hook</span>
+<a name="l868"><span class="ln">868  </span></a>  <span class="s4">/// @endcode</span>
+<a name="l869"><span class="ln">869  </span></a>  <span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T&gt;</span>
+<a name="l870"><span class="ln">870  </span></a>  <span class="s0">hook_return_void_t&lt;T&gt; register_hook(T&amp;&amp; hook) </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l871"><span class="ln">871  </span></a>  <span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T&gt;</span>
+<a name="l872"><span class="ln">872  </span></a>  <span class="s0">hook_return_var_t&lt;T&gt; register_hook(T&amp;&amp; hook) </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l873"><span class="ln">873  </span></a>
+<a name="l874"><span class="ln">874  </span></a><span class="s3">protected</span><span class="s0">:</span>
+<a name="l875"><span class="ln">875  </span></a>  <span class="s1">unsigned </span><span class="s0">_register_hook(std::function&lt;TensorBase(</span><span class="s1">const </span><span class="s0">TensorBase&amp;)&gt; hook) </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l876"><span class="ln">876  </span></a>
+<a name="l877"><span class="ln">877  </span></a><span class="s3">public</span><span class="s0">:</span>
+<a name="l878"><span class="ln">878  </span></a>
+<a name="l879"><span class="ln">879  </span></a>  <span class="s4">/// Remove hook at given position</span>
+<a name="l880"><span class="ln">880  </span></a>  <span class="s1">void </span><span class="s0">remove_hook(</span><span class="s1">unsigned </span><span class="s0">pos) </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l881"><span class="ln">881  </span></a>
+<a name="l882"><span class="ln">882  </span></a>  <span class="s4">// Variable methods</span>
+<a name="l883"><span class="ln">883  </span></a>  <span class="s4">//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span>
+<a name="l884"><span class="ln">884  </span></a>
+<a name="l885"><span class="ln">885  </span></a>  <span class="s1">bool </span><span class="s0">is_leaf() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l886"><span class="ln">886  </span></a>
+<a name="l887"><span class="ln">887  </span></a>  <span class="s0">int64_t output_nr() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l888"><span class="ln">888  </span></a>
+<a name="l889"><span class="ln">889  </span></a>  <span class="s1">void </span><span class="s0">set_data(</span><span class="s1">const </span><span class="s0">TensorBase &amp; new_data) </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l890"><span class="ln">890  </span></a>
+<a name="l891"><span class="ln">891  </span></a>  <span class="s0">TensorBase data() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l892"><span class="ln">892  </span></a>
+<a name="l893"><span class="ln">893  </span></a>  <span class="s0">int64_t _version() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l894"><span class="ln">894  </span></a>
+<a name="l895"><span class="ln">895  </span></a>  <span class="s1">void </span><span class="s0">retain_grad() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l896"><span class="ln">896  </span></a>
+<a name="l897"><span class="ln">897  </span></a>  <span class="s1">bool </span><span class="s0">retains_grad() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l898"><span class="ln">898  </span></a>
+<a name="l899"><span class="ln">899  </span></a>  <span class="s1">const </span><span class="s0">TensorBase&amp; requires_grad_(</span><span class="s1">bool </span><span class="s0">_requires_grad=</span><span class="s3">true</span><span class="s0">) </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l900"><span class="ln">900  </span></a>
+<a name="l901"><span class="ln">901  </span></a>  <span class="s4">// View Variables</span>
+<a name="l902"><span class="ln">902  </span></a>  <span class="s4">//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span>
+<a name="l903"><span class="ln">903  </span></a>
+<a name="l904"><span class="ln">904  </span></a>  <span class="s4">/// Returns true if this `Variable` is a view of another `Variable`.</span>
+<a name="l905"><span class="ln">905  </span></a>  <span class="s1">bool </span><span class="s0">is_view() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l906"><span class="ln">906  </span></a>
+<a name="l907"><span class="ln">907  </span></a>  <span class="s4">/// Returns the `Variable` that this `Variable` is a view of. If this</span>
+<a name="l908"><span class="ln">908  </span></a>  <span class="s4">/// `Variable` is not a view, throw a `std::runtime_error`.</span>
+<a name="l909"><span class="ln">909  </span></a>  <span class="s1">const </span><span class="s0">TensorBase&amp; _base() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l910"><span class="ln">910  </span></a>
+<a name="l911"><span class="ln">911  </span></a>  <span class="s4">// Miscellaneous</span>
+<a name="l912"><span class="ln">912  </span></a>  <span class="s4">//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span>
+<a name="l913"><span class="ln">913  </span></a>
+<a name="l914"><span class="ln">914  </span></a>  <span class="s1">const </span><span class="s0">std::string&amp; name() </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l915"><span class="ln">915  </span></a>
+<a name="l916"><span class="ln">916  </span></a><span class="s3">protected</span><span class="s0">:</span>
+<a name="l917"><span class="ln">917  </span></a>  <span class="s1">void </span><span class="s0">enforce_invariants();</span>
+<a name="l918"><span class="ln">918  </span></a>  <span class="s0">c10::intrusive_ptr&lt;TensorImpl, UndefinedTensorImpl&gt; impl_;</span>
+<a name="l919"><span class="ln">919  </span></a>
+<a name="l920"><span class="ln">920  </span></a><span class="s3">private</span><span class="s0">:</span>
+<a name="l921"><span class="ln">921  </span></a>  <span class="s0">TensorBase __dispatch_contiguous(c10::MemoryFormat) </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l922"><span class="ln">922  </span></a><span class="s0">};</span>
+<a name="l923"><span class="ln">923  </span></a>
+<a name="l924"><span class="ln">924  </span></a><span class="s3">inline </span><span class="s0">DeviceIndex get_device(</span><span class="s1">const </span><span class="s0">TensorBase&amp; self) {</span>
+<a name="l925"><span class="ln">925  </span></a>  <span class="s1">return </span><span class="s0">self.get_device();</span>
+<a name="l926"><span class="ln">926  </span></a><span class="s0">}</span>
+<a name="l927"><span class="ln">927  </span></a>
+<a name="l928"><span class="ln">928  </span></a><span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T&gt;</span>
+<a name="l929"><span class="ln">929  </span></a><span class="s1">auto </span><span class="s0">TensorBase::register_hook(T&amp;&amp; hook) </span><span class="s1">const </span><span class="s6">-&gt; </span><span class="s0">TensorBase::hook_return_void_t&lt;T&gt; {</span>
+<a name="l930"><span class="ln">930  </span></a>  <span class="s4">// Return the grad argument in case of a hook with void return type to have an</span>
+<a name="l931"><span class="ln">931  </span></a>  <span class="s4">// std::function with Tensor return type</span>
+<a name="l932"><span class="ln">932  </span></a>  <span class="s0">static_assert(std::is_same_v&lt;decltype(hook(TensorBase())), </span><span class="s1">void</span><span class="s0">&gt;,</span>
+<a name="l933"><span class="ln">933  </span></a>                <span class="s5">&quot;Expected hook to return void&quot;</span><span class="s0">);</span>
+<a name="l934"><span class="ln">934  </span></a>  <span class="s1">return </span><span class="s0">_register_hook([fn=std::forward&lt;T&gt;(hook)](</span><span class="s1">const </span><span class="s0">TensorBase&amp; grad) {</span>
+<a name="l935"><span class="ln">935  </span></a>    <span class="s0">fn(grad);</span>
+<a name="l936"><span class="ln">936  </span></a>    <span class="s1">return </span><span class="s0">TensorBase();</span>
+<a name="l937"><span class="ln">937  </span></a>  <span class="s0">});</span>
+<a name="l938"><span class="ln">938  </span></a><span class="s0">}</span>
+<a name="l939"><span class="ln">939  </span></a>
+<a name="l940"><span class="ln">940  </span></a><span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T&gt;</span>
+<a name="l941"><span class="ln">941  </span></a><span class="s1">auto </span><span class="s0">TensorBase::register_hook(T&amp;&amp; hook) </span><span class="s1">const </span><span class="s6">-&gt; </span><span class="s0">TensorBase::hook_return_var_t&lt;T&gt; {</span>
+<a name="l942"><span class="ln">942  </span></a>  <span class="s1">return </span><span class="s0">_register_hook(std::forward&lt;T&gt;(hook));</span>
+<a name="l943"><span class="ln">943  </span></a><span class="s0">}</span>
+<a name="l944"><span class="ln">944  </span></a>
+<a name="l945"><span class="ln">945  </span></a><span class="s3">namespace </span><span class="s0">detail {</span>
+<a name="l946"><span class="ln">946  </span></a><span class="s4">// Helper creator for Tensor class which doesn't requires the users to pass</span>
+<a name="l947"><span class="ln">947  </span></a><span class="s4">// in an intrusive_ptr instead it just converts the argument passed to</span>
+<a name="l948"><span class="ln">948  </span></a><span class="s4">// requested intrusive_ptr type.</span>
+<a name="l949"><span class="ln">949  </span></a><span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T, </span><span class="s3">typename</span><span class="s0">... Args&gt;</span>
+<a name="l950"><span class="ln">950  </span></a><span class="s0">TensorBase make_tensor_base(Args&amp;&amp;... args) {</span>
+<a name="l951"><span class="ln">951  </span></a>  <span class="s1">return </span><span class="s0">TensorBase(c10::make_intrusive&lt;T&gt;(std::forward&lt;Args&gt;(args)...));</span>
+<a name="l952"><span class="ln">952  </span></a><span class="s0">}</span>
+<a name="l953"><span class="ln">953  </span></a>
+<a name="l954"><span class="ln">954  </span></a><span class="s0">} </span><span class="s4">// namespace detail</span>
+<a name="l955"><span class="ln">955  </span></a>
+<a name="l956"><span class="ln">956  </span></a><span class="s3">inline </span><span class="s0">DispatchKey legacyExtractDispatchKey(</span><span class="s1">const </span><span class="s0">TensorBase&amp; t) {</span>
+<a name="l957"><span class="ln">957  </span></a>  <span class="s1">return </span><span class="s0">legacyExtractDispatchKey(t.key_set());</span>
+<a name="l958"><span class="ln">958  </span></a><span class="s0">}</span>
+<a name="l959"><span class="ln">959  </span></a>
+<a name="l960"><span class="ln">960  </span></a><span class="s0">} </span><span class="s4">// namespace at</span>
+<a name="l961"><span class="ln">961  </span></a>
+<a name="l962"><span class="ln">962  </span></a><span class="s3">namespace </span><span class="s0">c10 {</span>
+<a name="l963"><span class="ln">963  </span></a><span class="s0">template &lt;&gt;</span>
+<a name="l964"><span class="ln">964  </span></a><span class="s1">struct </span><span class="s0">MaybeOwnedTraits&lt;at::TensorBase&gt; {</span>
+<a name="l965"><span class="ln">965  </span></a>  <span class="s3">using </span><span class="s0">owned_type = at::TensorBase;</span>
+<a name="l966"><span class="ln">966  </span></a>  <span class="s3">using </span><span class="s0">borrow_type = at::TensorBase;</span>
+<a name="l967"><span class="ln">967  </span></a>
+<a name="l968"><span class="ln">968  </span></a>  <span class="s1">static </span><span class="s0">borrow_type createBorrow(</span><span class="s1">const </span><span class="s0">owned_type&amp; from) {</span>
+<a name="l969"><span class="ln">969  </span></a>    <span class="s4">// NOTE: this can be implemented without the special</span>
+<a name="l970"><span class="ln">970  </span></a>    <span class="s4">// unsafe_borrow_t Tensor constructor as</span>
+<a name="l971"><span class="ln">971  </span></a>    <span class="s4">//</span>
+<a name="l972"><span class="ln">972  </span></a>    <span class="s4">// return borrow_type(c10::intrusive_ptr&lt;at::TensorImpl, at::UndefinedTensorImpl&gt;::reclaim(from.unsafeGetTensorImpl()));</span>
+<a name="l973"><span class="ln">973  </span></a>    <span class="s4">//</span>
+<a name="l974"><span class="ln">974  </span></a>    <span class="s4">// but that hurts inlining due to the nullptr check in the</span>
+<a name="l975"><span class="ln">975  </span></a>    <span class="s4">// Tensor(c10::intrusive_ptr&lt;...&gt;) constructor. We already know</span>
+<a name="l976"><span class="ln">976  </span></a>    <span class="s4">// that from.impl_ isn't null because from is a valid Tensor, so</span>
+<a name="l977"><span class="ln">977  </span></a>    <span class="s4">// we needn't do the check again. (using __builtin_assume can</span>
+<a name="l978"><span class="ln">978  </span></a>    <span class="s4">// avoid this, but wouldn't be portable to MSVC.)</span>
+<a name="l979"><span class="ln">979  </span></a>    <span class="s1">return </span><span class="s0">borrow_type(borrow_type::unsafe_borrow_t{}, from);</span>
+<a name="l980"><span class="ln">980  </span></a>  <span class="s0">}</span>
+<a name="l981"><span class="ln">981  </span></a>
+<a name="l982"><span class="ln">982  </span></a>  <span class="s1">static void </span><span class="s0">assignBorrow(borrow_type&amp; lhs, </span><span class="s1">const </span><span class="s0">borrow_type&amp; rhs) {</span>
+<a name="l983"><span class="ln">983  </span></a>    <span class="s0">lhs.unsafeReleaseTensorImpl();</span>
+<a name="l984"><span class="ln">984  </span></a>    <span class="s4">// See above note: this can be implemented with public API</span>
+<a name="l985"><span class="ln">985  </span></a>    <span class="s4">// similarly to createBorrow(), but that would hurt inlining.</span>
+<a name="l986"><span class="ln">986  </span></a>    <span class="s0">lhs = borrow_type(borrow_type::unsafe_borrow_t{}, rhs);</span>
+<a name="l987"><span class="ln">987  </span></a>  <span class="s0">}</span>
+<a name="l988"><span class="ln">988  </span></a>
+<a name="l989"><span class="ln">989  </span></a>  <span class="s1">static void </span><span class="s0">destroyBorrow(borrow_type&amp; toDestroy) {</span>
+<a name="l990"><span class="ln">990  </span></a>    <span class="s0">toDestroy.unsafeReleaseTensorImpl(); </span><span class="s4">// &quot;leak&quot; it, but it was already +0.</span>
+<a name="l991"><span class="ln">991  </span></a>  <span class="s0">}</span>
+<a name="l992"><span class="ln">992  </span></a>
+<a name="l993"><span class="ln">993  </span></a>  <span class="s1">static const </span><span class="s0">owned_type&amp; referenceFromBorrow(</span><span class="s1">const </span><span class="s0">borrow_type&amp; borrow) {</span>
+<a name="l994"><span class="ln">994  </span></a>    <span class="s1">return </span><span class="s0">borrow;</span>
+<a name="l995"><span class="ln">995  </span></a>  <span class="s0">}</span>
+<a name="l996"><span class="ln">996  </span></a>
+<a name="l997"><span class="ln">997  </span></a>  <span class="s1">static const </span><span class="s0">owned_type* pointerFromBorrow(</span><span class="s1">const </span><span class="s0">borrow_type&amp; borrow) {</span>
+<a name="l998"><span class="ln">998  </span></a>    <span class="s1">return </span><span class="s0">&amp;borrow;</span>
+<a name="l999"><span class="ln">999  </span></a>  <span class="s0">}</span>
+<a name="l1000"><span class="ln">1000 </span></a>
+<a name="l1001"><span class="ln">1001 </span></a>  <span class="s1">static bool </span><span class="s0">debugBorrowIsValid(</span><span class="s1">const </span><span class="s0">borrow_type&amp; </span><span class="s4">/*borrow*/</span><span class="s0">) {</span>
+<a name="l1002"><span class="ln">1002 </span></a>    <span class="s1">return </span><span class="s3">true</span><span class="s0">;</span>
+<a name="l1003"><span class="ln">1003 </span></a>  <span class="s0">}</span>
+<a name="l1004"><span class="ln">1004 </span></a><span class="s0">};</span>
+<a name="l1005"><span class="ln">1005 </span></a>
+<a name="l1006"><span class="ln">1006 </span></a><span class="s0">template &lt;&gt;</span>
+<a name="l1007"><span class="ln">1007 </span></a><span class="s1">struct </span><span class="s0">ExclusivelyOwnedTraits&lt;at::TensorBase&gt; : </span><span class="s3">public </span><span class="s0">c10::ExclusivelyOwnedTensorTraits&lt;at::TensorBase&gt; {};</span>
+<a name="l1008"><span class="ln">1008 </span></a><span class="s0">} </span><span class="s4">// namespace c10</span>
+<a name="l1009"><span class="ln">1009 </span></a>
+<a name="l1010"><span class="ln">1010 </span></a><span class="s3">namespace </span><span class="s0">at {</span>
+<a name="l1011"><span class="ln">1011 </span></a>
+<a name="l1012"><span class="ln">1012 </span></a><span class="s3">inline </span><span class="s0">c10::MaybeOwned&lt;TensorBase&gt; borrow_from_optional_tensor(</span>
+<a name="l1013"><span class="ln">1013 </span></a>    <span class="s1">const </span><span class="s0">std::optional&lt;TensorBase&gt;&amp; opt) {</span>
+<a name="l1014"><span class="ln">1014 </span></a>  <span class="s1">return </span><span class="s0">opt.has_value()</span>
+<a name="l1015"><span class="ln">1015 </span></a>    <span class="s0">? c10::MaybeOwned&lt;TensorBase&gt;::borrowed(*opt)</span>
+<a name="l1016"><span class="ln">1016 </span></a>    <span class="s0">: c10::MaybeOwned&lt;TensorBase&gt;::owned(std::in_place);</span>
+<a name="l1017"><span class="ln">1017 </span></a><span class="s0">}</span>
+<a name="l1018"><span class="ln">1018 </span></a>
+<a name="l1019"><span class="ln">1019 </span></a><span class="s3">inline </span><span class="s0">c10::MaybeOwned&lt;TensorBase&gt; TensorBase::expect_contiguous(MemoryFormat memory_format) </span><span class="s1">const </span><span class="s0">&amp; {</span>
+<a name="l1020"><span class="ln">1020 </span></a>  <span class="s1">if </span><span class="s0">(is_contiguous(memory_format)) {</span>
+<a name="l1021"><span class="ln">1021 </span></a>    <span class="s1">return </span><span class="s0">c10::MaybeOwned&lt;TensorBase&gt;::borrowed(*</span><span class="s3">this</span><span class="s0">);</span>
+<a name="l1022"><span class="ln">1022 </span></a>  <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l1023"><span class="ln">1023 </span></a>    <span class="s1">return </span><span class="s0">c10::MaybeOwned&lt;TensorBase&gt;::owned(__dispatch_contiguous(memory_format));</span>
+<a name="l1024"><span class="ln">1024 </span></a>  <span class="s0">}</span>
+<a name="l1025"><span class="ln">1025 </span></a><span class="s0">}</span>
+<a name="l1026"><span class="ln">1026 </span></a>
+<a name="l1027"><span class="ln">1027 </span></a><span class="s3">namespace </span><span class="s0">symint {</span>
+<a name="l1028"><span class="ln">1028 </span></a>
+<a name="l1029"><span class="ln">1029 </span></a><span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T&gt;</span>
+<a name="l1030"><span class="ln">1030 </span></a><span class="s3">using </span><span class="s0">enable_if_symint = std::enable_if_t&lt;std::is_same_v&lt;T, c10::SymInt&gt;&gt;;</span>
+<a name="l1031"><span class="ln">1031 </span></a><span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T&gt;</span>
+<a name="l1032"><span class="ln">1032 </span></a><span class="s3">using </span><span class="s0">enable_if_int = std::enable_if_t&lt;std::is_same_v&lt;T, int64_t&gt;&gt;;</span>
+<a name="l1033"><span class="ln">1033 </span></a>
+<a name="l1034"><span class="ln">1034 </span></a><span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T, </span><span class="s3">typename </span><span class="s0">= enable_if_symint&lt;T&gt;&gt;</span>
+<a name="l1035"><span class="ln">1035 </span></a><span class="s0">c10::SymIntArrayRef sizes(</span><span class="s1">const </span><span class="s0">TensorBase&amp; t) { </span><span class="s1">return </span><span class="s0">t.sym_sizes(); }</span>
+<a name="l1036"><span class="ln">1036 </span></a><span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T, </span><span class="s3">typename </span><span class="s0">= enable_if_int&lt;T&gt;&gt;</span>
+<a name="l1037"><span class="ln">1037 </span></a><span class="s0">IntArrayRef sizes(</span><span class="s1">const </span><span class="s0">TensorBase&amp; t) { </span><span class="s1">return </span><span class="s0">t.sizes(); }</span>
+<a name="l1038"><span class="ln">1038 </span></a>
+<a name="l1039"><span class="ln">1039 </span></a><span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T, </span><span class="s3">typename </span><span class="s0">= enable_if_symint&lt;T&gt;&gt;</span>
+<a name="l1040"><span class="ln">1040 </span></a><span class="s0">c10::SymInt size(</span><span class="s1">const </span><span class="s0">TensorBase&amp; t, int64_t dim) { </span><span class="s1">return </span><span class="s0">t.sym_size(dim); }</span>
+<a name="l1041"><span class="ln">1041 </span></a><span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T, </span><span class="s3">typename </span><span class="s0">= enable_if_int&lt;T&gt;&gt;</span>
+<a name="l1042"><span class="ln">1042 </span></a><span class="s0">int64_t size(</span><span class="s1">const </span><span class="s0">TensorBase&amp; t, int64_t dim) { </span><span class="s1">return </span><span class="s0">t.size(dim); }</span>
+<a name="l1043"><span class="ln">1043 </span></a>
+<a name="l1044"><span class="ln">1044 </span></a><span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T, </span><span class="s3">typename </span><span class="s0">= enable_if_symint&lt;T&gt;&gt;</span>
+<a name="l1045"><span class="ln">1045 </span></a><span class="s0">c10::SymIntArrayRef strides(</span><span class="s1">const </span><span class="s0">TensorBase&amp; t) { </span><span class="s1">return </span><span class="s0">t.sym_strides(); }</span>
+<a name="l1046"><span class="ln">1046 </span></a><span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T, </span><span class="s3">typename </span><span class="s0">= enable_if_int&lt;T&gt;&gt;</span>
+<a name="l1047"><span class="ln">1047 </span></a><span class="s0">IntArrayRef strides(</span><span class="s1">const </span><span class="s0">TensorBase&amp; t) { </span><span class="s1">return </span><span class="s0">t.strides(); }</span>
+<a name="l1048"><span class="ln">1048 </span></a>
+<a name="l1049"><span class="ln">1049 </span></a><span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T, </span><span class="s3">typename </span><span class="s0">= enable_if_symint&lt;T&gt;&gt;</span>
+<a name="l1050"><span class="ln">1050 </span></a><span class="s0">c10::SymInt numel(</span><span class="s1">const </span><span class="s0">TensorBase&amp; t) { </span><span class="s1">return </span><span class="s0">t.sym_numel(); }</span>
+<a name="l1051"><span class="ln">1051 </span></a><span class="s0">template &lt;</span><span class="s3">typename </span><span class="s0">T, </span><span class="s3">typename </span><span class="s0">= enable_if_int&lt;T&gt;&gt;</span>
+<a name="l1052"><span class="ln">1052 </span></a><span class="s0">int64_t numel(</span><span class="s1">const </span><span class="s0">TensorBase&amp; t) { </span><span class="s1">return </span><span class="s0">t.numel(); }</span>
+<a name="l1053"><span class="ln">1053 </span></a>
+<a name="l1054"><span class="ln">1054 </span></a><span class="s0">} </span><span class="s4">// namespace symint</span>
+<a name="l1055"><span class="ln">1055 </span></a>
+<a name="l1056"><span class="ln">1056 </span></a><span class="s0">} </span><span class="s4">// namespace at</span>
+<a name="l1057"><span class="ln">1057 </span></a></pre>
+</body>
+</html>

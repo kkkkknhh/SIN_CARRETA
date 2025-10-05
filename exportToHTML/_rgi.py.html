@@ -1,0 +1,1418 @@
+<html>
+<head>
+    <title>_rgi.py</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <style type="text/css">
+        .s0 { color: #333333;}
+        .s1 { color: #a71d5d;}
+        .s2 { color: #63a35c;}
+        .s3 { color: #183691;}
+        .s4 { color: #969896;}
+        .s5 { color: #0086b3;}
+        .ln { color: #333333; font-weight: normal; font-style: normal; }
+    </style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0">
+    <tr>
+        <td>
+            <center>
+                <font face="Arial, Helvetica" color="#000000">
+                    _rgi.py</font>
+            </center>
+        </td>
+    </tr>
+</table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">__all__ </span><span class="s1">= </span><span
+        class="s2">[</span><span class="s3">'RegularGridInterpolator'</span><span class="s2">, </span><span class="s3">'interpn'</span><span
+        class="s2">]</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">import </span><span class="s0">itertools</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s1">import </span><span class="s0">numpy </span><span
+            class="s1">as </span><span class="s0">np</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">import </span><span class="s0">scipy</span><span
+            class="s2">.</span><span class="s0">sparse</span><span class="s2">.</span><span
+            class="s0">linalg </span><span class="s1">as </span><span class="s0">ssl</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">from </span><span class="s2">.</span><span class="s0">_interpnd </span><span
+            class="s1">import </span><span class="s0">_ndim_coords_from_arrays</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s1">from </span><span class="s2">.</span><span class="s0">_cubic </span><span
+            class="s1">import </span><span class="s0">PchipInterpolator</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s1">from </span><span class="s2">.</span><span class="s0">_rgi_cython </span><span
+            class="s1">import </span><span class="s0">evaluate_linear_2d</span><span class="s2">, </span><span
+            class="s0">find_indices</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s1">from </span><span class="s2">.</span><span class="s0">_bsplines </span><span
+            class="s1">import </span><span class="s0">make_interp_spline</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s1">from </span><span class="s2">.</span><span class="s0">_fitpack2 </span><span
+            class="s1">import </span><span class="s0">RectBivariateSpline</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s1">from </span><span class="s2">.</span><span class="s0">_ndbspline </span><span
+            class="s1">import </span><span class="s0">make_ndbspl</span>
+<a name="l15"><span class="ln">15   </span></a>
+<a name="l16"><span class="ln">16   </span></a>
+<a name="l17"><span class="ln">17   </span></a><span class="s1">def </span><span class="s0">_check_points</span><span
+            class="s2">(</span><span class="s0">points</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s0">descending_dimensions </span><span
+            class="s1">= </span><span class="s2">[]</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s0">grid </span><span class="s1">= </span><span
+            class="s2">[]</span>
+<a name="l20"><span class="ln">20   </span></a>    <span class="s1">for </span><span class="s0">i</span><span
+            class="s2">, </span><span class="s0">p </span><span class="s1">in </span><span
+            class="s0">enumerate</span><span class="s2">(</span><span class="s0">points</span><span
+            class="s2">)</span><span class="s1">:</span>
+<a name="l21"><span class="ln">21   </span></a>        <span class="s4"># early make points float</span>
+<a name="l22"><span class="ln">22   </span></a>        <span
+            class="s4"># see https://github.com/scipy/scipy/pull/17230</span>
+<a name="l23"><span class="ln">23   </span></a>        <span class="s0">p </span><span class="s1">= </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">asarray</span><span class="s2">(</span><span
+            class="s0">p</span><span class="s2">, </span><span class="s0">dtype</span><span class="s1">=</span><span
+            class="s0">float</span><span class="s2">)</span>
+<a name="l24"><span class="ln">24   </span></a>        <span class="s1">if not </span><span class="s0">np</span><span
+            class="s2">.</span><span class="s0">all</span><span class="s2">(</span><span class="s0">p</span><span
+            class="s2">[</span><span class="s5">1</span><span class="s1">:</span><span class="s2">] </span><span
+            class="s1">&gt; </span><span class="s0">p</span><span class="s2">[</span><span class="s1">:-</span><span
+            class="s5">1</span><span class="s2">])</span><span class="s1">:</span>
+<a name="l25"><span class="ln">25   </span></a>            <span class="s1">if </span><span class="s0">np</span><span
+            class="s2">.</span><span class="s0">all</span><span class="s2">(</span><span class="s0">p</span><span
+            class="s2">[</span><span class="s5">1</span><span class="s1">:</span><span class="s2">] </span><span
+            class="s1">&lt; </span><span class="s0">p</span><span class="s2">[</span><span class="s1">:-</span><span
+            class="s5">1</span><span class="s2">])</span><span class="s1">:</span>
+<a name="l26"><span class="ln">26   </span></a>                <span class="s4"># input is descending, so make it ascending</span>
+<a name="l27"><span class="ln">27   </span></a>                <span class="s0">descending_dimensions</span><span
+            class="s2">.</span><span class="s0">append</span><span class="s2">(</span><span class="s0">i</span><span
+            class="s2">)</span>
+<a name="l28"><span class="ln">28   </span></a>                <span class="s0">p </span><span class="s1">= </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">flip</span><span class="s2">(</span><span
+            class="s0">p</span><span class="s2">)</span>
+<a name="l29"><span class="ln">29   </span></a>            <span class="s1">else:</span>
+<a name="l30"><span class="ln">30   </span></a>                <span class="s1">raise </span><span
+            class="s0">ValueError</span><span class="s2">(</span>
+<a name="l31"><span class="ln">31   </span></a>                    <span class="s3">&quot;The points in dimension %d must be strictly &quot;</span>
+<a name="l32"><span class="ln">32   </span></a>                    <span
+            class="s3">&quot;ascending or descending&quot; </span><span class="s1">% </span><span
+            class="s0">i</span><span class="s2">)</span>
+<a name="l33"><span class="ln">33   </span></a>        <span class="s4"># see https://github.com/scipy/scipy/issues/17716</span>
+<a name="l34"><span class="ln">34   </span></a>        <span class="s0">p </span><span class="s1">= </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">ascontiguousarray</span><span
+            class="s2">(</span><span class="s0">p</span><span class="s2">)</span>
+<a name="l35"><span class="ln">35   </span></a>        <span class="s0">grid</span><span class="s2">.</span><span
+            class="s0">append</span><span class="s2">(</span><span class="s0">p</span><span class="s2">)</span>
+<a name="l36"><span class="ln">36   </span></a>    <span class="s1">return </span><span class="s0">tuple</span><span
+            class="s2">(</span><span class="s0">grid</span><span class="s2">), </span><span class="s0">tuple</span><span
+            class="s2">(</span><span class="s0">descending_dimensions</span><span class="s2">)</span>
+<a name="l37"><span class="ln">37   </span></a>
+<a name="l38"><span class="ln">38   </span></a>
+<a name="l39"><span class="ln">39   </span></a><span class="s1">def </span><span class="s0">_check_dimensionality</span><span
+            class="s2">(</span><span class="s0">points</span><span class="s2">, </span><span
+            class="s0">values</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s1">if </span><span class="s0">len</span><span
+            class="s2">(</span><span class="s0">points</span><span class="s2">) </span><span
+            class="s1">&gt; </span><span class="s0">values</span><span class="s2">.</span><span
+            class="s0">ndim</span><span class="s1">:</span>
+<a name="l41"><span class="ln">41   </span></a>        <span class="s1">raise </span><span
+            class="s0">ValueError</span><span class="s2">(</span><span class="s3">&quot;There are %d point arrays, but values has %d &quot;</span>
+<a name="l42"><span class="ln">42   </span></a>                         <span
+            class="s3">&quot;dimensions&quot; </span><span class="s1">% </span><span class="s2">(</span><span
+            class="s0">len</span><span class="s2">(</span><span class="s0">points</span><span class="s2">), </span><span
+            class="s0">values</span><span class="s2">.</span><span class="s0">ndim</span><span class="s2">))</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s1">for </span><span class="s0">i</span><span
+            class="s2">, </span><span class="s0">p </span><span class="s1">in </span><span
+            class="s0">enumerate</span><span class="s2">(</span><span class="s0">points</span><span
+            class="s2">)</span><span class="s1">:</span>
+<a name="l44"><span class="ln">44   </span></a>        <span class="s1">if not </span><span class="s0">np</span><span
+            class="s2">.</span><span class="s0">asarray</span><span class="s2">(</span><span class="s0">p</span><span
+            class="s2">).</span><span class="s0">ndim </span><span class="s1">== </span><span class="s5">1</span><span
+            class="s1">:</span>
+<a name="l45"><span class="ln">45   </span></a>            <span class="s1">raise </span><span
+            class="s0">ValueError</span><span class="s2">(</span><span class="s3">&quot;The points in dimension %d must be &quot;</span>
+<a name="l46"><span class="ln">46   </span></a>                             <span
+            class="s3">&quot;1-dimensional&quot; </span><span class="s1">% </span><span class="s0">i</span><span
+            class="s2">)</span>
+<a name="l47"><span class="ln">47   </span></a>        <span class="s1">if not </span><span
+            class="s0">values</span><span class="s2">.</span><span class="s0">shape</span><span class="s2">[</span><span
+            class="s0">i</span><span class="s2">] </span><span class="s1">== </span><span class="s0">len</span><span
+            class="s2">(</span><span class="s0">p</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l48"><span class="ln">48   </span></a>            <span class="s1">raise </span><span
+            class="s0">ValueError</span><span class="s2">(</span><span class="s3">&quot;There are %d points and %d values in &quot;</span>
+<a name="l49"><span class="ln">49   </span></a>                             <span
+            class="s3">&quot;dimension %d&quot; </span><span class="s1">% </span><span class="s2">(</span><span
+            class="s0">len</span><span class="s2">(</span><span class="s0">p</span><span class="s2">), </span><span
+            class="s0">values</span><span class="s2">.</span><span class="s0">shape</span><span class="s2">[</span><span
+            class="s0">i</span><span class="s2">], </span><span class="s0">i</span><span class="s2">))</span>
+<a name="l50"><span class="ln">50   </span></a>
+<a name="l51"><span class="ln">51   </span></a>
+<a name="l52"><span class="ln">52   </span></a><span class="s1">class </span><span
+            class="s0">RegularGridInterpolator</span><span class="s1">:</span>
+<a name="l53"><span class="ln">53   </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l54"><span class="ln">54   </span></a>    Interpolator on a regular or rectilinear grid in arbitrary dimensions. 
+<a name="l55"><span class="ln">55   </span></a> 
+<a name="l56"><span class="ln">56   </span></a>    The data must be defined on a rectilinear grid; that is, a rectangular 
+<a name="l57"><span class="ln">57   </span></a>    grid with even or uneven spacing. Linear, nearest-neighbor, spline 
+<a name="l58"><span class="ln">58   </span></a>    interpolations are supported. After setting up the interpolator object, 
+<a name="l59"><span class="ln">59   </span></a>    the interpolation method may be chosen at each evaluation. 
+<a name="l60"><span class="ln">60   </span></a> 
+<a name="l61"><span class="ln">61   </span></a>    Parameters 
+<a name="l62"><span class="ln">62   </span></a>    ---------- 
+<a name="l63"><span class="ln">63   </span></a>    points : tuple of ndarray of float, with shapes (m1, ), ..., (mn, ) 
+<a name="l64"><span class="ln">64   </span></a>        The points defining the regular grid in n dimensions. The points in 
+<a name="l65"><span class="ln">65   </span></a>        each dimension (i.e. every elements of the points tuple) must be 
+<a name="l66"><span class="ln">66   </span></a>        strictly ascending or descending. 
+<a name="l67"><span class="ln">67   </span></a> 
+<a name="l68"><span class="ln">68   </span></a>    values : array_like, shape (m1, ..., mn, ...) 
+<a name="l69"><span class="ln">69   </span></a>        The data on the regular grid in n dimensions. Complex data is 
+<a name="l70"><span class="ln">70   </span></a>        accepted. 
+<a name="l71"><span class="ln">71   </span></a> 
+<a name="l72"><span class="ln">72   </span></a>    method : str, optional 
+<a name="l73"><span class="ln">73   </span></a>        The method of interpolation to perform. Supported are &quot;linear&quot;, 
+<a name="l74"><span class="ln">74   </span></a>        &quot;nearest&quot;, &quot;slinear&quot;, &quot;cubic&quot;, &quot;quintic&quot; and &quot;pchip&quot;. This 
+<a name="l75"><span class="ln">75   </span></a>        parameter will become the default for the object's ``__call__`` 
+<a name="l76"><span class="ln">76   </span></a>        method. Default is &quot;linear&quot;. 
+<a name="l77"><span class="ln">77   </span></a> 
+<a name="l78"><span class="ln">78   </span></a>    bounds_error : bool, optional 
+<a name="l79"><span class="ln">79   </span></a>        If True, when interpolated values are requested outside of the 
+<a name="l80"><span class="ln">80   </span></a>        domain of the input data, a ValueError is raised. 
+<a name="l81"><span class="ln">81   </span></a>        If False, then `fill_value` is used. 
+<a name="l82"><span class="ln">82   </span></a>        Default is True. 
+<a name="l83"><span class="ln">83   </span></a> 
+<a name="l84"><span class="ln">84   </span></a>    fill_value : float or None, optional 
+<a name="l85"><span class="ln">85   </span></a>        The value to use for points outside of the interpolation domain. 
+<a name="l86"><span class="ln">86   </span></a>        If None, values outside the domain are extrapolated. 
+<a name="l87"><span class="ln">87   </span></a>        Default is ``np.nan``. 
+<a name="l88"><span class="ln">88   </span></a> 
+<a name="l89"><span class="ln">89   </span></a>    solver : callable, optional 
+<a name="l90"><span class="ln">90   </span></a>        Only used for methods &quot;slinear&quot;, &quot;cubic&quot; and &quot;quintic&quot;. 
+<a name="l91"><span class="ln">91   </span></a>        Sparse linear algebra solver for construction of the NdBSpline instance. 
+<a name="l92"><span class="ln">92   </span></a>        Default is the iterative solver `scipy.sparse.linalg.gcrotmk`. 
+<a name="l93"><span class="ln">93   </span></a> 
+<a name="l94"><span class="ln">94   </span></a>        .. versionadded:: 1.13 
+<a name="l95"><span class="ln">95   </span></a> 
+<a name="l96"><span class="ln">96   </span></a>    solver_args: dict, optional 
+<a name="l97"><span class="ln">97   </span></a>        Additional arguments to pass to `solver`, if any. 
+<a name="l98"><span class="ln">98   </span></a> 
+<a name="l99"><span class="ln">99   </span></a>        .. versionadded:: 1.13 
+<a name="l100"><span class="ln">100  </span></a> 
+<a name="l101"><span class="ln">101  </span></a>    Methods 
+<a name="l102"><span class="ln">102  </span></a>    ------- 
+<a name="l103"><span class="ln">103  </span></a>    __call__ 
+<a name="l104"><span class="ln">104  </span></a> 
+<a name="l105"><span class="ln">105  </span></a>    Attributes 
+<a name="l106"><span class="ln">106  </span></a>    ---------- 
+<a name="l107"><span class="ln">107  </span></a>    grid : tuple of ndarrays 
+<a name="l108"><span class="ln">108  </span></a>        The points defining the regular grid in n dimensions. 
+<a name="l109"><span class="ln">109  </span></a>        This tuple defines the full grid via 
+<a name="l110"><span class="ln">110  </span></a>        ``np.meshgrid(*grid, indexing='ij')`` 
+<a name="l111"><span class="ln">111  </span></a>    values : ndarray 
+<a name="l112"><span class="ln">112  </span></a>        Data values at the grid. 
+<a name="l113"><span class="ln">113  </span></a>    method : str 
+<a name="l114"><span class="ln">114  </span></a>        Interpolation method. 
+<a name="l115"><span class="ln">115  </span></a>    fill_value : float or ``None`` 
+<a name="l116"><span class="ln">116  </span></a>        Use this value for out-of-bounds arguments to `__call__`. 
+<a name="l117"><span class="ln">117  </span></a>    bounds_error : bool 
+<a name="l118"><span class="ln">118  </span></a>        If ``True``, out-of-bounds argument raise a ``ValueError``. 
+<a name="l119"><span class="ln">119  </span></a> 
+<a name="l120"><span class="ln">120  </span></a>    Notes 
+<a name="l121"><span class="ln">121  </span></a>    ----- 
+<a name="l122"><span class="ln">122  </span></a>    Contrary to `LinearNDInterpolator` and `NearestNDInterpolator`, this class 
+<a name="l123"><span class="ln">123  </span></a>    avoids expensive triangulation of the input data by taking advantage of the 
+<a name="l124"><span class="ln">124  </span></a>    regular grid structure. 
+<a name="l125"><span class="ln">125  </span></a> 
+<a name="l126"><span class="ln">126  </span></a>    In other words, this class assumes that the data is defined on a 
+<a name="l127"><span class="ln">127  </span></a>    *rectilinear* grid. 
+<a name="l128"><span class="ln">128  </span></a> 
+<a name="l129"><span class="ln">129  </span></a>    .. versionadded:: 0.14 
+<a name="l130"><span class="ln">130  </span></a> 
+<a name="l131"><span class="ln">131  </span></a>    The 'slinear'(k=1), 'cubic'(k=3), and 'quintic'(k=5) methods are 
+<a name="l132"><span class="ln">132  </span></a>    tensor-product spline interpolators, where `k` is the spline degree, 
+<a name="l133"><span class="ln">133  </span></a>    If any dimension has fewer points than `k` + 1, an error will be raised. 
+<a name="l134"><span class="ln">134  </span></a> 
+<a name="l135"><span class="ln">135  </span></a>    .. versionadded:: 1.9 
+<a name="l136"><span class="ln">136  </span></a> 
+<a name="l137"><span class="ln">137  </span></a>    If the input data is such that dimensions have incommensurate 
+<a name="l138"><span class="ln">138  </span></a>    units and differ by many orders of magnitude, the interpolant may have 
+<a name="l139"><span class="ln">139  </span></a>    numerical artifacts. Consider rescaling the data before interpolating. 
+<a name="l140"><span class="ln">140  </span></a> 
+<a name="l141"><span class="ln">141  </span></a>    **Choosing a solver for spline methods** 
+<a name="l142"><span class="ln">142  </span></a> 
+<a name="l143"><span class="ln">143  </span></a>    Spline methods, &quot;slinear&quot;, &quot;cubic&quot; and &quot;quintic&quot; involve solving a 
+<a name="l144"><span class="ln">144  </span></a>    large sparse linear system at instantiation time. Depending on data, 
+<a name="l145"><span class="ln">145  </span></a>    the default solver may or may not be adequate. When it is not, you may 
+<a name="l146"><span class="ln">146  </span></a>    need to experiment with an optional `solver` argument, where you may 
+<a name="l147"><span class="ln">147  </span></a>    choose between the direct solver (`scipy.sparse.linalg.spsolve`) or 
+<a name="l148"><span class="ln">148  </span></a>    iterative solvers from `scipy.sparse.linalg`. You may need to supply 
+<a name="l149"><span class="ln">149  </span></a>    additional parameters via the optional `solver_args` parameter (for instance, 
+<a name="l150"><span class="ln">150  </span></a>    you may supply the starting value or target tolerance). See the 
+<a name="l151"><span class="ln">151  </span></a>    `scipy.sparse.linalg` documentation for the full list of available options. 
+<a name="l152"><span class="ln">152  </span></a> 
+<a name="l153"><span class="ln">153  </span></a>    Alternatively, you may instead use the legacy methods, &quot;slinear_legacy&quot;, 
+<a name="l154"><span class="ln">154  </span></a>    &quot;cubic_legacy&quot; and &quot;quintic_legacy&quot;. These methods allow faster construction 
+<a name="l155"><span class="ln">155  </span></a>    but evaluations will be much slower. 
+<a name="l156"><span class="ln">156  </span></a> 
+<a name="l157"><span class="ln">157  </span></a>    Examples 
+<a name="l158"><span class="ln">158  </span></a>    -------- 
+<a name="l159"><span class="ln">159  </span></a>    **Evaluate a function on the points of a 3-D grid** 
+<a name="l160"><span class="ln">160  </span></a> 
+<a name="l161"><span class="ln">161  </span></a>    As a first example, we evaluate a simple example function on the points of 
+<a name="l162"><span class="ln">162  </span></a>    a 3-D grid: 
+<a name="l163"><span class="ln">163  </span></a> 
+<a name="l164"><span class="ln">164  </span></a>    &gt;&gt;&gt; from scipy.interpolate import RegularGridInterpolator 
+<a name="l165"><span class="ln">165  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l166"><span class="ln">166  </span></a>    &gt;&gt;&gt; def f(x, y, z): 
+<a name="l167"><span class="ln">167  </span></a>    ...     return 2 * x**3 + 3 * y**2 - z 
+<a name="l168"><span class="ln">168  </span></a>    &gt;&gt;&gt; x = np.linspace(1, 4, 11) 
+<a name="l169"><span class="ln">169  </span></a>    &gt;&gt;&gt; y = np.linspace(4, 7, 22) 
+<a name="l170"><span class="ln">170  </span></a>    &gt;&gt;&gt; z = np.linspace(7, 9, 33) 
+<a name="l171"><span class="ln">171  </span></a>    &gt;&gt;&gt; xg, yg ,zg = np.meshgrid(x, y, z, indexing='ij', sparse=True) 
+<a name="l172"><span class="ln">172  </span></a>    &gt;&gt;&gt; data = f(xg, yg, zg) 
+<a name="l173"><span class="ln">173  </span></a> 
+<a name="l174"><span class="ln">174  </span></a>    ``data`` is now a 3-D array with ``data[i, j, k] = f(x[i], y[j], z[k])``. 
+<a name="l175"><span class="ln">175  </span></a>    Next, define an interpolating function from this data: 
+<a name="l176"><span class="ln">176  </span></a> 
+<a name="l177"><span class="ln">177  </span></a>    &gt;&gt;&gt; interp = RegularGridInterpolator((x, y, z), data) 
+<a name="l178"><span class="ln">178  </span></a> 
+<a name="l179"><span class="ln">179  </span></a>    Evaluate the interpolating function at the two points 
+<a name="l180"><span class="ln">180  </span></a>    ``(x,y,z) = (2.1, 6.2, 8.3)`` and ``(3.3, 5.2, 7.1)``: 
+<a name="l181"><span class="ln">181  </span></a> 
+<a name="l182"><span class="ln">182  </span></a>    &gt;&gt;&gt; pts = np.array([[2.1, 6.2, 8.3], 
+<a name="l183"><span class="ln">183  </span></a>    ...                 [3.3, 5.2, 7.1]]) 
+<a name="l184"><span class="ln">184  </span></a>    &gt;&gt;&gt; interp(pts) 
+<a name="l185"><span class="ln">185  </span></a>    array([ 125.80469388,  146.30069388]) 
+<a name="l186"><span class="ln">186  </span></a> 
+<a name="l187"><span class="ln">187  </span></a>    which is indeed a close approximation to 
+<a name="l188"><span class="ln">188  </span></a> 
+<a name="l189"><span class="ln">189  </span></a>    &gt;&gt;&gt; f(2.1, 6.2, 8.3), f(3.3, 5.2, 7.1) 
+<a name="l190"><span class="ln">190  </span></a>    (125.54200000000002, 145.894) 
+<a name="l191"><span class="ln">191  </span></a> 
+<a name="l192"><span class="ln">192  </span></a>    **Interpolate and extrapolate a 2D dataset** 
+<a name="l193"><span class="ln">193  </span></a> 
+<a name="l194"><span class="ln">194  </span></a>    As a second example, we interpolate and extrapolate a 2D data set: 
+<a name="l195"><span class="ln">195  </span></a> 
+<a name="l196"><span class="ln">196  </span></a>    &gt;&gt;&gt; x, y = np.array([-2, 0, 4]), np.array([-2, 0, 2, 5]) 
+<a name="l197"><span class="ln">197  </span></a>    &gt;&gt;&gt; def ff(x, y): 
+<a name="l198"><span class="ln">198  </span></a>    ...     return x**2 + y**2 
+<a name="l199"><span class="ln">199  </span></a> 
+<a name="l200"><span class="ln">200  </span></a>    &gt;&gt;&gt; xg, yg = np.meshgrid(x, y, indexing='ij') 
+<a name="l201"><span class="ln">201  </span></a>    &gt;&gt;&gt; data = ff(xg, yg) 
+<a name="l202"><span class="ln">202  </span></a>    &gt;&gt;&gt; interp = RegularGridInterpolator((x, y), data, 
+<a name="l203"><span class="ln">203  </span></a>    ...                                  bounds_error=False, fill_value=None) 
+<a name="l204"><span class="ln">204  </span></a> 
+<a name="l205"><span class="ln">205  </span></a>    &gt;&gt;&gt; import matplotlib.pyplot as plt 
+<a name="l206"><span class="ln">206  </span></a>    &gt;&gt;&gt; fig = plt.figure() 
+<a name="l207"><span class="ln">207  </span></a>    &gt;&gt;&gt; ax = fig.add_subplot(projection='3d') 
+<a name="l208"><span class="ln">208  </span></a>    &gt;&gt;&gt; ax.scatter(xg.ravel(), yg.ravel(), data.ravel(), 
+<a name="l209"><span class="ln">209  </span></a>    ...            s=60, c='k', label='data') 
+<a name="l210"><span class="ln">210  </span></a> 
+<a name="l211"><span class="ln">211  </span></a>    Evaluate and plot the interpolator on a finer grid 
+<a name="l212"><span class="ln">212  </span></a> 
+<a name="l213"><span class="ln">213  </span></a>    &gt;&gt;&gt; xx = np.linspace(-4, 9, 31) 
+<a name="l214"><span class="ln">214  </span></a>    &gt;&gt;&gt; yy = np.linspace(-4, 9, 31) 
+<a name="l215"><span class="ln">215  </span></a>    &gt;&gt;&gt; X, Y = np.meshgrid(xx, yy, indexing='ij') 
+<a name="l216"><span class="ln">216  </span></a> 
+<a name="l217"><span class="ln">217  </span></a>    &gt;&gt;&gt; # interpolator 
+<a name="l218"><span class="ln">218  </span></a>    &gt;&gt;&gt; ax.plot_wireframe(X, Y, interp((X, Y)), rstride=3, cstride=3, 
+<a name="l219"><span class="ln">219  </span></a>    ...                   alpha=0.4, color='m', label='linear interp') 
+<a name="l220"><span class="ln">220  </span></a> 
+<a name="l221"><span class="ln">221  </span></a>    &gt;&gt;&gt; # ground truth 
+<a name="l222"><span class="ln">222  </span></a>    &gt;&gt;&gt; ax.plot_wireframe(X, Y, ff(X, Y), rstride=3, cstride=3, 
+<a name="l223"><span class="ln">223  </span></a>    ...                   alpha=0.4, label='ground truth') 
+<a name="l224"><span class="ln">224  </span></a>    &gt;&gt;&gt; plt.legend() 
+<a name="l225"><span class="ln">225  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l226"><span class="ln">226  </span></a> 
+<a name="l227"><span class="ln">227  </span></a>    Other examples are given 
+<a name="l228"><span class="ln">228  </span></a>    :ref:`in the tutorial &lt;tutorial-interpolate_regular_grid_interpolator&gt;`. 
+<a name="l229"><span class="ln">229  </span></a> 
+<a name="l230"><span class="ln">230  </span></a>    See Also 
+<a name="l231"><span class="ln">231  </span></a>    -------- 
+<a name="l232"><span class="ln">232  </span></a>    NearestNDInterpolator : Nearest neighbor interpolator on *unstructured* 
+<a name="l233"><span class="ln">233  </span></a>                            data in N dimensions 
+<a name="l234"><span class="ln">234  </span></a> 
+<a name="l235"><span class="ln">235  </span></a>    LinearNDInterpolator : Piecewise linear interpolator on *unstructured* data 
+<a name="l236"><span class="ln">236  </span></a>                           in N dimensions 
+<a name="l237"><span class="ln">237  </span></a> 
+<a name="l238"><span class="ln">238  </span></a>    interpn : a convenience function which wraps `RegularGridInterpolator` 
+<a name="l239"><span class="ln">239  </span></a> 
+<a name="l240"><span class="ln">240  </span></a>    scipy.ndimage.map_coordinates : interpolation on grids with equal spacing 
+<a name="l241"><span class="ln">241  </span></a>                                    (suitable for e.g., N-D image resampling) 
+<a name="l242"><span class="ln">242  </span></a> 
+<a name="l243"><span class="ln">243  </span></a>    References 
+<a name="l244"><span class="ln">244  </span></a>    ---------- 
+<a name="l245"><span class="ln">245  </span></a>    .. [1] Python package *regulargrid* by Johannes Buchner, see 
+<a name="l246"><span class="ln">246  </span></a>           https://pypi.python.org/pypi/regulargrid/ 
+<a name="l247"><span class="ln">247  </span></a>    .. [2] Wikipedia, &quot;Trilinear interpolation&quot;, 
+<a name="l248"><span class="ln">248  </span></a>           https://en.wikipedia.org/wiki/Trilinear_interpolation 
+<a name="l249"><span class="ln">249  </span></a>    .. [3] Weiser, Alan, and Sergio E. Zarantonello. &quot;A note on piecewise linear 
+<a name="l250"><span class="ln">250  </span></a>           and multilinear table interpolation in many dimensions.&quot; MATH. 
+<a name="l251"><span class="ln">251  </span></a>           COMPUT. 50.181 (1988): 189-196. 
+<a name="l252"><span class="ln">252  </span></a>           https://www.ams.org/journals/mcom/1988-50-181/S0025-5718-1988-0917826-0/S0025-5718-1988-0917826-0.pdf 
+<a name="l253"><span class="ln">253  </span></a>           :doi:`10.1090/S0025-5718-1988-0917826-0` 
+<a name="l254"><span class="ln">254  </span></a> 
+<a name="l255"><span class="ln">255  </span></a>    &quot;&quot;&quot;</span>
+<a name="l256"><span class="ln">256  </span></a>    <span class="s4"># this class is based on code originally programmed by Johannes Buchner,</span>
+<a name="l257"><span class="ln">257  </span></a>    <span class="s4"># see https://github.com/JohannesBuchner/regulargrid</span>
+<a name="l258"><span class="ln">258  </span></a>
+<a name="l259"><span class="ln">259  </span></a>    <span class="s0">_SPLINE_DEGREE_MAP </span><span
+            class="s1">= </span><span class="s2">{</span><span class="s3">&quot;slinear&quot;</span><span
+            class="s1">: </span><span class="s5">1</span><span class="s2">, </span><span
+            class="s3">&quot;cubic&quot;</span><span class="s1">: </span><span class="s5">3</span><span
+            class="s2">, </span><span class="s3">&quot;quintic&quot;</span><span class="s1">: </span><span
+            class="s5">5</span><span class="s2">, </span><span class="s3">'pchip'</span><span class="s1">: </span><span
+            class="s5">3</span><span class="s2">,</span>
+<a name="l260"><span class="ln">260  </span></a>                          <span
+            class="s3">&quot;slinear_legacy&quot;</span><span class="s1">: </span><span class="s5">1</span><span
+            class="s2">, </span><span class="s3">&quot;cubic_legacy&quot;</span><span class="s1">: </span><span
+            class="s5">3</span><span class="s2">, </span><span class="s3">&quot;quintic_legacy&quot;</span><span
+            class="s1">: </span><span class="s5">5</span><span class="s2">,}</span>
+<a name="l261"><span class="ln">261  </span></a>    <span class="s0">_SPLINE_METHODS_recursive </span><span
+            class="s1">= </span><span class="s2">{</span><span class="s3">&quot;slinear_legacy&quot;</span><span
+            class="s2">, </span><span class="s3">&quot;cubic_legacy&quot;</span><span class="s2">,</span>
+<a name="l262"><span class="ln">262  </span></a>                                <span class="s3">&quot;quintic_legacy&quot;</span><span
+            class="s2">, </span><span class="s3">&quot;pchip&quot;</span><span class="s2">}</span>
+<a name="l263"><span class="ln">263  </span></a>    <span class="s0">_SPLINE_METHODS_ndbspl </span><span
+            class="s1">= </span><span class="s2">{</span><span class="s3">&quot;slinear&quot;</span><span
+            class="s2">, </span><span class="s3">&quot;cubic&quot;</span><span class="s2">, </span><span class="s3">&quot;quintic&quot;</span><span
+            class="s2">}</span>
+<a name="l264"><span class="ln">264  </span></a>    <span class="s0">_SPLINE_METHODS </span><span
+            class="s1">= </span><span class="s0">list</span><span class="s2">(</span><span
+            class="s0">_SPLINE_DEGREE_MAP</span><span class="s2">.</span><span class="s0">keys</span><span class="s2">())</span>
+<a name="l265"><span class="ln">265  </span></a>    <span class="s0">_ALL_METHODS </span><span class="s1">= </span><span
+            class="s2">[</span><span class="s3">&quot;linear&quot;</span><span class="s2">, </span><span class="s3">&quot;nearest&quot;</span><span
+            class="s2">] </span><span class="s1">+ </span><span class="s0">_SPLINE_METHODS</span>
+<a name="l266"><span class="ln">266  </span></a>
+<a name="l267"><span class="ln">267  </span></a>    <span class="s1">def </span><span class="s0">__init__</span><span
+            class="s2">(</span><span class="s0">self</span><span class="s2">, </span><span class="s0">points</span><span
+            class="s2">, </span><span class="s0">values</span><span class="s2">, </span><span
+            class="s0">method</span><span class="s1">=</span><span class="s3">&quot;linear&quot;</span><span class="s2">, </span><span
+            class="s0">bounds_error</span><span class="s1">=True</span><span class="s2">,</span>
+<a name="l268"><span class="ln">268  </span></a>                 <span class="s0">fill_value</span><span
+            class="s1">=</span><span class="s0">np</span><span class="s2">.</span><span class="s0">nan</span><span
+            class="s2">, </span><span class="s1">*</span><span class="s2">, </span><span class="s0">solver</span><span
+            class="s1">=None</span><span class="s2">, </span><span class="s0">solver_args</span><span
+            class="s1">=None</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l269"><span class="ln">269  </span></a>        <span class="s1">if </span><span class="s0">method </span><span
+            class="s1">not in </span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_ALL_METHODS</span><span class="s1">:</span>
+<a name="l270"><span class="ln">270  </span></a>            <span class="s1">raise </span><span
+            class="s0">ValueError</span><span class="s2">(</span><span class="s3">f&quot;Method '{</span><span
+            class="s0">method</span><span class="s3">}' is not defined&quot;</span><span class="s2">)</span>
+<a name="l271"><span class="ln">271  </span></a>        <span class="s1">elif </span><span
+            class="s0">method </span><span class="s1">in </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">_SPLINE_METHODS</span><span class="s1">:</span>
+<a name="l272"><span class="ln">272  </span></a>            <span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_validate_grid_dimensions</span><span class="s2">(</span><span class="s0">points</span><span
+            class="s2">, </span><span class="s0">method</span><span class="s2">)</span>
+<a name="l273"><span class="ln">273  </span></a>        <span class="s0">self</span><span class="s2">.</span><span
+            class="s0">method </span><span class="s1">= </span><span class="s0">method</span>
+<a name="l274"><span class="ln">274  </span></a>        <span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_spline </span><span class="s1">= None</span>
+<a name="l275"><span class="ln">275  </span></a>        <span class="s0">self</span><span class="s2">.</span><span
+            class="s0">bounds_error </span><span class="s1">= </span><span class="s0">bounds_error</span>
+<a name="l276"><span class="ln">276  </span></a>        <span class="s0">self</span><span class="s2">.</span><span
+            class="s0">grid</span><span class="s2">, </span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_descending_dimensions </span><span class="s1">= </span><span
+            class="s0">_check_points</span><span class="s2">(</span><span class="s0">points</span><span
+            class="s2">)</span>
+<a name="l277"><span class="ln">277  </span></a>        <span class="s0">self</span><span class="s2">.</span><span
+            class="s0">values </span><span class="s1">= </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">_check_values</span><span class="s2">(</span><span
+            class="s0">values</span><span class="s2">)</span>
+<a name="l278"><span class="ln">278  </span></a>        <span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_check_dimensionality</span><span class="s2">(</span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">grid</span><span class="s2">, </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">values</span><span class="s2">)</span>
+<a name="l279"><span class="ln">279  </span></a>        <span class="s0">self</span><span class="s2">.</span><span
+            class="s0">fill_value </span><span class="s1">= </span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_check_fill_value</span><span class="s2">(</span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">values</span><span class="s2">, </span><span
+            class="s0">fill_value</span><span class="s2">)</span>
+<a name="l280"><span class="ln">280  </span></a>        <span class="s1">if </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">_descending_dimensions</span><span class="s1">:</span>
+<a name="l281"><span class="ln">281  </span></a>            <span class="s0">self</span><span class="s2">.</span><span
+            class="s0">values </span><span class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span
+            class="s0">flip</span><span class="s2">(</span><span class="s0">values</span><span class="s2">, </span><span
+            class="s0">axis</span><span class="s1">=</span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_descending_dimensions</span><span class="s2">)</span>
+<a name="l282"><span class="ln">282  </span></a>        <span class="s1">if </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">method </span><span class="s1">== </span><span class="s3">&quot;pchip&quot; </span><span
+            class="s1">and </span><span class="s0">np</span><span class="s2">.</span><span
+            class="s0">iscomplexobj</span><span class="s2">(</span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">values</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l283"><span class="ln">283  </span></a>            <span class="s0">msg </span><span class="s1">= </span><span
+            class="s2">(</span><span class="s3">&quot;`PchipInterpolator` only works with real values. If you are trying &quot;</span>
+<a name="l284"><span class="ln">284  </span></a>                   <span class="s3">&quot;to use the real components of the passed array, use `np.real` on &quot;</span>
+<a name="l285"><span class="ln">285  </span></a>                   <span class="s3">&quot;the array before passing to `RegularGridInterpolator`.&quot;</span><span
+            class="s2">)</span>
+<a name="l286"><span class="ln">286  </span></a>            <span class="s1">raise </span><span
+            class="s0">ValueError</span><span class="s2">(</span><span class="s0">msg</span><span class="s2">)</span>
+<a name="l287"><span class="ln">287  </span></a>        <span class="s1">if </span><span class="s0">method </span><span
+            class="s1">in </span><span class="s0">self</span><span class="s2">.</span><span class="s0">_SPLINE_METHODS_ndbspl</span><span
+            class="s1">:</span>
+<a name="l288"><span class="ln">288  </span></a>            <span class="s1">if </span><span
+            class="s0">solver_args </span><span class="s1">is None:</span>
+<a name="l289"><span class="ln">289  </span></a>                <span class="s0">solver_args </span><span
+            class="s1">= </span><span class="s2">{}</span>
+<a name="l290"><span class="ln">290  </span></a>            <span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_spline </span><span class="s1">= </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">_construct_spline</span><span class="s2">(</span><span
+            class="s0">method</span><span class="s2">, </span><span class="s0">solver</span><span
+            class="s2">, </span><span class="s1">**</span><span class="s0">solver_args</span><span class="s2">)</span>
+<a name="l291"><span class="ln">291  </span></a>        <span class="s1">else:</span>
+<a name="l292"><span class="ln">292  </span></a>            <span class="s1">if </span><span
+            class="s0">solver </span><span class="s1">is not None or </span><span class="s0">solver_args</span><span
+            class="s1">:</span>
+<a name="l293"><span class="ln">293  </span></a>                <span class="s1">raise </span><span class="s0">ValueError</span><span
+            class="s2">(</span>
+<a name="l294"><span class="ln">294  </span></a>                    <span class="s3">f&quot;{</span><span class="s0">method </span><span
+            class="s1">=</span><span class="s3">} does not accept the 'solver' argument. Got &quot;</span>
+<a name="l295"><span class="ln">295  </span></a>                    <span class="s3">f&quot; {</span><span class="s0">solver </span><span
+            class="s1">= </span><span class="s3">} and with arguments {</span><span class="s0">solver_args</span><span
+            class="s3">}.&quot;</span>
+<a name="l296"><span class="ln">296  </span></a>                <span class="s2">)</span>
+<a name="l297"><span class="ln">297  </span></a>
+<a name="l298"><span class="ln">298  </span></a>    <span class="s1">def </span><span
+            class="s0">_construct_spline</span><span class="s2">(</span><span class="s0">self</span><span
+            class="s2">, </span><span class="s0">method</span><span class="s2">, </span><span
+            class="s0">solver</span><span class="s1">=None</span><span class="s2">, </span><span
+            class="s1">**</span><span class="s0">solver_args</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l299"><span class="ln">299  </span></a>        <span class="s1">if </span><span class="s0">solver </span><span
+            class="s1">is None:</span>
+<a name="l300"><span class="ln">300  </span></a>            <span class="s0">solver </span><span
+            class="s1">= </span><span class="s0">ssl</span><span class="s2">.</span><span class="s0">gcrotmk</span>
+<a name="l301"><span class="ln">301  </span></a>        <span class="s0">spl </span><span class="s1">= </span><span
+            class="s0">make_ndbspl</span><span class="s2">(</span>
+<a name="l302"><span class="ln">302  </span></a>                <span class="s0">self</span><span
+            class="s2">.</span><span class="s0">grid</span><span class="s2">, </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">values</span><span class="s2">, </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">_SPLINE_DEGREE_MAP</span><span class="s2">[</span><span class="s0">method</span><span
+            class="s2">],</span>
+<a name="l303"><span class="ln">303  </span></a>                <span class="s0">solver</span><span
+            class="s1">=</span><span class="s0">solver</span><span class="s2">, </span><span class="s1">**</span><span
+            class="s0">solver_args</span>
+<a name="l304"><span class="ln">304  </span></a>              <span class="s2">)</span>
+<a name="l305"><span class="ln">305  </span></a>        <span class="s1">return </span><span class="s0">spl</span>
+<a name="l306"><span class="ln">306  </span></a>
+<a name="l307"><span class="ln">307  </span></a>    <span class="s1">def </span><span
+            class="s0">_check_dimensionality</span><span class="s2">(</span><span class="s0">self</span><span
+            class="s2">, </span><span class="s0">grid</span><span class="s2">, </span><span
+            class="s0">values</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l308"><span class="ln">308  </span></a>        <span class="s0">_check_dimensionality</span><span
+            class="s2">(</span><span class="s0">grid</span><span class="s2">, </span><span class="s0">values</span><span
+            class="s2">)</span>
+<a name="l309"><span class="ln">309  </span></a>
+<a name="l310"><span class="ln">310  </span></a>    <span class="s1">def </span><span
+            class="s0">_check_points</span><span class="s2">(</span><span class="s0">self</span><span
+            class="s2">, </span><span class="s0">points</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l311"><span class="ln">311  </span></a>        <span class="s1">return </span><span
+            class="s0">_check_points</span><span class="s2">(</span><span class="s0">points</span><span
+            class="s2">)</span>
+<a name="l312"><span class="ln">312  </span></a>
+<a name="l313"><span class="ln">313  </span></a>    <span class="s1">def </span><span
+            class="s0">_check_values</span><span class="s2">(</span><span class="s0">self</span><span
+            class="s2">, </span><span class="s0">values</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l314"><span class="ln">314  </span></a>        <span class="s1">if not </span><span
+            class="s0">hasattr</span><span class="s2">(</span><span class="s0">values</span><span
+            class="s2">, </span><span class="s3">'ndim'</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l315"><span class="ln">315  </span></a>            <span class="s4"># allow reasonable duck-typed values</span>
+<a name="l316"><span class="ln">316  </span></a>            <span class="s0">values </span><span
+            class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">asarray</span><span
+            class="s2">(</span><span class="s0">values</span><span class="s2">)</span>
+<a name="l317"><span class="ln">317  </span></a>
+<a name="l318"><span class="ln">318  </span></a>        <span class="s1">if </span><span class="s0">hasattr</span><span
+            class="s2">(</span><span class="s0">values</span><span class="s2">, </span><span
+            class="s3">'dtype'</span><span class="s2">) </span><span class="s1">and </span><span
+            class="s0">hasattr</span><span class="s2">(</span><span class="s0">values</span><span
+            class="s2">, </span><span class="s3">'astype'</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l319"><span class="ln">319  </span></a>            <span class="s1">if not </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">issubdtype</span><span
+            class="s2">(</span><span class="s0">values</span><span class="s2">.</span><span class="s0">dtype</span><span
+            class="s2">, </span><span class="s0">np</span><span class="s2">.</span><span class="s0">inexact</span><span
+            class="s2">)</span><span class="s1">:</span>
+<a name="l320"><span class="ln">320  </span></a>                <span class="s0">values </span><span
+            class="s1">= </span><span class="s0">values</span><span class="s2">.</span><span
+            class="s0">astype</span><span class="s2">(</span><span class="s0">float</span><span class="s2">)</span>
+<a name="l321"><span class="ln">321  </span></a>
+<a name="l322"><span class="ln">322  </span></a>        <span class="s1">return </span><span class="s0">values</span>
+<a name="l323"><span class="ln">323  </span></a>
+<a name="l324"><span class="ln">324  </span></a>    <span class="s1">def </span><span
+            class="s0">_check_fill_value</span><span class="s2">(</span><span class="s0">self</span><span
+            class="s2">, </span><span class="s0">values</span><span class="s2">, </span><span
+            class="s0">fill_value</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l325"><span class="ln">325  </span></a>        <span class="s1">if </span><span
+            class="s0">fill_value </span><span class="s1">is not None:</span>
+<a name="l326"><span class="ln">326  </span></a>            <span class="s0">fill_value_dtype </span><span
+            class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">asarray</span><span
+            class="s2">(</span><span class="s0">fill_value</span><span class="s2">).</span><span class="s0">dtype</span>
+<a name="l327"><span class="ln">327  </span></a>            <span class="s1">if </span><span class="s2">(</span><span
+            class="s0">hasattr</span><span class="s2">(</span><span class="s0">values</span><span
+            class="s2">, </span><span class="s3">'dtype'</span><span class="s2">) </span><span class="s1">and not</span>
+<a name="l328"><span class="ln">328  </span></a>                    <span class="s0">np</span><span
+            class="s2">.</span><span class="s0">can_cast</span><span class="s2">(</span><span class="s0">fill_value_dtype</span><span
+            class="s2">, </span><span class="s0">values</span><span class="s2">.</span><span
+            class="s0">dtype</span><span class="s2">,</span>
+<a name="l329"><span class="ln">329  </span></a>                                <span class="s0">casting</span><span
+            class="s1">=</span><span class="s3">'same_kind'</span><span class="s2">))</span><span class="s1">:</span>
+<a name="l330"><span class="ln">330  </span></a>                <span class="s1">raise </span><span class="s0">ValueError</span><span
+            class="s2">(</span><span class="s3">&quot;fill_value must be either 'None' or &quot;</span>
+<a name="l331"><span class="ln">331  </span></a>                                 <span class="s3">&quot;of a type compatible with values&quot;</span><span
+            class="s2">)</span>
+<a name="l332"><span class="ln">332  </span></a>        <span class="s1">return </span><span
+            class="s0">fill_value</span>
+<a name="l333"><span class="ln">333  </span></a>
+<a name="l334"><span class="ln">334  </span></a>    <span class="s1">def </span><span class="s0">__call__</span><span
+            class="s2">(</span><span class="s0">self</span><span class="s2">, </span><span class="s0">xi</span><span
+            class="s2">, </span><span class="s0">method</span><span class="s1">=None</span><span
+            class="s2">, </span><span class="s1">*</span><span class="s2">, </span><span class="s0">nu</span><span
+            class="s1">=None</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l335"><span class="ln">335  </span></a>        <span class="s4">&quot;&quot;&quot; 
+<a name="l336"><span class="ln">336  </span></a>        Interpolation at coordinates. 
+<a name="l337"><span class="ln">337  </span></a> 
+<a name="l338"><span class="ln">338  </span></a>        Parameters 
+<a name="l339"><span class="ln">339  </span></a>        ---------- 
+<a name="l340"><span class="ln">340  </span></a>        xi : ndarray of shape (..., ndim) 
+<a name="l341"><span class="ln">341  </span></a>            The coordinates to evaluate the interpolator at. 
+<a name="l342"><span class="ln">342  </span></a> 
+<a name="l343"><span class="ln">343  </span></a>        method : str, optional 
+<a name="l344"><span class="ln">344  </span></a>            The method of interpolation to perform. Supported are &quot;linear&quot;, 
+<a name="l345"><span class="ln">345  </span></a>            &quot;nearest&quot;, &quot;slinear&quot;, &quot;cubic&quot;, &quot;quintic&quot; and &quot;pchip&quot;. Default is 
+<a name="l346"><span class="ln">346  </span></a>            the method chosen when the interpolator was created. 
+<a name="l347"><span class="ln">347  </span></a> 
+<a name="l348"><span class="ln">348  </span></a>        nu : sequence of ints, length ndim, optional 
+<a name="l349"><span class="ln">349  </span></a>            If not None, the orders of the derivatives to evaluate. 
+<a name="l350"><span class="ln">350  </span></a>            Each entry must be non-negative. 
+<a name="l351"><span class="ln">351  </span></a>            Only allowed for methods &quot;slinear&quot;, &quot;cubic&quot; and &quot;quintic&quot;. 
+<a name="l352"><span class="ln">352  </span></a> 
+<a name="l353"><span class="ln">353  </span></a>            .. versionadded:: 1.13 
+<a name="l354"><span class="ln">354  </span></a> 
+<a name="l355"><span class="ln">355  </span></a>        Returns 
+<a name="l356"><span class="ln">356  </span></a>        ------- 
+<a name="l357"><span class="ln">357  </span></a>        values_x : ndarray, shape xi.shape[:-1] + values.shape[ndim:] 
+<a name="l358"><span class="ln">358  </span></a>            Interpolated values at `xi`. See notes for behaviour when 
+<a name="l359"><span class="ln">359  </span></a>            ``xi.ndim == 1``. 
+<a name="l360"><span class="ln">360  </span></a> 
+<a name="l361"><span class="ln">361  </span></a>        Notes 
+<a name="l362"><span class="ln">362  </span></a>        ----- 
+<a name="l363"><span class="ln">363  </span></a>        In the case that ``xi.ndim == 1`` a new axis is inserted into 
+<a name="l364"><span class="ln">364  </span></a>        the 0 position of the returned array, values_x, so its shape is 
+<a name="l365"><span class="ln">365  </span></a>        instead ``(1,) + values.shape[ndim:]``. 
+<a name="l366"><span class="ln">366  </span></a> 
+<a name="l367"><span class="ln">367  </span></a>        Examples 
+<a name="l368"><span class="ln">368  </span></a>        -------- 
+<a name="l369"><span class="ln">369  </span></a>        Here we define a nearest-neighbor interpolator of a simple function 
+<a name="l370"><span class="ln">370  </span></a> 
+<a name="l371"><span class="ln">371  </span></a>        &gt;&gt;&gt; import numpy as np 
+<a name="l372"><span class="ln">372  </span></a>        &gt;&gt;&gt; x, y = np.array([0, 1, 2]), np.array([1, 3, 7]) 
+<a name="l373"><span class="ln">373  </span></a>        &gt;&gt;&gt; def f(x, y): 
+<a name="l374"><span class="ln">374  </span></a>        ...     return x**2 + y**2 
+<a name="l375"><span class="ln">375  </span></a>        &gt;&gt;&gt; data = f(*np.meshgrid(x, y, indexing='ij', sparse=True)) 
+<a name="l376"><span class="ln">376  </span></a>        &gt;&gt;&gt; from scipy.interpolate import RegularGridInterpolator 
+<a name="l377"><span class="ln">377  </span></a>        &gt;&gt;&gt; interp = RegularGridInterpolator((x, y), data, method='nearest') 
+<a name="l378"><span class="ln">378  </span></a> 
+<a name="l379"><span class="ln">379  </span></a>        By construction, the interpolator uses the nearest-neighbor 
+<a name="l380"><span class="ln">380  </span></a>        interpolation 
+<a name="l381"><span class="ln">381  </span></a> 
+<a name="l382"><span class="ln">382  </span></a>        &gt;&gt;&gt; interp([[1.5, 1.3], [0.3, 4.5]]) 
+<a name="l383"><span class="ln">383  </span></a>        array([2., 9.]) 
+<a name="l384"><span class="ln">384  </span></a> 
+<a name="l385"><span class="ln">385  </span></a>        We can however evaluate the linear interpolant by overriding the 
+<a name="l386"><span class="ln">386  </span></a>        `method` parameter 
+<a name="l387"><span class="ln">387  </span></a> 
+<a name="l388"><span class="ln">388  </span></a>        &gt;&gt;&gt; interp([[1.5, 1.3], [0.3, 4.5]], method='linear') 
+<a name="l389"><span class="ln">389  </span></a>        array([ 4.7, 24.3]) 
+<a name="l390"><span class="ln">390  </span></a>        &quot;&quot;&quot;</span>
+<a name="l391"><span class="ln">391  </span></a>        <span class="s0">_spline </span><span class="s1">= </span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">_spline</span>
+<a name="l392"><span class="ln">392  </span></a>        <span class="s0">method </span><span class="s1">= </span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">method </span><span
+            class="s1">if </span><span class="s0">method </span><span class="s1">is None else </span><span class="s0">method</span>
+<a name="l393"><span class="ln">393  </span></a>        <span class="s0">is_method_changed </span><span
+            class="s1">= </span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">method </span><span class="s1">!= </span><span class="s0">method</span>
+<a name="l394"><span class="ln">394  </span></a>        <span class="s1">if </span><span class="s0">method </span><span
+            class="s1">not in </span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_ALL_METHODS</span><span class="s1">:</span>
+<a name="l395"><span class="ln">395  </span></a>            <span class="s1">raise </span><span
+            class="s0">ValueError</span><span class="s2">(</span><span class="s3">f&quot;Method '{</span><span
+            class="s0">method</span><span class="s3">}' is not defined&quot;</span><span class="s2">)</span>
+<a name="l396"><span class="ln">396  </span></a>        <span class="s1">if </span><span
+            class="s0">is_method_changed </span><span class="s1">and </span><span class="s0">method </span><span
+            class="s1">in </span><span class="s0">self</span><span class="s2">.</span><span class="s0">_SPLINE_METHODS_ndbspl</span><span
+            class="s1">:</span>
+<a name="l397"><span class="ln">397  </span></a>            <span class="s0">_spline </span><span
+            class="s1">= </span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_construct_spline</span><span class="s2">(</span><span class="s0">method</span><span
+            class="s2">)</span>
+<a name="l398"><span class="ln">398  </span></a>
+<a name="l399"><span class="ln">399  </span></a>        <span class="s1">if </span><span class="s0">nu </span><span
+            class="s1">is not None and </span><span class="s0">method </span><span class="s1">not in </span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">_SPLINE_METHODS_ndbspl</span><span
+            class="s1">:</span>
+<a name="l400"><span class="ln">400  </span></a>            <span class="s1">raise </span><span
+            class="s0">ValueError</span><span class="s2">(</span>
+<a name="l401"><span class="ln">401  </span></a>                <span class="s3">f&quot;Can only compute derivatives for methods &quot;</span>
+<a name="l402"><span class="ln">402  </span></a>                <span class="s3">f&quot;{</span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">_SPLINE_METHODS_ndbspl</span><span
+            class="s3">}, got {</span><span class="s0">method </span><span class="s1">=</span><span
+            class="s3">}.&quot;</span>
+<a name="l403"><span class="ln">403  </span></a>            <span class="s2">)</span>
+<a name="l404"><span class="ln">404  </span></a>
+<a name="l405"><span class="ln">405  </span></a>        <span class="s0">xi</span><span class="s2">, </span><span
+            class="s0">xi_shape</span><span class="s2">, </span><span class="s0">ndim</span><span
+            class="s2">, </span><span class="s0">nans</span><span class="s2">, </span><span
+            class="s0">out_of_bounds </span><span class="s1">= </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">_prepare_xi</span><span class="s2">(</span><span
+            class="s0">xi</span><span class="s2">)</span>
+<a name="l406"><span class="ln">406  </span></a>
+<a name="l407"><span class="ln">407  </span></a>        <span class="s1">if </span><span class="s0">method </span><span
+            class="s1">== </span><span class="s3">&quot;linear&quot;</span><span class="s1">:</span>
+<a name="l408"><span class="ln">408  </span></a>            <span class="s0">indices</span><span
+            class="s2">, </span><span class="s0">norm_distances </span><span class="s1">= </span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">_find_indices</span><span
+            class="s2">(</span><span class="s0">xi</span><span class="s2">.</span><span class="s0">T</span><span
+            class="s2">)</span>
+<a name="l409"><span class="ln">409  </span></a>            <span class="s1">if </span><span class="s2">(</span><span
+            class="s0">ndim </span><span class="s1">== </span><span class="s5">2 </span><span
+            class="s1">and </span><span class="s0">hasattr</span><span class="s2">(</span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">values</span><span class="s2">, </span><span
+            class="s3">'dtype'</span><span class="s2">) </span><span class="s1">and</span>
+<a name="l410"><span class="ln">410  </span></a>                    <span class="s0">self</span><span
+            class="s2">.</span><span class="s0">values</span><span class="s2">.</span><span class="s0">ndim </span><span
+            class="s1">== </span><span class="s5">2 </span><span class="s1">and </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">values</span><span class="s2">.</span><span class="s0">flags</span><span
+            class="s2">.</span><span class="s0">writeable </span><span class="s1">and</span>
+<a name="l411"><span class="ln">411  </span></a>                    <span class="s0">self</span><span
+            class="s2">.</span><span class="s0">values</span><span class="s2">.</span><span
+            class="s0">dtype </span><span class="s1">in </span><span class="s2">(</span><span class="s0">np</span><span
+            class="s2">.</span><span class="s0">float64</span><span class="s2">, </span><span class="s0">np</span><span
+            class="s2">.</span><span class="s0">complex128</span><span class="s2">) </span><span class="s1">and</span>
+<a name="l412"><span class="ln">412  </span></a>                    <span class="s0">self</span><span
+            class="s2">.</span><span class="s0">values</span><span class="s2">.</span><span class="s0">dtype</span><span
+            class="s2">.</span><span class="s0">byteorder </span><span class="s1">== </span><span
+            class="s3">'='</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l413"><span class="ln">413  </span></a>                <span class="s4"># until cython supports const fused types, the fast path</span>
+<a name="l414"><span class="ln">414  </span></a>                <span
+            class="s4"># cannot support non-writeable values</span>
+<a name="l415"><span class="ln">415  </span></a>                <span class="s4"># a fast path</span>
+<a name="l416"><span class="ln">416  </span></a>                <span class="s0">out </span><span
+            class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">empty</span><span
+            class="s2">(</span><span class="s0">indices</span><span class="s2">.</span><span
+            class="s0">shape</span><span class="s2">[</span><span class="s5">1</span><span class="s2">], </span><span
+            class="s0">dtype</span><span class="s1">=</span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">values</span><span class="s2">.</span><span class="s0">dtype</span><span class="s2">)</span>
+<a name="l417"><span class="ln">417  </span></a>                <span class="s0">result </span><span
+            class="s1">= </span><span class="s0">evaluate_linear_2d</span><span class="s2">(</span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">values</span><span class="s2">,</span>
+<a name="l418"><span class="ln">418  </span></a>                                            <span
+            class="s0">indices</span><span class="s2">,</span>
+<a name="l419"><span class="ln">419  </span></a>                                            <span class="s0">norm_distances</span><span
+            class="s2">,</span>
+<a name="l420"><span class="ln">420  </span></a>                                            <span class="s0">self</span><span
+            class="s2">.</span><span class="s0">grid</span><span class="s2">,</span>
+<a name="l421"><span class="ln">421  </span></a>                                            <span
+            class="s0">out</span><span class="s2">)</span>
+<a name="l422"><span class="ln">422  </span></a>            <span class="s1">else:</span>
+<a name="l423"><span class="ln">423  </span></a>                <span class="s0">result </span><span
+            class="s1">= </span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_evaluate_linear</span><span class="s2">(</span><span class="s0">indices</span><span
+            class="s2">, </span><span class="s0">norm_distances</span><span class="s2">)</span>
+<a name="l424"><span class="ln">424  </span></a>        <span class="s1">elif </span><span
+            class="s0">method </span><span class="s1">== </span><span class="s3">&quot;nearest&quot;</span><span
+            class="s1">:</span>
+<a name="l425"><span class="ln">425  </span></a>            <span class="s0">indices</span><span
+            class="s2">, </span><span class="s0">norm_distances </span><span class="s1">= </span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">_find_indices</span><span
+            class="s2">(</span><span class="s0">xi</span><span class="s2">.</span><span class="s0">T</span><span
+            class="s2">)</span>
+<a name="l426"><span class="ln">426  </span></a>            <span class="s0">result </span><span
+            class="s1">= </span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_evaluate_nearest</span><span class="s2">(</span><span class="s0">indices</span><span class="s2">, </span><span
+            class="s0">norm_distances</span><span class="s2">)</span>
+<a name="l427"><span class="ln">427  </span></a>        <span class="s1">elif </span><span
+            class="s0">method </span><span class="s1">in </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">_SPLINE_METHODS</span><span class="s1">:</span>
+<a name="l428"><span class="ln">428  </span></a>            <span class="s1">if </span><span class="s0">is_method_changed</span><span
+            class="s1">:</span>
+<a name="l429"><span class="ln">429  </span></a>                <span class="s0">self</span><span
+            class="s2">.</span><span class="s0">_validate_grid_dimensions</span><span class="s2">(</span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">grid</span><span class="s2">, </span><span
+            class="s0">method</span><span class="s2">)</span>
+<a name="l430"><span class="ln">430  </span></a>            <span class="s1">if </span><span
+            class="s0">method </span><span class="s1">in </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">_SPLINE_METHODS_recursive</span><span class="s1">:</span>
+<a name="l431"><span class="ln">431  </span></a>                <span class="s0">result </span><span
+            class="s1">= </span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_evaluate_spline</span><span class="s2">(</span><span class="s0">xi</span><span
+            class="s2">, </span><span class="s0">method</span><span class="s2">)</span>
+<a name="l432"><span class="ln">432  </span></a>            <span class="s1">else:</span>
+<a name="l433"><span class="ln">433  </span></a>                <span class="s0">result </span><span
+            class="s1">= </span><span class="s0">_spline</span><span class="s2">(</span><span class="s0">xi</span><span
+            class="s2">, </span><span class="s0">nu</span><span class="s1">=</span><span class="s0">nu</span><span
+            class="s2">)</span>
+<a name="l434"><span class="ln">434  </span></a>
+<a name="l435"><span class="ln">435  </span></a>        <span class="s1">if not </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">bounds_error </span><span class="s1">and </span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">fill_value </span><span class="s1">is not None:</span>
+<a name="l436"><span class="ln">436  </span></a>            <span class="s0">result</span><span class="s2">[</span><span
+            class="s0">out_of_bounds</span><span class="s2">] </span><span class="s1">= </span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">fill_value</span>
+<a name="l437"><span class="ln">437  </span></a>
+<a name="l438"><span class="ln">438  </span></a>        <span class="s4"># f(nan) = nan, if any</span>
+<a name="l439"><span class="ln">439  </span></a>        <span class="s1">if </span><span class="s0">np</span><span
+            class="s2">.</span><span class="s0">any</span><span class="s2">(</span><span class="s0">nans</span><span
+            class="s2">)</span><span class="s1">:</span>
+<a name="l440"><span class="ln">440  </span></a>            <span class="s0">result</span><span class="s2">[</span><span
+            class="s0">nans</span><span class="s2">] </span><span class="s1">= </span><span class="s0">np</span><span
+            class="s2">.</span><span class="s0">nan</span>
+<a name="l441"><span class="ln">441  </span></a>        <span class="s1">return </span><span
+            class="s0">result</span><span class="s2">.</span><span class="s0">reshape</span><span
+            class="s2">(</span><span class="s0">xi_shape</span><span class="s2">[</span><span class="s1">:-</span><span
+            class="s5">1</span><span class="s2">] </span><span class="s1">+ </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">values</span><span class="s2">.</span><span class="s0">shape</span><span
+            class="s2">[</span><span class="s0">ndim</span><span class="s1">:</span><span class="s2">])</span>
+<a name="l442"><span class="ln">442  </span></a>
+<a name="l443"><span class="ln">443  </span></a>    <span class="s1">def </span><span class="s0">_prepare_xi</span><span
+            class="s2">(</span><span class="s0">self</span><span class="s2">, </span><span class="s0">xi</span><span
+            class="s2">)</span><span class="s1">:</span>
+<a name="l444"><span class="ln">444  </span></a>        <span class="s0">ndim </span><span class="s1">= </span><span
+            class="s0">len</span><span class="s2">(</span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">grid</span><span class="s2">)</span>
+<a name="l445"><span class="ln">445  </span></a>        <span class="s0">xi </span><span class="s1">= </span><span
+            class="s0">_ndim_coords_from_arrays</span><span class="s2">(</span><span class="s0">xi</span><span
+            class="s2">, </span><span class="s0">ndim</span><span class="s1">=</span><span class="s0">ndim</span><span
+            class="s2">)</span>
+<a name="l446"><span class="ln">446  </span></a>        <span class="s1">if </span><span class="s0">xi</span><span
+            class="s2">.</span><span class="s0">shape</span><span class="s2">[</span><span class="s1">-</span><span
+            class="s5">1</span><span class="s2">] </span><span class="s1">!= </span><span class="s0">len</span><span
+            class="s2">(</span><span class="s0">self</span><span class="s2">.</span><span class="s0">grid</span><span
+            class="s2">)</span><span class="s1">:</span>
+<a name="l447"><span class="ln">447  </span></a>            <span class="s1">raise </span><span
+            class="s0">ValueError</span><span class="s2">(</span><span class="s3">&quot;The requested sample points xi have dimension &quot;</span>
+<a name="l448"><span class="ln">448  </span></a>                             <span class="s3">f&quot;{</span><span
+            class="s0">xi</span><span class="s2">.</span><span class="s0">shape</span><span class="s2">[</span><span
+            class="s1">-</span><span class="s5">1</span><span class="s2">]</span><span
+            class="s3">} but this &quot;</span>
+<a name="l449"><span class="ln">449  </span></a>                             <span class="s3">f&quot;RegularGridInterpolator has dimension {</span><span
+            class="s0">ndim</span><span class="s3">}&quot;</span><span class="s2">)</span>
+<a name="l450"><span class="ln">450  </span></a>
+<a name="l451"><span class="ln">451  </span></a>        <span class="s0">xi_shape </span><span class="s1">= </span><span
+            class="s0">xi</span><span class="s2">.</span><span class="s0">shape</span>
+<a name="l452"><span class="ln">452  </span></a>        <span class="s0">xi </span><span class="s1">= </span><span
+            class="s0">xi</span><span class="s2">.</span><span class="s0">reshape</span><span class="s2">(</span><span
+            class="s1">-</span><span class="s5">1</span><span class="s2">, </span><span class="s0">xi_shape</span><span
+            class="s2">[</span><span class="s1">-</span><span class="s5">1</span><span class="s2">])</span>
+<a name="l453"><span class="ln">453  </span></a>        <span class="s0">xi </span><span class="s1">= </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">asarray</span><span class="s2">(</span><span
+            class="s0">xi</span><span class="s2">, </span><span class="s0">dtype</span><span class="s1">=</span><span
+            class="s0">float</span><span class="s2">)</span>
+<a name="l454"><span class="ln">454  </span></a>
+<a name="l455"><span class="ln">455  </span></a>        <span class="s4"># find nans in input</span>
+<a name="l456"><span class="ln">456  </span></a>        <span class="s0">nans </span><span class="s1">= </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">any</span><span class="s2">(</span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">isnan</span><span class="s2">(</span><span
+            class="s0">xi</span><span class="s2">), </span><span class="s0">axis</span><span class="s1">=-</span><span
+            class="s5">1</span><span class="s2">)</span>
+<a name="l457"><span class="ln">457  </span></a>
+<a name="l458"><span class="ln">458  </span></a>        <span class="s1">if </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">bounds_error</span><span class="s1">:</span>
+<a name="l459"><span class="ln">459  </span></a>            <span class="s1">for </span><span class="s0">i</span><span
+            class="s2">, </span><span class="s0">p </span><span class="s1">in </span><span
+            class="s0">enumerate</span><span class="s2">(</span><span class="s0">xi</span><span class="s2">.</span><span
+            class="s0">T</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l460"><span class="ln">460  </span></a>                <span class="s1">if not </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">logical_and</span><span
+            class="s2">(</span><span class="s0">np</span><span class="s2">.</span><span class="s0">all</span><span
+            class="s2">(</span><span class="s0">self</span><span class="s2">.</span><span class="s0">grid</span><span
+            class="s2">[</span><span class="s0">i</span><span class="s2">][</span><span class="s5">0</span><span
+            class="s2">] </span><span class="s1">&lt;= </span><span class="s0">p</span><span class="s2">),</span>
+<a name="l461"><span class="ln">461  </span></a>                                      <span class="s0">np</span><span
+            class="s2">.</span><span class="s0">all</span><span class="s2">(</span><span class="s0">p </span><span
+            class="s1">&lt;= </span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">grid</span><span class="s2">[</span><span class="s0">i</span><span class="s2">][</span><span
+            class="s1">-</span><span class="s5">1</span><span class="s2">]))</span><span class="s1">:</span>
+<a name="l462"><span class="ln">462  </span></a>                    <span class="s1">raise </span><span class="s0">ValueError</span><span
+            class="s2">(</span><span class="s3">&quot;One of the requested xi is out of bounds &quot;</span>
+<a name="l463"><span class="ln">463  </span></a>                                     <span class="s3">&quot;in dimension %d&quot; </span><span
+            class="s1">% </span><span class="s0">i</span><span class="s2">)</span>
+<a name="l464"><span class="ln">464  </span></a>            <span class="s0">out_of_bounds </span><span class="s1">= None</span>
+<a name="l465"><span class="ln">465  </span></a>        <span class="s1">else:</span>
+<a name="l466"><span class="ln">466  </span></a>            <span class="s0">out_of_bounds </span><span
+            class="s1">= </span><span class="s0">self</span><span class="s2">.</span><span class="s0">_find_out_of_bounds</span><span
+            class="s2">(</span><span class="s0">xi</span><span class="s2">.</span><span class="s0">T</span><span
+            class="s2">)</span>
+<a name="l467"><span class="ln">467  </span></a>
+<a name="l468"><span class="ln">468  </span></a>        <span class="s1">return </span><span class="s0">xi</span><span
+            class="s2">, </span><span class="s0">xi_shape</span><span class="s2">, </span><span
+            class="s0">ndim</span><span class="s2">, </span><span class="s0">nans</span><span class="s2">, </span><span
+            class="s0">out_of_bounds</span>
+<a name="l469"><span class="ln">469  </span></a>
+<a name="l470"><span class="ln">470  </span></a>    <span class="s1">def </span><span class="s0">_evaluate_linear</span><span
+            class="s2">(</span><span class="s0">self</span><span class="s2">, </span><span
+            class="s0">indices</span><span class="s2">, </span><span class="s0">norm_distances</span><span
+            class="s2">)</span><span class="s1">:</span>
+<a name="l471"><span class="ln">471  </span></a>        <span class="s4"># slice for broadcasting over trailing dimensions in self.values</span>
+<a name="l472"><span class="ln">472  </span></a>        <span class="s0">vslice </span><span class="s1">= </span><span
+            class="s2">(</span><span class="s0">slice</span><span class="s2">(</span><span class="s1">None</span><span
+            class="s2">),) </span><span class="s1">+ </span><span class="s2">(</span><span class="s1">None</span><span
+            class="s2">,)</span><span class="s1">*</span><span class="s2">(</span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">values</span><span class="s2">.</span><span class="s0">ndim </span><span
+            class="s1">- </span><span class="s0">len</span><span class="s2">(</span><span class="s0">indices</span><span
+            class="s2">))</span>
+<a name="l473"><span class="ln">473  </span></a>
+<a name="l474"><span class="ln">474  </span></a>        <span class="s4"># Compute shifting up front before zipping everything together</span>
+<a name="l475"><span class="ln">475  </span></a>        <span class="s0">shift_norm_distances </span><span
+            class="s1">= </span><span class="s2">[</span><span class="s5">1 </span><span class="s1">- </span><span
+            class="s0">yi </span><span class="s1">for </span><span class="s0">yi </span><span class="s1">in </span><span
+            class="s0">norm_distances</span><span class="s2">]</span>
+<a name="l476"><span class="ln">476  </span></a>        <span class="s0">shift_indices </span><span class="s1">= </span><span
+            class="s2">[</span><span class="s0">i </span><span class="s1">+ </span><span class="s5">1 </span><span
+            class="s1">for </span><span class="s0">i </span><span class="s1">in </span><span
+            class="s0">indices</span><span class="s2">]</span>
+<a name="l477"><span class="ln">477  </span></a>
+<a name="l478"><span class="ln">478  </span></a>        <span class="s4"># The formula for linear interpolation in 2d takes the form:</span>
+<a name="l479"><span class="ln">479  </span></a>        <span class="s4"># values = self.values[(i0, i1)] * (1 - y0) * (1 - y1) + \</span>
+<a name="l480"><span class="ln">480  </span></a>        <span class="s4">#          self.values[(i0, i1 + 1)] * (1 - y0) * y1 + \</span>
+<a name="l481"><span class="ln">481  </span></a>        <span class="s4">#          self.values[(i0 + 1, i1)] * y0 * (1 - y1) + \</span>
+<a name="l482"><span class="ln">482  </span></a>        <span class="s4">#          self.values[(i0 + 1, i1 + 1)] * y0 * y1</span>
+<a name="l483"><span class="ln">483  </span></a>        <span class="s4"># We pair i with 1 - yi (zipped1) and i + 1 with yi (zipped2)</span>
+<a name="l484"><span class="ln">484  </span></a>        <span class="s0">zipped1 </span><span class="s1">= </span><span
+            class="s0">zip</span><span class="s2">(</span><span class="s0">indices</span><span class="s2">, </span><span
+            class="s0">shift_norm_distances</span><span class="s2">)</span>
+<a name="l485"><span class="ln">485  </span></a>        <span class="s0">zipped2 </span><span class="s1">= </span><span
+            class="s0">zip</span><span class="s2">(</span><span class="s0">shift_indices</span><span
+            class="s2">, </span><span class="s0">norm_distances</span><span class="s2">)</span>
+<a name="l486"><span class="ln">486  </span></a>
+<a name="l487"><span class="ln">487  </span></a>        <span class="s4"># Take all products of zipped1 and zipped2 and iterate over them</span>
+<a name="l488"><span class="ln">488  </span></a>        <span class="s4"># to get the terms in the above formula. This corresponds to iterating</span>
+<a name="l489"><span class="ln">489  </span></a>        <span class="s4"># over the vertices of a hypercube.</span>
+<a name="l490"><span class="ln">490  </span></a>        <span class="s0">hypercube </span><span
+            class="s1">= </span><span class="s0">itertools</span><span class="s2">.</span><span
+            class="s0">product</span><span class="s2">(</span><span class="s1">*</span><span class="s0">zip</span><span
+            class="s2">(</span><span class="s0">zipped1</span><span class="s2">, </span><span
+            class="s0">zipped2</span><span class="s2">))</span>
+<a name="l491"><span class="ln">491  </span></a>        <span class="s0">value </span><span class="s1">= </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">array</span><span class="s2">([</span><span
+            class="s5">0.</span><span class="s2">])</span>
+<a name="l492"><span class="ln">492  </span></a>        <span class="s1">for </span><span class="s0">h </span><span
+            class="s1">in </span><span class="s0">hypercube</span><span class="s1">:</span>
+<a name="l493"><span class="ln">493  </span></a>            <span class="s0">edge_indices</span><span
+            class="s2">, </span><span class="s0">weights </span><span class="s1">= </span><span
+            class="s0">zip</span><span class="s2">(</span><span class="s1">*</span><span class="s0">h</span><span
+            class="s2">)</span>
+<a name="l494"><span class="ln">494  </span></a>            <span class="s0">weight </span><span
+            class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">array</span><span
+            class="s2">([</span><span class="s5">1.</span><span class="s2">])</span>
+<a name="l495"><span class="ln">495  </span></a>            <span class="s1">for </span><span class="s0">w </span><span
+            class="s1">in </span><span class="s0">weights</span><span class="s1">:</span>
+<a name="l496"><span class="ln">496  </span></a>                <span class="s0">weight </span><span
+            class="s1">= </span><span class="s0">weight </span><span class="s1">* </span><span class="s0">w</span>
+<a name="l497"><span class="ln">497  </span></a>            <span class="s0">term </span><span class="s1">= </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">asarray</span><span class="s2">(</span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">values</span><span class="s2">[</span><span
+            class="s0">edge_indices</span><span class="s2">]) </span><span class="s1">* </span><span
+            class="s0">weight</span><span class="s2">[</span><span class="s0">vslice</span><span class="s2">]</span>
+<a name="l498"><span class="ln">498  </span></a>            <span class="s0">value </span><span
+            class="s1">= </span><span class="s0">value </span><span class="s1">+ </span><span
+            class="s0">term   </span><span class="s4"># cannot use += because broadcasting</span>
+<a name="l499"><span class="ln">499  </span></a>        <span class="s1">return </span><span class="s0">value</span>
+<a name="l500"><span class="ln">500  </span></a>
+<a name="l501"><span class="ln">501  </span></a>    <span class="s1">def </span><span
+            class="s0">_evaluate_nearest</span><span class="s2">(</span><span class="s0">self</span><span
+            class="s2">, </span><span class="s0">indices</span><span class="s2">, </span><span
+            class="s0">norm_distances</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l502"><span class="ln">502  </span></a>        <span class="s0">idx_res </span><span class="s1">= </span><span
+            class="s2">[</span><span class="s0">np</span><span class="s2">.</span><span class="s0">where</span><span
+            class="s2">(</span><span class="s0">yi </span><span class="s1">&lt;= </span><span class="s5">.5</span><span
+            class="s2">, </span><span class="s0">i</span><span class="s2">, </span><span class="s0">i </span><span
+            class="s1">+ </span><span class="s5">1</span><span class="s2">)</span>
+<a name="l503"><span class="ln">503  </span></a>                   <span class="s1">for </span><span class="s0">i</span><span
+            class="s2">, </span><span class="s0">yi </span><span class="s1">in </span><span class="s0">zip</span><span
+            class="s2">(</span><span class="s0">indices</span><span class="s2">, </span><span
+            class="s0">norm_distances</span><span class="s2">)]</span>
+<a name="l504"><span class="ln">504  </span></a>        <span class="s1">return </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">values</span><span class="s2">[</span><span class="s0">tuple</span><span
+            class="s2">(</span><span class="s0">idx_res</span><span class="s2">)]</span>
+<a name="l505"><span class="ln">505  </span></a>
+<a name="l506"><span class="ln">506  </span></a>    <span class="s1">def </span><span class="s0">_validate_grid_dimensions</span><span
+            class="s2">(</span><span class="s0">self</span><span class="s2">, </span><span class="s0">points</span><span
+            class="s2">, </span><span class="s0">method</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l507"><span class="ln">507  </span></a>        <span class="s0">k </span><span class="s1">= </span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">_SPLINE_DEGREE_MAP</span><span
+            class="s2">[</span><span class="s0">method</span><span class="s2">]</span>
+<a name="l508"><span class="ln">508  </span></a>        <span class="s1">for </span><span class="s0">i</span><span
+            class="s2">, </span><span class="s0">point </span><span class="s1">in </span><span
+            class="s0">enumerate</span><span class="s2">(</span><span class="s0">points</span><span
+            class="s2">)</span><span class="s1">:</span>
+<a name="l509"><span class="ln">509  </span></a>            <span class="s0">ndim </span><span class="s1">= </span><span
+            class="s0">len</span><span class="s2">(</span><span class="s0">np</span><span class="s2">.</span><span
+            class="s0">atleast_1d</span><span class="s2">(</span><span class="s0">point</span><span class="s2">))</span>
+<a name="l510"><span class="ln">510  </span></a>            <span class="s1">if </span><span
+            class="s0">ndim </span><span class="s1">&lt;= </span><span class="s0">k</span><span class="s1">:</span>
+<a name="l511"><span class="ln">511  </span></a>                <span class="s1">raise </span><span class="s0">ValueError</span><span
+            class="s2">(</span><span class="s3">f&quot;There are {</span><span class="s0">ndim</span><span class="s3">} points in dimension {</span><span
+            class="s0">i</span><span class="s3">},&quot;</span>
+<a name="l512"><span class="ln">512  </span></a>                                 <span
+            class="s3">f&quot; but method {</span><span class="s0">method</span><span class="s3">} requires at least &quot;</span>
+<a name="l513"><span class="ln">513  </span></a>                                 <span class="s3">f&quot; {</span><span
+            class="s0">k</span><span class="s1">+</span><span class="s5">1</span><span class="s3">} points per dimension.&quot;</span><span
+            class="s2">)</span>
+<a name="l514"><span class="ln">514  </span></a>
+<a name="l515"><span class="ln">515  </span></a>    <span class="s1">def </span><span class="s0">_evaluate_spline</span><span
+            class="s2">(</span><span class="s0">self</span><span class="s2">, </span><span class="s0">xi</span><span
+            class="s2">, </span><span class="s0">method</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l516"><span class="ln">516  </span></a>        <span class="s4"># ensure xi is 2D list of points to evaluate (`m` is the number of</span>
+<a name="l517"><span class="ln">517  </span></a>        <span class="s4"># points and `n` is the number of interpolation dimensions,</span>
+<a name="l518"><span class="ln">518  </span></a>        <span class="s4"># ``n == len(self.grid)``.)</span>
+<a name="l519"><span class="ln">519  </span></a>        <span class="s1">if </span><span class="s0">xi</span><span
+            class="s2">.</span><span class="s0">ndim </span><span class="s1">== </span><span class="s5">1</span><span
+            class="s1">:</span>
+<a name="l520"><span class="ln">520  </span></a>            <span class="s0">xi </span><span class="s1">= </span><span
+            class="s0">xi</span><span class="s2">.</span><span class="s0">reshape</span><span class="s2">((</span><span
+            class="s5">1</span><span class="s2">, </span><span class="s0">xi</span><span class="s2">.</span><span
+            class="s0">size</span><span class="s2">))</span>
+<a name="l521"><span class="ln">521  </span></a>        <span class="s0">m</span><span class="s2">, </span><span
+            class="s0">n </span><span class="s1">= </span><span class="s0">xi</span><span class="s2">.</span><span
+            class="s0">shape</span>
+<a name="l522"><span class="ln">522  </span></a>
+<a name="l523"><span class="ln">523  </span></a>        <span class="s4"># Reorder the axes: n-dimensional process iterates over the</span>
+<a name="l524"><span class="ln">524  </span></a>        <span class="s4"># interpolation axes from the last axis downwards: E.g. for a 4D grid</span>
+<a name="l525"><span class="ln">525  </span></a>        <span class="s4"># the order of axes is 3, 2, 1, 0. Each 1D interpolation works along</span>
+<a name="l526"><span class="ln">526  </span></a>        <span class="s4"># the 0th axis of its argument array (for 1D routine it's its ``y``</span>
+<a name="l527"><span class="ln">527  </span></a>        <span class="s4"># array). Thus permute the interpolation axes of `values` *and keep</span>
+<a name="l528"><span class="ln">528  </span></a>        <span class="s4"># trailing dimensions trailing*.</span>
+<a name="l529"><span class="ln">529  </span></a>        <span class="s0">axes </span><span class="s1">= </span><span
+            class="s0">tuple</span><span class="s2">(</span><span class="s0">range</span><span class="s2">(</span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">values</span><span class="s2">.</span><span
+            class="s0">ndim</span><span class="s2">))</span>
+<a name="l530"><span class="ln">530  </span></a>        <span class="s0">axx </span><span class="s1">= </span><span
+            class="s0">axes</span><span class="s2">[</span><span class="s1">:</span><span class="s0">n</span><span
+            class="s2">][</span><span class="s1">::-</span><span class="s5">1</span><span class="s2">] </span><span
+            class="s1">+ </span><span class="s0">axes</span><span class="s2">[</span><span class="s0">n</span><span
+            class="s1">:</span><span class="s2">]</span>
+<a name="l531"><span class="ln">531  </span></a>        <span class="s0">values </span><span class="s1">= </span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">values</span><span class="s2">.</span><span
+            class="s0">transpose</span><span class="s2">(</span><span class="s0">axx</span><span class="s2">)</span>
+<a name="l532"><span class="ln">532  </span></a>
+<a name="l533"><span class="ln">533  </span></a>        <span class="s1">if </span><span class="s0">method </span><span
+            class="s1">== </span><span class="s3">'pchip'</span><span class="s1">:</span>
+<a name="l534"><span class="ln">534  </span></a>            <span class="s0">_eval_func </span><span
+            class="s1">= </span><span class="s0">self</span><span class="s2">.</span><span class="s0">_do_pchip</span>
+<a name="l535"><span class="ln">535  </span></a>        <span class="s1">else:</span>
+<a name="l536"><span class="ln">536  </span></a>            <span class="s0">_eval_func </span><span
+            class="s1">= </span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">_do_spline_fit</span>
+<a name="l537"><span class="ln">537  </span></a>        <span class="s0">k </span><span class="s1">= </span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">_SPLINE_DEGREE_MAP</span><span
+            class="s2">[</span><span class="s0">method</span><span class="s2">]</span>
+<a name="l538"><span class="ln">538  </span></a>
+<a name="l539"><span class="ln">539  </span></a>        <span class="s4"># Non-stationary procedure: difficult to vectorize this part entirely</span>
+<a name="l540"><span class="ln">540  </span></a>        <span class="s4"># into numpy-level operations. Unfortunately this requires explicit</span>
+<a name="l541"><span class="ln">541  </span></a>        <span class="s4"># looping over each point in xi.</span>
+<a name="l542"><span class="ln">542  </span></a>
+<a name="l543"><span class="ln">543  </span></a>        <span class="s4"># can at least vectorize the first pass across all points in the</span>
+<a name="l544"><span class="ln">544  </span></a>        <span class="s4"># last variable of xi.</span>
+<a name="l545"><span class="ln">545  </span></a>        <span class="s0">last_dim </span><span class="s1">= </span><span
+            class="s0">n </span><span class="s1">- </span><span class="s5">1</span>
+<a name="l546"><span class="ln">546  </span></a>        <span class="s0">first_values </span><span
+            class="s1">= </span><span class="s0">_eval_func</span><span class="s2">(</span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">grid</span><span class="s2">[</span><span
+            class="s0">last_dim</span><span class="s2">],</span>
+<a name="l547"><span class="ln">547  </span></a>                                  <span class="s0">values</span><span
+            class="s2">,</span>
+<a name="l548"><span class="ln">548  </span></a>                                  <span class="s0">xi</span><span
+            class="s2">[</span><span class="s1">:</span><span class="s2">, </span><span class="s0">last_dim</span><span
+            class="s2">],</span>
+<a name="l549"><span class="ln">549  </span></a>                                  <span class="s0">k</span><span
+            class="s2">)</span>
+<a name="l550"><span class="ln">550  </span></a>
+<a name="l551"><span class="ln">551  </span></a>        <span class="s4"># the rest of the dimensions have to be on a per point-in-xi basis</span>
+<a name="l552"><span class="ln">552  </span></a>        <span class="s0">shape </span><span class="s1">= </span><span
+            class="s2">(</span><span class="s0">m</span><span class="s2">, </span><span class="s1">*</span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">values</span><span class="s2">.</span><span
+            class="s0">shape</span><span class="s2">[</span><span class="s0">n</span><span class="s1">:</span><span
+            class="s2">])</span>
+<a name="l553"><span class="ln">553  </span></a>        <span class="s0">result </span><span class="s1">= </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">empty</span><span class="s2">(</span><span
+            class="s0">shape</span><span class="s2">, </span><span class="s0">dtype</span><span class="s1">=</span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">values</span><span class="s2">.</span><span
+            class="s0">dtype</span><span class="s2">)</span>
+<a name="l554"><span class="ln">554  </span></a>        <span class="s1">for </span><span class="s0">j </span><span
+            class="s1">in </span><span class="s0">range</span><span class="s2">(</span><span class="s0">m</span><span
+            class="s2">)</span><span class="s1">:</span>
+<a name="l555"><span class="ln">555  </span></a>            <span class="s4"># Main process: Apply 1D interpolate in each dimension</span>
+<a name="l556"><span class="ln">556  </span></a>            <span class="s4"># sequentially, starting with the last dimension.</span>
+<a name="l557"><span class="ln">557  </span></a>            <span class="s4"># These are then &quot;folded&quot; into the next dimension in-place.</span>
+<a name="l558"><span class="ln">558  </span></a>            <span class="s0">folded_values </span><span
+            class="s1">= </span><span class="s0">first_values</span><span class="s2">[</span><span
+            class="s0">j</span><span class="s2">, ...]</span>
+<a name="l559"><span class="ln">559  </span></a>            <span class="s1">for </span><span class="s0">i </span><span
+            class="s1">in </span><span class="s0">range</span><span class="s2">(</span><span
+            class="s0">last_dim</span><span class="s1">-</span><span class="s5">1</span><span class="s2">, </span><span
+            class="s1">-</span><span class="s5">1</span><span class="s2">, </span><span class="s1">-</span><span
+            class="s5">1</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l560"><span class="ln">560  </span></a>                <span class="s4"># Interpolate for each 1D from the last dimensions.</span>
+<a name="l561"><span class="ln">561  </span></a>                <span class="s4"># This collapses each 1D sequence into a scalar.</span>
+<a name="l562"><span class="ln">562  </span></a>                <span class="s0">folded_values </span><span
+            class="s1">= </span><span class="s0">_eval_func</span><span class="s2">(</span><span
+            class="s0">self</span><span class="s2">.</span><span class="s0">grid</span><span class="s2">[</span><span
+            class="s0">i</span><span class="s2">],</span>
+<a name="l563"><span class="ln">563  </span></a>                                           <span class="s0">folded_values</span><span
+            class="s2">,</span>
+<a name="l564"><span class="ln">564  </span></a>                                           <span
+            class="s0">xi</span><span class="s2">[</span><span class="s0">j</span><span class="s2">, </span><span
+            class="s0">i</span><span class="s2">],</span>
+<a name="l565"><span class="ln">565  </span></a>                                           <span
+            class="s0">k</span><span class="s2">)</span>
+<a name="l566"><span class="ln">566  </span></a>            <span class="s0">result</span><span class="s2">[</span><span
+            class="s0">j</span><span class="s2">, ...] </span><span class="s1">= </span><span
+            class="s0">folded_values</span>
+<a name="l567"><span class="ln">567  </span></a>
+<a name="l568"><span class="ln">568  </span></a>        <span class="s1">return </span><span class="s0">result</span>
+<a name="l569"><span class="ln">569  </span></a>
+<a name="l570"><span class="ln">570  </span></a>    <span class="s1">@</span><span class="s0">staticmethod</span>
+<a name="l571"><span class="ln">571  </span></a>    <span class="s1">def </span><span
+            class="s0">_do_spline_fit</span><span class="s2">(</span><span class="s0">x</span><span class="s2">, </span><span
+            class="s0">y</span><span class="s2">, </span><span class="s0">pt</span><span class="s2">, </span><span
+            class="s0">k</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l572"><span class="ln">572  </span></a>        <span class="s0">local_interp </span><span
+            class="s1">= </span><span class="s0">make_interp_spline</span><span class="s2">(</span><span
+            class="s0">x</span><span class="s2">, </span><span class="s0">y</span><span class="s2">, </span><span
+            class="s0">k</span><span class="s1">=</span><span class="s0">k</span><span class="s2">, </span><span
+            class="s0">axis</span><span class="s1">=</span><span class="s5">0</span><span class="s2">)</span>
+<a name="l573"><span class="ln">573  </span></a>        <span class="s0">values </span><span class="s1">= </span><span
+            class="s0">local_interp</span><span class="s2">(</span><span class="s0">pt</span><span class="s2">)</span>
+<a name="l574"><span class="ln">574  </span></a>        <span class="s1">return </span><span class="s0">values</span>
+<a name="l575"><span class="ln">575  </span></a>
+<a name="l576"><span class="ln">576  </span></a>    <span class="s1">@</span><span class="s0">staticmethod</span>
+<a name="l577"><span class="ln">577  </span></a>    <span class="s1">def </span><span class="s0">_do_pchip</span><span
+            class="s2">(</span><span class="s0">x</span><span class="s2">, </span><span class="s0">y</span><span
+            class="s2">, </span><span class="s0">pt</span><span class="s2">, </span><span class="s0">k</span><span
+            class="s2">)</span><span class="s1">:</span>
+<a name="l578"><span class="ln">578  </span></a>        <span class="s0">local_interp </span><span
+            class="s1">= </span><span class="s0">PchipInterpolator</span><span class="s2">(</span><span
+            class="s0">x</span><span class="s2">, </span><span class="s0">y</span><span class="s2">, </span><span
+            class="s0">axis</span><span class="s1">=</span><span class="s5">0</span><span class="s2">)</span>
+<a name="l579"><span class="ln">579  </span></a>        <span class="s0">values </span><span class="s1">= </span><span
+            class="s0">local_interp</span><span class="s2">(</span><span class="s0">pt</span><span class="s2">)</span>
+<a name="l580"><span class="ln">580  </span></a>        <span class="s1">return </span><span class="s0">values</span>
+<a name="l581"><span class="ln">581  </span></a>
+<a name="l582"><span class="ln">582  </span></a>    <span class="s1">def </span><span
+            class="s0">_find_indices</span><span class="s2">(</span><span class="s0">self</span><span
+            class="s2">, </span><span class="s0">xi</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l583"><span class="ln">583  </span></a>        <span class="s1">return </span><span
+            class="s0">find_indices</span><span class="s2">(</span><span class="s0">self</span><span class="s2">.</span><span
+            class="s0">grid</span><span class="s2">, </span><span class="s0">xi</span><span class="s2">)</span>
+<a name="l584"><span class="ln">584  </span></a>
+<a name="l585"><span class="ln">585  </span></a>    <span class="s1">def </span><span
+            class="s0">_find_out_of_bounds</span><span class="s2">(</span><span class="s0">self</span><span
+            class="s2">, </span><span class="s0">xi</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l586"><span class="ln">586  </span></a>        <span class="s4"># check for out of bounds xi</span>
+<a name="l587"><span class="ln">587  </span></a>        <span class="s0">out_of_bounds </span><span class="s1">= </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">zeros</span><span class="s2">((</span><span
+            class="s0">xi</span><span class="s2">.</span><span class="s0">shape</span><span class="s2">[</span><span
+            class="s5">1</span><span class="s2">]), </span><span class="s0">dtype</span><span class="s1">=</span><span
+            class="s0">bool</span><span class="s2">)</span>
+<a name="l588"><span class="ln">588  </span></a>        <span class="s4"># iterate through dimensions</span>
+<a name="l589"><span class="ln">589  </span></a>        <span class="s1">for </span><span class="s0">x</span><span
+            class="s2">, </span><span class="s0">grid </span><span class="s1">in </span><span class="s0">zip</span><span
+            class="s2">(</span><span class="s0">xi</span><span class="s2">, </span><span class="s0">self</span><span
+            class="s2">.</span><span class="s0">grid</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l590"><span class="ln">590  </span></a>            <span class="s0">out_of_bounds </span><span
+            class="s1">+= </span><span class="s0">x </span><span class="s1">&lt; </span><span
+            class="s0">grid</span><span class="s2">[</span><span class="s5">0</span><span class="s2">]</span>
+<a name="l591"><span class="ln">591  </span></a>            <span class="s0">out_of_bounds </span><span
+            class="s1">+= </span><span class="s0">x </span><span class="s1">&gt; </span><span
+            class="s0">grid</span><span class="s2">[</span><span class="s1">-</span><span class="s5">1</span><span
+            class="s2">]</span>
+<a name="l592"><span class="ln">592  </span></a>        <span class="s1">return </span><span
+            class="s0">out_of_bounds</span>
+<a name="l593"><span class="ln">593  </span></a>
+<a name="l594"><span class="ln">594  </span></a>
+<a name="l595"><span class="ln">595  </span></a><span class="s1">def </span><span class="s0">interpn</span><span
+            class="s2">(</span><span class="s0">points</span><span class="s2">, </span><span
+            class="s0">values</span><span class="s2">, </span><span class="s0">xi</span><span class="s2">, </span><span
+            class="s0">method</span><span class="s1">=</span><span class="s3">&quot;linear&quot;</span><span class="s2">, </span><span
+            class="s0">bounds_error</span><span class="s1">=True</span><span class="s2">,</span>
+<a name="l596"><span class="ln">596  </span></a>            <span class="s0">fill_value</span><span
+            class="s1">=</span><span class="s0">np</span><span class="s2">.</span><span class="s0">nan</span><span
+            class="s2">)</span><span class="s1">:</span>
+<a name="l597"><span class="ln">597  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l598"><span class="ln">598  </span></a>    Multidimensional interpolation on regular or rectilinear grids. 
+<a name="l599"><span class="ln">599  </span></a> 
+<a name="l600"><span class="ln">600  </span></a>    Strictly speaking, not all regular grids are supported - this function 
+<a name="l601"><span class="ln">601  </span></a>    works on *rectilinear* grids, that is, a rectangular grid with even or 
+<a name="l602"><span class="ln">602  </span></a>    uneven spacing. 
+<a name="l603"><span class="ln">603  </span></a> 
+<a name="l604"><span class="ln">604  </span></a>    Parameters 
+<a name="l605"><span class="ln">605  </span></a>    ---------- 
+<a name="l606"><span class="ln">606  </span></a>    points : tuple of ndarray of float, with shapes (m1, ), ..., (mn, ) 
+<a name="l607"><span class="ln">607  </span></a>        The points defining the regular grid in n dimensions. The points in 
+<a name="l608"><span class="ln">608  </span></a>        each dimension (i.e. every elements of the points tuple) must be 
+<a name="l609"><span class="ln">609  </span></a>        strictly ascending or descending. 
+<a name="l610"><span class="ln">610  </span></a> 
+<a name="l611"><span class="ln">611  </span></a>    values : array_like, shape (m1, ..., mn, ...) 
+<a name="l612"><span class="ln">612  </span></a>        The data on the regular grid in n dimensions. Complex data is 
+<a name="l613"><span class="ln">613  </span></a>        accepted. 
+<a name="l614"><span class="ln">614  </span></a> 
+<a name="l615"><span class="ln">615  </span></a>        .. deprecated:: 1.13.0 
+<a name="l616"><span class="ln">616  </span></a>            Complex data is deprecated with ``method=&quot;pchip&quot;`` and will raise an 
+<a name="l617"><span class="ln">617  </span></a>            error in SciPy 1.15.0. This is because ``PchipInterpolator`` only 
+<a name="l618"><span class="ln">618  </span></a>            works with real values. If you are trying to use the real components of 
+<a name="l619"><span class="ln">619  </span></a>            the passed array, use ``np.real`` on ``values``. 
+<a name="l620"><span class="ln">620  </span></a> 
+<a name="l621"><span class="ln">621  </span></a>    xi : ndarray of shape (..., ndim) 
+<a name="l622"><span class="ln">622  </span></a>        The coordinates to sample the gridded data at 
+<a name="l623"><span class="ln">623  </span></a> 
+<a name="l624"><span class="ln">624  </span></a>    method : str, optional 
+<a name="l625"><span class="ln">625  </span></a>        The method of interpolation to perform. Supported are &quot;linear&quot;, 
+<a name="l626"><span class="ln">626  </span></a>        &quot;nearest&quot;, &quot;slinear&quot;, &quot;cubic&quot;, &quot;quintic&quot;, &quot;pchip&quot;, and &quot;splinef2d&quot;. 
+<a name="l627"><span class="ln">627  </span></a>        &quot;splinef2d&quot; is only supported for 2-dimensional data. 
+<a name="l628"><span class="ln">628  </span></a> 
+<a name="l629"><span class="ln">629  </span></a>    bounds_error : bool, optional 
+<a name="l630"><span class="ln">630  </span></a>        If True, when interpolated values are requested outside of the 
+<a name="l631"><span class="ln">631  </span></a>        domain of the input data, a ValueError is raised. 
+<a name="l632"><span class="ln">632  </span></a>        If False, then `fill_value` is used. 
+<a name="l633"><span class="ln">633  </span></a> 
+<a name="l634"><span class="ln">634  </span></a>    fill_value : number, optional 
+<a name="l635"><span class="ln">635  </span></a>        If provided, the value to use for points outside of the 
+<a name="l636"><span class="ln">636  </span></a>        interpolation domain. If None, values outside 
+<a name="l637"><span class="ln">637  </span></a>        the domain are extrapolated.  Extrapolation is not supported by method 
+<a name="l638"><span class="ln">638  </span></a>        &quot;splinef2d&quot;. 
+<a name="l639"><span class="ln">639  </span></a> 
+<a name="l640"><span class="ln">640  </span></a>    Returns 
+<a name="l641"><span class="ln">641  </span></a>    ------- 
+<a name="l642"><span class="ln">642  </span></a>    values_x : ndarray, shape xi.shape[:-1] + values.shape[ndim:] 
+<a name="l643"><span class="ln">643  </span></a>        Interpolated values at `xi`. See notes for behaviour when 
+<a name="l644"><span class="ln">644  </span></a>        ``xi.ndim == 1``. 
+<a name="l645"><span class="ln">645  </span></a> 
+<a name="l646"><span class="ln">646  </span></a>    See Also 
+<a name="l647"><span class="ln">647  </span></a>    -------- 
+<a name="l648"><span class="ln">648  </span></a>    NearestNDInterpolator : Nearest neighbor interpolation on unstructured 
+<a name="l649"><span class="ln">649  </span></a>                            data in N dimensions 
+<a name="l650"><span class="ln">650  </span></a>    LinearNDInterpolator : Piecewise linear interpolant on unstructured data 
+<a name="l651"><span class="ln">651  </span></a>                           in N dimensions 
+<a name="l652"><span class="ln">652  </span></a>    RegularGridInterpolator : interpolation on a regular or rectilinear grid 
+<a name="l653"><span class="ln">653  </span></a>                              in arbitrary dimensions (`interpn` wraps this 
+<a name="l654"><span class="ln">654  </span></a>                              class). 
+<a name="l655"><span class="ln">655  </span></a>    RectBivariateSpline : Bivariate spline approximation over a rectangular mesh 
+<a name="l656"><span class="ln">656  </span></a>    scipy.ndimage.map_coordinates : interpolation on grids with equal spacing 
+<a name="l657"><span class="ln">657  </span></a>                                    (suitable for e.g., N-D image resampling) 
+<a name="l658"><span class="ln">658  </span></a> 
+<a name="l659"><span class="ln">659  </span></a>    Notes 
+<a name="l660"><span class="ln">660  </span></a>    ----- 
+<a name="l661"><span class="ln">661  </span></a> 
+<a name="l662"><span class="ln">662  </span></a>    .. versionadded:: 0.14 
+<a name="l663"><span class="ln">663  </span></a> 
+<a name="l664"><span class="ln">664  </span></a>    In the case that ``xi.ndim == 1`` a new axis is inserted into 
+<a name="l665"><span class="ln">665  </span></a>    the 0 position of the returned array, values_x, so its shape is 
+<a name="l666"><span class="ln">666  </span></a>    instead ``(1,) + values.shape[ndim:]``. 
+<a name="l667"><span class="ln">667  </span></a> 
+<a name="l668"><span class="ln">668  </span></a>    If the input data is such that input dimensions have incommensurate 
+<a name="l669"><span class="ln">669  </span></a>    units and differ by many orders of magnitude, the interpolant may have 
+<a name="l670"><span class="ln">670  </span></a>    numerical artifacts. Consider rescaling the data before interpolation. 
+<a name="l671"><span class="ln">671  </span></a> 
+<a name="l672"><span class="ln">672  </span></a>    Examples 
+<a name="l673"><span class="ln">673  </span></a>    -------- 
+<a name="l674"><span class="ln">674  </span></a>    Evaluate a simple example function on the points of a regular 3-D grid: 
+<a name="l675"><span class="ln">675  </span></a> 
+<a name="l676"><span class="ln">676  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l677"><span class="ln">677  </span></a>    &gt;&gt;&gt; from scipy.interpolate import interpn 
+<a name="l678"><span class="ln">678  </span></a>    &gt;&gt;&gt; def value_func_3d(x, y, z): 
+<a name="l679"><span class="ln">679  </span></a>    ...     return 2 * x + 3 * y - z 
+<a name="l680"><span class="ln">680  </span></a>    &gt;&gt;&gt; x = np.linspace(0, 4, 5) 
+<a name="l681"><span class="ln">681  </span></a>    &gt;&gt;&gt; y = np.linspace(0, 5, 6) 
+<a name="l682"><span class="ln">682  </span></a>    &gt;&gt;&gt; z = np.linspace(0, 6, 7) 
+<a name="l683"><span class="ln">683  </span></a>    &gt;&gt;&gt; points = (x, y, z) 
+<a name="l684"><span class="ln">684  </span></a>    &gt;&gt;&gt; values = value_func_3d(*np.meshgrid(*points, indexing='ij')) 
+<a name="l685"><span class="ln">685  </span></a> 
+<a name="l686"><span class="ln">686  </span></a>    Evaluate the interpolating function at a point 
+<a name="l687"><span class="ln">687  </span></a> 
+<a name="l688"><span class="ln">688  </span></a>    &gt;&gt;&gt; point = np.array([2.21, 3.12, 1.15]) 
+<a name="l689"><span class="ln">689  </span></a>    &gt;&gt;&gt; print(interpn(points, values, point)) 
+<a name="l690"><span class="ln">690  </span></a>    [12.63] 
+<a name="l691"><span class="ln">691  </span></a> 
+<a name="l692"><span class="ln">692  </span></a>    &quot;&quot;&quot;</span>
+<a name="l693"><span class="ln">693  </span></a>    <span class="s4"># sanity check 'method' kwarg</span>
+<a name="l694"><span class="ln">694  </span></a>    <span class="s1">if </span><span class="s0">method </span><span
+            class="s1">not in </span><span class="s2">[</span><span class="s3">&quot;linear&quot;</span><span
+            class="s2">, </span><span class="s3">&quot;nearest&quot;</span><span class="s2">, </span><span class="s3">&quot;cubic&quot;</span><span
+            class="s2">, </span><span class="s3">&quot;quintic&quot;</span><span class="s2">, </span><span class="s3">&quot;pchip&quot;</span><span
+            class="s2">,</span>
+<a name="l695"><span class="ln">695  </span></a>                      <span class="s3">&quot;splinef2d&quot;</span><span
+            class="s2">, </span><span class="s3">&quot;slinear&quot;</span><span class="s2">,</span>
+<a name="l696"><span class="ln">696  </span></a>                      <span class="s3">&quot;slinear_legacy&quot;</span><span
+            class="s2">, </span><span class="s3">&quot;cubic_legacy&quot;</span><span class="s2">, </span><span
+            class="s3">&quot;quintic_legacy&quot;</span><span class="s2">]</span><span class="s1">:</span>
+<a name="l697"><span class="ln">697  </span></a>        <span class="s1">raise </span><span class="s0">ValueError</span><span
+            class="s2">(</span><span class="s3">&quot;interpn only understands the methods 'linear', &quot;</span>
+<a name="l698"><span class="ln">698  </span></a>                         <span class="s3">&quot;'nearest', 'slinear', 'cubic', 'quintic', 'pchip', &quot;</span>
+<a name="l699"><span class="ln">699  </span></a>                         <span class="s3">f&quot;and 'splinef2d'. You provided {</span><span
+            class="s0">method</span><span class="s3">}.&quot;</span><span class="s2">)</span>
+<a name="l700"><span class="ln">700  </span></a>
+<a name="l701"><span class="ln">701  </span></a>    <span class="s1">if not </span><span class="s0">hasattr</span><span
+            class="s2">(</span><span class="s0">values</span><span class="s2">, </span><span
+            class="s3">'ndim'</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l702"><span class="ln">702  </span></a>        <span class="s0">values </span><span class="s1">= </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">asarray</span><span class="s2">(</span><span
+            class="s0">values</span><span class="s2">)</span>
+<a name="l703"><span class="ln">703  </span></a>
+<a name="l704"><span class="ln">704  </span></a>    <span class="s0">ndim </span><span class="s1">= </span><span
+            class="s0">values</span><span class="s2">.</span><span class="s0">ndim</span>
+<a name="l705"><span class="ln">705  </span></a>    <span class="s1">if </span><span class="s0">ndim </span><span
+            class="s1">&gt; </span><span class="s5">2 </span><span class="s1">and </span><span class="s0">method </span><span
+            class="s1">== </span><span class="s3">&quot;splinef2d&quot;</span><span class="s1">:</span>
+<a name="l706"><span class="ln">706  </span></a>        <span class="s1">raise </span><span class="s0">ValueError</span><span
+            class="s2">(</span><span class="s3">&quot;The method splinef2d can only be used for &quot;</span>
+<a name="l707"><span class="ln">707  </span></a>                         <span class="s3">&quot;2-dimensional input data&quot;</span><span
+            class="s2">)</span>
+<a name="l708"><span class="ln">708  </span></a>    <span class="s1">if not </span><span class="s0">bounds_error </span><span
+            class="s1">and </span><span class="s0">fill_value </span><span class="s1">is None and </span><span
+            class="s0">method </span><span class="s1">== </span><span class="s3">&quot;splinef2d&quot;</span><span
+            class="s1">:</span>
+<a name="l709"><span class="ln">709  </span></a>        <span class="s1">raise </span><span class="s0">ValueError</span><span
+            class="s2">(</span><span
+            class="s3">&quot;The method splinef2d does not support extrapolation.&quot;</span><span class="s2">)</span>
+<a name="l710"><span class="ln">710  </span></a>
+<a name="l711"><span class="ln">711  </span></a>    <span
+            class="s4"># sanity check consistency of input dimensions</span>
+<a name="l712"><span class="ln">712  </span></a>    <span class="s1">if </span><span class="s0">len</span><span
+            class="s2">(</span><span class="s0">points</span><span class="s2">) </span><span
+            class="s1">&gt; </span><span class="s0">ndim</span><span class="s1">:</span>
+<a name="l713"><span class="ln">713  </span></a>        <span class="s1">raise </span><span class="s0">ValueError</span><span
+            class="s2">(</span><span class="s3">&quot;There are %d point arrays, but values has %d &quot;</span>
+<a name="l714"><span class="ln">714  </span></a>                         <span class="s3">&quot;dimensions&quot; </span><span
+            class="s1">% </span><span class="s2">(</span><span class="s0">len</span><span class="s2">(</span><span
+            class="s0">points</span><span class="s2">), </span><span class="s0">ndim</span><span class="s2">))</span>
+<a name="l715"><span class="ln">715  </span></a>    <span class="s1">if </span><span class="s0">len</span><span
+            class="s2">(</span><span class="s0">points</span><span class="s2">) </span><span class="s1">!= </span><span
+            class="s0">ndim </span><span class="s1">and </span><span class="s0">method </span><span
+            class="s1">== </span><span class="s3">'splinef2d'</span><span class="s1">:</span>
+<a name="l716"><span class="ln">716  </span></a>        <span class="s1">raise </span><span class="s0">ValueError</span><span
+            class="s2">(</span><span class="s3">&quot;The method splinef2d can only be used for &quot;</span>
+<a name="l717"><span class="ln">717  </span></a>                         <span class="s3">&quot;scalar data with one point per coordinate&quot;</span><span
+            class="s2">)</span>
+<a name="l718"><span class="ln">718  </span></a>
+<a name="l719"><span class="ln">719  </span></a>    <span class="s0">grid</span><span class="s2">, </span><span
+            class="s0">descending_dimensions </span><span class="s1">= </span><span class="s0">_check_points</span><span
+            class="s2">(</span><span class="s0">points</span><span class="s2">)</span>
+<a name="l720"><span class="ln">720  </span></a>    <span class="s0">_check_dimensionality</span><span
+            class="s2">(</span><span class="s0">grid</span><span class="s2">, </span><span class="s0">values</span><span
+            class="s2">)</span>
+<a name="l721"><span class="ln">721  </span></a>
+<a name="l722"><span class="ln">722  </span></a>    <span class="s4"># sanity check requested xi</span>
+<a name="l723"><span class="ln">723  </span></a>    <span class="s0">xi </span><span class="s1">= </span><span
+            class="s0">_ndim_coords_from_arrays</span><span class="s2">(</span><span class="s0">xi</span><span
+            class="s2">, </span><span class="s0">ndim</span><span class="s1">=</span><span class="s0">len</span><span
+            class="s2">(</span><span class="s0">grid</span><span class="s2">))</span>
+<a name="l724"><span class="ln">724  </span></a>    <span class="s1">if </span><span class="s0">xi</span><span
+            class="s2">.</span><span class="s0">shape</span><span class="s2">[</span><span class="s1">-</span><span
+            class="s5">1</span><span class="s2">] </span><span class="s1">!= </span><span class="s0">len</span><span
+            class="s2">(</span><span class="s0">grid</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l725"><span class="ln">725  </span></a>        <span class="s1">raise </span><span class="s0">ValueError</span><span
+            class="s2">(</span><span class="s3">&quot;The requested sample points xi have dimension &quot;</span>
+<a name="l726"><span class="ln">726  </span></a>                         <span class="s3">&quot;%d, but this RegularGridInterpolator has &quot;</span>
+<a name="l727"><span class="ln">727  </span></a>                         <span
+            class="s3">&quot;dimension %d&quot; </span><span class="s1">% </span><span class="s2">(</span><span
+            class="s0">xi</span><span class="s2">.</span><span class="s0">shape</span><span class="s2">[</span><span
+            class="s1">-</span><span class="s5">1</span><span class="s2">], </span><span class="s0">len</span><span
+            class="s2">(</span><span class="s0">grid</span><span class="s2">)))</span>
+<a name="l728"><span class="ln">728  </span></a>
+<a name="l729"><span class="ln">729  </span></a>    <span class="s1">if </span><span class="s0">bounds_error</span><span
+            class="s1">:</span>
+<a name="l730"><span class="ln">730  </span></a>        <span class="s1">for </span><span class="s0">i</span><span
+            class="s2">, </span><span class="s0">p </span><span class="s1">in </span><span
+            class="s0">enumerate</span><span class="s2">(</span><span class="s0">xi</span><span class="s2">.</span><span
+            class="s0">T</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l731"><span class="ln">731  </span></a>            <span class="s1">if not </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">logical_and</span><span
+            class="s2">(</span><span class="s0">np</span><span class="s2">.</span><span class="s0">all</span><span
+            class="s2">(</span><span class="s0">grid</span><span class="s2">[</span><span class="s0">i</span><span
+            class="s2">][</span><span class="s5">0</span><span class="s2">] </span><span class="s1">&lt;= </span><span
+            class="s0">p</span><span class="s2">),</span>
+<a name="l732"><span class="ln">732  </span></a>                                  <span class="s0">np</span><span
+            class="s2">.</span><span class="s0">all</span><span class="s2">(</span><span class="s0">p </span><span
+            class="s1">&lt;= </span><span class="s0">grid</span><span class="s2">[</span><span class="s0">i</span><span
+            class="s2">][</span><span class="s1">-</span><span class="s5">1</span><span class="s2">]))</span><span
+            class="s1">:</span>
+<a name="l733"><span class="ln">733  </span></a>                <span class="s1">raise </span><span class="s0">ValueError</span><span
+            class="s2">(</span><span class="s3">&quot;One of the requested xi is out of bounds &quot;</span>
+<a name="l734"><span class="ln">734  </span></a>                                 <span class="s3">&quot;in dimension %d&quot; </span><span
+            class="s1">% </span><span class="s0">i</span><span class="s2">)</span>
+<a name="l735"><span class="ln">735  </span></a>
+<a name="l736"><span class="ln">736  </span></a>    <span class="s4"># perform interpolation</span>
+<a name="l737"><span class="ln">737  </span></a>    <span class="s1">if </span><span class="s0">method </span><span
+            class="s1">in </span><span class="s0">RegularGridInterpolator</span><span class="s2">.</span><span
+            class="s0">_ALL_METHODS</span><span class="s1">:</span>
+<a name="l738"><span class="ln">738  </span></a>        <span class="s0">interp </span><span class="s1">= </span><span
+            class="s0">RegularGridInterpolator</span><span class="s2">(</span><span class="s0">points</span><span
+            class="s2">, </span><span class="s0">values</span><span class="s2">, </span><span
+            class="s0">method</span><span class="s1">=</span><span class="s0">method</span><span class="s2">,</span>
+<a name="l739"><span class="ln">739  </span></a>                                         <span
+            class="s0">bounds_error</span><span class="s1">=</span><span class="s0">bounds_error</span><span class="s2">,</span>
+<a name="l740"><span class="ln">740  </span></a>                                         <span
+            class="s0">fill_value</span><span class="s1">=</span><span class="s0">fill_value</span><span
+            class="s2">)</span>
+<a name="l741"><span class="ln">741  </span></a>        <span class="s1">return </span><span
+            class="s0">interp</span><span class="s2">(</span><span class="s0">xi</span><span class="s2">)</span>
+<a name="l742"><span class="ln">742  </span></a>    <span class="s1">elif </span><span class="s0">method </span><span
+            class="s1">== </span><span class="s3">&quot;splinef2d&quot;</span><span class="s1">:</span>
+<a name="l743"><span class="ln">743  </span></a>        <span class="s0">xi_shape </span><span class="s1">= </span><span
+            class="s0">xi</span><span class="s2">.</span><span class="s0">shape</span>
+<a name="l744"><span class="ln">744  </span></a>        <span class="s0">xi </span><span class="s1">= </span><span
+            class="s0">xi</span><span class="s2">.</span><span class="s0">reshape</span><span class="s2">(</span><span
+            class="s1">-</span><span class="s5">1</span><span class="s2">, </span><span class="s0">xi</span><span
+            class="s2">.</span><span class="s0">shape</span><span class="s2">[</span><span class="s1">-</span><span
+            class="s5">1</span><span class="s2">])</span>
+<a name="l745"><span class="ln">745  </span></a>
+<a name="l746"><span class="ln">746  </span></a>        <span class="s4"># RectBivariateSpline doesn't support fill_value; we need to wrap here</span>
+<a name="l747"><span class="ln">747  </span></a>        <span class="s0">idx_valid </span><span
+            class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">all</span><span
+            class="s2">((</span><span class="s0">grid</span><span class="s2">[</span><span class="s5">0</span><span
+            class="s2">][</span><span class="s5">0</span><span class="s2">] </span><span class="s1">&lt;= </span><span
+            class="s0">xi</span><span class="s2">[</span><span class="s1">:</span><span class="s2">, </span><span
+            class="s5">0</span><span class="s2">], </span><span class="s0">xi</span><span class="s2">[</span><span
+            class="s1">:</span><span class="s2">, </span><span class="s5">0</span><span class="s2">] </span><span
+            class="s1">&lt;= </span><span class="s0">grid</span><span class="s2">[</span><span class="s5">0</span><span
+            class="s2">][</span><span class="s1">-</span><span class="s5">1</span><span class="s2">],</span>
+<a name="l748"><span class="ln">748  </span></a>                            <span class="s0">grid</span><span
+            class="s2">[</span><span class="s5">1</span><span class="s2">][</span><span class="s5">0</span><span
+            class="s2">] </span><span class="s1">&lt;= </span><span class="s0">xi</span><span class="s2">[</span><span
+            class="s1">:</span><span class="s2">, </span><span class="s5">1</span><span class="s2">], </span><span
+            class="s0">xi</span><span class="s2">[</span><span class="s1">:</span><span class="s2">, </span><span
+            class="s5">1</span><span class="s2">] </span><span class="s1">&lt;= </span><span class="s0">grid</span><span
+            class="s2">[</span><span class="s5">1</span><span class="s2">][</span><span class="s1">-</span><span
+            class="s5">1</span><span class="s2">]),</span>
+<a name="l749"><span class="ln">749  </span></a>                           <span class="s0">axis</span><span class="s1">=</span><span
+            class="s5">0</span><span class="s2">)</span>
+<a name="l750"><span class="ln">750  </span></a>        <span class="s0">result </span><span class="s1">= </span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">empty_like</span><span
+            class="s2">(</span><span class="s0">xi</span><span class="s2">[</span><span class="s1">:</span><span
+            class="s2">, </span><span class="s5">0</span><span class="s2">])</span>
+<a name="l751"><span class="ln">751  </span></a>
+<a name="l752"><span class="ln">752  </span></a>        <span
+            class="s4"># make a copy of values for RectBivariateSpline</span>
+<a name="l753"><span class="ln">753  </span></a>        <span class="s0">interp </span><span class="s1">= </span><span
+            class="s0">RectBivariateSpline</span><span class="s2">(</span><span class="s0">points</span><span
+            class="s2">[</span><span class="s5">0</span><span class="s2">], </span><span class="s0">points</span><span
+            class="s2">[</span><span class="s5">1</span><span class="s2">], </span><span class="s0">values</span><span
+            class="s2">[</span><span class="s1">:</span><span class="s2">])</span>
+<a name="l754"><span class="ln">754  </span></a>        <span class="s0">result</span><span class="s2">[</span><span
+            class="s0">idx_valid</span><span class="s2">] </span><span class="s1">= </span><span
+            class="s0">interp</span><span class="s2">.</span><span class="s0">ev</span><span class="s2">(</span><span
+            class="s0">xi</span><span class="s2">[</span><span class="s0">idx_valid</span><span
+            class="s2">, </span><span class="s5">0</span><span class="s2">], </span><span class="s0">xi</span><span
+            class="s2">[</span><span class="s0">idx_valid</span><span class="s2">, </span><span class="s5">1</span><span
+            class="s2">])</span>
+<a name="l755"><span class="ln">755  </span></a>        <span class="s0">result</span><span class="s2">[</span><span
+            class="s0">np</span><span class="s2">.</span><span class="s0">logical_not</span><span
+            class="s2">(</span><span class="s0">idx_valid</span><span class="s2">)] </span><span
+            class="s1">= </span><span class="s0">fill_value</span>
+<a name="l756"><span class="ln">756  </span></a>
+<a name="l757"><span class="ln">757  </span></a>        <span class="s1">return </span><span
+            class="s0">result</span><span class="s2">.</span><span class="s0">reshape</span><span
+            class="s2">(</span><span class="s0">xi_shape</span><span class="s2">[</span><span class="s1">:-</span><span
+            class="s5">1</span><span class="s2">])</span>
+<a name="l758"><span class="ln">758  </span></a>    <span class="s1">else:</span>
+<a name="l759"><span class="ln">759  </span></a>        <span class="s1">raise </span><span class="s0">ValueError</span><span
+            class="s2">(</span><span class="s3">f&quot;unknown {</span><span class="s0">method </span><span
+            class="s1">= </span><span class="s3">}&quot;</span><span class="s2">)</span>
+<a name="l760"><span class="ln">760  </span></a></pre>
+</body>
+</html>

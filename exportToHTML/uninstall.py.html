@@ -1,0 +1,136 @@
+<html>
+<head>
+<title>uninstall.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #969896;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+uninstall.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">import </span><span class="s1">logging</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s1">optparse </span><span class="s0">import </span><span class="s1">Values</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_vendor</span><span class="s2">.</span><span class="s1">packaging</span><span class="s2">.</span><span class="s1">utils </span><span class="s0">import </span><span class="s1">canonicalize_name</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_internal</span><span class="s2">.</span><span class="s1">cli </span><span class="s0">import </span><span class="s1">cmdoptions</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_internal</span><span class="s2">.</span><span class="s1">cli</span><span class="s2">.</span><span class="s1">base_command </span><span class="s0">import </span><span class="s1">Command</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_internal</span><span class="s2">.</span><span class="s1">cli</span><span class="s2">.</span><span class="s1">index_command </span><span class="s0">import </span><span class="s1">SessionCommandMixin</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_internal</span><span class="s2">.</span><span class="s1">cli</span><span class="s2">.</span><span class="s1">status_codes </span><span class="s0">import </span><span class="s1">SUCCESS</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_internal</span><span class="s2">.</span><span class="s1">exceptions </span><span class="s0">import </span><span class="s1">InstallationError</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_internal</span><span class="s2">.</span><span class="s1">req </span><span class="s0">import </span><span class="s1">parse_requirements</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_internal</span><span class="s2">.</span><span class="s1">req</span><span class="s2">.</span><span class="s1">constructors </span><span class="s0">import </span><span class="s2">(</span>
+<a name="l13"><span class="ln">13   </span></a>    <span class="s1">install_req_from_line</span><span class="s2">,</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s1">install_req_from_parsed_requirement</span><span class="s2">,</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">)</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_internal</span><span class="s2">.</span><span class="s1">utils</span><span class="s2">.</span><span class="s1">misc </span><span class="s0">import </span><span class="s2">(</span>
+<a name="l17"><span class="ln">17   </span></a>    <span class="s1">check_externally_managed</span><span class="s2">,</span>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s1">protect_pip_from_modification_on_windows</span><span class="s2">,</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s1">warn_if_run_as_root</span><span class="s2">,</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s2">)</span>
+<a name="l21"><span class="ln">21   </span></a>
+<a name="l22"><span class="ln">22   </span></a><span class="s1">logger </span><span class="s0">= </span><span class="s1">logging</span><span class="s2">.</span><span class="s1">getLogger</span><span class="s2">(</span><span class="s1">__name__</span><span class="s2">)</span>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a><span class="s0">class </span><span class="s1">UninstallCommand</span><span class="s2">(</span><span class="s1">Command</span><span class="s2">, </span><span class="s1">SessionCommandMixin</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l26"><span class="ln">26   </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l27"><span class="ln">27   </span></a>    Uninstall packages. 
+<a name="l28"><span class="ln">28   </span></a> 
+<a name="l29"><span class="ln">29   </span></a>    pip is able to uninstall most installed packages. Known exceptions are: 
+<a name="l30"><span class="ln">30   </span></a> 
+<a name="l31"><span class="ln">31   </span></a>    - Pure distutils packages installed with ``python setup.py install``, which 
+<a name="l32"><span class="ln">32   </span></a>      leave behind no metadata to determine what files were installed. 
+<a name="l33"><span class="ln">33   </span></a>    - Script wrappers installed by ``python setup.py develop``. 
+<a name="l34"><span class="ln">34   </span></a>    &quot;&quot;&quot;</span>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a>    <span class="s1">usage </span><span class="s0">= </span><span class="s4">&quot;&quot;&quot; 
+<a name="l37"><span class="ln">37   </span></a>      %prog [options] &lt;package&gt; ... 
+<a name="l38"><span class="ln">38   </span></a>      %prog [options] -r &lt;requirements file&gt; ...&quot;&quot;&quot;</span>
+<a name="l39"><span class="ln">39   </span></a>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s0">def </span><span class="s1">add_options</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s0">None:</span>
+<a name="l41"><span class="ln">41   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">cmd_opts</span><span class="s2">.</span><span class="s1">add_option</span><span class="s2">(</span>
+<a name="l42"><span class="ln">42   </span></a>            <span class="s4">&quot;-r&quot;</span><span class="s2">,</span>
+<a name="l43"><span class="ln">43   </span></a>            <span class="s4">&quot;--requirement&quot;</span><span class="s2">,</span>
+<a name="l44"><span class="ln">44   </span></a>            <span class="s1">dest</span><span class="s0">=</span><span class="s4">&quot;requirements&quot;</span><span class="s2">,</span>
+<a name="l45"><span class="ln">45   </span></a>            <span class="s1">action</span><span class="s0">=</span><span class="s4">&quot;append&quot;</span><span class="s2">,</span>
+<a name="l46"><span class="ln">46   </span></a>            <span class="s1">default</span><span class="s0">=</span><span class="s2">[],</span>
+<a name="l47"><span class="ln">47   </span></a>            <span class="s1">metavar</span><span class="s0">=</span><span class="s4">&quot;file&quot;</span><span class="s2">,</span>
+<a name="l48"><span class="ln">48   </span></a>            <span class="s1">help</span><span class="s0">=</span><span class="s2">(</span>
+<a name="l49"><span class="ln">49   </span></a>                <span class="s4">&quot;Uninstall all the packages listed in the given requirements &quot;</span>
+<a name="l50"><span class="ln">50   </span></a>                <span class="s4">&quot;file.  This option can be used multiple times.&quot;</span>
+<a name="l51"><span class="ln">51   </span></a>            <span class="s2">),</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s2">)</span>
+<a name="l53"><span class="ln">53   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">cmd_opts</span><span class="s2">.</span><span class="s1">add_option</span><span class="s2">(</span>
+<a name="l54"><span class="ln">54   </span></a>            <span class="s4">&quot;-y&quot;</span><span class="s2">,</span>
+<a name="l55"><span class="ln">55   </span></a>            <span class="s4">&quot;--yes&quot;</span><span class="s2">,</span>
+<a name="l56"><span class="ln">56   </span></a>            <span class="s1">dest</span><span class="s0">=</span><span class="s4">&quot;yes&quot;</span><span class="s2">,</span>
+<a name="l57"><span class="ln">57   </span></a>            <span class="s1">action</span><span class="s0">=</span><span class="s4">&quot;store_true&quot;</span><span class="s2">,</span>
+<a name="l58"><span class="ln">58   </span></a>            <span class="s1">help</span><span class="s0">=</span><span class="s4">&quot;Don't ask for confirmation of uninstall deletions.&quot;</span><span class="s2">,</span>
+<a name="l59"><span class="ln">59   </span></a>        <span class="s2">)</span>
+<a name="l60"><span class="ln">60   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">cmd_opts</span><span class="s2">.</span><span class="s1">add_option</span><span class="s2">(</span><span class="s1">cmdoptions</span><span class="s2">.</span><span class="s1">root_user_action</span><span class="s2">())</span>
+<a name="l61"><span class="ln">61   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">cmd_opts</span><span class="s2">.</span><span class="s1">add_option</span><span class="s2">(</span><span class="s1">cmdoptions</span><span class="s2">.</span><span class="s1">override_externally_managed</span><span class="s2">())</span>
+<a name="l62"><span class="ln">62   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">parser</span><span class="s2">.</span><span class="s1">insert_option_group</span><span class="s2">(</span><span class="s5">0</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">cmd_opts</span><span class="s2">)</span>
+<a name="l63"><span class="ln">63   </span></a>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s0">def </span><span class="s1">run</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">options</span><span class="s0">: </span><span class="s1">Values</span><span class="s2">, </span><span class="s1">args</span><span class="s0">: </span><span class="s1">list</span><span class="s2">[</span><span class="s1">str</span><span class="s2">]) </span><span class="s1">-&gt; int</span><span class="s0">:</span>
+<a name="l65"><span class="ln">65   </span></a>        <span class="s1">session </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">get_default_session</span><span class="s2">(</span><span class="s1">options</span><span class="s2">)</span>
+<a name="l66"><span class="ln">66   </span></a>
+<a name="l67"><span class="ln">67   </span></a>        <span class="s1">reqs_to_uninstall </span><span class="s0">= </span><span class="s2">{}</span>
+<a name="l68"><span class="ln">68   </span></a>        <span class="s0">for </span><span class="s1">name </span><span class="s0">in </span><span class="s1">args</span><span class="s0">:</span>
+<a name="l69"><span class="ln">69   </span></a>            <span class="s1">req </span><span class="s0">= </span><span class="s1">install_req_from_line</span><span class="s2">(</span>
+<a name="l70"><span class="ln">70   </span></a>                <span class="s1">name</span><span class="s2">,</span>
+<a name="l71"><span class="ln">71   </span></a>                <span class="s1">isolated</span><span class="s0">=</span><span class="s1">options</span><span class="s2">.</span><span class="s1">isolated_mode</span><span class="s2">,</span>
+<a name="l72"><span class="ln">72   </span></a>            <span class="s2">)</span>
+<a name="l73"><span class="ln">73   </span></a>            <span class="s0">if </span><span class="s1">req</span><span class="s2">.</span><span class="s1">name</span><span class="s0">:</span>
+<a name="l74"><span class="ln">74   </span></a>                <span class="s1">reqs_to_uninstall</span><span class="s2">[</span><span class="s1">canonicalize_name</span><span class="s2">(</span><span class="s1">req</span><span class="s2">.</span><span class="s1">name</span><span class="s2">)] </span><span class="s0">= </span><span class="s1">req</span>
+<a name="l75"><span class="ln">75   </span></a>            <span class="s0">else:</span>
+<a name="l76"><span class="ln">76   </span></a>                <span class="s1">logger</span><span class="s2">.</span><span class="s1">warning</span><span class="s2">(</span>
+<a name="l77"><span class="ln">77   </span></a>                    <span class="s4">&quot;Invalid requirement: %r ignored -&quot;</span>
+<a name="l78"><span class="ln">78   </span></a>                    <span class="s4">&quot; the uninstall command expects named&quot;</span>
+<a name="l79"><span class="ln">79   </span></a>                    <span class="s4">&quot; requirements.&quot;</span><span class="s2">,</span>
+<a name="l80"><span class="ln">80   </span></a>                    <span class="s1">name</span><span class="s2">,</span>
+<a name="l81"><span class="ln">81   </span></a>                <span class="s2">)</span>
+<a name="l82"><span class="ln">82   </span></a>        <span class="s0">for </span><span class="s1">filename </span><span class="s0">in </span><span class="s1">options</span><span class="s2">.</span><span class="s1">requirements</span><span class="s0">:</span>
+<a name="l83"><span class="ln">83   </span></a>            <span class="s0">for </span><span class="s1">parsed_req </span><span class="s0">in </span><span class="s1">parse_requirements</span><span class="s2">(</span>
+<a name="l84"><span class="ln">84   </span></a>                <span class="s1">filename</span><span class="s2">, </span><span class="s1">options</span><span class="s0">=</span><span class="s1">options</span><span class="s2">, </span><span class="s1">session</span><span class="s0">=</span><span class="s1">session</span>
+<a name="l85"><span class="ln">85   </span></a>            <span class="s2">)</span><span class="s0">:</span>
+<a name="l86"><span class="ln">86   </span></a>                <span class="s1">req </span><span class="s0">= </span><span class="s1">install_req_from_parsed_requirement</span><span class="s2">(</span>
+<a name="l87"><span class="ln">87   </span></a>                    <span class="s1">parsed_req</span><span class="s2">, </span><span class="s1">isolated</span><span class="s0">=</span><span class="s1">options</span><span class="s2">.</span><span class="s1">isolated_mode</span>
+<a name="l88"><span class="ln">88   </span></a>                <span class="s2">)</span>
+<a name="l89"><span class="ln">89   </span></a>                <span class="s0">if </span><span class="s1">req</span><span class="s2">.</span><span class="s1">name</span><span class="s0">:</span>
+<a name="l90"><span class="ln">90   </span></a>                    <span class="s1">reqs_to_uninstall</span><span class="s2">[</span><span class="s1">canonicalize_name</span><span class="s2">(</span><span class="s1">req</span><span class="s2">.</span><span class="s1">name</span><span class="s2">)] </span><span class="s0">= </span><span class="s1">req</span>
+<a name="l91"><span class="ln">91   </span></a>        <span class="s0">if not </span><span class="s1">reqs_to_uninstall</span><span class="s0">:</span>
+<a name="l92"><span class="ln">92   </span></a>            <span class="s0">raise </span><span class="s1">InstallationError</span><span class="s2">(</span>
+<a name="l93"><span class="ln">93   </span></a>                <span class="s4">f&quot;You must give at least one requirement to {</span><span class="s1">self</span><span class="s2">.</span><span class="s1">name</span><span class="s4">} (see &quot;</span>
+<a name="l94"><span class="ln">94   </span></a>                <span class="s4">f'&quot;pip help {</span><span class="s1">self</span><span class="s2">.</span><span class="s1">name</span><span class="s4">}&quot;)'</span>
+<a name="l95"><span class="ln">95   </span></a>            <span class="s2">)</span>
+<a name="l96"><span class="ln">96   </span></a>
+<a name="l97"><span class="ln">97   </span></a>        <span class="s0">if not </span><span class="s1">options</span><span class="s2">.</span><span class="s1">override_externally_managed</span><span class="s0">:</span>
+<a name="l98"><span class="ln">98   </span></a>            <span class="s1">check_externally_managed</span><span class="s2">()</span>
+<a name="l99"><span class="ln">99   </span></a>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s1">protect_pip_from_modification_on_windows</span><span class="s2">(</span>
+<a name="l101"><span class="ln">101  </span></a>            <span class="s1">modifying_pip</span><span class="s0">=</span><span class="s4">&quot;pip&quot; </span><span class="s0">in </span><span class="s1">reqs_to_uninstall</span>
+<a name="l102"><span class="ln">102  </span></a>        <span class="s2">)</span>
+<a name="l103"><span class="ln">103  </span></a>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s0">for </span><span class="s1">req </span><span class="s0">in </span><span class="s1">reqs_to_uninstall</span><span class="s2">.</span><span class="s1">values</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l105"><span class="ln">105  </span></a>            <span class="s1">uninstall_pathset </span><span class="s0">= </span><span class="s1">req</span><span class="s2">.</span><span class="s1">uninstall</span><span class="s2">(</span>
+<a name="l106"><span class="ln">106  </span></a>                <span class="s1">auto_confirm</span><span class="s0">=</span><span class="s1">options</span><span class="s2">.</span><span class="s1">yes</span><span class="s2">,</span>
+<a name="l107"><span class="ln">107  </span></a>                <span class="s1">verbose</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">verbosity </span><span class="s0">&gt; </span><span class="s5">0</span><span class="s2">,</span>
+<a name="l108"><span class="ln">108  </span></a>            <span class="s2">)</span>
+<a name="l109"><span class="ln">109  </span></a>            <span class="s0">if </span><span class="s1">uninstall_pathset</span><span class="s0">:</span>
+<a name="l110"><span class="ln">110  </span></a>                <span class="s1">uninstall_pathset</span><span class="s2">.</span><span class="s1">commit</span><span class="s2">()</span>
+<a name="l111"><span class="ln">111  </span></a>        <span class="s0">if </span><span class="s1">options</span><span class="s2">.</span><span class="s1">root_user_action </span><span class="s0">== </span><span class="s4">&quot;warn&quot;</span><span class="s0">:</span>
+<a name="l112"><span class="ln">112  </span></a>            <span class="s1">warn_if_run_as_root</span><span class="s2">()</span>
+<a name="l113"><span class="ln">113  </span></a>        <span class="s0">return </span><span class="s1">SUCCESS</span>
+<a name="l114"><span class="ln">114  </span></a></pre>
+</body>
+</html>

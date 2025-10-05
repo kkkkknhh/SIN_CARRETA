@@ -1,0 +1,202 @@
+<html>
+<head>
+<title>tfqmr.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #0086b3;}
+.s5 { color: #969896;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+tfqmr.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">import </span><span class="s1">numpy </span><span class="s0">as </span><span class="s1">np</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">iterative </span><span class="s0">import </span><span class="s1">_get_atol_rtol</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">utils </span><span class="s0">import </span><span class="s1">make_system</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span><span class="s3">'tfqmr'</span><span class="s2">]</span>
+<a name="l7"><span class="ln">7    </span></a>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">def </span><span class="s1">tfqmr</span><span class="s2">(</span><span class="s1">A</span><span class="s2">, </span><span class="s1">b</span><span class="s2">, </span><span class="s1">x0</span><span class="s0">=None</span><span class="s2">, </span><span class="s0">*</span><span class="s2">, </span><span class="s1">rtol</span><span class="s0">=</span><span class="s4">1e-5</span><span class="s2">, </span><span class="s1">atol</span><span class="s0">=</span><span class="s4">0.</span><span class="s2">, </span><span class="s1">maxiter</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">M</span><span class="s0">=None</span><span class="s2">,</span>
+<a name="l10"><span class="ln">10   </span></a>          <span class="s1">callback</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">show</span><span class="s0">=False</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l11"><span class="ln">11   </span></a>    <span class="s5">&quot;&quot;&quot; 
+<a name="l12"><span class="ln">12   </span></a>    Use Transpose-Free Quasi-Minimal Residual iteration to solve ``Ax = b``. 
+<a name="l13"><span class="ln">13   </span></a> 
+<a name="l14"><span class="ln">14   </span></a>    Parameters 
+<a name="l15"><span class="ln">15   </span></a>    ---------- 
+<a name="l16"><span class="ln">16   </span></a>    A : {sparse array, ndarray, LinearOperator} 
+<a name="l17"><span class="ln">17   </span></a>        The real or complex N-by-N matrix of the linear system. 
+<a name="l18"><span class="ln">18   </span></a>        Alternatively, `A` can be a linear operator which can 
+<a name="l19"><span class="ln">19   </span></a>        produce ``Ax`` using, e.g., 
+<a name="l20"><span class="ln">20   </span></a>        `scipy.sparse.linalg.LinearOperator`. 
+<a name="l21"><span class="ln">21   </span></a>    b : {ndarray} 
+<a name="l22"><span class="ln">22   </span></a>        Right hand side of the linear system. Has shape (N,) or (N,1). 
+<a name="l23"><span class="ln">23   </span></a>    x0 : {ndarray} 
+<a name="l24"><span class="ln">24   </span></a>        Starting guess for the solution. 
+<a name="l25"><span class="ln">25   </span></a>    rtol, atol : float, optional 
+<a name="l26"><span class="ln">26   </span></a>        Parameters for the convergence test. For convergence, 
+<a name="l27"><span class="ln">27   </span></a>        ``norm(b - A @ x) &lt;= max(rtol*norm(b), atol)`` should be satisfied. 
+<a name="l28"><span class="ln">28   </span></a>        The default is ``rtol=1e-5``, the default for ``atol`` is ``0.0``. 
+<a name="l29"><span class="ln">29   </span></a>    maxiter : int, optional 
+<a name="l30"><span class="ln">30   </span></a>        Maximum number of iterations.  Iteration will stop after maxiter 
+<a name="l31"><span class="ln">31   </span></a>        steps even if the specified tolerance has not been achieved. 
+<a name="l32"><span class="ln">32   </span></a>        Default is ``min(10000, ndofs * 10)``, where ``ndofs = A.shape[0]``. 
+<a name="l33"><span class="ln">33   </span></a>    M : {sparse array, ndarray, LinearOperator} 
+<a name="l34"><span class="ln">34   </span></a>        Inverse of the preconditioner of A.  M should approximate the 
+<a name="l35"><span class="ln">35   </span></a>        inverse of A and be easy to solve for (see Notes).  Effective 
+<a name="l36"><span class="ln">36   </span></a>        preconditioning dramatically improves the rate of convergence, 
+<a name="l37"><span class="ln">37   </span></a>        which implies that fewer iterations are needed to reach a given 
+<a name="l38"><span class="ln">38   </span></a>        error tolerance.  By default, no preconditioner is used. 
+<a name="l39"><span class="ln">39   </span></a>    callback : function, optional 
+<a name="l40"><span class="ln">40   </span></a>        User-supplied function to call after each iteration.  It is called 
+<a name="l41"><span class="ln">41   </span></a>        as ``callback(xk)``, where ``xk`` is the current solution vector. 
+<a name="l42"><span class="ln">42   </span></a>    show : bool, optional 
+<a name="l43"><span class="ln">43   </span></a>        Specify ``show = True`` to show the convergence, ``show = False`` is 
+<a name="l44"><span class="ln">44   </span></a>        to close the output of the convergence. 
+<a name="l45"><span class="ln">45   </span></a>        Default is `False`. 
+<a name="l46"><span class="ln">46   </span></a> 
+<a name="l47"><span class="ln">47   </span></a>    Returns 
+<a name="l48"><span class="ln">48   </span></a>    ------- 
+<a name="l49"><span class="ln">49   </span></a>    x : ndarray 
+<a name="l50"><span class="ln">50   </span></a>        The converged solution. 
+<a name="l51"><span class="ln">51   </span></a>    info : int 
+<a name="l52"><span class="ln">52   </span></a>        Provides convergence information: 
+<a name="l53"><span class="ln">53   </span></a> 
+<a name="l54"><span class="ln">54   </span></a>            - 0  : successful exit 
+<a name="l55"><span class="ln">55   </span></a>            - &gt;0 : convergence to tolerance not achieved, number of iterations 
+<a name="l56"><span class="ln">56   </span></a>            - &lt;0 : illegal input or breakdown 
+<a name="l57"><span class="ln">57   </span></a> 
+<a name="l58"><span class="ln">58   </span></a>    Notes 
+<a name="l59"><span class="ln">59   </span></a>    ----- 
+<a name="l60"><span class="ln">60   </span></a>    The Transpose-Free QMR algorithm is derived from the CGS algorithm. 
+<a name="l61"><span class="ln">61   </span></a>    However, unlike CGS, the convergence curves for the TFQMR method is 
+<a name="l62"><span class="ln">62   </span></a>    smoothed by computing a quasi minimization of the residual norm. The 
+<a name="l63"><span class="ln">63   </span></a>    implementation supports left preconditioner, and the &quot;residual norm&quot; 
+<a name="l64"><span class="ln">64   </span></a>    to compute in convergence criterion is actually an upper bound on the 
+<a name="l65"><span class="ln">65   </span></a>    actual residual norm ``||b - Axk||``. 
+<a name="l66"><span class="ln">66   </span></a> 
+<a name="l67"><span class="ln">67   </span></a>    References 
+<a name="l68"><span class="ln">68   </span></a>    ---------- 
+<a name="l69"><span class="ln">69   </span></a>    .. [1] R. W. Freund, A Transpose-Free Quasi-Minimal Residual Algorithm for 
+<a name="l70"><span class="ln">70   </span></a>           Non-Hermitian Linear Systems, SIAM J. Sci. Comput., 14(2), 470-482, 
+<a name="l71"><span class="ln">71   </span></a>           1993. 
+<a name="l72"><span class="ln">72   </span></a>    .. [2] Y. Saad, Iterative Methods for Sparse Linear Systems, 2nd edition, 
+<a name="l73"><span class="ln">73   </span></a>           SIAM, Philadelphia, 2003. 
+<a name="l74"><span class="ln">74   </span></a>    .. [3] C. T. Kelley, Iterative Methods for Linear and Nonlinear Equations, 
+<a name="l75"><span class="ln">75   </span></a>           number 16 in Frontiers in Applied Mathematics, SIAM, Philadelphia, 
+<a name="l76"><span class="ln">76   </span></a>           1995. 
+<a name="l77"><span class="ln">77   </span></a> 
+<a name="l78"><span class="ln">78   </span></a>    Examples 
+<a name="l79"><span class="ln">79   </span></a>    -------- 
+<a name="l80"><span class="ln">80   </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l81"><span class="ln">81   </span></a>    &gt;&gt;&gt; from scipy.sparse import csc_array 
+<a name="l82"><span class="ln">82   </span></a>    &gt;&gt;&gt; from scipy.sparse.linalg import tfqmr 
+<a name="l83"><span class="ln">83   </span></a>    &gt;&gt;&gt; A = csc_array([[3, 2, 0], [1, -1, 0], [0, 5, 1]], dtype=float) 
+<a name="l84"><span class="ln">84   </span></a>    &gt;&gt;&gt; b = np.array([2, 4, -1], dtype=float) 
+<a name="l85"><span class="ln">85   </span></a>    &gt;&gt;&gt; x, exitCode = tfqmr(A, b, atol=0.0) 
+<a name="l86"><span class="ln">86   </span></a>    &gt;&gt;&gt; print(exitCode)            # 0 indicates successful convergence 
+<a name="l87"><span class="ln">87   </span></a>    0 
+<a name="l88"><span class="ln">88   </span></a>    &gt;&gt;&gt; np.allclose(A.dot(x), b) 
+<a name="l89"><span class="ln">89   </span></a>    True 
+<a name="l90"><span class="ln">90   </span></a>    &quot;&quot;&quot;</span>
+<a name="l91"><span class="ln">91   </span></a>
+<a name="l92"><span class="ln">92   </span></a>    <span class="s5"># Check data type</span>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s1">dtype </span><span class="s0">= </span><span class="s1">A</span><span class="s2">.</span><span class="s1">dtype</span>
+<a name="l94"><span class="ln">94   </span></a>    <span class="s0">if </span><span class="s1">np</span><span class="s2">.</span><span class="s1">issubdtype</span><span class="s2">(</span><span class="s1">dtype</span><span class="s2">, </span><span class="s1">np</span><span class="s2">.</span><span class="s1">int64</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l95"><span class="ln">95   </span></a>        <span class="s1">dtype </span><span class="s0">= </span><span class="s1">float</span>
+<a name="l96"><span class="ln">96   </span></a>        <span class="s1">A </span><span class="s0">= </span><span class="s1">A</span><span class="s2">.</span><span class="s1">astype</span><span class="s2">(</span><span class="s1">dtype</span><span class="s2">)</span>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s0">if </span><span class="s1">np</span><span class="s2">.</span><span class="s1">issubdtype</span><span class="s2">(</span><span class="s1">b</span><span class="s2">.</span><span class="s1">dtype</span><span class="s2">, </span><span class="s1">np</span><span class="s2">.</span><span class="s1">int64</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l98"><span class="ln">98   </span></a>        <span class="s1">b </span><span class="s0">= </span><span class="s1">b</span><span class="s2">.</span><span class="s1">astype</span><span class="s2">(</span><span class="s1">dtype</span><span class="s2">)</span>
+<a name="l99"><span class="ln">99   </span></a>
+<a name="l100"><span class="ln">100  </span></a>    <span class="s1">A</span><span class="s2">, </span><span class="s1">M</span><span class="s2">, </span><span class="s1">x</span><span class="s2">, </span><span class="s1">b</span><span class="s2">, </span><span class="s1">postprocess </span><span class="s0">= </span><span class="s1">make_system</span><span class="s2">(</span><span class="s1">A</span><span class="s2">, </span><span class="s1">M</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">b</span><span class="s2">)</span>
+<a name="l101"><span class="ln">101  </span></a>
+<a name="l102"><span class="ln">102  </span></a>    <span class="s5"># Check if the R.H.S is a zero vector</span>
+<a name="l103"><span class="ln">103  </span></a>    <span class="s0">if </span><span class="s1">np</span><span class="s2">.</span><span class="s1">linalg</span><span class="s2">.</span><span class="s1">norm</span><span class="s2">(</span><span class="s1">b</span><span class="s2">) </span><span class="s0">== </span><span class="s4">0.</span><span class="s0">:</span>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s1">x </span><span class="s0">= </span><span class="s1">b</span><span class="s2">.</span><span class="s1">copy</span><span class="s2">()</span>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s0">return </span><span class="s2">(</span><span class="s1">postprocess</span><span class="s2">(</span><span class="s1">x</span><span class="s2">), </span><span class="s4">0</span><span class="s2">)</span>
+<a name="l106"><span class="ln">106  </span></a>
+<a name="l107"><span class="ln">107  </span></a>    <span class="s1">ndofs </span><span class="s0">= </span><span class="s1">A</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s4">0</span><span class="s2">]</span>
+<a name="l108"><span class="ln">108  </span></a>    <span class="s0">if </span><span class="s1">maxiter </span><span class="s0">is None:</span>
+<a name="l109"><span class="ln">109  </span></a>        <span class="s1">maxiter </span><span class="s0">= </span><span class="s1">min</span><span class="s2">(</span><span class="s4">10000</span><span class="s2">, </span><span class="s1">ndofs </span><span class="s0">* </span><span class="s4">10</span><span class="s2">)</span>
+<a name="l110"><span class="ln">110  </span></a>
+<a name="l111"><span class="ln">111  </span></a>    <span class="s0">if </span><span class="s1">x0 </span><span class="s0">is None:</span>
+<a name="l112"><span class="ln">112  </span></a>        <span class="s1">r </span><span class="s0">= </span><span class="s1">b</span><span class="s2">.</span><span class="s1">copy</span><span class="s2">()</span>
+<a name="l113"><span class="ln">113  </span></a>    <span class="s0">else:</span>
+<a name="l114"><span class="ln">114  </span></a>        <span class="s1">r </span><span class="s0">= </span><span class="s1">b </span><span class="s0">- </span><span class="s1">A</span><span class="s2">.</span><span class="s1">matvec</span><span class="s2">(</span><span class="s1">x</span><span class="s2">)</span>
+<a name="l115"><span class="ln">115  </span></a>    <span class="s1">u </span><span class="s0">= </span><span class="s1">r</span>
+<a name="l116"><span class="ln">116  </span></a>    <span class="s1">w </span><span class="s0">= </span><span class="s1">r</span><span class="s2">.</span><span class="s1">copy</span><span class="s2">()</span>
+<a name="l117"><span class="ln">117  </span></a>    <span class="s5"># Take rstar as b - Ax0, that is rstar := r = b - Ax0 mathematically</span>
+<a name="l118"><span class="ln">118  </span></a>    <span class="s1">rstar </span><span class="s0">= </span><span class="s1">r</span>
+<a name="l119"><span class="ln">119  </span></a>    <span class="s1">v </span><span class="s0">= </span><span class="s1">M</span><span class="s2">.</span><span class="s1">matvec</span><span class="s2">(</span><span class="s1">A</span><span class="s2">.</span><span class="s1">matvec</span><span class="s2">(</span><span class="s1">r</span><span class="s2">))</span>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s1">uhat </span><span class="s0">= </span><span class="s1">v</span>
+<a name="l121"><span class="ln">121  </span></a>    <span class="s1">d </span><span class="s0">= </span><span class="s1">theta </span><span class="s0">= </span><span class="s1">eta </span><span class="s0">= </span><span class="s4">0.</span>
+<a name="l122"><span class="ln">122  </span></a>    <span class="s5"># at this point we know rstar == r, so rho is always real</span>
+<a name="l123"><span class="ln">123  </span></a>    <span class="s1">rho </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">inner</span><span class="s2">(</span><span class="s1">rstar</span><span class="s2">.</span><span class="s1">conjugate</span><span class="s2">(), </span><span class="s1">r</span><span class="s2">).</span><span class="s1">real</span>
+<a name="l124"><span class="ln">124  </span></a>    <span class="s1">rhoLast </span><span class="s0">= </span><span class="s1">rho</span>
+<a name="l125"><span class="ln">125  </span></a>    <span class="s1">r0norm </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s1">rho</span><span class="s2">)</span>
+<a name="l126"><span class="ln">126  </span></a>    <span class="s1">tau </span><span class="s0">= </span><span class="s1">r0norm</span>
+<a name="l127"><span class="ln">127  </span></a>    <span class="s0">if </span><span class="s1">r0norm </span><span class="s0">== </span><span class="s4">0</span><span class="s0">:</span>
+<a name="l128"><span class="ln">128  </span></a>        <span class="s0">return </span><span class="s2">(</span><span class="s1">postprocess</span><span class="s2">(</span><span class="s1">x</span><span class="s2">), </span><span class="s4">0</span><span class="s2">)</span>
+<a name="l129"><span class="ln">129  </span></a>
+<a name="l130"><span class="ln">130  </span></a>    <span class="s5"># we call this to get the right atol and raise errors as necessary</span>
+<a name="l131"><span class="ln">131  </span></a>    <span class="s1">atol</span><span class="s2">, </span><span class="s1">_ </span><span class="s0">= </span><span class="s1">_get_atol_rtol</span><span class="s2">(</span><span class="s3">'tfqmr'</span><span class="s2">, </span><span class="s1">r0norm</span><span class="s2">, </span><span class="s1">atol</span><span class="s2">, </span><span class="s1">rtol</span><span class="s2">)</span>
+<a name="l132"><span class="ln">132  </span></a>
+<a name="l133"><span class="ln">133  </span></a>    <span class="s0">for </span><span class="s1">iter </span><span class="s0">in </span><span class="s1">range</span><span class="s2">(</span><span class="s1">maxiter</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l134"><span class="ln">134  </span></a>        <span class="s1">even </span><span class="s0">= </span><span class="s1">iter </span><span class="s0">% </span><span class="s4">2 </span><span class="s0">== </span><span class="s4">0</span>
+<a name="l135"><span class="ln">135  </span></a>        <span class="s0">if </span><span class="s2">(</span><span class="s1">even</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l136"><span class="ln">136  </span></a>            <span class="s1">vtrstar </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">inner</span><span class="s2">(</span><span class="s1">rstar</span><span class="s2">.</span><span class="s1">conjugate</span><span class="s2">(), </span><span class="s1">v</span><span class="s2">)</span>
+<a name="l137"><span class="ln">137  </span></a>            <span class="s5"># Check breakdown</span>
+<a name="l138"><span class="ln">138  </span></a>            <span class="s0">if </span><span class="s1">vtrstar </span><span class="s0">== </span><span class="s4">0.</span><span class="s0">:</span>
+<a name="l139"><span class="ln">139  </span></a>                <span class="s0">return </span><span class="s2">(</span><span class="s1">postprocess</span><span class="s2">(</span><span class="s1">x</span><span class="s2">), </span><span class="s0">-</span><span class="s4">1</span><span class="s2">)</span>
+<a name="l140"><span class="ln">140  </span></a>            <span class="s1">alpha </span><span class="s0">= </span><span class="s1">rho </span><span class="s0">/ </span><span class="s1">vtrstar</span>
+<a name="l141"><span class="ln">141  </span></a>            <span class="s1">uNext </span><span class="s0">= </span><span class="s1">u </span><span class="s0">- </span><span class="s1">alpha </span><span class="s0">* </span><span class="s1">v  </span><span class="s5"># [1]-(5.6)</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s1">w </span><span class="s0">-= </span><span class="s1">alpha </span><span class="s0">* </span><span class="s1">uhat  </span><span class="s5"># [1]-(5.8)</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s1">d </span><span class="s0">= </span><span class="s1">u </span><span class="s0">+ </span><span class="s2">(</span><span class="s1">theta</span><span class="s0">**</span><span class="s4">2 </span><span class="s0">/ </span><span class="s1">alpha</span><span class="s2">) </span><span class="s0">* </span><span class="s1">eta </span><span class="s0">* </span><span class="s1">d  </span><span class="s5"># [1]-(5.5)</span>
+<a name="l144"><span class="ln">144  </span></a>        <span class="s5"># [1]-(5.2)</span>
+<a name="l145"><span class="ln">145  </span></a>        <span class="s1">theta </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">linalg</span><span class="s2">.</span><span class="s1">norm</span><span class="s2">(</span><span class="s1">w</span><span class="s2">) </span><span class="s0">/ </span><span class="s1">tau</span>
+<a name="l146"><span class="ln">146  </span></a>        <span class="s1">c </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s4">1. </span><span class="s0">/ </span><span class="s2">(</span><span class="s4">1 </span><span class="s0">+ </span><span class="s1">theta</span><span class="s0">**</span><span class="s4">2</span><span class="s2">))</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s1">tau </span><span class="s0">*= </span><span class="s1">theta </span><span class="s0">* </span><span class="s1">c</span>
+<a name="l148"><span class="ln">148  </span></a>        <span class="s5"># Calculate step and direction [1]-(5.4)</span>
+<a name="l149"><span class="ln">149  </span></a>        <span class="s1">eta </span><span class="s0">= </span><span class="s2">(</span><span class="s1">c</span><span class="s0">**</span><span class="s4">2</span><span class="s2">) </span><span class="s0">* </span><span class="s1">alpha</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s1">z </span><span class="s0">= </span><span class="s1">M</span><span class="s2">.</span><span class="s1">matvec</span><span class="s2">(</span><span class="s1">d</span><span class="s2">)</span>
+<a name="l151"><span class="ln">151  </span></a>        <span class="s1">x </span><span class="s0">+= </span><span class="s1">eta </span><span class="s0">* </span><span class="s1">z</span>
+<a name="l152"><span class="ln">152  </span></a>
+<a name="l153"><span class="ln">153  </span></a>        <span class="s0">if </span><span class="s1">callback </span><span class="s0">is not None:</span>
+<a name="l154"><span class="ln">154  </span></a>            <span class="s1">callback</span><span class="s2">(</span><span class="s1">x</span><span class="s2">)</span>
+<a name="l155"><span class="ln">155  </span></a>
+<a name="l156"><span class="ln">156  </span></a>        <span class="s5"># Convergence criterion</span>
+<a name="l157"><span class="ln">157  </span></a>        <span class="s0">if </span><span class="s1">tau </span><span class="s0">* </span><span class="s1">np</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s1">iter</span><span class="s0">+</span><span class="s4">1</span><span class="s2">) </span><span class="s0">&lt; </span><span class="s1">atol</span><span class="s0">:</span>
+<a name="l158"><span class="ln">158  </span></a>            <span class="s0">if </span><span class="s2">(</span><span class="s1">show</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l159"><span class="ln">159  </span></a>                <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;TFQMR: Linear solve converged due to reach TOL &quot;</span>
+<a name="l160"><span class="ln">160  </span></a>                      <span class="s3">f&quot;iterations {</span><span class="s1">iter</span><span class="s0">+</span><span class="s4">1</span><span class="s3">}&quot;</span><span class="s2">)</span>
+<a name="l161"><span class="ln">161  </span></a>            <span class="s0">return </span><span class="s2">(</span><span class="s1">postprocess</span><span class="s2">(</span><span class="s1">x</span><span class="s2">), </span><span class="s4">0</span><span class="s2">)</span>
+<a name="l162"><span class="ln">162  </span></a>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s0">if </span><span class="s2">(</span><span class="s0">not </span><span class="s1">even</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l164"><span class="ln">164  </span></a>            <span class="s5"># [1]-(5.7)</span>
+<a name="l165"><span class="ln">165  </span></a>            <span class="s1">rho </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">inner</span><span class="s2">(</span><span class="s1">rstar</span><span class="s2">.</span><span class="s1">conjugate</span><span class="s2">(), </span><span class="s1">w</span><span class="s2">)</span>
+<a name="l166"><span class="ln">166  </span></a>            <span class="s1">beta </span><span class="s0">= </span><span class="s1">rho </span><span class="s0">/ </span><span class="s1">rhoLast</span>
+<a name="l167"><span class="ln">167  </span></a>            <span class="s1">u </span><span class="s0">= </span><span class="s1">w </span><span class="s0">+ </span><span class="s1">beta </span><span class="s0">* </span><span class="s1">u</span>
+<a name="l168"><span class="ln">168  </span></a>            <span class="s1">v </span><span class="s0">= </span><span class="s1">beta </span><span class="s0">* </span><span class="s1">uhat </span><span class="s0">+ </span><span class="s2">(</span><span class="s1">beta</span><span class="s0">**</span><span class="s4">2</span><span class="s2">) </span><span class="s0">* </span><span class="s1">v</span>
+<a name="l169"><span class="ln">169  </span></a>            <span class="s1">uhat </span><span class="s0">= </span><span class="s1">M</span><span class="s2">.</span><span class="s1">matvec</span><span class="s2">(</span><span class="s1">A</span><span class="s2">.</span><span class="s1">matvec</span><span class="s2">(</span><span class="s1">u</span><span class="s2">))</span>
+<a name="l170"><span class="ln">170  </span></a>            <span class="s1">v </span><span class="s0">+= </span><span class="s1">uhat</span>
+<a name="l171"><span class="ln">171  </span></a>        <span class="s0">else:</span>
+<a name="l172"><span class="ln">172  </span></a>            <span class="s1">uhat </span><span class="s0">= </span><span class="s1">M</span><span class="s2">.</span><span class="s1">matvec</span><span class="s2">(</span><span class="s1">A</span><span class="s2">.</span><span class="s1">matvec</span><span class="s2">(</span><span class="s1">uNext</span><span class="s2">))</span>
+<a name="l173"><span class="ln">173  </span></a>            <span class="s1">u </span><span class="s0">= </span><span class="s1">uNext</span>
+<a name="l174"><span class="ln">174  </span></a>            <span class="s1">rhoLast </span><span class="s0">= </span><span class="s1">rho</span>
+<a name="l175"><span class="ln">175  </span></a>
+<a name="l176"><span class="ln">176  </span></a>    <span class="s0">if </span><span class="s2">(</span><span class="s1">show</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l177"><span class="ln">177  </span></a>        <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;TFQMR: Linear solve not converged due to reach MAXIT &quot;</span>
+<a name="l178"><span class="ln">178  </span></a>              <span class="s3">f&quot;iterations {</span><span class="s1">iter</span><span class="s0">+</span><span class="s4">1</span><span class="s3">}&quot;</span><span class="s2">)</span>
+<a name="l179"><span class="ln">179  </span></a>    <span class="s0">return </span><span class="s2">(</span><span class="s1">postprocess</span><span class="s2">(</span><span class="s1">x</span><span class="s2">), </span><span class="s1">maxiter</span><span class="s2">)</span>
+<a name="l180"><span class="ln">180  </span></a></pre>
+</body>
+</html>

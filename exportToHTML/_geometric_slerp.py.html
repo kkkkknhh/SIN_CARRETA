@@ -1,0 +1,261 @@
+<html>
+<head>
+<title>_geometric_slerp.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #a71d5d;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #969896;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_geometric_slerp.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">__all__ </span><span class="s1">= </span><span class="s2">[</span><span class="s3">'geometric_slerp'</span><span class="s2">]</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">import </span><span class="s0">warnings</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">from </span><span class="s0">typing </span><span class="s1">import </span><span class="s0">TYPE_CHECKING</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s1">import </span><span class="s0">numpy </span><span class="s1">as </span><span class="s0">np</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">from </span><span class="s0">scipy</span><span class="s2">.</span><span class="s0">spatial</span><span class="s2">.</span><span class="s0">distance </span><span class="s1">import </span><span class="s0">euclidean</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">if </span><span class="s0">TYPE_CHECKING</span><span class="s1">:</span>
+<a name="l10"><span class="ln">10   </span></a>    <span class="s1">import </span><span class="s0">numpy</span><span class="s2">.</span><span class="s0">typing </span><span class="s1">as </span><span class="s0">npt</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a><span class="s1">def </span><span class="s0">_geometric_slerp</span><span class="s2">(</span><span class="s0">start</span><span class="s2">, </span><span class="s0">end</span><span class="s2">, </span><span class="s0">t</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s4"># create an orthogonal basis using QR decomposition</span>
+<a name="l15"><span class="ln">15   </span></a>    <span class="s0">basis </span><span class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">vstack</span><span class="s2">([</span><span class="s0">start</span><span class="s2">, </span><span class="s0">end</span><span class="s2">])</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s0">Q</span><span class="s2">, </span><span class="s0">R </span><span class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">linalg</span><span class="s2">.</span><span class="s0">qr</span><span class="s2">(</span><span class="s0">basis</span><span class="s2">.</span><span class="s0">T</span><span class="s2">)</span>
+<a name="l17"><span class="ln">17   </span></a>    <span class="s0">signs </span><span class="s1">= </span><span class="s5">2 </span><span class="s1">* </span><span class="s2">(</span><span class="s0">np</span><span class="s2">.</span><span class="s0">diag</span><span class="s2">(</span><span class="s0">R</span><span class="s2">) </span><span class="s1">&gt;= </span><span class="s5">0</span><span class="s2">) </span><span class="s1">- </span><span class="s5">1</span>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s0">Q </span><span class="s1">= </span><span class="s0">Q</span><span class="s2">.</span><span class="s0">T </span><span class="s1">* </span><span class="s0">signs</span><span class="s2">.</span><span class="s0">T</span><span class="s2">[</span><span class="s1">:</span><span class="s2">, </span><span class="s0">np</span><span class="s2">.</span><span class="s0">newaxis</span><span class="s2">]</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s0">R </span><span class="s1">= </span><span class="s0">R</span><span class="s2">.</span><span class="s0">T </span><span class="s1">* </span><span class="s0">signs</span><span class="s2">.</span><span class="s0">T</span><span class="s2">[</span><span class="s1">:</span><span class="s2">, </span><span class="s0">np</span><span class="s2">.</span><span class="s0">newaxis</span><span class="s2">]</span>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a>    <span class="s4"># calculate the angle between `start` and `end`</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s0">c </span><span class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">dot</span><span class="s2">(</span><span class="s0">start</span><span class="s2">, </span><span class="s0">end</span><span class="s2">)</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s0">s </span><span class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">linalg</span><span class="s2">.</span><span class="s0">det</span><span class="s2">(</span><span class="s0">R</span><span class="s2">)</span>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s0">omega </span><span class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">arctan2</span><span class="s2">(</span><span class="s0">s</span><span class="s2">, </span><span class="s0">c</span><span class="s2">)</span>
+<a name="l25"><span class="ln">25   </span></a>
+<a name="l26"><span class="ln">26   </span></a>    <span class="s4"># interpolate</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s0">start</span><span class="s2">, </span><span class="s0">end </span><span class="s1">= </span><span class="s0">Q</span>
+<a name="l28"><span class="ln">28   </span></a>    <span class="s0">s </span><span class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">sin</span><span class="s2">(</span><span class="s0">t </span><span class="s1">* </span><span class="s0">omega</span><span class="s2">)</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s0">c </span><span class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">cos</span><span class="s2">(</span><span class="s0">t </span><span class="s1">* </span><span class="s0">omega</span><span class="s2">)</span>
+<a name="l30"><span class="ln">30   </span></a>    <span class="s1">return </span><span class="s0">start </span><span class="s1">* </span><span class="s0">c</span><span class="s2">[</span><span class="s1">:</span><span class="s2">, </span><span class="s0">np</span><span class="s2">.</span><span class="s0">newaxis</span><span class="s2">] </span><span class="s1">+ </span><span class="s0">end </span><span class="s1">* </span><span class="s0">s</span><span class="s2">[</span><span class="s1">:</span><span class="s2">, </span><span class="s0">np</span><span class="s2">.</span><span class="s0">newaxis</span><span class="s2">]</span>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a>
+<a name="l33"><span class="ln">33   </span></a><span class="s1">def </span><span class="s0">geometric_slerp</span><span class="s2">(</span>
+<a name="l34"><span class="ln">34   </span></a>    <span class="s0">start</span><span class="s1">: </span><span class="s3">&quot;npt.ArrayLike&quot;</span><span class="s2">,</span>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s0">end</span><span class="s1">: </span><span class="s3">&quot;npt.ArrayLike&quot;</span><span class="s2">,</span>
+<a name="l36"><span class="ln">36   </span></a>    <span class="s0">t</span><span class="s1">: </span><span class="s3">&quot;npt.ArrayLike&quot;</span><span class="s2">,</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s0">tol</span><span class="s1">: </span><span class="s0">float </span><span class="s1">= </span><span class="s5">1e-7</span><span class="s2">,</span>
+<a name="l38"><span class="ln">38   </span></a><span class="s2">) </span><span class="s0">-&gt; np</span><span class="s2">.</span><span class="s0">ndarray</span><span class="s1">:</span>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l40"><span class="ln">40   </span></a>    Geometric spherical linear interpolation. 
+<a name="l41"><span class="ln">41   </span></a> 
+<a name="l42"><span class="ln">42   </span></a>    The interpolation occurs along a unit-radius 
+<a name="l43"><span class="ln">43   </span></a>    great circle arc in arbitrary dimensional space. 
+<a name="l44"><span class="ln">44   </span></a> 
+<a name="l45"><span class="ln">45   </span></a>    Parameters 
+<a name="l46"><span class="ln">46   </span></a>    ---------- 
+<a name="l47"><span class="ln">47   </span></a>    start : (n_dimensions, ) array-like 
+<a name="l48"><span class="ln">48   </span></a>        Single n-dimensional input coordinate in a 1-D array-like 
+<a name="l49"><span class="ln">49   </span></a>        object. `n` must be greater than 1. 
+<a name="l50"><span class="ln">50   </span></a>    end : (n_dimensions, ) array-like 
+<a name="l51"><span class="ln">51   </span></a>        Single n-dimensional input coordinate in a 1-D array-like 
+<a name="l52"><span class="ln">52   </span></a>        object. `n` must be greater than 1. 
+<a name="l53"><span class="ln">53   </span></a>    t : float or (n_points,) 1D array-like 
+<a name="l54"><span class="ln">54   </span></a>        A float or 1D array-like of doubles representing interpolation 
+<a name="l55"><span class="ln">55   </span></a>        parameters, with values required in the inclusive interval 
+<a name="l56"><span class="ln">56   </span></a>        between 0 and 1. A common approach is to generate the array 
+<a name="l57"><span class="ln">57   </span></a>        with ``np.linspace(0, 1, n_pts)`` for linearly spaced points. 
+<a name="l58"><span class="ln">58   </span></a>        Ascending, descending, and scrambled orders are permitted. 
+<a name="l59"><span class="ln">59   </span></a>    tol : float 
+<a name="l60"><span class="ln">60   </span></a>        The absolute tolerance for determining if the start and end 
+<a name="l61"><span class="ln">61   </span></a>        coordinates are antipodes. 
+<a name="l62"><span class="ln">62   </span></a> 
+<a name="l63"><span class="ln">63   </span></a>    Returns 
+<a name="l64"><span class="ln">64   </span></a>    ------- 
+<a name="l65"><span class="ln">65   </span></a>    result : (t.size, D) 
+<a name="l66"><span class="ln">66   </span></a>        An array of doubles containing the interpolated 
+<a name="l67"><span class="ln">67   </span></a>        spherical path and including start and 
+<a name="l68"><span class="ln">68   </span></a>        end when 0 and 1 t are used. The 
+<a name="l69"><span class="ln">69   </span></a>        interpolated values should correspond to the 
+<a name="l70"><span class="ln">70   </span></a>        same sort order provided in the t array. The result 
+<a name="l71"><span class="ln">71   </span></a>        may be 1-dimensional if ``t`` is a float. 
+<a name="l72"><span class="ln">72   </span></a> 
+<a name="l73"><span class="ln">73   </span></a>    Raises 
+<a name="l74"><span class="ln">74   </span></a>    ------ 
+<a name="l75"><span class="ln">75   </span></a>    ValueError 
+<a name="l76"><span class="ln">76   </span></a>        If ``start`` and ``end`` are antipodes, not on the 
+<a name="l77"><span class="ln">77   </span></a>        unit n-sphere, or for a variety of degenerate conditions. 
+<a name="l78"><span class="ln">78   </span></a> 
+<a name="l79"><span class="ln">79   </span></a>    See Also 
+<a name="l80"><span class="ln">80   </span></a>    -------- 
+<a name="l81"><span class="ln">81   </span></a>    scipy.spatial.transform.Slerp : 3-D Slerp that works with quaternions 
+<a name="l82"><span class="ln">82   </span></a> 
+<a name="l83"><span class="ln">83   </span></a>    Notes 
+<a name="l84"><span class="ln">84   </span></a>    ----- 
+<a name="l85"><span class="ln">85   </span></a>    The implementation is based on the mathematical formula provided in [1]_, 
+<a name="l86"><span class="ln">86   </span></a>    and the first known presentation of this algorithm, derived from study of 
+<a name="l87"><span class="ln">87   </span></a>    4-D geometry, is credited to Glenn Davis in a footnote of the original 
+<a name="l88"><span class="ln">88   </span></a>    quaternion Slerp publication by Ken Shoemake [2]_. 
+<a name="l89"><span class="ln">89   </span></a> 
+<a name="l90"><span class="ln">90   </span></a>    .. versionadded:: 1.5.0 
+<a name="l91"><span class="ln">91   </span></a> 
+<a name="l92"><span class="ln">92   </span></a>    References 
+<a name="l93"><span class="ln">93   </span></a>    ---------- 
+<a name="l94"><span class="ln">94   </span></a>    .. [1] https://en.wikipedia.org/wiki/Slerp#Geometric_Slerp 
+<a name="l95"><span class="ln">95   </span></a>    .. [2] Ken Shoemake (1985) Animating rotation with quaternion curves. 
+<a name="l96"><span class="ln">96   </span></a>           ACM SIGGRAPH Computer Graphics, 19(3): 245-254. 
+<a name="l97"><span class="ln">97   </span></a> 
+<a name="l98"><span class="ln">98   </span></a>    Examples 
+<a name="l99"><span class="ln">99   </span></a>    -------- 
+<a name="l100"><span class="ln">100  </span></a>    Interpolate four linearly-spaced values on the circumference of 
+<a name="l101"><span class="ln">101  </span></a>    a circle spanning 90 degrees: 
+<a name="l102"><span class="ln">102  </span></a> 
+<a name="l103"><span class="ln">103  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l104"><span class="ln">104  </span></a>    &gt;&gt;&gt; from scipy.spatial import geometric_slerp 
+<a name="l105"><span class="ln">105  </span></a>    &gt;&gt;&gt; import matplotlib.pyplot as plt 
+<a name="l106"><span class="ln">106  </span></a>    &gt;&gt;&gt; fig = plt.figure() 
+<a name="l107"><span class="ln">107  </span></a>    &gt;&gt;&gt; ax = fig.add_subplot(111) 
+<a name="l108"><span class="ln">108  </span></a>    &gt;&gt;&gt; start = np.array([1, 0]) 
+<a name="l109"><span class="ln">109  </span></a>    &gt;&gt;&gt; end = np.array([0, 1]) 
+<a name="l110"><span class="ln">110  </span></a>    &gt;&gt;&gt; t_vals = np.linspace(0, 1, 4) 
+<a name="l111"><span class="ln">111  </span></a>    &gt;&gt;&gt; result = geometric_slerp(start, 
+<a name="l112"><span class="ln">112  </span></a>    ...                          end, 
+<a name="l113"><span class="ln">113  </span></a>    ...                          t_vals) 
+<a name="l114"><span class="ln">114  </span></a> 
+<a name="l115"><span class="ln">115  </span></a>    The interpolated results should be at 30 degree intervals 
+<a name="l116"><span class="ln">116  </span></a>    recognizable on the unit circle: 
+<a name="l117"><span class="ln">117  </span></a> 
+<a name="l118"><span class="ln">118  </span></a>    &gt;&gt;&gt; ax.scatter(result[...,0], result[...,1], c='k') 
+<a name="l119"><span class="ln">119  </span></a>    &gt;&gt;&gt; circle = plt.Circle((0, 0), 1, color='grey') 
+<a name="l120"><span class="ln">120  </span></a>    &gt;&gt;&gt; ax.add_artist(circle) 
+<a name="l121"><span class="ln">121  </span></a>    &gt;&gt;&gt; ax.set_aspect('equal') 
+<a name="l122"><span class="ln">122  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l123"><span class="ln">123  </span></a> 
+<a name="l124"><span class="ln">124  </span></a>    Attempting to interpolate between antipodes on a circle is 
+<a name="l125"><span class="ln">125  </span></a>    ambiguous because there are two possible paths, and on a 
+<a name="l126"><span class="ln">126  </span></a>    sphere there are infinite possible paths on the geodesic surface. 
+<a name="l127"><span class="ln">127  </span></a>    Nonetheless, one of the ambiguous paths is returned along 
+<a name="l128"><span class="ln">128  </span></a>    with a warning: 
+<a name="l129"><span class="ln">129  </span></a> 
+<a name="l130"><span class="ln">130  </span></a>    &gt;&gt;&gt; opposite_pole = np.array([-1, 0]) 
+<a name="l131"><span class="ln">131  </span></a>    &gt;&gt;&gt; with np.testing.suppress_warnings() as sup: 
+<a name="l132"><span class="ln">132  </span></a>    ...     sup.filter(UserWarning) 
+<a name="l133"><span class="ln">133  </span></a>    ...     geometric_slerp(start, 
+<a name="l134"><span class="ln">134  </span></a>    ...                     opposite_pole, 
+<a name="l135"><span class="ln">135  </span></a>    ...                     t_vals) 
+<a name="l136"><span class="ln">136  </span></a>    array([[ 1.00000000e+00,  0.00000000e+00], 
+<a name="l137"><span class="ln">137  </span></a>           [ 5.00000000e-01,  8.66025404e-01], 
+<a name="l138"><span class="ln">138  </span></a>           [-5.00000000e-01,  8.66025404e-01], 
+<a name="l139"><span class="ln">139  </span></a>           [-1.00000000e+00,  1.22464680e-16]]) 
+<a name="l140"><span class="ln">140  </span></a> 
+<a name="l141"><span class="ln">141  </span></a>    Extend the original example to a sphere and plot interpolation 
+<a name="l142"><span class="ln">142  </span></a>    points in 3D: 
+<a name="l143"><span class="ln">143  </span></a> 
+<a name="l144"><span class="ln">144  </span></a>    &gt;&gt;&gt; from mpl_toolkits.mplot3d import proj3d 
+<a name="l145"><span class="ln">145  </span></a>    &gt;&gt;&gt; fig = plt.figure() 
+<a name="l146"><span class="ln">146  </span></a>    &gt;&gt;&gt; ax = fig.add_subplot(111, projection='3d') 
+<a name="l147"><span class="ln">147  </span></a> 
+<a name="l148"><span class="ln">148  </span></a>    Plot the unit sphere for reference (optional): 
+<a name="l149"><span class="ln">149  </span></a> 
+<a name="l150"><span class="ln">150  </span></a>    &gt;&gt;&gt; u = np.linspace(0, 2 * np.pi, 100) 
+<a name="l151"><span class="ln">151  </span></a>    &gt;&gt;&gt; v = np.linspace(0, np.pi, 100) 
+<a name="l152"><span class="ln">152  </span></a>    &gt;&gt;&gt; x = np.outer(np.cos(u), np.sin(v)) 
+<a name="l153"><span class="ln">153  </span></a>    &gt;&gt;&gt; y = np.outer(np.sin(u), np.sin(v)) 
+<a name="l154"><span class="ln">154  </span></a>    &gt;&gt;&gt; z = np.outer(np.ones(np.size(u)), np.cos(v)) 
+<a name="l155"><span class="ln">155  </span></a>    &gt;&gt;&gt; ax.plot_surface(x, y, z, color='y', alpha=0.1) 
+<a name="l156"><span class="ln">156  </span></a> 
+<a name="l157"><span class="ln">157  </span></a>    Interpolating over a larger number of points 
+<a name="l158"><span class="ln">158  </span></a>    may provide the appearance of a smooth curve on 
+<a name="l159"><span class="ln">159  </span></a>    the surface of the sphere, which is also useful 
+<a name="l160"><span class="ln">160  </span></a>    for discretized integration calculations on a 
+<a name="l161"><span class="ln">161  </span></a>    sphere surface: 
+<a name="l162"><span class="ln">162  </span></a> 
+<a name="l163"><span class="ln">163  </span></a>    &gt;&gt;&gt; start = np.array([1, 0, 0]) 
+<a name="l164"><span class="ln">164  </span></a>    &gt;&gt;&gt; end = np.array([0, 0, 1]) 
+<a name="l165"><span class="ln">165  </span></a>    &gt;&gt;&gt; t_vals = np.linspace(0, 1, 200) 
+<a name="l166"><span class="ln">166  </span></a>    &gt;&gt;&gt; result = geometric_slerp(start, 
+<a name="l167"><span class="ln">167  </span></a>    ...                          end, 
+<a name="l168"><span class="ln">168  </span></a>    ...                          t_vals) 
+<a name="l169"><span class="ln">169  </span></a>    &gt;&gt;&gt; ax.plot(result[...,0], 
+<a name="l170"><span class="ln">170  </span></a>    ...         result[...,1], 
+<a name="l171"><span class="ln">171  </span></a>    ...         result[...,2], 
+<a name="l172"><span class="ln">172  </span></a>    ...         c='k') 
+<a name="l173"><span class="ln">173  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l174"><span class="ln">174  </span></a>    &quot;&quot;&quot;</span>
+<a name="l175"><span class="ln">175  </span></a>
+<a name="l176"><span class="ln">176  </span></a>    <span class="s0">start </span><span class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">asarray</span><span class="s2">(</span><span class="s0">start</span><span class="s2">, </span><span class="s0">dtype</span><span class="s1">=</span><span class="s0">np</span><span class="s2">.</span><span class="s0">float64</span><span class="s2">)</span>
+<a name="l177"><span class="ln">177  </span></a>    <span class="s0">end </span><span class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">asarray</span><span class="s2">(</span><span class="s0">end</span><span class="s2">, </span><span class="s0">dtype</span><span class="s1">=</span><span class="s0">np</span><span class="s2">.</span><span class="s0">float64</span><span class="s2">)</span>
+<a name="l178"><span class="ln">178  </span></a>    <span class="s0">t </span><span class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">asarray</span><span class="s2">(</span><span class="s0">t</span><span class="s2">)</span>
+<a name="l179"><span class="ln">179  </span></a>
+<a name="l180"><span class="ln">180  </span></a>    <span class="s1">if </span><span class="s0">t</span><span class="s2">.</span><span class="s0">ndim </span><span class="s1">&gt; </span><span class="s5">1</span><span class="s1">:</span>
+<a name="l181"><span class="ln">181  </span></a>        <span class="s1">raise </span><span class="s0">ValueError</span><span class="s2">(</span><span class="s3">&quot;The interpolation parameter &quot;</span>
+<a name="l182"><span class="ln">182  </span></a>                         <span class="s3">&quot;value must be one dimensional.&quot;</span><span class="s2">)</span>
+<a name="l183"><span class="ln">183  </span></a>
+<a name="l184"><span class="ln">184  </span></a>    <span class="s1">if </span><span class="s0">start</span><span class="s2">.</span><span class="s0">ndim </span><span class="s1">!= </span><span class="s5">1 </span><span class="s1">or </span><span class="s0">end</span><span class="s2">.</span><span class="s0">ndim </span><span class="s1">!= </span><span class="s5">1</span><span class="s1">:</span>
+<a name="l185"><span class="ln">185  </span></a>        <span class="s1">raise </span><span class="s0">ValueError</span><span class="s2">(</span><span class="s3">&quot;Start and end coordinates &quot;</span>
+<a name="l186"><span class="ln">186  </span></a>                         <span class="s3">&quot;must be one-dimensional&quot;</span><span class="s2">)</span>
+<a name="l187"><span class="ln">187  </span></a>
+<a name="l188"><span class="ln">188  </span></a>    <span class="s1">if </span><span class="s0">start</span><span class="s2">.</span><span class="s0">size </span><span class="s1">!= </span><span class="s0">end</span><span class="s2">.</span><span class="s0">size</span><span class="s1">:</span>
+<a name="l189"><span class="ln">189  </span></a>        <span class="s1">raise </span><span class="s0">ValueError</span><span class="s2">(</span><span class="s3">&quot;The dimensions of start and &quot;</span>
+<a name="l190"><span class="ln">190  </span></a>                         <span class="s3">&quot;end must match (have same size)&quot;</span><span class="s2">)</span>
+<a name="l191"><span class="ln">191  </span></a>
+<a name="l192"><span class="ln">192  </span></a>    <span class="s1">if </span><span class="s0">start</span><span class="s2">.</span><span class="s0">size </span><span class="s1">&lt; </span><span class="s5">2 </span><span class="s1">or </span><span class="s0">end</span><span class="s2">.</span><span class="s0">size </span><span class="s1">&lt; </span><span class="s5">2</span><span class="s1">:</span>
+<a name="l193"><span class="ln">193  </span></a>        <span class="s1">raise </span><span class="s0">ValueError</span><span class="s2">(</span><span class="s3">&quot;The start and end coordinates must &quot;</span>
+<a name="l194"><span class="ln">194  </span></a>                         <span class="s3">&quot;both be in at least two-dimensional &quot;</span>
+<a name="l195"><span class="ln">195  </span></a>                         <span class="s3">&quot;space&quot;</span><span class="s2">)</span>
+<a name="l196"><span class="ln">196  </span></a>
+<a name="l197"><span class="ln">197  </span></a>    <span class="s1">if </span><span class="s0">np</span><span class="s2">.</span><span class="s0">array_equal</span><span class="s2">(</span><span class="s0">start</span><span class="s2">, </span><span class="s0">end</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l198"><span class="ln">198  </span></a>        <span class="s1">return </span><span class="s0">np</span><span class="s2">.</span><span class="s0">linspace</span><span class="s2">(</span><span class="s0">start</span><span class="s2">, </span><span class="s0">start</span><span class="s2">, </span><span class="s0">t</span><span class="s2">.</span><span class="s0">size</span><span class="s2">)</span>
+<a name="l199"><span class="ln">199  </span></a>
+<a name="l200"><span class="ln">200  </span></a>    <span class="s4"># for points that violate equation for n-sphere</span>
+<a name="l201"><span class="ln">201  </span></a>    <span class="s1">for </span><span class="s0">coord </span><span class="s1">in </span><span class="s2">[</span><span class="s0">start</span><span class="s2">, </span><span class="s0">end</span><span class="s2">]</span><span class="s1">:</span>
+<a name="l202"><span class="ln">202  </span></a>        <span class="s1">if not </span><span class="s0">np</span><span class="s2">.</span><span class="s0">allclose</span><span class="s2">(</span><span class="s0">np</span><span class="s2">.</span><span class="s0">linalg</span><span class="s2">.</span><span class="s0">norm</span><span class="s2">(</span><span class="s0">coord</span><span class="s2">), </span><span class="s5">1.0</span><span class="s2">,</span>
+<a name="l203"><span class="ln">203  </span></a>                           <span class="s0">rtol</span><span class="s1">=</span><span class="s5">1e-9</span><span class="s2">,</span>
+<a name="l204"><span class="ln">204  </span></a>                           <span class="s0">atol</span><span class="s1">=</span><span class="s5">0</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l205"><span class="ln">205  </span></a>            <span class="s1">raise </span><span class="s0">ValueError</span><span class="s2">(</span><span class="s3">&quot;start and end are not&quot;</span>
+<a name="l206"><span class="ln">206  </span></a>                             <span class="s3">&quot; on a unit n-sphere&quot;</span><span class="s2">)</span>
+<a name="l207"><span class="ln">207  </span></a>
+<a name="l208"><span class="ln">208  </span></a>    <span class="s1">if not </span><span class="s0">isinstance</span><span class="s2">(</span><span class="s0">tol</span><span class="s2">, </span><span class="s0">float</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l209"><span class="ln">209  </span></a>        <span class="s1">raise </span><span class="s0">ValueError</span><span class="s2">(</span><span class="s3">&quot;tol must be a float&quot;</span><span class="s2">)</span>
+<a name="l210"><span class="ln">210  </span></a>    <span class="s1">else:</span>
+<a name="l211"><span class="ln">211  </span></a>        <span class="s0">tol </span><span class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">fabs</span><span class="s2">(</span><span class="s0">tol</span><span class="s2">)</span>
+<a name="l212"><span class="ln">212  </span></a>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s0">coord_dist </span><span class="s1">= </span><span class="s0">euclidean</span><span class="s2">(</span><span class="s0">start</span><span class="s2">, </span><span class="s0">end</span><span class="s2">)</span>
+<a name="l214"><span class="ln">214  </span></a>
+<a name="l215"><span class="ln">215  </span></a>    <span class="s4"># diameter of 2 within tolerance means antipodes, which is a problem</span>
+<a name="l216"><span class="ln">216  </span></a>    <span class="s4"># for all unit n-spheres (even the 0-sphere would have an ambiguous path)</span>
+<a name="l217"><span class="ln">217  </span></a>    <span class="s1">if </span><span class="s0">np</span><span class="s2">.</span><span class="s0">allclose</span><span class="s2">(</span><span class="s0">coord_dist</span><span class="s2">, </span><span class="s5">2.0</span><span class="s2">, </span><span class="s0">rtol</span><span class="s1">=</span><span class="s5">0</span><span class="s2">, </span><span class="s0">atol</span><span class="s1">=</span><span class="s0">tol</span><span class="s2">)</span><span class="s1">:</span>
+<a name="l218"><span class="ln">218  </span></a>        <span class="s0">warnings</span><span class="s2">.</span><span class="s0">warn</span><span class="s2">(</span><span class="s3">&quot;start and end are antipodes &quot;</span>
+<a name="l219"><span class="ln">219  </span></a>                      <span class="s3">&quot;using the specified tolerance; &quot;</span>
+<a name="l220"><span class="ln">220  </span></a>                      <span class="s3">&quot;this may cause ambiguous slerp paths&quot;</span><span class="s2">,</span>
+<a name="l221"><span class="ln">221  </span></a>                      <span class="s0">stacklevel</span><span class="s1">=</span><span class="s5">2</span><span class="s2">)</span>
+<a name="l222"><span class="ln">222  </span></a>
+<a name="l223"><span class="ln">223  </span></a>    <span class="s0">t </span><span class="s1">= </span><span class="s0">np</span><span class="s2">.</span><span class="s0">asarray</span><span class="s2">(</span><span class="s0">t</span><span class="s2">, </span><span class="s0">dtype</span><span class="s1">=</span><span class="s0">np</span><span class="s2">.</span><span class="s0">float64</span><span class="s2">)</span>
+<a name="l224"><span class="ln">224  </span></a>
+<a name="l225"><span class="ln">225  </span></a>    <span class="s1">if </span><span class="s0">t</span><span class="s2">.</span><span class="s0">size </span><span class="s1">== </span><span class="s5">0</span><span class="s1">:</span>
+<a name="l226"><span class="ln">226  </span></a>        <span class="s1">return </span><span class="s0">np</span><span class="s2">.</span><span class="s0">empty</span><span class="s2">((</span><span class="s5">0</span><span class="s2">, </span><span class="s0">start</span><span class="s2">.</span><span class="s0">size</span><span class="s2">))</span>
+<a name="l227"><span class="ln">227  </span></a>
+<a name="l228"><span class="ln">228  </span></a>    <span class="s1">if </span><span class="s0">t</span><span class="s2">.</span><span class="s0">min</span><span class="s2">() </span><span class="s1">&lt; </span><span class="s5">0 </span><span class="s1">or </span><span class="s0">t</span><span class="s2">.</span><span class="s0">max</span><span class="s2">() </span><span class="s1">&gt; </span><span class="s5">1</span><span class="s1">:</span>
+<a name="l229"><span class="ln">229  </span></a>        <span class="s1">raise </span><span class="s0">ValueError</span><span class="s2">(</span><span class="s3">&quot;interpolation parameter must be in [0, 1]&quot;</span><span class="s2">)</span>
+<a name="l230"><span class="ln">230  </span></a>
+<a name="l231"><span class="ln">231  </span></a>    <span class="s1">if </span><span class="s0">t</span><span class="s2">.</span><span class="s0">ndim </span><span class="s1">== </span><span class="s5">0</span><span class="s1">:</span>
+<a name="l232"><span class="ln">232  </span></a>        <span class="s1">return </span><span class="s0">_geometric_slerp</span><span class="s2">(</span><span class="s0">start</span><span class="s2">,</span>
+<a name="l233"><span class="ln">233  </span></a>                                <span class="s0">end</span><span class="s2">,</span>
+<a name="l234"><span class="ln">234  </span></a>                                <span class="s0">np</span><span class="s2">.</span><span class="s0">atleast_1d</span><span class="s2">(</span><span class="s0">t</span><span class="s2">)).</span><span class="s0">ravel</span><span class="s2">()</span>
+<a name="l235"><span class="ln">235  </span></a>    <span class="s1">else:</span>
+<a name="l236"><span class="ln">236  </span></a>        <span class="s1">return </span><span class="s0">_geometric_slerp</span><span class="s2">(</span><span class="s0">start</span><span class="s2">,</span>
+<a name="l237"><span class="ln">237  </span></a>                                <span class="s0">end</span><span class="s2">,</span>
+<a name="l238"><span class="ln">238  </span></a>                                <span class="s0">t</span><span class="s2">)</span>
+<a name="l239"><span class="ln">239  </span></a></pre>
+</body>
+</html>

@@ -1,0 +1,273 @@
+<html>
+<head>
+<title>LoadHIP.cmake</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #969896;}
+.s3 { color: #183691;}
+.s4 { color: #0086b3;}
+.s5 { color: #795da3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+LoadHIP.cmake</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">set</span><span class="s1">(PYTORCH_FOUND_HIP </span><span class="s0">FALSE</span><span class="s1">) 
+<a name="l2"><span class="ln">2    </span></a></span>
+<a name="l3"><span class="ln">3    </span></a><span class="s2"># If ROCM_PATH is set, assume intention is to compile with</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s2"># ROCm support and error out if the ROCM_PATH does not exist.</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s2"># Else ROCM_PATH does not exist, assume a default of /opt/rocm</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s2"># In the latter case, if /opt/rocm does not exist emit status</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s2"># message and return.</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">if</span><span class="s1">(</span><span class="s0">DEFINED </span><span class="s1">ENV{ROCM_PATH}) 
+<a name="l9"><span class="ln">9    </span></a>  </span><span class="s0">set</span><span class="s1">(ROCM_PATH </span><span class="s0">$ENV{ROCM_PATH}</span><span class="s1">) 
+<a name="l10"><span class="ln">10   </span></a>  </span><span class="s0">if</span><span class="s1">(</span><span class="s0">NOT EXISTS ${ROCM_PATH}</span><span class="s1">) 
+<a name="l11"><span class="ln">11   </span></a>    </span><span class="s0">message</span><span class="s1">(FATAL_ERROR 
+<a name="l12"><span class="ln">12   </span></a>      </span><span class="s3">&quot;ROCM_PATH environment variable is set to ${ROCM_PATH} but does not exist.\n&quot;</span>
+<a name="l13"><span class="ln">13   </span></a>      <span class="s3">&quot;Set a valid ROCM_PATH or unset ROCM_PATH environment variable to fix.&quot;</span><span class="s1">) 
+<a name="l14"><span class="ln">14   </span></a>  </span><span class="s0">endif</span><span class="s1">() 
+<a name="l15"><span class="ln">15   </span></a></span><span class="s0">else</span><span class="s1">() 
+<a name="l16"><span class="ln">16   </span></a>  </span><span class="s0">if</span><span class="s1">(</span><span class="s4">UNIX</span><span class="s1">) 
+<a name="l17"><span class="ln">17   </span></a>    </span><span class="s0">set</span><span class="s1">(ROCM_PATH /opt/rocm) 
+<a name="l18"><span class="ln">18   </span></a>  </span><span class="s0">else</span><span class="s1">() </span><span class="s2"># Win32</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s0">set</span><span class="s1">(ROCM_PATH C:/opt/rocm) 
+<a name="l20"><span class="ln">20   </span></a>  </span><span class="s0">endif</span><span class="s1">() 
+<a name="l21"><span class="ln">21   </span></a>  </span><span class="s0">if</span><span class="s1">(</span><span class="s0">NOT EXISTS ${ROCM_PATH}</span><span class="s1">) 
+<a name="l22"><span class="ln">22   </span></a>    </span><span class="s0">message</span><span class="s1">(STATUS 
+<a name="l23"><span class="ln">23   </span></a>        </span><span class="s3">&quot;ROCM_PATH environment variable is not set and ${ROCM_PATH} does not exist.\n&quot;</span>
+<a name="l24"><span class="ln">24   </span></a>        <span class="s3">&quot;Building without ROCm support.&quot;</span><span class="s1">) 
+<a name="l25"><span class="ln">25   </span></a>    </span><span class="s0">return</span><span class="s1">() 
+<a name="l26"><span class="ln">26   </span></a>  </span><span class="s0">endif</span><span class="s1">() 
+<a name="l27"><span class="ln">27   </span></a></span><span class="s0">endif</span><span class="s1">() 
+<a name="l28"><span class="ln">28   </span></a></span>
+<a name="l29"><span class="ln">29   </span></a><span class="s2"># MAGMA_HOME</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s0">if</span><span class="s1">(</span><span class="s0">NOT DEFINED </span><span class="s1">ENV{MAGMA_HOME}) 
+<a name="l31"><span class="ln">31   </span></a>  </span><span class="s0">set</span><span class="s1">(MAGMA_HOME </span><span class="s0">${ROCM_PATH}</span><span class="s1">/magma) 
+<a name="l32"><span class="ln">32   </span></a>  </span><span class="s0">set</span><span class="s1">(ENV{MAGMA_HOME} </span><span class="s0">${ROCM_PATH}</span><span class="s1">/magma) 
+<a name="l33"><span class="ln">33   </span></a></span><span class="s0">else</span><span class="s1">() 
+<a name="l34"><span class="ln">34   </span></a>  </span><span class="s0">set</span><span class="s1">(MAGMA_HOME </span><span class="s0">$ENV{MAGMA_HOME}</span><span class="s1">) 
+<a name="l35"><span class="ln">35   </span></a></span><span class="s0">endif</span><span class="s1">() 
+<a name="l36"><span class="ln">36   </span></a></span>
+<a name="l37"><span class="ln">37   </span></a><span class="s2"># MIOpen isn't a part of HIP-SDK for Windows and hence, may have a different</span>
+<a name="l38"><span class="ln">38   </span></a><span class="s2"># installation directory.</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s0">if</span><span class="s1">(</span><span class="s4">WIN32</span><span class="s1">) 
+<a name="l40"><span class="ln">40   </span></a>  </span><span class="s0">if</span><span class="s1">(</span><span class="s0">NOT DEFINED </span><span class="s1">ENV{MIOPEN_PATH}) 
+<a name="l41"><span class="ln">41   </span></a>    </span><span class="s0">set</span><span class="s1">(miopen_DIR C:/opt/miopen/lib/cmake/miopen) 
+<a name="l42"><span class="ln">42   </span></a>  </span><span class="s0">else</span><span class="s1">() 
+<a name="l43"><span class="ln">43   </span></a>    </span><span class="s0">set</span><span class="s1">(miopen_DIR </span><span class="s0">$ENV{MIOPEN_PATH}</span><span class="s1">/lib/cmake/miopen) 
+<a name="l44"><span class="ln">44   </span></a>  </span><span class="s0">endif</span><span class="s1">() 
+<a name="l45"><span class="ln">45   </span></a></span><span class="s0">endif</span><span class="s1">() 
+<a name="l46"><span class="ln">46   </span></a></span>
+<a name="l47"><span class="ln">47   </span></a><span class="s1">torch_hip_get_arch_list(PYTORCH_ROCM_ARCH) 
+<a name="l48"><span class="ln">48   </span></a></span><span class="s0">if</span><span class="s1">(PYTORCH_ROCM_ARCH </span><span class="s0">STREQUAL </span><span class="s3">&quot;&quot;</span><span class="s1">) 
+<a name="l49"><span class="ln">49   </span></a>  </span><span class="s0">message</span><span class="s1">(FATAL_ERROR </span><span class="s3">&quot;No GPU arch specified for ROCm build. Please use PYTORCH_ROCM_ARCH environment variable to specify GPU archs to build for.&quot;</span><span class="s1">) 
+<a name="l50"><span class="ln">50   </span></a></span><span class="s0">endif</span><span class="s1">() 
+<a name="l51"><span class="ln">51   </span></a></span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;Building PyTorch for GPU arch: ${PYTORCH_ROCM_ARCH}&quot;</span><span class="s1">) 
+<a name="l52"><span class="ln">52   </span></a></span>
+<a name="l53"><span class="ln">53   </span></a><span class="s2"># Add HIP to the CMAKE Module Path</span>
+<a name="l54"><span class="ln">54   </span></a><span class="s2"># needed because the find_package call to this module uses the Module mode search</span>
+<a name="l55"><span class="ln">55   </span></a><span class="s2"># https://cmake.org/cmake/help/latest/command/find_package.html#search-modes</span>
+<a name="l56"><span class="ln">56   </span></a><span class="s0">if</span><span class="s1">(</span><span class="s4">UNIX</span><span class="s1">) 
+<a name="l57"><span class="ln">57   </span></a>  </span><span class="s0">set</span><span class="s1">(</span><span class="s4">CMAKE_MODULE_PATH </span><span class="s0">${ROCM_PATH}</span><span class="s1">/lib/cmake/hip </span><span class="s0">${CMAKE_MODULE_PATH}</span><span class="s1">) 
+<a name="l58"><span class="ln">58   </span></a></span><span class="s0">else</span><span class="s1">() </span><span class="s2"># Win32</span>
+<a name="l59"><span class="ln">59   </span></a>  <span class="s0">set</span><span class="s1">(</span><span class="s4">CMAKE_MODULE_PATH </span><span class="s0">${ROCM_PATH}</span><span class="s1">/cmake/ </span><span class="s0">${CMAKE_MODULE_PATH}</span><span class="s1">) 
+<a name="l60"><span class="ln">60   </span></a></span><span class="s0">endif</span><span class="s1">() 
+<a name="l61"><span class="ln">61   </span></a></span>
+<a name="l62"><span class="ln">62   </span></a><span class="s2"># Add ROCM_PATH to CMAKE_PREFIX_PATH, needed because the find_package</span>
+<a name="l63"><span class="ln">63   </span></a><span class="s2"># call to individual ROCM components uses the Config mode search</span>
+<a name="l64"><span class="ln">64   </span></a><span class="s0">list</span><span class="s1">(APPEND </span><span class="s4">CMAKE_PREFIX_PATH </span><span class="s0">${ROCM_PATH}</span><span class="s1">) 
+<a name="l65"><span class="ln">65   </span></a></span>
+<a name="l66"><span class="ln">66   </span></a><span class="s0">macro</span><span class="s1">(find_package_and_print_version PACKAGE_NAME) 
+<a name="l67"><span class="ln">67   </span></a>  </span><span class="s0">find_package</span><span class="s1">(</span><span class="s3">&quot;${PACKAGE_NAME}&quot; </span><span class="s0">${ARGN}</span><span class="s1">) 
+<a name="l68"><span class="ln">68   </span></a>  </span><span class="s0">if</span><span class="s1">(</span><span class="s0">NOT ${PACKAGE_NAME}</span><span class="s1">_FOUND) 
+<a name="l69"><span class="ln">69   </span></a>    </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;Optional package ${PACKAGE_NAME} not found&quot;</span><span class="s1">) 
+<a name="l70"><span class="ln">70   </span></a>  </span><span class="s0">else</span><span class="s1">() 
+<a name="l71"><span class="ln">71   </span></a>    </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;${PACKAGE_NAME} VERSION: ${${PACKAGE_NAME}_VERSION}&quot;</span><span class="s1">) 
+<a name="l72"><span class="ln">72   </span></a>    </span><span class="s0">if</span><span class="s1">(</span><span class="s0">${PACKAGE_NAME}</span><span class="s1">_INCLUDE_DIR) 
+<a name="l73"><span class="ln">73   </span></a>      </span><span class="s0">list</span><span class="s1">(APPEND ROCM_INCLUDE_DIRS ${</span><span class="s0">${PACKAGE_NAME}</span><span class="s1">_INCLUDE_DIR}) 
+<a name="l74"><span class="ln">74   </span></a>    </span><span class="s0">endif</span><span class="s1">() 
+<a name="l75"><span class="ln">75   </span></a>  </span><span class="s0">endif</span><span class="s1">() 
+<a name="l76"><span class="ln">76   </span></a></span><span class="s0">endmacro</span><span class="s1">() 
+<a name="l77"><span class="ln">77   </span></a></span>
+<a name="l78"><span class="ln">78   </span></a><span class="s2"># Find the HIP Package</span>
+<a name="l79"><span class="ln">79   </span></a><span class="s2"># MODULE argument is added for clarity that CMake is searching</span>
+<a name="l80"><span class="ln">80   </span></a><span class="s2"># for FindHIP.cmake in Module mode</span>
+<a name="l81"><span class="ln">81   </span></a><span class="s1">find_package_and_print_version(HIP 1.0 MODULE) 
+<a name="l82"><span class="ln">82   </span></a></span>
+<a name="l83"><span class="ln">83   </span></a><span class="s0">if</span><span class="s1">(HIP_FOUND) 
+<a name="l84"><span class="ln">84   </span></a>  </span><span class="s0">set</span><span class="s1">(PYTORCH_FOUND_HIP </span><span class="s0">TRUE</span><span class="s1">) 
+<a name="l85"><span class="ln">85   </span></a>  find_package_and_print_version(hip REQUIRED CONFIG) 
+<a name="l86"><span class="ln">86   </span></a></span>
+<a name="l87"><span class="ln">87   </span></a>  <span class="s2"># The rocm-core package was only introduced in ROCm 6.4, so we make it optional.</span>
+<a name="l88"><span class="ln">88   </span></a>  <span class="s0">find_package</span><span class="s1">(rocm-core CONFIG) 
+<a name="l89"><span class="ln">89   </span></a></span>
+<a name="l90"><span class="ln">90   </span></a>  <span class="s2"># Some old consumer HIP SDKs do not distribute rocm_version.h, so we allow</span>
+<a name="l91"><span class="ln">91   </span></a>  <span class="s2"># falling back to the hip version, which everyone should have.</span>
+<a name="l92"><span class="ln">92   </span></a>  <span class="s2"># rocm_version.h lives in the rocm-core package and hip_version.h lives in the</span>
+<a name="l93"><span class="ln">93   </span></a>  <span class="s2"># hip (lower-case) package. Both are probed above and will be in</span>
+<a name="l94"><span class="ln">94   </span></a>  <span class="s2"># ROCM_INCLUDE_DIRS if available.</span>
+<a name="l95"><span class="ln">95   </span></a>  <span class="s0">find_file</span><span class="s1">(ROCM_VERSION_HEADER_PATH 
+<a name="l96"><span class="ln">96   </span></a>    </span><span class="s0">NAMES </span><span class="s1">rocm-core/rocm_version.h 
+<a name="l97"><span class="ln">97   </span></a>    NO_DEFAULT_PATH 
+<a name="l98"><span class="ln">98   </span></a>    </span><span class="s0">PATHS ${ROCM_INCLUDE_DIRS}</span>
+<a name="l99"><span class="ln">99   </span></a>  <span class="s1">) 
+<a name="l100"><span class="ln">100  </span></a>  </span><span class="s0">set</span><span class="s1">(ROCM_LIB_NAME </span><span class="s3">&quot;ROCM&quot;</span><span class="s1">) 
+<a name="l101"><span class="ln">101  </span></a>  </span><span class="s0">if</span><span class="s1">(</span><span class="s0">NOT </span><span class="s1">ROCM_VERSION_HEADER_PATH) 
+<a name="l102"><span class="ln">102  </span></a>    </span><span class="s0">find_file</span><span class="s1">(ROCM_VERSION_HEADER_PATH 
+<a name="l103"><span class="ln">103  </span></a>      </span><span class="s0">NAMES </span><span class="s1">hip/hip_version.h 
+<a name="l104"><span class="ln">104  </span></a>      NO_DEFAULT_PATH 
+<a name="l105"><span class="ln">105  </span></a>      </span><span class="s0">PATHS ${ROCM_INCLUDE_DIRS}</span>
+<a name="l106"><span class="ln">106  </span></a>    <span class="s1">) 
+<a name="l107"><span class="ln">107  </span></a>    </span><span class="s0">set</span><span class="s1">(ROCM_LIB_NAME </span><span class="s3">&quot;HIP&quot;</span><span class="s1">) 
+<a name="l108"><span class="ln">108  </span></a>  </span><span class="s0">endif</span><span class="s1">() 
+<a name="l109"><span class="ln">109  </span></a>  </span><span class="s0">if</span><span class="s1">(</span><span class="s0">NOT </span><span class="s1">ROCM_VERSION_HEADER_PATH) 
+<a name="l110"><span class="ln">110  </span></a>    </span><span class="s0">message</span><span class="s1">(FATAL_ERROR </span><span class="s3">&quot;Could not find hip/hip_version.h or rocm-core/rocm_version.h in ${ROCM_INCLUDE_DIRS}&quot;</span><span class="s1">) 
+<a name="l111"><span class="ln">111  </span></a>  </span><span class="s0">endif</span><span class="s1">() 
+<a name="l112"><span class="ln">112  </span></a>  </span><span class="s0">get_filename_component</span><span class="s1">(ROCM_HEADER_NAME </span><span class="s0">${ROCM_VERSION_HEADER_PATH} NAME</span><span class="s1">) 
+<a name="l113"><span class="ln">113  </span></a></span>
+<a name="l114"><span class="ln">114  </span></a>  <span class="s0">if</span><span class="s1">(</span><span class="s0">EXISTS ${ROCM_VERSION_HEADER_PATH}</span><span class="s1">) 
+<a name="l115"><span class="ln">115  </span></a>    </span><span class="s0">set</span><span class="s1">(ROCM_HEADER_FILE </span><span class="s0">${ROCM_VERSION_HEADER_PATH}</span><span class="s1">) 
+<a name="l116"><span class="ln">116  </span></a>  </span><span class="s0">else</span><span class="s1">() 
+<a name="l117"><span class="ln">117  </span></a>    </span><span class="s0">message</span><span class="s1">(FATAL_ERROR </span><span class="s3">&quot;********************* ${ROCM_HEADER_NAME} could not be found ******************\n&quot;</span><span class="s1">) 
+<a name="l118"><span class="ln">118  </span></a>  </span><span class="s0">endif</span><span class="s1">() 
+<a name="l119"><span class="ln">119  </span></a></span>
+<a name="l120"><span class="ln">120  </span></a>  <span class="s2"># Read the ROCM headerfile into a variable</span>
+<a name="l121"><span class="ln">121  </span></a>  <span class="s0">message</span><span class="s1">(STATUS </span><span class="s3">&quot;Reading ROCM version from: ${ROCM_HEADER_FILE}&quot;</span><span class="s1">) 
+<a name="l122"><span class="ln">122  </span></a>  </span><span class="s0">message</span><span class="s1">(STATUS </span><span class="s3">&quot;Content: ${ROCM_HEADER_CONTENT}&quot;</span><span class="s1">) 
+<a name="l123"><span class="ln">123  </span></a>  </span><span class="s0">file</span><span class="s1">(READ </span><span class="s3">&quot;${ROCM_HEADER_FILE}&quot; </span><span class="s1">ROCM_HEADER_CONTENT) 
+<a name="l124"><span class="ln">124  </span></a></span>
+<a name="l125"><span class="ln">125  </span></a>  <span class="s2"># Below we use a RegEx to find ROCM version numbers.</span>
+<a name="l126"><span class="ln">126  </span></a>  <span class="s2"># Note that CMake does not support \s for blank space. That is</span>
+<a name="l127"><span class="ln">127  </span></a>  <span class="s2"># why in the regular expressions below we have a blank space in</span>
+<a name="l128"><span class="ln">128  </span></a>  <span class="s2"># the square brackets.</span>
+<a name="l129"><span class="ln">129  </span></a>  <span class="s2"># There are three steps:</span>
+<a name="l130"><span class="ln">130  </span></a>  <span class="s2"># 1. Match regular expression</span>
+<a name="l131"><span class="ln">131  </span></a>  <span class="s2"># 2. Strip the non-numerical part of the string</span>
+<a name="l132"><span class="ln">132  </span></a>  <span class="s2"># 3. Strip leading and trailing spaces</span>
+<a name="l133"><span class="ln">133  </span></a>
+<a name="l134"><span class="ln">134  </span></a>  <span class="s0">string</span><span class="s1">(REGEX MATCH </span><span class="s3">&quot;${ROCM_LIB_NAME}_VERSION_MAJOR[ ]+[0-9]+&quot; </span><span class="s1">TEMP1 </span><span class="s0">${ROCM_HEADER_CONTENT}</span><span class="s1">) 
+<a name="l135"><span class="ln">135  </span></a>  </span><span class="s0">string</span><span class="s1">(REPLACE </span><span class="s3">&quot;${ROCM_LIB_NAME}_VERSION_MAJOR&quot; &quot;&quot; </span><span class="s1">TEMP2 </span><span class="s0">${TEMP1}</span><span class="s1">) 
+<a name="l136"><span class="ln">136  </span></a>  </span><span class="s0">string</span><span class="s1">(STRIP </span><span class="s0">${TEMP2} </span><span class="s1">ROCM_VERSION_DEV_MAJOR) 
+<a name="l137"><span class="ln">137  </span></a>  </span><span class="s0">string</span><span class="s1">(REGEX MATCH </span><span class="s3">&quot;${ROCM_LIB_NAME}_VERSION_MINOR[ ]+[0-9]+&quot; </span><span class="s1">TEMP1 </span><span class="s0">${ROCM_HEADER_CONTENT}</span><span class="s1">) 
+<a name="l138"><span class="ln">138  </span></a>  </span><span class="s0">string</span><span class="s1">(REPLACE </span><span class="s3">&quot;${ROCM_LIB_NAME}_VERSION_MINOR&quot; &quot;&quot; </span><span class="s1">TEMP2 </span><span class="s0">${TEMP1}</span><span class="s1">) 
+<a name="l139"><span class="ln">139  </span></a>  </span><span class="s0">string</span><span class="s1">(STRIP </span><span class="s0">${TEMP2} </span><span class="s1">ROCM_VERSION_DEV_MINOR) 
+<a name="l140"><span class="ln">140  </span></a>  </span><span class="s0">string</span><span class="s1">(REGEX MATCH </span><span class="s3">&quot;${ROCM_LIB_NAME}_VERSION_PATCH[ ]+[0-9]+&quot; </span><span class="s1">TEMP1 </span><span class="s0">${ROCM_HEADER_CONTENT}</span><span class="s1">) 
+<a name="l141"><span class="ln">141  </span></a>  </span><span class="s0">string</span><span class="s1">(REPLACE </span><span class="s3">&quot;${ROCM_LIB_NAME}_VERSION_PATCH&quot; &quot;&quot; </span><span class="s1">TEMP2 </span><span class="s0">${TEMP1}</span><span class="s1">) 
+<a name="l142"><span class="ln">142  </span></a>  </span><span class="s0">string</span><span class="s1">(STRIP </span><span class="s0">${TEMP2} </span><span class="s1">ROCM_VERSION_DEV_PATCH) 
+<a name="l143"><span class="ln">143  </span></a></span>
+<a name="l144"><span class="ln">144  </span></a>  <span class="s2"># Create ROCM_VERSION_DEV_INT which is later used as a preprocessor macros</span>
+<a name="l145"><span class="ln">145  </span></a>  <span class="s0">set</span><span class="s1">(ROCM_VERSION_DEV </span><span class="s3">&quot;${ROCM_VERSION_DEV_MAJOR}.${ROCM_VERSION_DEV_MINOR}.${ROCM_VERSION_DEV_PATCH}&quot;</span><span class="s1">) 
+<a name="l146"><span class="ln">146  </span></a>  </span><span class="s0">math</span><span class="s1">(EXPR ROCM_VERSION_DEV_INT </span><span class="s3">&quot;(${ROCM_VERSION_DEV_MAJOR}*10000) + (${ROCM_VERSION_DEV_MINOR}*100) + ${ROCM_VERSION_DEV_PATCH}&quot;</span><span class="s1">) 
+<a name="l147"><span class="ln">147  </span></a></span>
+<a name="l148"><span class="ln">148  </span></a>  <span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;\n***** ROCm version from ${ROCM_HEADER_NAME} ****\n&quot;</span><span class="s1">) 
+<a name="l149"><span class="ln">149  </span></a>  </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;ROCM_VERSION_DEV: ${ROCM_VERSION_DEV}&quot;</span><span class="s1">) 
+<a name="l150"><span class="ln">150  </span></a>  </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;ROCM_VERSION_DEV_MAJOR: ${ROCM_VERSION_DEV_MAJOR}&quot;</span><span class="s1">) 
+<a name="l151"><span class="ln">151  </span></a>  </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;ROCM_VERSION_DEV_MINOR: ${ROCM_VERSION_DEV_MINOR}&quot;</span><span class="s1">) 
+<a name="l152"><span class="ln">152  </span></a>  </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;ROCM_VERSION_DEV_PATCH: ${ROCM_VERSION_DEV_PATCH}&quot;</span><span class="s1">) 
+<a name="l153"><span class="ln">153  </span></a>  </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;ROCM_VERSION_DEV_INT:   ${ROCM_VERSION_DEV_INT}&quot;</span><span class="s1">) 
+<a name="l154"><span class="ln">154  </span></a></span>
+<a name="l155"><span class="ln">155  </span></a>  <span class="s0">math</span><span class="s1">(EXPR TORCH_HIP_VERSION </span><span class="s3">&quot;(${HIP_VERSION_MAJOR} * 100) + ${HIP_VERSION_MINOR}&quot;</span><span class="s1">) 
+<a name="l156"><span class="ln">156  </span></a>  </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;HIP_VERSION_MAJOR: ${HIP_VERSION_MAJOR}&quot;</span><span class="s1">) 
+<a name="l157"><span class="ln">157  </span></a>  </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;HIP_VERSION_MINOR: ${HIP_VERSION_MINOR}&quot;</span><span class="s1">) 
+<a name="l158"><span class="ln">158  </span></a>  </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;TORCH_HIP_VERSION: ${TORCH_HIP_VERSION}&quot;</span><span class="s1">) 
+<a name="l159"><span class="ln">159  </span></a></span>
+<a name="l160"><span class="ln">160  </span></a>  <span class="s2"># Find ROCM components using Config mode</span>
+<a name="l161"><span class="ln">161  </span></a>  <span class="s2"># These components will be searced for recursively in ${ROCM_PATH}</span>
+<a name="l162"><span class="ln">162  </span></a>  <span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;\n***** Library versions from cmake find_package *****\n&quot;</span><span class="s1">) 
+<a name="l163"><span class="ln">163  </span></a>  find_package_and_print_version(amd_comgr REQUIRED) 
+<a name="l164"><span class="ln">164  </span></a>  find_package_and_print_version(rocrand REQUIRED) 
+<a name="l165"><span class="ln">165  </span></a>  find_package_and_print_version(hiprand REQUIRED) 
+<a name="l166"><span class="ln">166  </span></a>  find_package_and_print_version(rocblas REQUIRED) 
+<a name="l167"><span class="ln">167  </span></a>  find_package_and_print_version(hipblas REQUIRED) 
+<a name="l168"><span class="ln">168  </span></a>  find_package_and_print_version(miopen REQUIRED) 
+<a name="l169"><span class="ln">169  </span></a>  find_package_and_print_version(hipfft REQUIRED) 
+<a name="l170"><span class="ln">170  </span></a>  find_package_and_print_version(hipsparse REQUIRED) 
+<a name="l171"><span class="ln">171  </span></a>  find_package_and_print_version(rocprim REQUIRED) 
+<a name="l172"><span class="ln">172  </span></a>  find_package_and_print_version(hipcub REQUIRED) 
+<a name="l173"><span class="ln">173  </span></a>  find_package_and_print_version(rocthrust REQUIRED) 
+<a name="l174"><span class="ln">174  </span></a>  find_package_and_print_version(hipsolver REQUIRED) 
+<a name="l175"><span class="ln">175  </span></a>  find_package_and_print_version(rocsolver REQUIRED) 
+<a name="l176"><span class="ln">176  </span></a>  </span><span class="s2"># workaround cmake 4 build issue</span>
+<a name="l177"><span class="ln">177  </span></a>  <span class="s0">if</span><span class="s1">(</span><span class="s4">CMAKE_VERSION </span><span class="s0">VERSION_GREATER_EQUAL </span><span class="s3">&quot;4.0.0&quot;</span><span class="s1">) 
+<a name="l178"><span class="ln">178  </span></a>    </span><span class="s0">message</span><span class="s1">(WARNING </span><span class="s3">&quot;Work around hiprtc cmake failure for cmake &gt;= 4&quot;</span><span class="s1">) 
+<a name="l179"><span class="ln">179  </span></a>    </span><span class="s0">set</span><span class="s1">(CMAKE_POLICY_VERSION_MINIMUM 3.5) 
+<a name="l180"><span class="ln">180  </span></a>    find_package_and_print_version(hiprtc REQUIRED) 
+<a name="l181"><span class="ln">181  </span></a>    </span><span class="s0">unset</span><span class="s1">(CMAKE_POLICY_VERSION_MINIMUM) 
+<a name="l182"><span class="ln">182  </span></a>  </span><span class="s0">else</span><span class="s1">() 
+<a name="l183"><span class="ln">183  </span></a>    find_package_and_print_version(hiprtc REQUIRED) 
+<a name="l184"><span class="ln">184  </span></a>  </span><span class="s0">endif</span><span class="s1">() 
+<a name="l185"><span class="ln">185  </span></a>  find_package_and_print_version(hipblaslt REQUIRED) 
+<a name="l186"><span class="ln">186  </span></a></span>
+<a name="l187"><span class="ln">187  </span></a>  <span class="s0">if</span><span class="s1">(</span><span class="s4">UNIX</span><span class="s1">) 
+<a name="l188"><span class="ln">188  </span></a>    find_package_and_print_version(rccl) 
+<a name="l189"><span class="ln">189  </span></a>    find_package_and_print_version(hsa-runtime64 REQUIRED) 
+<a name="l190"><span class="ln">190  </span></a>  </span><span class="s0">endif</span><span class="s1">() 
+<a name="l191"><span class="ln">191  </span></a></span>
+<a name="l192"><span class="ln">192  </span></a>  <span class="s2"># Optional components.</span>
+<a name="l193"><span class="ln">193  </span></a>  <span class="s1">find_package_and_print_version(hipsparselt)  </span><span class="s2"># Will be required when ready.</span>
+<a name="l194"><span class="ln">194  </span></a>
+<a name="l195"><span class="ln">195  </span></a>  <span class="s0">list</span><span class="s1">(REMOVE_DUPLICATES ROCM_INCLUDE_DIRS) 
+<a name="l196"><span class="ln">196  </span></a></span>
+<a name="l197"><span class="ln">197  </span></a>  <span class="s0">if</span><span class="s1">(</span><span class="s4">UNIX</span><span class="s1">) 
+<a name="l198"><span class="ln">198  </span></a>    </span><span class="s2"># roctx is part of roctracer</span>
+<a name="l199"><span class="ln">199  </span></a>    <span class="s0">find_library</span><span class="s1">(ROCM_ROCTX_LIB roctx64 HINTS </span><span class="s0">${ROCM_PATH}</span><span class="s1">/lib) 
+<a name="l200"><span class="ln">200  </span></a></span>
+<a name="l201"><span class="ln">201  </span></a>    <span class="s0">set</span><span class="s1">(</span><span class="s4">PROJECT_RANDOM_BINARY_DIR </span><span class="s3">&quot;${PROJECT_BINARY_DIR}&quot;</span><span class="s1">) 
+<a name="l202"><span class="ln">202  </span></a></span>
+<a name="l203"><span class="ln">203  </span></a>    <span class="s0">if</span><span class="s1">(ROCM_VERSION_DEV </span><span class="s0">VERSION_GREATER_EQUAL </span><span class="s3">&quot;5.7.0&quot;</span><span class="s1">) 
+<a name="l204"><span class="ln">204  </span></a>      </span><span class="s2"># check whether hipblaslt provides HIPBLASLT_MATMUL_MATRIX_SCALE_OUTER_VEC_32F</span>
+<a name="l205"><span class="ln">205  </span></a>      <span class="s0">set</span><span class="s1">(file </span><span class="s3">&quot;${PROJECT_BINARY_DIR}/hipblaslt_test_outer_vec.cc&quot;</span><span class="s1">) 
+<a name="l206"><span class="ln">206  </span></a>      </span><span class="s0">file</span><span class="s1">(WRITE </span><span class="s0">${file} </span><span class="s3">&quot;&quot;</span>
+<a name="l207"><span class="ln">207  </span></a>        <span class="s3">&quot;#define LEGACY_HIPBLAS_DIRECT\n&quot;</span>
+<a name="l208"><span class="ln">208  </span></a>        <span class="s3">&quot;#include &lt;hipblaslt/hipblaslt.h&gt;\n&quot;</span>
+<a name="l209"><span class="ln">209  </span></a>        <span class="s3">&quot;int main() {\n&quot;</span>
+<a name="l210"><span class="ln">210  </span></a>        <span class="s3">&quot;    hipblasLtMatmulMatrixScale_t attr = HIPBLASLT_MATMUL_MATRIX_SCALE_OUTER_VEC_32F;\n&quot;</span>
+<a name="l211"><span class="ln">211  </span></a>        <span class="s3">&quot;    return 0;\n&quot;</span>
+<a name="l212"><span class="ln">212  </span></a>        <span class="s3">&quot;}\n&quot;</span>
+<a name="l213"><span class="ln">213  </span></a>        <span class="s1">) 
+<a name="l214"><span class="ln">214  </span></a>      </span><span class="s0">try_compile</span><span class="s1">(hipblaslt_compile_result_outer_vec </span><span class="s0">${PROJECT_RANDOM_BINARY_DIR} ${file}</span>
+<a name="l215"><span class="ln">215  </span></a>        <span class="s1">CMAKE_FLAGS </span><span class="s3">&quot;-DINCLUDE_DIRECTORIES=${ROCM_INCLUDE_DIRS}&quot;</span>
+<a name="l216"><span class="ln">216  </span></a>        <span class="s5">COMPILE_DEFINITIONS </span><span class="s1">-D__HIP_PLATFORM_AMD__ -D__HIP_PLATFORM_HCC__ 
+<a name="l217"><span class="ln">217  </span></a>        OUTPUT_VARIABLE hipblaslt_compile_output_outer_vec) 
+<a name="l218"><span class="ln">218  </span></a></span>
+<a name="l219"><span class="ln">219  </span></a>      <span class="s2"># check whether hipblaslt provides HIPBLASLT_MATMUL_DESC_A_SCALE_POINTER_VEC_EXT</span>
+<a name="l220"><span class="ln">220  </span></a>      <span class="s0">set</span><span class="s1">(file </span><span class="s3">&quot;${PROJECT_BINARY_DIR}/hipblaslt_test_vec_ext.cc&quot;</span><span class="s1">) 
+<a name="l221"><span class="ln">221  </span></a>      </span><span class="s0">file</span><span class="s1">(WRITE </span><span class="s0">${file} </span><span class="s3">&quot;&quot;</span>
+<a name="l222"><span class="ln">222  </span></a>        <span class="s3">&quot;#define LEGACY_HIPBLAS_DIRECT\n&quot;</span>
+<a name="l223"><span class="ln">223  </span></a>        <span class="s3">&quot;#include &lt;hipblaslt/hipblaslt.h&gt;\n&quot;</span>
+<a name="l224"><span class="ln">224  </span></a>        <span class="s3">&quot;int main() {\n&quot;</span>
+<a name="l225"><span class="ln">225  </span></a>        <span class="s3">&quot;    hipblasLtMatmulDescAttributes_t attr = HIPBLASLT_MATMUL_DESC_A_SCALE_POINTER_VEC_EXT;\n&quot;</span>
+<a name="l226"><span class="ln">226  </span></a>        <span class="s3">&quot;    return 0;\n&quot;</span>
+<a name="l227"><span class="ln">227  </span></a>        <span class="s3">&quot;}\n&quot;</span>
+<a name="l228"><span class="ln">228  </span></a>        <span class="s1">) 
+<a name="l229"><span class="ln">229  </span></a>      </span><span class="s0">try_compile</span><span class="s1">(hipblaslt_compile_result_vec_ext </span><span class="s0">${PROJECT_RANDOM_BINARY_DIR} ${file}</span>
+<a name="l230"><span class="ln">230  </span></a>        <span class="s1">CMAKE_FLAGS </span><span class="s3">&quot;-DINCLUDE_DIRECTORIES=${ROCM_INCLUDE_DIRS}&quot;</span>
+<a name="l231"><span class="ln">231  </span></a>        <span class="s5">COMPILE_DEFINITIONS </span><span class="s1">-D__HIP_PLATFORM_AMD__ -D__HIP_PLATFORM_HCC__ 
+<a name="l232"><span class="ln">232  </span></a>        OUTPUT_VARIABLE hipblaslt_compile_output_vec_ext) 
+<a name="l233"><span class="ln">233  </span></a></span>
+<a name="l234"><span class="ln">234  </span></a>      <span class="s0">if</span><span class="s1">(hipblaslt_compile_result_outer_vec) 
+<a name="l235"><span class="ln">235  </span></a>        </span><span class="s0">set</span><span class="s1">(HIPBLASLT_OUTER_VEC </span><span class="s0">ON</span><span class="s1">) 
+<a name="l236"><span class="ln">236  </span></a>        </span><span class="s0">set</span><span class="s1">(HIPBLASLT_VEC_EXT </span><span class="s0">OFF</span><span class="s1">) 
+<a name="l237"><span class="ln">237  </span></a>        </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;hipblaslt is using scale pointer outer vec&quot;</span><span class="s1">) 
+<a name="l238"><span class="ln">238  </span></a>      </span><span class="s0">elseif</span><span class="s1">(hipblaslt_compile_result_vec_ext) 
+<a name="l239"><span class="ln">239  </span></a>        </span><span class="s0">set</span><span class="s1">(HIPBLASLT_OUTER_VEC </span><span class="s0">OFF</span><span class="s1">) 
+<a name="l240"><span class="ln">240  </span></a>        </span><span class="s0">set</span><span class="s1">(HIPBLASLT_VEC_EXT </span><span class="s0">ON</span><span class="s1">) 
+<a name="l241"><span class="ln">241  </span></a>        </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;hipblaslt is using scale pointer vec ext&quot;</span><span class="s1">) 
+<a name="l242"><span class="ln">242  </span></a>      </span><span class="s0">else</span><span class="s1">() 
+<a name="l243"><span class="ln">243  </span></a>        </span><span class="s0">set</span><span class="s1">(HIPBLASLT_OUTER_VEC </span><span class="s0">OFF</span><span class="s1">) 
+<a name="l244"><span class="ln">244  </span></a>        </span><span class="s0">set</span><span class="s1">(HIPBLASLT_VEC_EXT </span><span class="s0">OFF</span><span class="s1">) 
+<a name="l245"><span class="ln">245  </span></a>        </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;hipblaslt is NOT using scale pointer outer vec: ${hipblaslt_compile_output_outer_vec}&quot;</span><span class="s1">) 
+<a name="l246"><span class="ln">246  </span></a>        </span><span class="s0">message</span><span class="s1">(</span><span class="s3">&quot;hipblaslt is NOT using scale pointer vec ext: ${hipblaslt_compile_output_vec_ext}&quot;</span><span class="s1">) 
+<a name="l247"><span class="ln">247  </span></a>      </span><span class="s0">endif</span><span class="s1">() 
+<a name="l248"><span class="ln">248  </span></a>    </span><span class="s0">endif</span><span class="s1">() 
+<a name="l249"><span class="ln">249  </span></a>  </span><span class="s0">endif</span><span class="s1">() 
+<a name="l250"><span class="ln">250  </span></a></span><span class="s0">endif</span><span class="s1">() 
+<a name="l251"><span class="ln">251  </span></a></span></pre>
+</body>
+</html>

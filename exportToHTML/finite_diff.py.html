@@ -1,0 +1,499 @@
+<html>
+<head>
+<title>finite_diff.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+finite_diff.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>Finite difference weights 
+<a name="l3"><span class="ln">3    </span></a>========================= 
+<a name="l4"><span class="ln">4    </span></a> 
+<a name="l5"><span class="ln">5    </span></a>This module implements an algorithm for efficient generation of finite 
+<a name="l6"><span class="ln">6    </span></a>difference weights for ordinary differentials of functions for 
+<a name="l7"><span class="ln">7    </span></a>derivatives from 0 (interpolation) up to arbitrary order. 
+<a name="l8"><span class="ln">8    </span></a> 
+<a name="l9"><span class="ln">9    </span></a>The core algorithm is provided in the finite difference weight generating 
+<a name="l10"><span class="ln">10   </span></a>function (``finite_diff_weights``), and two convenience functions are provided 
+<a name="l11"><span class="ln">11   </span></a>for: 
+<a name="l12"><span class="ln">12   </span></a> 
+<a name="l13"><span class="ln">13   </span></a>- estimating a derivative (or interpolate) directly from a series of points 
+<a name="l14"><span class="ln">14   </span></a>    is also provided (``apply_finite_diff``). 
+<a name="l15"><span class="ln">15   </span></a>- differentiating by using finite difference approximations 
+<a name="l16"><span class="ln">16   </span></a>    (``differentiate_finite``). 
+<a name="l17"><span class="ln">17   </span></a> 
+<a name="l18"><span class="ln">18   </span></a>&quot;&quot;&quot;</span>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">function </span><span class="s2">import </span><span class="s1">Derivative</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">singleton </span><span class="s2">import </span><span class="s1">S</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">function </span><span class="s2">import </span><span class="s1">Subs</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">traversal </span><span class="s2">import </span><span class="s1">preorder_traversal</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities</span><span class="s3">.</span><span class="s1">exceptions </span><span class="s2">import </span><span class="s1">sympy_deprecation_warning</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities</span><span class="s3">.</span><span class="s1">iterables </span><span class="s2">import </span><span class="s1">iterable</span>
+<a name="l26"><span class="ln">26   </span></a>
+<a name="l27"><span class="ln">27   </span></a>
+<a name="l28"><span class="ln">28   </span></a>
+<a name="l29"><span class="ln">29   </span></a><span class="s2">def </span><span class="s1">finite_diff_weights</span><span class="s3">(</span><span class="s1">order</span><span class="s3">, </span><span class="s1">x_list</span><span class="s3">, </span><span class="s1">x0</span><span class="s2">=</span><span class="s1">S</span><span class="s3">.</span><span class="s1">One</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l30"><span class="ln">30   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l31"><span class="ln">31   </span></a>    Calculates the finite difference weights for an arbitrarily spaced 
+<a name="l32"><span class="ln">32   </span></a>    one-dimensional grid (``x_list``) for derivatives at ``x0`` of order 
+<a name="l33"><span class="ln">33   </span></a>    0, 1, ..., up to ``order`` using a recursive formula. Order of accuracy 
+<a name="l34"><span class="ln">34   </span></a>    is at least ``len(x_list) - order``, if ``x_list`` is defined correctly. 
+<a name="l35"><span class="ln">35   </span></a> 
+<a name="l36"><span class="ln">36   </span></a>    Parameters 
+<a name="l37"><span class="ln">37   </span></a>    ========== 
+<a name="l38"><span class="ln">38   </span></a> 
+<a name="l39"><span class="ln">39   </span></a>    order: int 
+<a name="l40"><span class="ln">40   </span></a>        Up to what derivative order weights should be calculated. 
+<a name="l41"><span class="ln">41   </span></a>        0 corresponds to interpolation. 
+<a name="l42"><span class="ln">42   </span></a>    x_list: sequence 
+<a name="l43"><span class="ln">43   </span></a>        Sequence of (unique) values for the independent variable. 
+<a name="l44"><span class="ln">44   </span></a>        It is useful (but not necessary) to order ``x_list`` from 
+<a name="l45"><span class="ln">45   </span></a>        nearest to furthest from ``x0``; see examples below. 
+<a name="l46"><span class="ln">46   </span></a>    x0: Number or Symbol 
+<a name="l47"><span class="ln">47   </span></a>        Root or value of the independent variable for which the finite 
+<a name="l48"><span class="ln">48   </span></a>        difference weights should be generated. Default is ``S.One``. 
+<a name="l49"><span class="ln">49   </span></a> 
+<a name="l50"><span class="ln">50   </span></a>    Returns 
+<a name="l51"><span class="ln">51   </span></a>    ======= 
+<a name="l52"><span class="ln">52   </span></a> 
+<a name="l53"><span class="ln">53   </span></a>    list 
+<a name="l54"><span class="ln">54   </span></a>        A list of sublists, each corresponding to coefficients for 
+<a name="l55"><span class="ln">55   </span></a>        increasing derivative order, and each containing lists of 
+<a name="l56"><span class="ln">56   </span></a>        coefficients for increasing subsets of x_list. 
+<a name="l57"><span class="ln">57   </span></a> 
+<a name="l58"><span class="ln">58   </span></a>    Examples 
+<a name="l59"><span class="ln">59   </span></a>    ======== 
+<a name="l60"><span class="ln">60   </span></a> 
+<a name="l61"><span class="ln">61   </span></a>    &gt;&gt;&gt; from sympy import finite_diff_weights, S 
+<a name="l62"><span class="ln">62   </span></a>    &gt;&gt;&gt; res = finite_diff_weights(1, [-S(1)/2, S(1)/2, S(3)/2, S(5)/2], 0) 
+<a name="l63"><span class="ln">63   </span></a>    &gt;&gt;&gt; res 
+<a name="l64"><span class="ln">64   </span></a>    [[[1, 0, 0, 0], 
+<a name="l65"><span class="ln">65   </span></a>      [1/2, 1/2, 0, 0], 
+<a name="l66"><span class="ln">66   </span></a>      [3/8, 3/4, -1/8, 0], 
+<a name="l67"><span class="ln">67   </span></a>      [5/16, 15/16, -5/16, 1/16]], 
+<a name="l68"><span class="ln">68   </span></a>     [[0, 0, 0, 0], 
+<a name="l69"><span class="ln">69   </span></a>      [-1, 1, 0, 0], 
+<a name="l70"><span class="ln">70   </span></a>      [-1, 1, 0, 0], 
+<a name="l71"><span class="ln">71   </span></a>      [-23/24, 7/8, 1/8, -1/24]]] 
+<a name="l72"><span class="ln">72   </span></a>    &gt;&gt;&gt; res[0][-1]  # FD weights for 0th derivative, using full x_list 
+<a name="l73"><span class="ln">73   </span></a>    [5/16, 15/16, -5/16, 1/16] 
+<a name="l74"><span class="ln">74   </span></a>    &gt;&gt;&gt; res[1][-1]  # FD weights for 1st derivative 
+<a name="l75"><span class="ln">75   </span></a>    [-23/24, 7/8, 1/8, -1/24] 
+<a name="l76"><span class="ln">76   </span></a>    &gt;&gt;&gt; res[1][-2]  # FD weights for 1st derivative, using x_list[:-1] 
+<a name="l77"><span class="ln">77   </span></a>    [-1, 1, 0, 0] 
+<a name="l78"><span class="ln">78   </span></a>    &gt;&gt;&gt; res[1][-1][0]  # FD weight for 1st deriv. for x_list[0] 
+<a name="l79"><span class="ln">79   </span></a>    -23/24 
+<a name="l80"><span class="ln">80   </span></a>    &gt;&gt;&gt; res[1][-1][1]  # FD weight for 1st deriv. for x_list[1], etc. 
+<a name="l81"><span class="ln">81   </span></a>    7/8 
+<a name="l82"><span class="ln">82   </span></a> 
+<a name="l83"><span class="ln">83   </span></a>    Each sublist contains the most accurate formula at the end. 
+<a name="l84"><span class="ln">84   </span></a>    Note, that in the above example ``res[1][1]`` is the same as ``res[1][2]``. 
+<a name="l85"><span class="ln">85   </span></a>    Since res[1][2] has an order of accuracy of 
+<a name="l86"><span class="ln">86   </span></a>    ``len(x_list[:3]) - order = 3 - 1 = 2``, the same is true for ``res[1][1]``! 
+<a name="l87"><span class="ln">87   </span></a> 
+<a name="l88"><span class="ln">88   </span></a>    &gt;&gt;&gt; res = finite_diff_weights(1, [S(0), S(1), -S(1), S(2), -S(2)], 0)[1] 
+<a name="l89"><span class="ln">89   </span></a>    &gt;&gt;&gt; res 
+<a name="l90"><span class="ln">90   </span></a>    [[0, 0, 0, 0, 0], 
+<a name="l91"><span class="ln">91   </span></a>     [-1, 1, 0, 0, 0], 
+<a name="l92"><span class="ln">92   </span></a>     [0, 1/2, -1/2, 0, 0], 
+<a name="l93"><span class="ln">93   </span></a>     [-1/2, 1, -1/3, -1/6, 0], 
+<a name="l94"><span class="ln">94   </span></a>     [0, 2/3, -2/3, -1/12, 1/12]] 
+<a name="l95"><span class="ln">95   </span></a>    &gt;&gt;&gt; res[0]  # no approximation possible, using x_list[0] only 
+<a name="l96"><span class="ln">96   </span></a>    [0, 0, 0, 0, 0] 
+<a name="l97"><span class="ln">97   </span></a>    &gt;&gt;&gt; res[1]  # classic forward step approximation 
+<a name="l98"><span class="ln">98   </span></a>    [-1, 1, 0, 0, 0] 
+<a name="l99"><span class="ln">99   </span></a>    &gt;&gt;&gt; res[2]  # classic centered approximation 
+<a name="l100"><span class="ln">100  </span></a>    [0, 1/2, -1/2, 0, 0] 
+<a name="l101"><span class="ln">101  </span></a>    &gt;&gt;&gt; res[3:]  # higher order approximations 
+<a name="l102"><span class="ln">102  </span></a>    [[-1/2, 1, -1/3, -1/6, 0], [0, 2/3, -2/3, -1/12, 1/12]] 
+<a name="l103"><span class="ln">103  </span></a> 
+<a name="l104"><span class="ln">104  </span></a>    Let us compare this to a differently defined ``x_list``. Pay attention to 
+<a name="l105"><span class="ln">105  </span></a>    ``foo[i][k]`` corresponding to the gridpoint defined by ``x_list[k]``. 
+<a name="l106"><span class="ln">106  </span></a> 
+<a name="l107"><span class="ln">107  </span></a>    &gt;&gt;&gt; foo = finite_diff_weights(1, [-S(2), -S(1), S(0), S(1), S(2)], 0)[1] 
+<a name="l108"><span class="ln">108  </span></a>    &gt;&gt;&gt; foo 
+<a name="l109"><span class="ln">109  </span></a>    [[0, 0, 0, 0, 0], 
+<a name="l110"><span class="ln">110  </span></a>     [-1, 1, 0, 0, 0], 
+<a name="l111"><span class="ln">111  </span></a>     [1/2, -2, 3/2, 0, 0], 
+<a name="l112"><span class="ln">112  </span></a>     [1/6, -1, 1/2, 1/3, 0], 
+<a name="l113"><span class="ln">113  </span></a>     [1/12, -2/3, 0, 2/3, -1/12]] 
+<a name="l114"><span class="ln">114  </span></a>    &gt;&gt;&gt; foo[1]  # not the same and of lower accuracy as res[1]! 
+<a name="l115"><span class="ln">115  </span></a>    [-1, 1, 0, 0, 0] 
+<a name="l116"><span class="ln">116  </span></a>    &gt;&gt;&gt; foo[2]  # classic double backward step approximation 
+<a name="l117"><span class="ln">117  </span></a>    [1/2, -2, 3/2, 0, 0] 
+<a name="l118"><span class="ln">118  </span></a>    &gt;&gt;&gt; foo[4]  # the same as res[4] 
+<a name="l119"><span class="ln">119  </span></a>    [1/12, -2/3, 0, 2/3, -1/12] 
+<a name="l120"><span class="ln">120  </span></a> 
+<a name="l121"><span class="ln">121  </span></a>    Note that, unless you plan on using approximations based on subsets of 
+<a name="l122"><span class="ln">122  </span></a>    ``x_list``, the order of gridpoints does not matter. 
+<a name="l123"><span class="ln">123  </span></a> 
+<a name="l124"><span class="ln">124  </span></a>    The capability to generate weights at arbitrary points can be 
+<a name="l125"><span class="ln">125  </span></a>    used e.g. to minimize Runge's phenomenon by using Chebyshev nodes: 
+<a name="l126"><span class="ln">126  </span></a> 
+<a name="l127"><span class="ln">127  </span></a>    &gt;&gt;&gt; from sympy import cos, symbols, pi, simplify 
+<a name="l128"><span class="ln">128  </span></a>    &gt;&gt;&gt; N, (h, x) = 4, symbols('h x') 
+<a name="l129"><span class="ln">129  </span></a>    &gt;&gt;&gt; x_list = [x+h*cos(i*pi/(N)) for i in range(N,-1,-1)] # chebyshev nodes 
+<a name="l130"><span class="ln">130  </span></a>    &gt;&gt;&gt; print(x_list) 
+<a name="l131"><span class="ln">131  </span></a>    [-h + x, -sqrt(2)*h/2 + x, x, sqrt(2)*h/2 + x, h + x] 
+<a name="l132"><span class="ln">132  </span></a>    &gt;&gt;&gt; mycoeffs = finite_diff_weights(1, x_list, 0)[1][4] 
+<a name="l133"><span class="ln">133  </span></a>    &gt;&gt;&gt; [simplify(c) for c in  mycoeffs] #doctest: +NORMALIZE_WHITESPACE 
+<a name="l134"><span class="ln">134  </span></a>    [(h**3/2 + h**2*x - 3*h*x**2 - 4*x**3)/h**4, 
+<a name="l135"><span class="ln">135  </span></a>    (-sqrt(2)*h**3 - 4*h**2*x + 3*sqrt(2)*h*x**2 + 8*x**3)/h**4, 
+<a name="l136"><span class="ln">136  </span></a>    (6*h**2*x - 8*x**3)/h**4, 
+<a name="l137"><span class="ln">137  </span></a>    (sqrt(2)*h**3 - 4*h**2*x - 3*sqrt(2)*h*x**2 + 8*x**3)/h**4, 
+<a name="l138"><span class="ln">138  </span></a>    (-h**3/2 + h**2*x + 3*h*x**2 - 4*x**3)/h**4] 
+<a name="l139"><span class="ln">139  </span></a> 
+<a name="l140"><span class="ln">140  </span></a>    Notes 
+<a name="l141"><span class="ln">141  </span></a>    ===== 
+<a name="l142"><span class="ln">142  </span></a> 
+<a name="l143"><span class="ln">143  </span></a>    If weights for a finite difference approximation of 3rd order 
+<a name="l144"><span class="ln">144  </span></a>    derivative is wanted, weights for 0th, 1st and 2nd order are 
+<a name="l145"><span class="ln">145  </span></a>    calculated &quot;for free&quot;, so are formulae using subsets of ``x_list``. 
+<a name="l146"><span class="ln">146  </span></a>    This is something one can take advantage of to save computational cost. 
+<a name="l147"><span class="ln">147  </span></a>    Be aware that one should define ``x_list`` from nearest to furthest from 
+<a name="l148"><span class="ln">148  </span></a>    ``x0``. If not, subsets of ``x_list`` will yield poorer approximations, 
+<a name="l149"><span class="ln">149  </span></a>    which might not grand an order of accuracy of ``len(x_list) - order``. 
+<a name="l150"><span class="ln">150  </span></a> 
+<a name="l151"><span class="ln">151  </span></a>    See also 
+<a name="l152"><span class="ln">152  </span></a>    ======== 
+<a name="l153"><span class="ln">153  </span></a> 
+<a name="l154"><span class="ln">154  </span></a>    sympy.calculus.finite_diff.apply_finite_diff 
+<a name="l155"><span class="ln">155  </span></a> 
+<a name="l156"><span class="ln">156  </span></a>    References 
+<a name="l157"><span class="ln">157  </span></a>    ========== 
+<a name="l158"><span class="ln">158  </span></a> 
+<a name="l159"><span class="ln">159  </span></a>    .. [1] Generation of Finite Difference Formulas on Arbitrarily Spaced 
+<a name="l160"><span class="ln">160  </span></a>            Grids, Bengt Fornberg; Mathematics of computation; 51; 184; 
+<a name="l161"><span class="ln">161  </span></a>            (1988); 699-706; doi:10.1090/S0025-5718-1988-0935077-0 
+<a name="l162"><span class="ln">162  </span></a> 
+<a name="l163"><span class="ln">163  </span></a>    &quot;&quot;&quot;</span>
+<a name="l164"><span class="ln">164  </span></a>    <span class="s0"># The notation below closely corresponds to the one used in the paper.</span>
+<a name="l165"><span class="ln">165  </span></a>    <span class="s1">order </span><span class="s2">= </span><span class="s1">S</span><span class="s3">(</span><span class="s1">order</span><span class="s3">)</span>
+<a name="l166"><span class="ln">166  </span></a>    <span class="s2">if not </span><span class="s1">order</span><span class="s3">.</span><span class="s1">is_number</span><span class="s2">:</span>
+<a name="l167"><span class="ln">167  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;Cannot handle symbolic order.&quot;</span><span class="s3">)</span>
+<a name="l168"><span class="ln">168  </span></a>    <span class="s2">if </span><span class="s1">order </span><span class="s2">&lt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l169"><span class="ln">169  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;Negative derivative order illegal.&quot;</span><span class="s3">)</span>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s2">if </span><span class="s1">int</span><span class="s3">(</span><span class="s1">order</span><span class="s3">) </span><span class="s2">!= </span><span class="s1">order</span><span class="s2">:</span>
+<a name="l171"><span class="ln">171  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;Non-integer order illegal&quot;</span><span class="s3">)</span>
+<a name="l172"><span class="ln">172  </span></a>    <span class="s1">M </span><span class="s2">= </span><span class="s1">order</span>
+<a name="l173"><span class="ln">173  </span></a>    <span class="s1">N </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">x_list</span><span class="s3">) </span><span class="s2">- </span><span class="s5">1</span>
+<a name="l174"><span class="ln">174  </span></a>    <span class="s1">delta </span><span class="s2">= </span><span class="s3">[[[</span><span class="s5">0 </span><span class="s2">for </span><span class="s1">nu </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">N</span><span class="s2">+</span><span class="s5">1</span><span class="s3">)] </span><span class="s2">for </span><span class="s1">n </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">N</span><span class="s2">+</span><span class="s5">1</span><span class="s3">)] </span><span class="s2">for</span>
+<a name="l175"><span class="ln">175  </span></a>             <span class="s1">m </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">M</span><span class="s2">+</span><span class="s5">1</span><span class="s3">)]</span>
+<a name="l176"><span class="ln">176  </span></a>    <span class="s1">delta</span><span class="s3">[</span><span class="s5">0</span><span class="s3">][</span><span class="s5">0</span><span class="s3">][</span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s1">S</span><span class="s3">.</span><span class="s1">One</span>
+<a name="l177"><span class="ln">177  </span></a>    <span class="s1">c1 </span><span class="s2">= </span><span class="s1">S</span><span class="s3">.</span><span class="s1">One</span>
+<a name="l178"><span class="ln">178  </span></a>    <span class="s2">for </span><span class="s1">n </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s5">1</span><span class="s3">, </span><span class="s1">N</span><span class="s2">+</span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l179"><span class="ln">179  </span></a>        <span class="s1">c2 </span><span class="s2">= </span><span class="s1">S</span><span class="s3">.</span><span class="s1">One</span>
+<a name="l180"><span class="ln">180  </span></a>        <span class="s2">for </span><span class="s1">nu </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l181"><span class="ln">181  </span></a>            <span class="s1">c3 </span><span class="s2">= </span><span class="s1">x_list</span><span class="s3">[</span><span class="s1">n</span><span class="s3">] </span><span class="s2">- </span><span class="s1">x_list</span><span class="s3">[</span><span class="s1">nu</span><span class="s3">]</span>
+<a name="l182"><span class="ln">182  </span></a>            <span class="s1">c2 </span><span class="s2">= </span><span class="s1">c2 </span><span class="s2">* </span><span class="s1">c3</span>
+<a name="l183"><span class="ln">183  </span></a>            <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt;= </span><span class="s1">M</span><span class="s2">:</span>
+<a name="l184"><span class="ln">184  </span></a>                <span class="s1">delta</span><span class="s3">[</span><span class="s1">n</span><span class="s3">][</span><span class="s1">n</span><span class="s2">-</span><span class="s5">1</span><span class="s3">][</span><span class="s1">nu</span><span class="s3">] </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l185"><span class="ln">185  </span></a>            <span class="s2">for </span><span class="s1">m </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">min</span><span class="s3">(</span><span class="s1">n</span><span class="s3">, </span><span class="s1">M</span><span class="s3">)</span><span class="s2">+</span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l186"><span class="ln">186  </span></a>                <span class="s1">delta</span><span class="s3">[</span><span class="s1">m</span><span class="s3">][</span><span class="s1">n</span><span class="s3">][</span><span class="s1">nu</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span><span class="s1">x_list</span><span class="s3">[</span><span class="s1">n</span><span class="s3">]</span><span class="s2">-</span><span class="s1">x0</span><span class="s3">)</span><span class="s2">*</span><span class="s1">delta</span><span class="s3">[</span><span class="s1">m</span><span class="s3">][</span><span class="s1">n</span><span class="s2">-</span><span class="s5">1</span><span class="s3">][</span><span class="s1">nu</span><span class="s3">] </span><span class="s2">-</span><span class="s1">\</span>
+<a name="l187"><span class="ln">187  </span></a>                    <span class="s1">m</span><span class="s2">*</span><span class="s1">delta</span><span class="s3">[</span><span class="s1">m</span><span class="s2">-</span><span class="s5">1</span><span class="s3">][</span><span class="s1">n</span><span class="s2">-</span><span class="s5">1</span><span class="s3">][</span><span class="s1">nu</span><span class="s3">]</span>
+<a name="l188"><span class="ln">188  </span></a>                <span class="s1">delta</span><span class="s3">[</span><span class="s1">m</span><span class="s3">][</span><span class="s1">n</span><span class="s3">][</span><span class="s1">nu</span><span class="s3">] </span><span class="s2">/= </span><span class="s1">c3</span>
+<a name="l189"><span class="ln">189  </span></a>        <span class="s2">for </span><span class="s1">m </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">min</span><span class="s3">(</span><span class="s1">n</span><span class="s3">, </span><span class="s1">M</span><span class="s3">)</span><span class="s2">+</span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l190"><span class="ln">190  </span></a>            <span class="s1">delta</span><span class="s3">[</span><span class="s1">m</span><span class="s3">][</span><span class="s1">n</span><span class="s3">][</span><span class="s1">n</span><span class="s3">] </span><span class="s2">= </span><span class="s1">c1</span><span class="s2">/</span><span class="s1">c2</span><span class="s2">*</span><span class="s3">(</span><span class="s1">m</span><span class="s2">*</span><span class="s1">delta</span><span class="s3">[</span><span class="s1">m</span><span class="s2">-</span><span class="s5">1</span><span class="s3">][</span><span class="s1">n</span><span class="s2">-</span><span class="s5">1</span><span class="s3">][</span><span class="s1">n</span><span class="s2">-</span><span class="s5">1</span><span class="s3">] </span><span class="s2">-</span>
+<a name="l191"><span class="ln">191  </span></a>                                    <span class="s3">(</span><span class="s1">x_list</span><span class="s3">[</span><span class="s1">n</span><span class="s2">-</span><span class="s5">1</span><span class="s3">]</span><span class="s2">-</span><span class="s1">x0</span><span class="s3">)</span><span class="s2">*</span><span class="s1">delta</span><span class="s3">[</span><span class="s1">m</span><span class="s3">][</span><span class="s1">n</span><span class="s2">-</span><span class="s5">1</span><span class="s3">][</span><span class="s1">n</span><span class="s2">-</span><span class="s5">1</span><span class="s3">])</span>
+<a name="l192"><span class="ln">192  </span></a>        <span class="s1">c1 </span><span class="s2">= </span><span class="s1">c2</span>
+<a name="l193"><span class="ln">193  </span></a>    <span class="s2">return </span><span class="s1">delta</span>
+<a name="l194"><span class="ln">194  </span></a>
+<a name="l195"><span class="ln">195  </span></a>
+<a name="l196"><span class="ln">196  </span></a><span class="s2">def </span><span class="s1">apply_finite_diff</span><span class="s3">(</span><span class="s1">order</span><span class="s3">, </span><span class="s1">x_list</span><span class="s3">, </span><span class="s1">y_list</span><span class="s3">, </span><span class="s1">x0</span><span class="s2">=</span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l197"><span class="ln">197  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l198"><span class="ln">198  </span></a>    Calculates the finite difference approximation of 
+<a name="l199"><span class="ln">199  </span></a>    the derivative of requested order at ``x0`` from points 
+<a name="l200"><span class="ln">200  </span></a>    provided in ``x_list`` and ``y_list``. 
+<a name="l201"><span class="ln">201  </span></a> 
+<a name="l202"><span class="ln">202  </span></a>    Parameters 
+<a name="l203"><span class="ln">203  </span></a>    ========== 
+<a name="l204"><span class="ln">204  </span></a> 
+<a name="l205"><span class="ln">205  </span></a>    order: int 
+<a name="l206"><span class="ln">206  </span></a>        order of derivative to approximate. 0 corresponds to interpolation. 
+<a name="l207"><span class="ln">207  </span></a>    x_list: sequence 
+<a name="l208"><span class="ln">208  </span></a>        Sequence of (unique) values for the independent variable. 
+<a name="l209"><span class="ln">209  </span></a>    y_list: sequence 
+<a name="l210"><span class="ln">210  </span></a>        The function value at corresponding values for the independent 
+<a name="l211"><span class="ln">211  </span></a>        variable in x_list. 
+<a name="l212"><span class="ln">212  </span></a>    x0: Number or Symbol 
+<a name="l213"><span class="ln">213  </span></a>        At what value of the independent variable the derivative should be 
+<a name="l214"><span class="ln">214  </span></a>        evaluated. Defaults to 0. 
+<a name="l215"><span class="ln">215  </span></a> 
+<a name="l216"><span class="ln">216  </span></a>    Returns 
+<a name="l217"><span class="ln">217  </span></a>    ======= 
+<a name="l218"><span class="ln">218  </span></a> 
+<a name="l219"><span class="ln">219  </span></a>    sympy.core.add.Add or sympy.core.numbers.Number 
+<a name="l220"><span class="ln">220  </span></a>        The finite difference expression approximating the requested 
+<a name="l221"><span class="ln">221  </span></a>        derivative order at ``x0``. 
+<a name="l222"><span class="ln">222  </span></a> 
+<a name="l223"><span class="ln">223  </span></a>    Examples 
+<a name="l224"><span class="ln">224  </span></a>    ======== 
+<a name="l225"><span class="ln">225  </span></a> 
+<a name="l226"><span class="ln">226  </span></a>    &gt;&gt;&gt; from sympy import apply_finite_diff 
+<a name="l227"><span class="ln">227  </span></a>    &gt;&gt;&gt; cube = lambda arg: (1.0*arg)**3 
+<a name="l228"><span class="ln">228  </span></a>    &gt;&gt;&gt; xlist = range(-3,3+1) 
+<a name="l229"><span class="ln">229  </span></a>    &gt;&gt;&gt; apply_finite_diff(2, xlist, map(cube, xlist), 2) - 12 # doctest: +SKIP 
+<a name="l230"><span class="ln">230  </span></a>    -3.55271367880050e-15 
+<a name="l231"><span class="ln">231  </span></a> 
+<a name="l232"><span class="ln">232  </span></a>    we see that the example above only contain rounding errors. 
+<a name="l233"><span class="ln">233  </span></a>    apply_finite_diff can also be used on more abstract objects: 
+<a name="l234"><span class="ln">234  </span></a> 
+<a name="l235"><span class="ln">235  </span></a>    &gt;&gt;&gt; from sympy import IndexedBase, Idx 
+<a name="l236"><span class="ln">236  </span></a>    &gt;&gt;&gt; x, y = map(IndexedBase, 'xy') 
+<a name="l237"><span class="ln">237  </span></a>    &gt;&gt;&gt; i = Idx('i') 
+<a name="l238"><span class="ln">238  </span></a>    &gt;&gt;&gt; x_list, y_list = zip(*[(x[i+j], y[i+j]) for j in range(-1,2)]) 
+<a name="l239"><span class="ln">239  </span></a>    &gt;&gt;&gt; apply_finite_diff(1, x_list, y_list, x[i]) 
+<a name="l240"><span class="ln">240  </span></a>    ((x[i + 1] - x[i])/(-x[i - 1] + x[i]) - 1)*y[i]/(x[i + 1] - x[i]) - 
+<a name="l241"><span class="ln">241  </span></a>    (x[i + 1] - x[i])*y[i - 1]/((x[i + 1] - x[i - 1])*(-x[i - 1] + x[i])) + 
+<a name="l242"><span class="ln">242  </span></a>    (-x[i - 1] + x[i])*y[i + 1]/((x[i + 1] - x[i - 1])*(x[i + 1] - x[i])) 
+<a name="l243"><span class="ln">243  </span></a> 
+<a name="l244"><span class="ln">244  </span></a>    Notes 
+<a name="l245"><span class="ln">245  </span></a>    ===== 
+<a name="l246"><span class="ln">246  </span></a> 
+<a name="l247"><span class="ln">247  </span></a>    Order = 0 corresponds to interpolation. 
+<a name="l248"><span class="ln">248  </span></a>    Only supply so many points you think makes sense 
+<a name="l249"><span class="ln">249  </span></a>    to around x0 when extracting the derivative (the function 
+<a name="l250"><span class="ln">250  </span></a>    need to be well behaved within that region). Also beware 
+<a name="l251"><span class="ln">251  </span></a>    of Runge's phenomenon. 
+<a name="l252"><span class="ln">252  </span></a> 
+<a name="l253"><span class="ln">253  </span></a>    See also 
+<a name="l254"><span class="ln">254  </span></a>    ======== 
+<a name="l255"><span class="ln">255  </span></a> 
+<a name="l256"><span class="ln">256  </span></a>    sympy.calculus.finite_diff.finite_diff_weights 
+<a name="l257"><span class="ln">257  </span></a> 
+<a name="l258"><span class="ln">258  </span></a>    References 
+<a name="l259"><span class="ln">259  </span></a>    ========== 
+<a name="l260"><span class="ln">260  </span></a> 
+<a name="l261"><span class="ln">261  </span></a>    Fortran 90 implementation with Python interface for numerics: finitediff_ 
+<a name="l262"><span class="ln">262  </span></a> 
+<a name="l263"><span class="ln">263  </span></a>    .. _finitediff: https://github.com/bjodah/finitediff 
+<a name="l264"><span class="ln">264  </span></a> 
+<a name="l265"><span class="ln">265  </span></a>    &quot;&quot;&quot;</span>
+<a name="l266"><span class="ln">266  </span></a>
+<a name="l267"><span class="ln">267  </span></a>    <span class="s0"># In the original paper the following holds for the notation:</span>
+<a name="l268"><span class="ln">268  </span></a>    <span class="s0"># M = order</span>
+<a name="l269"><span class="ln">269  </span></a>    <span class="s0"># N = len(x_list) - 1</span>
+<a name="l270"><span class="ln">270  </span></a>
+<a name="l271"><span class="ln">271  </span></a>    <span class="s1">N </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">x_list</span><span class="s3">) </span><span class="s2">- </span><span class="s5">1</span>
+<a name="l272"><span class="ln">272  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">x_list</span><span class="s3">) </span><span class="s2">!= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">y_list</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l273"><span class="ln">273  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;x_list and y_list not equal in length.&quot;</span><span class="s3">)</span>
+<a name="l274"><span class="ln">274  </span></a>
+<a name="l275"><span class="ln">275  </span></a>    <span class="s1">delta </span><span class="s2">= </span><span class="s1">finite_diff_weights</span><span class="s3">(</span><span class="s1">order</span><span class="s3">, </span><span class="s1">x_list</span><span class="s3">, </span><span class="s1">x0</span><span class="s3">)</span>
+<a name="l276"><span class="ln">276  </span></a>
+<a name="l277"><span class="ln">277  </span></a>    <span class="s1">derivative </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l278"><span class="ln">278  </span></a>    <span class="s2">for </span><span class="s1">nu </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">x_list</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l279"><span class="ln">279  </span></a>        <span class="s1">derivative </span><span class="s2">+= </span><span class="s1">delta</span><span class="s3">[</span><span class="s1">order</span><span class="s3">][</span><span class="s1">N</span><span class="s3">][</span><span class="s1">nu</span><span class="s3">]</span><span class="s2">*</span><span class="s1">y_list</span><span class="s3">[</span><span class="s1">nu</span><span class="s3">]</span>
+<a name="l280"><span class="ln">280  </span></a>    <span class="s2">return </span><span class="s1">derivative</span>
+<a name="l281"><span class="ln">281  </span></a>
+<a name="l282"><span class="ln">282  </span></a>
+<a name="l283"><span class="ln">283  </span></a><span class="s2">def </span><span class="s1">_as_finite_diff</span><span class="s3">(</span><span class="s1">derivative</span><span class="s3">, </span><span class="s1">points</span><span class="s2">=</span><span class="s5">1</span><span class="s3">, </span><span class="s1">x0</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">wrt</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l284"><span class="ln">284  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l285"><span class="ln">285  </span></a>    Returns an approximation of a derivative of a function in 
+<a name="l286"><span class="ln">286  </span></a>    the form of a finite difference formula. The expression is a 
+<a name="l287"><span class="ln">287  </span></a>    weighted sum of the function at a number of discrete values of 
+<a name="l288"><span class="ln">288  </span></a>    (one of) the independent variable(s). 
+<a name="l289"><span class="ln">289  </span></a> 
+<a name="l290"><span class="ln">290  </span></a>    Parameters 
+<a name="l291"><span class="ln">291  </span></a>    ========== 
+<a name="l292"><span class="ln">292  </span></a> 
+<a name="l293"><span class="ln">293  </span></a>    derivative: a Derivative instance 
+<a name="l294"><span class="ln">294  </span></a> 
+<a name="l295"><span class="ln">295  </span></a>    points: sequence or coefficient, optional 
+<a name="l296"><span class="ln">296  </span></a>        If sequence: discrete values (length &gt;= order+1) of the 
+<a name="l297"><span class="ln">297  </span></a>        independent variable used for generating the finite 
+<a name="l298"><span class="ln">298  </span></a>        difference weights. 
+<a name="l299"><span class="ln">299  </span></a>        If it is a coefficient, it will be used as the step-size 
+<a name="l300"><span class="ln">300  </span></a>        for generating an equidistant sequence of length order+1 
+<a name="l301"><span class="ln">301  </span></a>        centered around ``x0``. default: 1 (step-size 1) 
+<a name="l302"><span class="ln">302  </span></a> 
+<a name="l303"><span class="ln">303  </span></a>    x0: number or Symbol, optional 
+<a name="l304"><span class="ln">304  </span></a>        the value of the independent variable (``wrt``) at which the 
+<a name="l305"><span class="ln">305  </span></a>        derivative is to be approximated. Default: same as ``wrt``. 
+<a name="l306"><span class="ln">306  </span></a> 
+<a name="l307"><span class="ln">307  </span></a>    wrt: Symbol, optional 
+<a name="l308"><span class="ln">308  </span></a>        &quot;with respect to&quot; the variable for which the (partial) 
+<a name="l309"><span class="ln">309  </span></a>        derivative is to be approximated for. If not provided it 
+<a name="l310"><span class="ln">310  </span></a>        is required that the Derivative is ordinary. Default: ``None``. 
+<a name="l311"><span class="ln">311  </span></a> 
+<a name="l312"><span class="ln">312  </span></a>    Examples 
+<a name="l313"><span class="ln">313  </span></a>    ======== 
+<a name="l314"><span class="ln">314  </span></a> 
+<a name="l315"><span class="ln">315  </span></a>    &gt;&gt;&gt; from sympy import symbols, Function, exp, sqrt, Symbol 
+<a name="l316"><span class="ln">316  </span></a>    &gt;&gt;&gt; from sympy.calculus.finite_diff import _as_finite_diff 
+<a name="l317"><span class="ln">317  </span></a>    &gt;&gt;&gt; x, h = symbols('x h') 
+<a name="l318"><span class="ln">318  </span></a>    &gt;&gt;&gt; f = Function('f') 
+<a name="l319"><span class="ln">319  </span></a>    &gt;&gt;&gt; _as_finite_diff(f(x).diff(x)) 
+<a name="l320"><span class="ln">320  </span></a>    -f(x - 1/2) + f(x + 1/2) 
+<a name="l321"><span class="ln">321  </span></a> 
+<a name="l322"><span class="ln">322  </span></a>    The default step size and number of points are 1 and ``order + 1`` 
+<a name="l323"><span class="ln">323  </span></a>    respectively. We can change the step size by passing a symbol 
+<a name="l324"><span class="ln">324  </span></a>    as a parameter: 
+<a name="l325"><span class="ln">325  </span></a> 
+<a name="l326"><span class="ln">326  </span></a>    &gt;&gt;&gt; _as_finite_diff(f(x).diff(x), h) 
+<a name="l327"><span class="ln">327  </span></a>    -f(-h/2 + x)/h + f(h/2 + x)/h 
+<a name="l328"><span class="ln">328  </span></a> 
+<a name="l329"><span class="ln">329  </span></a>    We can also specify the discretized values to be used in a sequence: 
+<a name="l330"><span class="ln">330  </span></a> 
+<a name="l331"><span class="ln">331  </span></a>    &gt;&gt;&gt; _as_finite_diff(f(x).diff(x), [x, x+h, x+2*h]) 
+<a name="l332"><span class="ln">332  </span></a>    -3*f(x)/(2*h) + 2*f(h + x)/h - f(2*h + x)/(2*h) 
+<a name="l333"><span class="ln">333  </span></a> 
+<a name="l334"><span class="ln">334  </span></a>    The algorithm is not restricted to use equidistant spacing, nor 
+<a name="l335"><span class="ln">335  </span></a>    do we need to make the approximation around ``x0``, but we can get 
+<a name="l336"><span class="ln">336  </span></a>    an expression estimating the derivative at an offset: 
+<a name="l337"><span class="ln">337  </span></a> 
+<a name="l338"><span class="ln">338  </span></a>    &gt;&gt;&gt; e, sq2 = exp(1), sqrt(2) 
+<a name="l339"><span class="ln">339  </span></a>    &gt;&gt;&gt; xl = [x-h, x+h, x+e*h] 
+<a name="l340"><span class="ln">340  </span></a>    &gt;&gt;&gt; _as_finite_diff(f(x).diff(x, 1), xl, x+h*sq2) 
+<a name="l341"><span class="ln">341  </span></a>    2*h*((h + sqrt(2)*h)/(2*h) - (-sqrt(2)*h + h)/(2*h))*f(E*h + x)/((-h + E*h)*(h + E*h)) + 
+<a name="l342"><span class="ln">342  </span></a>    (-(-sqrt(2)*h + h)/(2*h) - (-sqrt(2)*h + E*h)/(2*h))*f(-h + x)/(h + E*h) + 
+<a name="l343"><span class="ln">343  </span></a>    (-(h + sqrt(2)*h)/(2*h) + (-sqrt(2)*h + E*h)/(2*h))*f(h + x)/(-h + E*h) 
+<a name="l344"><span class="ln">344  </span></a> 
+<a name="l345"><span class="ln">345  </span></a>    Partial derivatives are also supported: 
+<a name="l346"><span class="ln">346  </span></a> 
+<a name="l347"><span class="ln">347  </span></a>    &gt;&gt;&gt; y = Symbol('y') 
+<a name="l348"><span class="ln">348  </span></a>    &gt;&gt;&gt; d2fdxdy=f(x,y).diff(x,y) 
+<a name="l349"><span class="ln">349  </span></a>    &gt;&gt;&gt; _as_finite_diff(d2fdxdy, wrt=x) 
+<a name="l350"><span class="ln">350  </span></a>    -Derivative(f(x - 1/2, y), y) + Derivative(f(x + 1/2, y), y) 
+<a name="l351"><span class="ln">351  </span></a> 
+<a name="l352"><span class="ln">352  </span></a>    See also 
+<a name="l353"><span class="ln">353  </span></a>    ======== 
+<a name="l354"><span class="ln">354  </span></a> 
+<a name="l355"><span class="ln">355  </span></a>    sympy.calculus.finite_diff.apply_finite_diff 
+<a name="l356"><span class="ln">356  </span></a>    sympy.calculus.finite_diff.finite_diff_weights 
+<a name="l357"><span class="ln">357  </span></a> 
+<a name="l358"><span class="ln">358  </span></a>    &quot;&quot;&quot;</span>
+<a name="l359"><span class="ln">359  </span></a>    <span class="s2">if </span><span class="s1">derivative</span><span class="s3">.</span><span class="s1">is_Derivative</span><span class="s2">:</span>
+<a name="l360"><span class="ln">360  </span></a>        <span class="s2">pass</span>
+<a name="l361"><span class="ln">361  </span></a>    <span class="s2">elif </span><span class="s1">derivative</span><span class="s3">.</span><span class="s1">is_Atom</span><span class="s2">:</span>
+<a name="l362"><span class="ln">362  </span></a>        <span class="s2">return </span><span class="s1">derivative</span>
+<a name="l363"><span class="ln">363  </span></a>    <span class="s2">else:</span>
+<a name="l364"><span class="ln">364  </span></a>        <span class="s2">return </span><span class="s1">derivative</span><span class="s3">.</span><span class="s1">fromiter</span><span class="s3">(</span>
+<a name="l365"><span class="ln">365  </span></a>            <span class="s3">[</span><span class="s1">_as_finite_diff</span><span class="s3">(</span><span class="s1">ar</span><span class="s3">, </span><span class="s1">points</span><span class="s3">, </span><span class="s1">x0</span><span class="s3">, </span><span class="s1">wrt</span><span class="s3">) </span><span class="s2">for </span><span class="s1">ar</span>
+<a name="l366"><span class="ln">366  </span></a>             <span class="s2">in </span><span class="s1">derivative</span><span class="s3">.</span><span class="s1">args</span><span class="s3">], </span><span class="s2">**</span><span class="s1">derivative</span><span class="s3">.</span><span class="s1">assumptions0</span><span class="s3">)</span>
+<a name="l367"><span class="ln">367  </span></a>
+<a name="l368"><span class="ln">368  </span></a>    <span class="s2">if </span><span class="s1">wrt </span><span class="s2">is None:</span>
+<a name="l369"><span class="ln">369  </span></a>        <span class="s1">old </span><span class="s2">= None</span>
+<a name="l370"><span class="ln">370  </span></a>        <span class="s2">for </span><span class="s1">v </span><span class="s2">in </span><span class="s1">derivative</span><span class="s3">.</span><span class="s1">variables</span><span class="s2">:</span>
+<a name="l371"><span class="ln">371  </span></a>            <span class="s2">if </span><span class="s1">old </span><span class="s2">is </span><span class="s1">v</span><span class="s2">:</span>
+<a name="l372"><span class="ln">372  </span></a>                <span class="s2">continue</span>
+<a name="l373"><span class="ln">373  </span></a>            <span class="s1">derivative </span><span class="s2">= </span><span class="s1">_as_finite_diff</span><span class="s3">(</span><span class="s1">derivative</span><span class="s3">, </span><span class="s1">points</span><span class="s3">, </span><span class="s1">x0</span><span class="s3">, </span><span class="s1">v</span><span class="s3">)</span>
+<a name="l374"><span class="ln">374  </span></a>            <span class="s1">old </span><span class="s2">= </span><span class="s1">v</span>
+<a name="l375"><span class="ln">375  </span></a>        <span class="s2">return </span><span class="s1">derivative</span>
+<a name="l376"><span class="ln">376  </span></a>
+<a name="l377"><span class="ln">377  </span></a>    <span class="s1">order </span><span class="s2">= </span><span class="s1">derivative</span><span class="s3">.</span><span class="s1">variables</span><span class="s3">.</span><span class="s1">count</span><span class="s3">(</span><span class="s1">wrt</span><span class="s3">)</span>
+<a name="l378"><span class="ln">378  </span></a>
+<a name="l379"><span class="ln">379  </span></a>    <span class="s2">if </span><span class="s1">x0 </span><span class="s2">is None:</span>
+<a name="l380"><span class="ln">380  </span></a>        <span class="s1">x0 </span><span class="s2">= </span><span class="s1">wrt</span>
+<a name="l381"><span class="ln">381  </span></a>
+<a name="l382"><span class="ln">382  </span></a>    <span class="s2">if not </span><span class="s1">iterable</span><span class="s3">(</span><span class="s1">points</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l383"><span class="ln">383  </span></a>        <span class="s2">if </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">points</span><span class="s3">, </span><span class="s4">'is_Function'</span><span class="s3">, </span><span class="s2">False</span><span class="s3">) </span><span class="s2">and </span><span class="s1">wrt </span><span class="s2">in </span><span class="s1">points</span><span class="s3">.</span><span class="s1">args</span><span class="s2">:</span>
+<a name="l384"><span class="ln">384  </span></a>            <span class="s1">points </span><span class="s2">= </span><span class="s1">points</span><span class="s3">.</span><span class="s1">subs</span><span class="s3">(</span><span class="s1">wrt</span><span class="s3">, </span><span class="s1">x0</span><span class="s3">)</span>
+<a name="l385"><span class="ln">385  </span></a>        <span class="s0"># points is simply the step-size, let's make it a</span>
+<a name="l386"><span class="ln">386  </span></a>        <span class="s0"># equidistant sequence centered around x0</span>
+<a name="l387"><span class="ln">387  </span></a>        <span class="s2">if </span><span class="s1">order </span><span class="s2">% </span><span class="s5">2 </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l388"><span class="ln">388  </span></a>            <span class="s0"># even order =&gt; odd number of points, grid point included</span>
+<a name="l389"><span class="ln">389  </span></a>            <span class="s1">points </span><span class="s2">= </span><span class="s3">[</span><span class="s1">x0 </span><span class="s2">+ </span><span class="s1">points</span><span class="s2">*</span><span class="s1">i </span><span class="s2">for </span><span class="s1">i</span>
+<a name="l390"><span class="ln">390  </span></a>                      <span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s2">-</span><span class="s1">order</span><span class="s2">//</span><span class="s5">2</span><span class="s3">, </span><span class="s1">order</span><span class="s2">//</span><span class="s5">2 </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">)]</span>
+<a name="l391"><span class="ln">391  </span></a>        <span class="s2">else:</span>
+<a name="l392"><span class="ln">392  </span></a>            <span class="s0"># odd order =&gt; even number of points, half-way wrt grid point</span>
+<a name="l393"><span class="ln">393  </span></a>            <span class="s1">points </span><span class="s2">= </span><span class="s3">[</span><span class="s1">x0 </span><span class="s2">+ </span><span class="s1">points</span><span class="s2">*</span><span class="s1">S</span><span class="s3">(</span><span class="s1">i</span><span class="s3">)</span><span class="s2">/</span><span class="s5">2 </span><span class="s2">for </span><span class="s1">i</span>
+<a name="l394"><span class="ln">394  </span></a>                      <span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s2">-</span><span class="s1">order</span><span class="s3">, </span><span class="s1">order </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">, </span><span class="s5">2</span><span class="s3">)]</span>
+<a name="l395"><span class="ln">395  </span></a>    <span class="s1">others </span><span class="s2">= </span><span class="s3">[</span><span class="s1">wrt</span><span class="s3">, </span><span class="s5">0</span><span class="s3">]</span>
+<a name="l396"><span class="ln">396  </span></a>    <span class="s2">for </span><span class="s1">v </span><span class="s2">in </span><span class="s1">set</span><span class="s3">(</span><span class="s1">derivative</span><span class="s3">.</span><span class="s1">variables</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l397"><span class="ln">397  </span></a>        <span class="s2">if </span><span class="s1">v </span><span class="s2">== </span><span class="s1">wrt</span><span class="s2">:</span>
+<a name="l398"><span class="ln">398  </span></a>            <span class="s2">continue</span>
+<a name="l399"><span class="ln">399  </span></a>        <span class="s1">others </span><span class="s2">+= </span><span class="s3">[</span><span class="s1">v</span><span class="s3">, </span><span class="s1">derivative</span><span class="s3">.</span><span class="s1">variables</span><span class="s3">.</span><span class="s1">count</span><span class="s3">(</span><span class="s1">v</span><span class="s3">)]</span>
+<a name="l400"><span class="ln">400  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">points</span><span class="s3">) </span><span class="s2">&lt; </span><span class="s1">order</span><span class="s2">+</span><span class="s5">1</span><span class="s2">:</span>
+<a name="l401"><span class="ln">401  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;Too few points for order %d&quot; </span><span class="s2">% </span><span class="s1">order</span><span class="s3">)</span>
+<a name="l402"><span class="ln">402  </span></a>    <span class="s2">return </span><span class="s1">apply_finite_diff</span><span class="s3">(</span><span class="s1">order</span><span class="s3">, </span><span class="s1">points</span><span class="s3">, [</span>
+<a name="l403"><span class="ln">403  </span></a>        <span class="s1">Derivative</span><span class="s3">(</span><span class="s1">derivative</span><span class="s3">.</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">subs</span><span class="s3">({</span><span class="s1">wrt</span><span class="s2">: </span><span class="s1">x</span><span class="s3">}), </span><span class="s2">*</span><span class="s1">others</span><span class="s3">) </span><span class="s2">for</span>
+<a name="l404"><span class="ln">404  </span></a>        <span class="s1">x </span><span class="s2">in </span><span class="s1">points</span><span class="s3">], </span><span class="s1">x0</span><span class="s3">)</span>
+<a name="l405"><span class="ln">405  </span></a>
+<a name="l406"><span class="ln">406  </span></a>
+<a name="l407"><span class="ln">407  </span></a><span class="s2">def </span><span class="s1">differentiate_finite</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s2">*</span><span class="s1">symbols</span><span class="s3">,</span>
+<a name="l408"><span class="ln">408  </span></a>                         <span class="s1">points</span><span class="s2">=</span><span class="s5">1</span><span class="s3">, </span><span class="s1">x0</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">wrt</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">evaluate</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l409"><span class="ln">409  </span></a>    <span class="s0">r&quot;&quot;&quot; Differentiate expr and replace Derivatives with finite differences. 
+<a name="l410"><span class="ln">410  </span></a> 
+<a name="l411"><span class="ln">411  </span></a>    Parameters 
+<a name="l412"><span class="ln">412  </span></a>    ========== 
+<a name="l413"><span class="ln">413  </span></a> 
+<a name="l414"><span class="ln">414  </span></a>    expr : expression 
+<a name="l415"><span class="ln">415  </span></a>    \*symbols : differentiate with respect to symbols 
+<a name="l416"><span class="ln">416  </span></a>    points: sequence, coefficient or undefined function, optional 
+<a name="l417"><span class="ln">417  </span></a>        see ``Derivative.as_finite_difference`` 
+<a name="l418"><span class="ln">418  </span></a>    x0: number or Symbol, optional 
+<a name="l419"><span class="ln">419  </span></a>        see ``Derivative.as_finite_difference`` 
+<a name="l420"><span class="ln">420  </span></a>    wrt: Symbol, optional 
+<a name="l421"><span class="ln">421  </span></a>        see ``Derivative.as_finite_difference`` 
+<a name="l422"><span class="ln">422  </span></a> 
+<a name="l423"><span class="ln">423  </span></a>    Examples 
+<a name="l424"><span class="ln">424  </span></a>    ======== 
+<a name="l425"><span class="ln">425  </span></a> 
+<a name="l426"><span class="ln">426  </span></a>    &gt;&gt;&gt; from sympy import sin, Function, differentiate_finite 
+<a name="l427"><span class="ln">427  </span></a>    &gt;&gt;&gt; from sympy.abc import x, y, h 
+<a name="l428"><span class="ln">428  </span></a>    &gt;&gt;&gt; f, g = Function('f'), Function('g') 
+<a name="l429"><span class="ln">429  </span></a>    &gt;&gt;&gt; differentiate_finite(f(x)*g(x), x, points=[x-h, x+h]) 
+<a name="l430"><span class="ln">430  </span></a>    -f(-h + x)*g(-h + x)/(2*h) + f(h + x)*g(h + x)/(2*h) 
+<a name="l431"><span class="ln">431  </span></a> 
+<a name="l432"><span class="ln">432  </span></a>    ``differentiate_finite`` works on any expression, including the expressions 
+<a name="l433"><span class="ln">433  </span></a>    with embedded derivatives: 
+<a name="l434"><span class="ln">434  </span></a> 
+<a name="l435"><span class="ln">435  </span></a>    &gt;&gt;&gt; differentiate_finite(f(x) + sin(x), x, 2) 
+<a name="l436"><span class="ln">436  </span></a>    -2*f(x) + f(x - 1) + f(x + 1) - 2*sin(x) + sin(x - 1) + sin(x + 1) 
+<a name="l437"><span class="ln">437  </span></a>    &gt;&gt;&gt; differentiate_finite(f(x, y), x, y) 
+<a name="l438"><span class="ln">438  </span></a>    f(x - 1/2, y - 1/2) - f(x - 1/2, y + 1/2) - f(x + 1/2, y - 1/2) + f(x + 1/2, y + 1/2) 
+<a name="l439"><span class="ln">439  </span></a>    &gt;&gt;&gt; differentiate_finite(f(x)*g(x).diff(x), x) 
+<a name="l440"><span class="ln">440  </span></a>    (-g(x) + g(x + 1))*f(x + 1/2) - (g(x) - g(x - 1))*f(x - 1/2) 
+<a name="l441"><span class="ln">441  </span></a> 
+<a name="l442"><span class="ln">442  </span></a>    To make finite difference with non-constant discretization step use 
+<a name="l443"><span class="ln">443  </span></a>    undefined functions: 
+<a name="l444"><span class="ln">444  </span></a> 
+<a name="l445"><span class="ln">445  </span></a>    &gt;&gt;&gt; dx = Function('dx') 
+<a name="l446"><span class="ln">446  </span></a>    &gt;&gt;&gt; differentiate_finite(f(x)*g(x).diff(x), points=dx(x)) 
+<a name="l447"><span class="ln">447  </span></a>    -(-g(x - dx(x)/2 - dx(x - dx(x)/2)/2)/dx(x - dx(x)/2) + 
+<a name="l448"><span class="ln">448  </span></a>    g(x - dx(x)/2 + dx(x - dx(x)/2)/2)/dx(x - dx(x)/2))*f(x - dx(x)/2)/dx(x) + 
+<a name="l449"><span class="ln">449  </span></a>    (-g(x + dx(x)/2 - dx(x + dx(x)/2)/2)/dx(x + dx(x)/2) + 
+<a name="l450"><span class="ln">450  </span></a>    g(x + dx(x)/2 + dx(x + dx(x)/2)/2)/dx(x + dx(x)/2))*f(x + dx(x)/2)/dx(x) 
+<a name="l451"><span class="ln">451  </span></a> 
+<a name="l452"><span class="ln">452  </span></a>    &quot;&quot;&quot;</span>
+<a name="l453"><span class="ln">453  </span></a>    <span class="s2">if </span><span class="s1">any</span><span class="s3">(</span><span class="s1">term</span><span class="s3">.</span><span class="s1">is_Derivative </span><span class="s2">for </span><span class="s1">term </span><span class="s2">in </span><span class="s1">list</span><span class="s3">(</span><span class="s1">preorder_traversal</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">)))</span><span class="s2">:</span>
+<a name="l454"><span class="ln">454  </span></a>        <span class="s1">evaluate </span><span class="s2">= False</span>
+<a name="l455"><span class="ln">455  </span></a>
+<a name="l456"><span class="ln">456  </span></a>    <span class="s1">Dexpr </span><span class="s2">= </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s2">*</span><span class="s1">symbols</span><span class="s3">, </span><span class="s1">evaluate</span><span class="s2">=</span><span class="s1">evaluate</span><span class="s3">)</span>
+<a name="l457"><span class="ln">457  </span></a>    <span class="s2">if </span><span class="s1">evaluate</span><span class="s2">:</span>
+<a name="l458"><span class="ln">458  </span></a>        <span class="s1">sympy_deprecation_warning</span><span class="s3">(</span><span class="s4">&quot;&quot;&quot; 
+<a name="l459"><span class="ln">459  </span></a>        The evaluate flag to differentiate_finite() is deprecated. 
+<a name="l460"><span class="ln">460  </span></a> 
+<a name="l461"><span class="ln">461  </span></a>        evaluate=True expands the intermediate derivatives before computing 
+<a name="l462"><span class="ln">462  </span></a>        differences, but this usually not what you want, as it does not 
+<a name="l463"><span class="ln">463  </span></a>        satisfy the product rule. 
+<a name="l464"><span class="ln">464  </span></a>        &quot;&quot;&quot;</span><span class="s3">,</span>
+<a name="l465"><span class="ln">465  </span></a>            <span class="s1">deprecated_since_version</span><span class="s2">=</span><span class="s4">&quot;1.5&quot;</span><span class="s3">,</span>
+<a name="l466"><span class="ln">466  </span></a>             <span class="s1">active_deprecations_target</span><span class="s2">=</span><span class="s4">&quot;deprecated-differentiate_finite-evaluate&quot;</span><span class="s3">,</span>
+<a name="l467"><span class="ln">467  </span></a>        <span class="s3">)</span>
+<a name="l468"><span class="ln">468  </span></a>        <span class="s2">return </span><span class="s1">Dexpr</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span>
+<a name="l469"><span class="ln">469  </span></a>            <span class="s2">lambda </span><span class="s1">arg</span><span class="s2">: </span><span class="s1">arg</span><span class="s3">.</span><span class="s1">is_Derivative</span><span class="s3">,</span>
+<a name="l470"><span class="ln">470  </span></a>            <span class="s2">lambda </span><span class="s1">arg</span><span class="s2">: </span><span class="s1">arg</span><span class="s3">.</span><span class="s1">as_finite_difference</span><span class="s3">(</span><span class="s1">points</span><span class="s2">=</span><span class="s1">points</span><span class="s3">, </span><span class="s1">x0</span><span class="s2">=</span><span class="s1">x0</span><span class="s3">, </span><span class="s1">wrt</span><span class="s2">=</span><span class="s1">wrt</span><span class="s3">))</span>
+<a name="l471"><span class="ln">471  </span></a>    <span class="s2">else:</span>
+<a name="l472"><span class="ln">472  </span></a>        <span class="s1">DFexpr </span><span class="s2">= </span><span class="s1">Dexpr</span><span class="s3">.</span><span class="s1">as_finite_difference</span><span class="s3">(</span><span class="s1">points</span><span class="s2">=</span><span class="s1">points</span><span class="s3">, </span><span class="s1">x0</span><span class="s2">=</span><span class="s1">x0</span><span class="s3">, </span><span class="s1">wrt</span><span class="s2">=</span><span class="s1">wrt</span><span class="s3">)</span>
+<a name="l473"><span class="ln">473  </span></a>        <span class="s2">return </span><span class="s1">DFexpr</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span>
+<a name="l474"><span class="ln">474  </span></a>            <span class="s2">lambda </span><span class="s1">arg</span><span class="s2">: </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">Subs</span><span class="s3">),</span>
+<a name="l475"><span class="ln">475  </span></a>            <span class="s2">lambda </span><span class="s1">arg</span><span class="s2">: </span><span class="s1">arg</span><span class="s3">.</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">as_finite_difference</span><span class="s3">(</span>
+<a name="l476"><span class="ln">476  </span></a>                    <span class="s1">points</span><span class="s2">=</span><span class="s1">points</span><span class="s3">, </span><span class="s1">x0</span><span class="s2">=</span><span class="s1">arg</span><span class="s3">.</span><span class="s1">point</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">wrt</span><span class="s2">=</span><span class="s1">arg</span><span class="s3">.</span><span class="s1">variables</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]))</span>
+<a name="l477"><span class="ln">477  </span></a></pre>
+</body>
+</html>

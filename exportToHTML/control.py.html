@@ -1,0 +1,242 @@
+<html>
+<head>
+<title>control.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #0086b3;}
+.s4 { color: #969896;}
+.s5 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+control.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">import </span><span class="s1">time</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s1">typing </span><span class="s0">import </span><span class="s1">TYPE_CHECKING</span><span class="s2">, </span><span class="s1">Callable</span><span class="s2">, </span><span class="s1">Dict</span><span class="s2">, </span><span class="s1">Iterable</span><span class="s2">, </span><span class="s1">List</span><span class="s2">, </span><span class="s1">Union</span><span class="s2">, </span><span class="s1">Final</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">segment </span><span class="s0">import </span><span class="s1">ControlCode</span><span class="s2">, </span><span class="s1">ControlType</span><span class="s2">, </span><span class="s1">Segment</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">if </span><span class="s1">TYPE_CHECKING</span><span class="s0">:</span>
+<a name="l7"><span class="ln">7    </span></a>    <span class="s0">from </span><span class="s2">.</span><span class="s1">console </span><span class="s0">import </span><span class="s1">Console</span><span class="s2">, </span><span class="s1">ConsoleOptions</span><span class="s2">, </span><span class="s1">RenderResult</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">STRIP_CONTROL_CODES</span><span class="s0">: </span><span class="s1">Final </span><span class="s0">= </span><span class="s2">[</span>
+<a name="l10"><span class="ln">10   </span></a>    <span class="s3">7</span><span class="s2">,  </span><span class="s4"># Bell</span>
+<a name="l11"><span class="ln">11   </span></a>    <span class="s3">8</span><span class="s2">,  </span><span class="s4"># Backspace</span>
+<a name="l12"><span class="ln">12   </span></a>    <span class="s3">11</span><span class="s2">,  </span><span class="s4"># Vertical tab</span>
+<a name="l13"><span class="ln">13   </span></a>    <span class="s3">12</span><span class="s2">,  </span><span class="s4"># Form feed</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s3">13</span><span class="s2">,  </span><span class="s4"># Carriage return</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">]</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s1">_CONTROL_STRIP_TRANSLATE</span><span class="s0">: </span><span class="s1">Final </span><span class="s0">= </span><span class="s2">{</span>
+<a name="l17"><span class="ln">17   </span></a>    <span class="s1">_codepoint</span><span class="s0">: None for </span><span class="s1">_codepoint </span><span class="s0">in </span><span class="s1">STRIP_CONTROL_CODES</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s2">}</span>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a><span class="s1">CONTROL_ESCAPE</span><span class="s0">: </span><span class="s1">Final </span><span class="s0">= </span><span class="s2">{</span>
+<a name="l21"><span class="ln">21   </span></a>    <span class="s3">7</span><span class="s0">: </span><span class="s5">&quot;\\a&quot;</span><span class="s2">,</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s3">8</span><span class="s0">: </span><span class="s5">&quot;\\b&quot;</span><span class="s2">,</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s3">11</span><span class="s0">: </span><span class="s5">&quot;\\v&quot;</span><span class="s2">,</span>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s3">12</span><span class="s0">: </span><span class="s5">&quot;\\f&quot;</span><span class="s2">,</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s3">13</span><span class="s0">: </span><span class="s5">&quot;\\r&quot;</span><span class="s2">,</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s2">}</span>
+<a name="l27"><span class="ln">27   </span></a>
+<a name="l28"><span class="ln">28   </span></a><span class="s1">CONTROL_CODES_FORMAT</span><span class="s0">: </span><span class="s1">Dict</span><span class="s2">[</span><span class="s1">int</span><span class="s2">, </span><span class="s1">Callable</span><span class="s2">[..., </span><span class="s1">str</span><span class="s2">]] </span><span class="s0">= </span><span class="s2">{</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">BELL</span><span class="s0">: lambda: </span><span class="s5">&quot;\x07&quot;</span><span class="s2">,</span>
+<a name="l30"><span class="ln">30   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CARRIAGE_RETURN</span><span class="s0">: lambda: </span><span class="s5">&quot;\r&quot;</span><span class="s2">,</span>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">HOME</span><span class="s0">: lambda: </span><span class="s5">&quot;\x1b[H&quot;</span><span class="s2">,</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CLEAR</span><span class="s0">: lambda: </span><span class="s5">&quot;\x1b[2J&quot;</span><span class="s2">,</span>
+<a name="l33"><span class="ln">33   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">ENABLE_ALT_SCREEN</span><span class="s0">: lambda: </span><span class="s5">&quot;\x1b[?1049h&quot;</span><span class="s2">,</span>
+<a name="l34"><span class="ln">34   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">DISABLE_ALT_SCREEN</span><span class="s0">: lambda: </span><span class="s5">&quot;\x1b[?1049l&quot;</span><span class="s2">,</span>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">SHOW_CURSOR</span><span class="s0">: lambda: </span><span class="s5">&quot;\x1b[?25h&quot;</span><span class="s2">,</span>
+<a name="l36"><span class="ln">36   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">HIDE_CURSOR</span><span class="s0">: lambda: </span><span class="s5">&quot;\x1b[?25l&quot;</span><span class="s2">,</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CURSOR_UP</span><span class="s0">: lambda </span><span class="s1">param</span><span class="s0">: </span><span class="s5">f&quot;\x1b[{</span><span class="s1">param</span><span class="s5">}A&quot;</span><span class="s2">,</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CURSOR_DOWN</span><span class="s0">: lambda </span><span class="s1">param</span><span class="s0">: </span><span class="s5">f&quot;\x1b[{</span><span class="s1">param</span><span class="s5">}B&quot;</span><span class="s2">,</span>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CURSOR_FORWARD</span><span class="s0">: lambda </span><span class="s1">param</span><span class="s0">: </span><span class="s5">f&quot;\x1b[{</span><span class="s1">param</span><span class="s5">}C&quot;</span><span class="s2">,</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CURSOR_BACKWARD</span><span class="s0">: lambda </span><span class="s1">param</span><span class="s0">: </span><span class="s5">f&quot;\x1b[{</span><span class="s1">param</span><span class="s5">}D&quot;</span><span class="s2">,</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CURSOR_MOVE_TO_COLUMN</span><span class="s0">: lambda </span><span class="s1">param</span><span class="s0">: </span><span class="s5">f&quot;\x1b[{</span><span class="s1">param</span><span class="s0">+</span><span class="s3">1</span><span class="s5">}G&quot;</span><span class="s2">,</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">ERASE_IN_LINE</span><span class="s0">: lambda </span><span class="s1">param</span><span class="s0">: </span><span class="s5">f&quot;\x1b[{</span><span class="s1">param</span><span class="s5">}K&quot;</span><span class="s2">,</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CURSOR_MOVE_TO</span><span class="s0">: lambda </span><span class="s1">x</span><span class="s2">, </span><span class="s1">y</span><span class="s0">: </span><span class="s5">f&quot;\x1b[{</span><span class="s1">y</span><span class="s0">+</span><span class="s3">1</span><span class="s5">};{</span><span class="s1">x</span><span class="s0">+</span><span class="s3">1</span><span class="s5">}H&quot;</span><span class="s2">,</span>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">SET_WINDOW_TITLE</span><span class="s0">: lambda </span><span class="s1">title</span><span class="s0">: </span><span class="s5">f&quot;\x1b]0;{</span><span class="s1">title</span><span class="s5">}\x07&quot;</span><span class="s2">,</span>
+<a name="l45"><span class="ln">45   </span></a><span class="s2">}</span>
+<a name="l46"><span class="ln">46   </span></a>
+<a name="l47"><span class="ln">47   </span></a>
+<a name="l48"><span class="ln">48   </span></a><span class="s0">class </span><span class="s1">Control</span><span class="s0">:</span>
+<a name="l49"><span class="ln">49   </span></a>    <span class="s4">&quot;&quot;&quot;A renderable that inserts a control code (non printable but may move cursor). 
+<a name="l50"><span class="ln">50   </span></a> 
+<a name="l51"><span class="ln">51   </span></a>    Args: 
+<a name="l52"><span class="ln">52   </span></a>        *codes (str): Positional arguments are either a :class:`~rich.segment.ControlType` enum or a 
+<a name="l53"><span class="ln">53   </span></a>            tuple of ControlType and an integer parameter 
+<a name="l54"><span class="ln">54   </span></a>    &quot;&quot;&quot;</span>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a>    <span class="s1">__slots__ </span><span class="s0">= </span><span class="s2">[</span><span class="s5">&quot;segment&quot;</span><span class="s2">]</span>
+<a name="l57"><span class="ln">57   </span></a>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s0">def </span><span class="s1">__init__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s0">*</span><span class="s1">codes</span><span class="s0">: </span><span class="s1">Union</span><span class="s2">[</span><span class="s1">ControlType</span><span class="s2">, </span><span class="s1">ControlCode</span><span class="s2">]) </span><span class="s1">-&gt; </span><span class="s0">None:</span>
+<a name="l59"><span class="ln">59   </span></a>        <span class="s1">control_codes</span><span class="s0">: </span><span class="s1">List</span><span class="s2">[</span><span class="s1">ControlCode</span><span class="s2">] </span><span class="s0">= </span><span class="s2">[</span>
+<a name="l60"><span class="ln">60   </span></a>            <span class="s2">(</span><span class="s1">code</span><span class="s2">,) </span><span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">code</span><span class="s2">, </span><span class="s1">ControlType</span><span class="s2">) </span><span class="s0">else </span><span class="s1">code </span><span class="s0">for </span><span class="s1">code </span><span class="s0">in </span><span class="s1">codes</span>
+<a name="l61"><span class="ln">61   </span></a>        <span class="s2">]</span>
+<a name="l62"><span class="ln">62   </span></a>        <span class="s1">_format_map </span><span class="s0">= </span><span class="s1">CONTROL_CODES_FORMAT</span>
+<a name="l63"><span class="ln">63   </span></a>        <span class="s1">rendered_codes </span><span class="s0">= </span><span class="s5">&quot;&quot;</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span>
+<a name="l64"><span class="ln">64   </span></a>            <span class="s1">_format_map</span><span class="s2">[</span><span class="s1">code</span><span class="s2">](</span><span class="s0">*</span><span class="s1">parameters</span><span class="s2">) </span><span class="s0">for </span><span class="s1">code</span><span class="s2">, </span><span class="s0">*</span><span class="s1">parameters </span><span class="s0">in </span><span class="s1">control_codes</span>
+<a name="l65"><span class="ln">65   </span></a>        <span class="s2">)</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">segment </span><span class="s0">= </span><span class="s1">Segment</span><span class="s2">(</span><span class="s1">rendered_codes</span><span class="s2">, </span><span class="s0">None</span><span class="s2">, </span><span class="s1">control_codes</span><span class="s2">)</span>
+<a name="l67"><span class="ln">67   </span></a>
+<a name="l68"><span class="ln">68   </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l69"><span class="ln">69   </span></a>    <span class="s0">def </span><span class="s1">bell</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s5">&quot;Control&quot;</span><span class="s0">:</span>
+<a name="l70"><span class="ln">70   </span></a>        <span class="s4">&quot;&quot;&quot;Ring the 'bell'.&quot;&quot;&quot;</span>
+<a name="l71"><span class="ln">71   </span></a>        <span class="s0">return </span><span class="s1">cls</span><span class="s2">(</span><span class="s1">ControlType</span><span class="s2">.</span><span class="s1">BELL</span><span class="s2">)</span>
+<a name="l72"><span class="ln">72   </span></a>
+<a name="l73"><span class="ln">73   </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l74"><span class="ln">74   </span></a>    <span class="s0">def </span><span class="s1">home</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s5">&quot;Control&quot;</span><span class="s0">:</span>
+<a name="l75"><span class="ln">75   </span></a>        <span class="s4">&quot;&quot;&quot;Move cursor to 'home' position.&quot;&quot;&quot;</span>
+<a name="l76"><span class="ln">76   </span></a>        <span class="s0">return </span><span class="s1">cls</span><span class="s2">(</span><span class="s1">ControlType</span><span class="s2">.</span><span class="s1">HOME</span><span class="s2">)</span>
+<a name="l77"><span class="ln">77   </span></a>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l79"><span class="ln">79   </span></a>    <span class="s0">def </span><span class="s1">move</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">x</span><span class="s0">: </span><span class="s1">int </span><span class="s0">= </span><span class="s3">0</span><span class="s2">, </span><span class="s1">y</span><span class="s0">: </span><span class="s1">int </span><span class="s0">= </span><span class="s3">0</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s5">&quot;Control&quot;</span><span class="s0">:</span>
+<a name="l80"><span class="ln">80   </span></a>        <span class="s4">&quot;&quot;&quot;Move cursor relative to current position. 
+<a name="l81"><span class="ln">81   </span></a> 
+<a name="l82"><span class="ln">82   </span></a>        Args: 
+<a name="l83"><span class="ln">83   </span></a>            x (int): X offset. 
+<a name="l84"><span class="ln">84   </span></a>            y (int): Y offset. 
+<a name="l85"><span class="ln">85   </span></a> 
+<a name="l86"><span class="ln">86   </span></a>        Returns: 
+<a name="l87"><span class="ln">87   </span></a>            ~Control: Control object. 
+<a name="l88"><span class="ln">88   </span></a> 
+<a name="l89"><span class="ln">89   </span></a>        &quot;&quot;&quot;</span>
+<a name="l90"><span class="ln">90   </span></a>
+<a name="l91"><span class="ln">91   </span></a>        <span class="s0">def </span><span class="s1">get_codes</span><span class="s2">() </span><span class="s1">-&gt; Iterable</span><span class="s2">[</span><span class="s1">ControlCode</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l92"><span class="ln">92   </span></a>            <span class="s1">control </span><span class="s0">= </span><span class="s1">ControlType</span>
+<a name="l93"><span class="ln">93   </span></a>            <span class="s0">if </span><span class="s1">x</span><span class="s0">:</span>
+<a name="l94"><span class="ln">94   </span></a>                <span class="s0">yield </span><span class="s2">(</span>
+<a name="l95"><span class="ln">95   </span></a>                    <span class="s1">control</span><span class="s2">.</span><span class="s1">CURSOR_FORWARD </span><span class="s0">if </span><span class="s1">x </span><span class="s0">&gt; </span><span class="s3">0 </span><span class="s0">else </span><span class="s1">control</span><span class="s2">.</span><span class="s1">CURSOR_BACKWARD</span><span class="s2">,</span>
+<a name="l96"><span class="ln">96   </span></a>                    <span class="s1">abs</span><span class="s2">(</span><span class="s1">x</span><span class="s2">),</span>
+<a name="l97"><span class="ln">97   </span></a>                <span class="s2">)</span>
+<a name="l98"><span class="ln">98   </span></a>            <span class="s0">if </span><span class="s1">y</span><span class="s0">:</span>
+<a name="l99"><span class="ln">99   </span></a>                <span class="s0">yield </span><span class="s2">(</span>
+<a name="l100"><span class="ln">100  </span></a>                    <span class="s1">control</span><span class="s2">.</span><span class="s1">CURSOR_DOWN </span><span class="s0">if </span><span class="s1">y </span><span class="s0">&gt; </span><span class="s3">0 </span><span class="s0">else </span><span class="s1">control</span><span class="s2">.</span><span class="s1">CURSOR_UP</span><span class="s2">,</span>
+<a name="l101"><span class="ln">101  </span></a>                    <span class="s1">abs</span><span class="s2">(</span><span class="s1">y</span><span class="s2">),</span>
+<a name="l102"><span class="ln">102  </span></a>                <span class="s2">)</span>
+<a name="l103"><span class="ln">103  </span></a>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s1">control </span><span class="s0">= </span><span class="s1">cls</span><span class="s2">(</span><span class="s0">*</span><span class="s1">get_codes</span><span class="s2">())</span>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s0">return </span><span class="s1">control</span>
+<a name="l106"><span class="ln">106  </span></a>
+<a name="l107"><span class="ln">107  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l108"><span class="ln">108  </span></a>    <span class="s0">def </span><span class="s1">move_to_column</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">x</span><span class="s0">: </span><span class="s1">int</span><span class="s2">, </span><span class="s1">y</span><span class="s0">: </span><span class="s1">int </span><span class="s0">= </span><span class="s3">0</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s5">&quot;Control&quot;</span><span class="s0">:</span>
+<a name="l109"><span class="ln">109  </span></a>        <span class="s4">&quot;&quot;&quot;Move to the given column, optionally add offset to row. 
+<a name="l110"><span class="ln">110  </span></a> 
+<a name="l111"><span class="ln">111  </span></a>        Returns: 
+<a name="l112"><span class="ln">112  </span></a>            x (int): absolute x (column) 
+<a name="l113"><span class="ln">113  </span></a>            y (int): optional y offset (row) 
+<a name="l114"><span class="ln">114  </span></a> 
+<a name="l115"><span class="ln">115  </span></a>        Returns: 
+<a name="l116"><span class="ln">116  </span></a>            ~Control: Control object. 
+<a name="l117"><span class="ln">117  </span></a>        &quot;&quot;&quot;</span>
+<a name="l118"><span class="ln">118  </span></a>
+<a name="l119"><span class="ln">119  </span></a>        <span class="s0">return </span><span class="s2">(</span>
+<a name="l120"><span class="ln">120  </span></a>            <span class="s1">cls</span><span class="s2">(</span>
+<a name="l121"><span class="ln">121  </span></a>                <span class="s2">(</span><span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CURSOR_MOVE_TO_COLUMN</span><span class="s2">, </span><span class="s1">x</span><span class="s2">),</span>
+<a name="l122"><span class="ln">122  </span></a>                <span class="s2">(</span>
+<a name="l123"><span class="ln">123  </span></a>                    <span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CURSOR_DOWN </span><span class="s0">if </span><span class="s1">y </span><span class="s0">&gt; </span><span class="s3">0 </span><span class="s0">else </span><span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CURSOR_UP</span><span class="s2">,</span>
+<a name="l124"><span class="ln">124  </span></a>                    <span class="s1">abs</span><span class="s2">(</span><span class="s1">y</span><span class="s2">),</span>
+<a name="l125"><span class="ln">125  </span></a>                <span class="s2">),</span>
+<a name="l126"><span class="ln">126  </span></a>            <span class="s2">)</span>
+<a name="l127"><span class="ln">127  </span></a>            <span class="s0">if </span><span class="s1">y</span>
+<a name="l128"><span class="ln">128  </span></a>            <span class="s0">else </span><span class="s1">cls</span><span class="s2">((</span><span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CURSOR_MOVE_TO_COLUMN</span><span class="s2">, </span><span class="s1">x</span><span class="s2">))</span>
+<a name="l129"><span class="ln">129  </span></a>        <span class="s2">)</span>
+<a name="l130"><span class="ln">130  </span></a>
+<a name="l131"><span class="ln">131  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l132"><span class="ln">132  </span></a>    <span class="s0">def </span><span class="s1">move_to</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">x</span><span class="s0">: </span><span class="s1">int</span><span class="s2">, </span><span class="s1">y</span><span class="s0">: </span><span class="s1">int</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s5">&quot;Control&quot;</span><span class="s0">:</span>
+<a name="l133"><span class="ln">133  </span></a>        <span class="s4">&quot;&quot;&quot;Move cursor to absolute position. 
+<a name="l134"><span class="ln">134  </span></a> 
+<a name="l135"><span class="ln">135  </span></a>        Args: 
+<a name="l136"><span class="ln">136  </span></a>            x (int): x offset (column) 
+<a name="l137"><span class="ln">137  </span></a>            y (int): y offset (row) 
+<a name="l138"><span class="ln">138  </span></a> 
+<a name="l139"><span class="ln">139  </span></a>        Returns: 
+<a name="l140"><span class="ln">140  </span></a>            ~Control: Control object. 
+<a name="l141"><span class="ln">141  </span></a>        &quot;&quot;&quot;</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s0">return </span><span class="s1">cls</span><span class="s2">((</span><span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CURSOR_MOVE_TO</span><span class="s2">, </span><span class="s1">x</span><span class="s2">, </span><span class="s1">y</span><span class="s2">))</span>
+<a name="l143"><span class="ln">143  </span></a>
+<a name="l144"><span class="ln">144  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s0">def </span><span class="s1">clear</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s5">&quot;Control&quot;</span><span class="s0">:</span>
+<a name="l146"><span class="ln">146  </span></a>        <span class="s4">&quot;&quot;&quot;Clear the screen.&quot;&quot;&quot;</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s0">return </span><span class="s1">cls</span><span class="s2">(</span><span class="s1">ControlType</span><span class="s2">.</span><span class="s1">CLEAR</span><span class="s2">)</span>
+<a name="l148"><span class="ln">148  </span></a>
+<a name="l149"><span class="ln">149  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l150"><span class="ln">150  </span></a>    <span class="s0">def </span><span class="s1">show_cursor</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">show</span><span class="s0">: </span><span class="s1">bool</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s5">&quot;Control&quot;</span><span class="s0">:</span>
+<a name="l151"><span class="ln">151  </span></a>        <span class="s4">&quot;&quot;&quot;Show or hide the cursor.&quot;&quot;&quot;</span>
+<a name="l152"><span class="ln">152  </span></a>        <span class="s0">return </span><span class="s1">cls</span><span class="s2">(</span><span class="s1">ControlType</span><span class="s2">.</span><span class="s1">SHOW_CURSOR </span><span class="s0">if </span><span class="s1">show </span><span class="s0">else </span><span class="s1">ControlType</span><span class="s2">.</span><span class="s1">HIDE_CURSOR</span><span class="s2">)</span>
+<a name="l153"><span class="ln">153  </span></a>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l155"><span class="ln">155  </span></a>    <span class="s0">def </span><span class="s1">alt_screen</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">enable</span><span class="s0">: </span><span class="s1">bool</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s5">&quot;Control&quot;</span><span class="s0">:</span>
+<a name="l156"><span class="ln">156  </span></a>        <span class="s4">&quot;&quot;&quot;Enable or disable alt screen.&quot;&quot;&quot;</span>
+<a name="l157"><span class="ln">157  </span></a>        <span class="s0">if </span><span class="s1">enable</span><span class="s0">:</span>
+<a name="l158"><span class="ln">158  </span></a>            <span class="s0">return </span><span class="s1">cls</span><span class="s2">(</span><span class="s1">ControlType</span><span class="s2">.</span><span class="s1">ENABLE_ALT_SCREEN</span><span class="s2">, </span><span class="s1">ControlType</span><span class="s2">.</span><span class="s1">HOME</span><span class="s2">)</span>
+<a name="l159"><span class="ln">159  </span></a>        <span class="s0">else:</span>
+<a name="l160"><span class="ln">160  </span></a>            <span class="s0">return </span><span class="s1">cls</span><span class="s2">(</span><span class="s1">ControlType</span><span class="s2">.</span><span class="s1">DISABLE_ALT_SCREEN</span><span class="s2">)</span>
+<a name="l161"><span class="ln">161  </span></a>
+<a name="l162"><span class="ln">162  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l163"><span class="ln">163  </span></a>    <span class="s0">def </span><span class="s1">title</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">title</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s5">&quot;Control&quot;</span><span class="s0">:</span>
+<a name="l164"><span class="ln">164  </span></a>        <span class="s4">&quot;&quot;&quot;Set the terminal window title 
+<a name="l165"><span class="ln">165  </span></a> 
+<a name="l166"><span class="ln">166  </span></a>        Args: 
+<a name="l167"><span class="ln">167  </span></a>            title (str): The new terminal window title 
+<a name="l168"><span class="ln">168  </span></a>        &quot;&quot;&quot;</span>
+<a name="l169"><span class="ln">169  </span></a>        <span class="s0">return </span><span class="s1">cls</span><span class="s2">((</span><span class="s1">ControlType</span><span class="s2">.</span><span class="s1">SET_WINDOW_TITLE</span><span class="s2">, </span><span class="s1">title</span><span class="s2">))</span>
+<a name="l170"><span class="ln">170  </span></a>
+<a name="l171"><span class="ln">171  </span></a>    <span class="s0">def </span><span class="s1">__str__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; str</span><span class="s0">:</span>
+<a name="l172"><span class="ln">172  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">segment</span><span class="s2">.</span><span class="s1">text</span>
+<a name="l173"><span class="ln">173  </span></a>
+<a name="l174"><span class="ln">174  </span></a>    <span class="s0">def </span><span class="s1">__rich_console__</span><span class="s2">(</span>
+<a name="l175"><span class="ln">175  </span></a>        <span class="s1">self</span><span class="s2">, </span><span class="s1">console</span><span class="s0">: </span><span class="s5">&quot;Console&quot;</span><span class="s2">, </span><span class="s1">options</span><span class="s0">: </span><span class="s5">&quot;ConsoleOptions&quot;</span>
+<a name="l176"><span class="ln">176  </span></a>    <span class="s2">) </span><span class="s1">-&gt; </span><span class="s5">&quot;RenderResult&quot;</span><span class="s0">:</span>
+<a name="l177"><span class="ln">177  </span></a>        <span class="s0">if </span><span class="s1">self</span><span class="s2">.</span><span class="s1">segment</span><span class="s2">.</span><span class="s1">text</span><span class="s0">:</span>
+<a name="l178"><span class="ln">178  </span></a>            <span class="s0">yield </span><span class="s1">self</span><span class="s2">.</span><span class="s1">segment</span>
+<a name="l179"><span class="ln">179  </span></a>
+<a name="l180"><span class="ln">180  </span></a>
+<a name="l181"><span class="ln">181  </span></a><span class="s0">def </span><span class="s1">strip_control_codes</span><span class="s2">(</span>
+<a name="l182"><span class="ln">182  </span></a>    <span class="s1">text</span><span class="s0">: </span><span class="s1">str</span><span class="s2">, </span><span class="s1">_translate_table</span><span class="s0">: </span><span class="s1">Dict</span><span class="s2">[</span><span class="s1">int</span><span class="s2">, </span><span class="s0">None</span><span class="s2">] </span><span class="s0">= </span><span class="s1">_CONTROL_STRIP_TRANSLATE</span>
+<a name="l183"><span class="ln">183  </span></a><span class="s2">) </span><span class="s1">-&gt; str</span><span class="s0">:</span>
+<a name="l184"><span class="ln">184  </span></a>    <span class="s4">&quot;&quot;&quot;Remove control codes from text. 
+<a name="l185"><span class="ln">185  </span></a> 
+<a name="l186"><span class="ln">186  </span></a>    Args: 
+<a name="l187"><span class="ln">187  </span></a>        text (str): A string possibly contain control codes. 
+<a name="l188"><span class="ln">188  </span></a> 
+<a name="l189"><span class="ln">189  </span></a>    Returns: 
+<a name="l190"><span class="ln">190  </span></a>        str: String with control codes removed. 
+<a name="l191"><span class="ln">191  </span></a>    &quot;&quot;&quot;</span>
+<a name="l192"><span class="ln">192  </span></a>    <span class="s0">return </span><span class="s1">text</span><span class="s2">.</span><span class="s1">translate</span><span class="s2">(</span><span class="s1">_translate_table</span><span class="s2">)</span>
+<a name="l193"><span class="ln">193  </span></a>
+<a name="l194"><span class="ln">194  </span></a>
+<a name="l195"><span class="ln">195  </span></a><span class="s0">def </span><span class="s1">escape_control_codes</span><span class="s2">(</span>
+<a name="l196"><span class="ln">196  </span></a>    <span class="s1">text</span><span class="s0">: </span><span class="s1">str</span><span class="s2">,</span>
+<a name="l197"><span class="ln">197  </span></a>    <span class="s1">_translate_table</span><span class="s0">: </span><span class="s1">Dict</span><span class="s2">[</span><span class="s1">int</span><span class="s2">, </span><span class="s1">str</span><span class="s2">] </span><span class="s0">= </span><span class="s1">CONTROL_ESCAPE</span><span class="s2">,</span>
+<a name="l198"><span class="ln">198  </span></a><span class="s2">) </span><span class="s1">-&gt; str</span><span class="s0">:</span>
+<a name="l199"><span class="ln">199  </span></a>    <span class="s4">&quot;&quot;&quot;Replace control codes with their &quot;escaped&quot; equivalent in the given text. 
+<a name="l200"><span class="ln">200  </span></a>    (e.g. &quot;\b&quot; becomes &quot;\\b&quot;) 
+<a name="l201"><span class="ln">201  </span></a> 
+<a name="l202"><span class="ln">202  </span></a>    Args: 
+<a name="l203"><span class="ln">203  </span></a>        text (str): A string possibly containing control codes. 
+<a name="l204"><span class="ln">204  </span></a> 
+<a name="l205"><span class="ln">205  </span></a>    Returns: 
+<a name="l206"><span class="ln">206  </span></a>        str: String with control codes replaced with their escaped version. 
+<a name="l207"><span class="ln">207  </span></a>    &quot;&quot;&quot;</span>
+<a name="l208"><span class="ln">208  </span></a>    <span class="s0">return </span><span class="s1">text</span><span class="s2">.</span><span class="s1">translate</span><span class="s2">(</span><span class="s1">_translate_table</span><span class="s2">)</span>
+<a name="l209"><span class="ln">209  </span></a>
+<a name="l210"><span class="ln">210  </span></a>
+<a name="l211"><span class="ln">211  </span></a><span class="s0">if </span><span class="s1">__name__ </span><span class="s0">== </span><span class="s5">&quot;__main__&quot;</span><span class="s0">:  </span><span class="s4"># pragma: no cover</span>
+<a name="l212"><span class="ln">212  </span></a>    <span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_vendor</span><span class="s2">.</span><span class="s1">rich</span><span class="s2">.</span><span class="s1">console </span><span class="s0">import </span><span class="s1">Console</span>
+<a name="l213"><span class="ln">213  </span></a>
+<a name="l214"><span class="ln">214  </span></a>    <span class="s1">console </span><span class="s0">= </span><span class="s1">Console</span><span class="s2">()</span>
+<a name="l215"><span class="ln">215  </span></a>    <span class="s1">console</span><span class="s2">.</span><span class="s1">print</span><span class="s2">(</span><span class="s5">&quot;Look at the title of your terminal window ^&quot;</span><span class="s2">)</span>
+<a name="l216"><span class="ln">216  </span></a>    <span class="s4"># console.print(Control((ControlType.SET_WINDOW_TITLE, &quot;Hello, world!&quot;)))</span>
+<a name="l217"><span class="ln">217  </span></a>    <span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">range</span><span class="s2">(</span><span class="s3">10</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l218"><span class="ln">218  </span></a>        <span class="s1">console</span><span class="s2">.</span><span class="s1">set_window_title</span><span class="s2">(</span><span class="s5">&quot;🚀 Loading&quot; </span><span class="s0">+ </span><span class="s5">&quot;.&quot; </span><span class="s0">* </span><span class="s1">i</span><span class="s2">)</span>
+<a name="l219"><span class="ln">219  </span></a>        <span class="s1">time</span><span class="s2">.</span><span class="s1">sleep</span><span class="s2">(</span><span class="s3">0.5</span><span class="s2">)</span>
+<a name="l220"><span class="ln">220  </span></a></pre>
+</body>
+</html>

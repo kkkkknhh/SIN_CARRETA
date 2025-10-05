@@ -1,0 +1,47 @@
+<html>
+<head>
+<title>inductor.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+inductor.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: ignore-errors</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l4"><span class="ln">4    </span></a>This module provides the TorchInductor backend integration for TorchDynamo. 
+<a name="l5"><span class="ln">5    </span></a> 
+<a name="l6"><span class="ln">6    </span></a>TorchInductor is a compiler backend that generates optimized code for both CPU and GPU. 
+<a name="l7"><span class="ln">7    </span></a>This module lazily imports and registers the TorchInductor compiler to avoid loading it 
+<a name="l8"><span class="ln">8    </span></a>into memory when it is not being used. This helps reduce memory overhead when using 
+<a name="l9"><span class="ln">9    </span></a>other backends. 
+<a name="l10"><span class="ln">10   </span></a> 
+<a name="l11"><span class="ln">11   </span></a>The inductor backend can be used with torch.compile(): 
+<a name="l12"><span class="ln">12   </span></a>    model = torch.compile(model, backend=&quot;inductor&quot;) 
+<a name="l13"><span class="ln">13   </span></a>&quot;&quot;&quot;</span>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_dynamo </span><span class="s2">import </span><span class="s1">register_backend</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_dynamo</span><span class="s3">.</span><span class="s1">utils </span><span class="s2">import </span><span class="s1">dynamo_timed</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">@</span><span class="s1">register_backend</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s2">def </span><span class="s1">inductor</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l21"><span class="ln">21   </span></a>    <span class="s2">with </span><span class="s1">dynamo_timed</span><span class="s3">(</span><span class="s4">&quot;inductor_import&quot;</span><span class="s3">, </span><span class="s1">log_pt2_compile_event</span><span class="s2">=True</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l22"><span class="ln">22   </span></a>        <span class="s0"># do import here to avoid loading inductor into memory when it is not used</span>
+<a name="l23"><span class="ln">23   </span></a>        <span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_inductor</span><span class="s3">.</span><span class="s1">compile_fx </span><span class="s2">import </span><span class="s1">compile_fx</span>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s2">return </span><span class="s1">compile_fx</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l26"><span class="ln">26   </span></a></pre>
+</body>
+</html>

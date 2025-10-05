@@ -1,0 +1,66 @@
+<html>
+<head>
+<title>_import_utils.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #969896;}
+.s4 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_import_utils.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">import </span><span class="s1">functools</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">import </span><span class="s1">importlib</span><span class="s2">.</span><span class="s1">util</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">from </span><span class="s1">types </span><span class="s0">import </span><span class="s1">ModuleType</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s1">typing </span><span class="s0">import </span><span class="s1">Optional</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">import </span><span class="s1">torch</span>
+<a name="l7"><span class="ln">7    </span></a>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">def </span><span class="s1">_check_module_exists</span><span class="s2">(</span><span class="s1">name</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l10"><span class="ln">10   </span></a>    <span class="s3">r&quot;&quot;&quot;Returns if a top-level module with :attr:`name` exists *without** 
+<a name="l11"><span class="ln">11   </span></a>    importing it. This is generally safer than try-catch block around a 
+<a name="l12"><span class="ln">12   </span></a>    `import X`. It avoids third party libraries breaking assumptions of some of 
+<a name="l13"><span class="ln">13   </span></a>    our tests, e.g., setting multiprocessing start method when imported 
+<a name="l14"><span class="ln">14   </span></a>    (see librosa/#747, torchvision/#544). 
+<a name="l15"><span class="ln">15   </span></a>    &quot;&quot;&quot;</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s0">try:</span>
+<a name="l17"><span class="ln">17   </span></a>        <span class="s1">spec </span><span class="s0">= </span><span class="s1">importlib</span><span class="s2">.</span><span class="s1">util</span><span class="s2">.</span><span class="s1">find_spec</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)</span>
+<a name="l18"><span class="ln">18   </span></a>        <span class="s0">return </span><span class="s1">spec </span><span class="s0">is not None</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s0">except </span><span class="s1">ImportError</span><span class="s0">:</span>
+<a name="l20"><span class="ln">20   </span></a>        <span class="s0">return False</span>
+<a name="l21"><span class="ln">21   </span></a>
+<a name="l22"><span class="ln">22   </span></a>
+<a name="l23"><span class="ln">23   </span></a><span class="s0">@</span><span class="s1">functools</span><span class="s2">.</span><span class="s1">lru_cache</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s0">def </span><span class="s1">dill_available</span><span class="s2">() </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s0">return </span><span class="s2">(</span>
+<a name="l26"><span class="ln">26   </span></a>        <span class="s1">_check_module_exists</span><span class="s2">(</span><span class="s4">&quot;dill&quot;</span><span class="s2">)</span>
+<a name="l27"><span class="ln">27   </span></a>        <span class="s3"># dill fails to import under torchdeploy</span>
+<a name="l28"><span class="ln">28   </span></a>        <span class="s0">and not </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">_running_with_deploy</span><span class="s2">()</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s2">)</span>
+<a name="l30"><span class="ln">30   </span></a>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a><span class="s0">@</span><span class="s1">functools</span><span class="s2">.</span><span class="s1">lru_cache</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s0">def </span><span class="s1">import_dill</span><span class="s2">() </span><span class="s1">-&gt; Optional</span><span class="s2">[</span><span class="s1">ModuleType</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l34"><span class="ln">34   </span></a>    <span class="s0">if not </span><span class="s1">dill_available</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l35"><span class="ln">35   </span></a>        <span class="s0">return None</span>
+<a name="l36"><span class="ln">36   </span></a>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s0">import </span><span class="s1">dill</span>
+<a name="l38"><span class="ln">38   </span></a>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s3"># XXX: By default, dill writes the Pickler dispatch table to inject its</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s3"># own logic there. This globally affects the behavior of the standard library</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s3"># pickler for any user who transitively depends on this module!</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s3"># Undo this extension to avoid altering the behavior of the pickler globally.</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s1">dill</span><span class="s2">.</span><span class="s1">extend</span><span class="s2">(</span><span class="s1">use_dill</span><span class="s0">=False</span><span class="s2">)</span>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s0">return </span><span class="s1">dill</span>
+<a name="l45"><span class="ln">45   </span></a></pre>
+</body>
+</html>

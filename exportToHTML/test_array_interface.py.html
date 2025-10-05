@@ -1,0 +1,242 @@
+<html>
+<head>
+<title>test_array_interface.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #969896;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+test_array_interface.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">import </span><span class="s1">sys</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">import </span><span class="s1">pytest</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">import </span><span class="s1">numpy </span><span class="s0">as </span><span class="s1">np</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s1">numpy</span><span class="s2">.</span><span class="s1">testing </span><span class="s0">import </span><span class="s1">extbuild</span><span class="s2">, </span><span class="s1">IS_WASM</span><span class="s2">, </span><span class="s1">IS_EDITABLE</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">@</span><span class="s1">pytest</span><span class="s2">.</span><span class="s1">fixture</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">def </span><span class="s1">get_module</span><span class="s2">(</span><span class="s1">tmp_path</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l9"><span class="ln">9    </span></a>    <span class="s3">&quot;&quot;&quot; Some codes to generate data and manage temporary buffers use when 
+<a name="l10"><span class="ln">10   </span></a>    sharing with numpy via the array interface protocol. 
+<a name="l11"><span class="ln">11   </span></a>    &quot;&quot;&quot;</span>
+<a name="l12"><span class="ln">12   </span></a>    <span class="s0">if </span><span class="s1">sys</span><span class="s2">.</span><span class="s1">platform</span><span class="s2">.</span><span class="s1">startswith</span><span class="s2">(</span><span class="s4">'cygwin'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l13"><span class="ln">13   </span></a>        <span class="s1">pytest</span><span class="s2">.</span><span class="s1">skip</span><span class="s2">(</span><span class="s4">'link fails on cygwin'</span><span class="s2">)</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s0">if </span><span class="s1">IS_WASM</span><span class="s0">:</span>
+<a name="l15"><span class="ln">15   </span></a>        <span class="s1">pytest</span><span class="s2">.</span><span class="s1">skip</span><span class="s2">(</span><span class="s4">&quot;Can't build module inside Wasm&quot;</span><span class="s2">)</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s0">if </span><span class="s1">IS_EDITABLE</span><span class="s0">:</span>
+<a name="l17"><span class="ln">17   </span></a>        <span class="s1">pytest</span><span class="s2">.</span><span class="s1">skip</span><span class="s2">(</span><span class="s4">&quot;Can't build module for editable install&quot;</span><span class="s2">)</span>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s1">prologue </span><span class="s0">= </span><span class="s4">''' 
+<a name="l20"><span class="ln">20   </span></a>        #include &lt;Python.h&gt; 
+<a name="l21"><span class="ln">21   </span></a>        #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION 
+<a name="l22"><span class="ln">22   </span></a>        #include &lt;numpy/arrayobject.h&gt; 
+<a name="l23"><span class="ln">23   </span></a>        #include &lt;stdio.h&gt; 
+<a name="l24"><span class="ln">24   </span></a>        #include &lt;math.h&gt; 
+<a name="l25"><span class="ln">25   </span></a> 
+<a name="l26"><span class="ln">26   </span></a>        NPY_NO_EXPORT 
+<a name="l27"><span class="ln">27   </span></a>        void delete_array_struct(PyObject *cap) { 
+<a name="l28"><span class="ln">28   </span></a> 
+<a name="l29"><span class="ln">29   </span></a>            /* get the array interface structure */ 
+<a name="l30"><span class="ln">30   </span></a>            PyArrayInterface *inter = (PyArrayInterface*) 
+<a name="l31"><span class="ln">31   </span></a>                PyCapsule_GetPointer(cap, NULL); 
+<a name="l32"><span class="ln">32   </span></a> 
+<a name="l33"><span class="ln">33   </span></a>            /* get the buffer by which data was shared */ 
+<a name="l34"><span class="ln">34   </span></a>            double *ptr = (double*)PyCapsule_GetContext(cap); 
+<a name="l35"><span class="ln">35   </span></a> 
+<a name="l36"><span class="ln">36   </span></a>            /* for the purposes of the regression test set the elements 
+<a name="l37"><span class="ln">37   </span></a>               to nan */ 
+<a name="l38"><span class="ln">38   </span></a>            for (npy_intp i = 0; i &lt; inter-&gt;shape[0]; ++i) 
+<a name="l39"><span class="ln">39   </span></a>                ptr[i] = nan(&quot;&quot;); 
+<a name="l40"><span class="ln">40   </span></a> 
+<a name="l41"><span class="ln">41   </span></a>            /* free the shared buffer */ 
+<a name="l42"><span class="ln">42   </span></a>            free(ptr); 
+<a name="l43"><span class="ln">43   </span></a> 
+<a name="l44"><span class="ln">44   </span></a>            /* free the array interface structure */ 
+<a name="l45"><span class="ln">45   </span></a>            free(inter-&gt;shape); 
+<a name="l46"><span class="ln">46   </span></a>            free(inter); 
+<a name="l47"><span class="ln">47   </span></a> 
+<a name="l48"><span class="ln">48   </span></a>            fprintf(stderr, &quot;delete_array_struct\\ncap = %ld inter = %ld&quot; 
+<a name="l49"><span class="ln">49   </span></a>                &quot; ptr = %ld\\n&quot;, (long)cap, (long)inter, (long)ptr); 
+<a name="l50"><span class="ln">50   </span></a>        } 
+<a name="l51"><span class="ln">51   </span></a>        '''</span>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a>    <span class="s1">functions </span><span class="s0">= </span><span class="s2">[</span>
+<a name="l54"><span class="ln">54   </span></a>        <span class="s2">(</span><span class="s4">&quot;new_array_struct&quot;</span><span class="s2">, </span><span class="s4">&quot;METH_VARARGS&quot;</span><span class="s2">, </span><span class="s4">&quot;&quot;&quot; 
+<a name="l55"><span class="ln">55   </span></a> 
+<a name="l56"><span class="ln">56   </span></a>            long long n_elem = 0; 
+<a name="l57"><span class="ln">57   </span></a>            double value = 0.0; 
+<a name="l58"><span class="ln">58   </span></a> 
+<a name="l59"><span class="ln">59   </span></a>            if (!PyArg_ParseTuple(args, &quot;Ld&quot;, &amp;n_elem, &amp;value)) { 
+<a name="l60"><span class="ln">60   </span></a>                Py_RETURN_NONE; 
+<a name="l61"><span class="ln">61   </span></a>            } 
+<a name="l62"><span class="ln">62   </span></a> 
+<a name="l63"><span class="ln">63   </span></a>            /* allocate and initialize the data to share with numpy */ 
+<a name="l64"><span class="ln">64   </span></a>            long long n_bytes = n_elem*sizeof(double); 
+<a name="l65"><span class="ln">65   </span></a>            double *data = (double*)malloc(n_bytes); 
+<a name="l66"><span class="ln">66   </span></a> 
+<a name="l67"><span class="ln">67   </span></a>            if (!data) { 
+<a name="l68"><span class="ln">68   </span></a>                PyErr_Format(PyExc_MemoryError, 
+<a name="l69"><span class="ln">69   </span></a>                    &quot;Failed to malloc %lld bytes&quot;, n_bytes); 
+<a name="l70"><span class="ln">70   </span></a> 
+<a name="l71"><span class="ln">71   </span></a>                Py_RETURN_NONE; 
+<a name="l72"><span class="ln">72   </span></a>            } 
+<a name="l73"><span class="ln">73   </span></a> 
+<a name="l74"><span class="ln">74   </span></a>            for (long long i = 0; i &lt; n_elem; ++i) { 
+<a name="l75"><span class="ln">75   </span></a>                data[i] = value; 
+<a name="l76"><span class="ln">76   </span></a>            } 
+<a name="l77"><span class="ln">77   </span></a> 
+<a name="l78"><span class="ln">78   </span></a>            /* calculate the shape and stride */ 
+<a name="l79"><span class="ln">79   </span></a>            int nd = 1; 
+<a name="l80"><span class="ln">80   </span></a> 
+<a name="l81"><span class="ln">81   </span></a>            npy_intp *ss = (npy_intp*)malloc(2*nd*sizeof(npy_intp)); 
+<a name="l82"><span class="ln">82   </span></a>            npy_intp *shape = ss; 
+<a name="l83"><span class="ln">83   </span></a>            npy_intp *stride = ss + nd; 
+<a name="l84"><span class="ln">84   </span></a> 
+<a name="l85"><span class="ln">85   </span></a>            shape[0] = n_elem; 
+<a name="l86"><span class="ln">86   </span></a>            stride[0] = sizeof(double); 
+<a name="l87"><span class="ln">87   </span></a> 
+<a name="l88"><span class="ln">88   </span></a>            /* construct the array interface */ 
+<a name="l89"><span class="ln">89   </span></a>            PyArrayInterface *inter = (PyArrayInterface*) 
+<a name="l90"><span class="ln">90   </span></a>                malloc(sizeof(PyArrayInterface)); 
+<a name="l91"><span class="ln">91   </span></a> 
+<a name="l92"><span class="ln">92   </span></a>            memset(inter, 0, sizeof(PyArrayInterface)); 
+<a name="l93"><span class="ln">93   </span></a> 
+<a name="l94"><span class="ln">94   </span></a>            inter-&gt;two = 2; 
+<a name="l95"><span class="ln">95   </span></a>            inter-&gt;nd = nd; 
+<a name="l96"><span class="ln">96   </span></a>            inter-&gt;typekind = 'f'; 
+<a name="l97"><span class="ln">97   </span></a>            inter-&gt;itemsize = sizeof(double); 
+<a name="l98"><span class="ln">98   </span></a>            inter-&gt;shape = shape; 
+<a name="l99"><span class="ln">99   </span></a>            inter-&gt;strides = stride; 
+<a name="l100"><span class="ln">100  </span></a>            inter-&gt;data = data; 
+<a name="l101"><span class="ln">101  </span></a>            inter-&gt;flags = NPY_ARRAY_WRITEABLE | NPY_ARRAY_NOTSWAPPED | 
+<a name="l102"><span class="ln">102  </span></a>                           NPY_ARRAY_ALIGNED | NPY_ARRAY_C_CONTIGUOUS; 
+<a name="l103"><span class="ln">103  </span></a> 
+<a name="l104"><span class="ln">104  </span></a>            /* package into a capsule */ 
+<a name="l105"><span class="ln">105  </span></a>            PyObject *cap = PyCapsule_New(inter, NULL, delete_array_struct); 
+<a name="l106"><span class="ln">106  </span></a> 
+<a name="l107"><span class="ln">107  </span></a>            /* save the pointer to the data */ 
+<a name="l108"><span class="ln">108  </span></a>            PyCapsule_SetContext(cap, data); 
+<a name="l109"><span class="ln">109  </span></a> 
+<a name="l110"><span class="ln">110  </span></a>            fprintf(stderr, &quot;new_array_struct\\ncap = %ld inter = %ld&quot; 
+<a name="l111"><span class="ln">111  </span></a>                &quot; ptr = %ld\\n&quot;, (long)cap, (long)inter, (long)data); 
+<a name="l112"><span class="ln">112  </span></a> 
+<a name="l113"><span class="ln">113  </span></a>            return cap; 
+<a name="l114"><span class="ln">114  </span></a>        &quot;&quot;&quot;</span><span class="s2">)</span>
+<a name="l115"><span class="ln">115  </span></a>        <span class="s2">]</span>
+<a name="l116"><span class="ln">116  </span></a>
+<a name="l117"><span class="ln">117  </span></a>    <span class="s1">more_init </span><span class="s0">= </span><span class="s4">&quot;import_array();&quot;</span>
+<a name="l118"><span class="ln">118  </span></a>
+<a name="l119"><span class="ln">119  </span></a>    <span class="s0">try:</span>
+<a name="l120"><span class="ln">120  </span></a>        <span class="s0">import </span><span class="s1">array_interface_testing</span>
+<a name="l121"><span class="ln">121  </span></a>        <span class="s0">return </span><span class="s1">array_interface_testing</span>
+<a name="l122"><span class="ln">122  </span></a>    <span class="s0">except </span><span class="s1">ImportError</span><span class="s0">:</span>
+<a name="l123"><span class="ln">123  </span></a>        <span class="s0">pass</span>
+<a name="l124"><span class="ln">124  </span></a>
+<a name="l125"><span class="ln">125  </span></a>    <span class="s3"># if it does not exist, build and load it</span>
+<a name="l126"><span class="ln">126  </span></a>    <span class="s0">return </span><span class="s1">extbuild</span><span class="s2">.</span><span class="s1">build_and_import_extension</span><span class="s2">(</span><span class="s4">'array_interface_testing'</span><span class="s2">,</span>
+<a name="l127"><span class="ln">127  </span></a>                                               <span class="s1">functions</span><span class="s2">,</span>
+<a name="l128"><span class="ln">128  </span></a>                                               <span class="s1">prologue</span><span class="s0">=</span><span class="s1">prologue</span><span class="s2">,</span>
+<a name="l129"><span class="ln">129  </span></a>                                               <span class="s1">include_dirs</span><span class="s0">=</span><span class="s2">[</span><span class="s1">np</span><span class="s2">.</span><span class="s1">get_include</span><span class="s2">()],</span>
+<a name="l130"><span class="ln">130  </span></a>                                               <span class="s1">build_dir</span><span class="s0">=</span><span class="s1">tmp_path</span><span class="s2">,</span>
+<a name="l131"><span class="ln">131  </span></a>                                               <span class="s1">more_init</span><span class="s0">=</span><span class="s1">more_init</span><span class="s2">)</span>
+<a name="l132"><span class="ln">132  </span></a>
+<a name="l133"><span class="ln">133  </span></a>
+<a name="l134"><span class="ln">134  </span></a><span class="s0">@</span><span class="s1">pytest</span><span class="s2">.</span><span class="s1">mark</span><span class="s2">.</span><span class="s1">slow</span>
+<a name="l135"><span class="ln">135  </span></a><span class="s0">def </span><span class="s1">test_cstruct</span><span class="s2">(</span><span class="s1">get_module</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l136"><span class="ln">136  </span></a>
+<a name="l137"><span class="ln">137  </span></a>    <span class="s0">class </span><span class="s1">data_source</span><span class="s0">:</span>
+<a name="l138"><span class="ln">138  </span></a>        <span class="s3">&quot;&quot;&quot; 
+<a name="l139"><span class="ln">139  </span></a>        This class is for testing the timing of the PyCapsule destructor 
+<a name="l140"><span class="ln">140  </span></a>        invoked when numpy release its reference to the shared data as part of 
+<a name="l141"><span class="ln">141  </span></a>        the numpy array interface protocol. If the PyCapsule destructor is 
+<a name="l142"><span class="ln">142  </span></a>        called early the shared data is freed and invalid memory accesses will 
+<a name="l143"><span class="ln">143  </span></a>        occur. 
+<a name="l144"><span class="ln">144  </span></a>        &quot;&quot;&quot;</span>
+<a name="l145"><span class="ln">145  </span></a>
+<a name="l146"><span class="ln">146  </span></a>        <span class="s0">def </span><span class="s1">__init__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">size</span><span class="s2">, </span><span class="s1">value</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l147"><span class="ln">147  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">size </span><span class="s0">= </span><span class="s1">size</span>
+<a name="l148"><span class="ln">148  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">value </span><span class="s0">= </span><span class="s1">value</span>
+<a name="l149"><span class="ln">149  </span></a>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s0">@</span><span class="s1">property</span>
+<a name="l151"><span class="ln">151  </span></a>        <span class="s0">def </span><span class="s1">__array_struct__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l152"><span class="ln">152  </span></a>            <span class="s0">return </span><span class="s1">get_module</span><span class="s2">.</span><span class="s1">new_array_struct</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">size</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">value</span><span class="s2">)</span>
+<a name="l153"><span class="ln">153  </span></a>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s3"># write to the same stream as the C code</span>
+<a name="l155"><span class="ln">155  </span></a>    <span class="s1">stderr </span><span class="s0">= </span><span class="s1">sys</span><span class="s2">.</span><span class="s1">__stderr__</span>
+<a name="l156"><span class="ln">156  </span></a>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s3"># used to validate the shared data.</span>
+<a name="l158"><span class="ln">158  </span></a>    <span class="s1">expected_value </span><span class="s0">= -</span><span class="s5">3.1415</span>
+<a name="l159"><span class="ln">159  </span></a>    <span class="s1">multiplier </span><span class="s0">= -</span><span class="s5">10000.0</span>
+<a name="l160"><span class="ln">160  </span></a>
+<a name="l161"><span class="ln">161  </span></a>    <span class="s3"># create some data to share with numpy via the array interface</span>
+<a name="l162"><span class="ln">162  </span></a>    <span class="s3"># assign the data an expected value.</span>
+<a name="l163"><span class="ln">163  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- create an object to share data ---- \n'</span><span class="s2">)</span>
+<a name="l164"><span class="ln">164  </span></a>    <span class="s1">buf </span><span class="s0">= </span><span class="s1">data_source</span><span class="s2">(</span><span class="s5">256</span><span class="s2">, </span><span class="s1">expected_value</span><span class="s2">)</span>
+<a name="l165"><span class="ln">165  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- OK!\n\n'</span><span class="s2">)</span>
+<a name="l166"><span class="ln">166  </span></a>
+<a name="l167"><span class="ln">167  </span></a>    <span class="s3"># share the data</span>
+<a name="l168"><span class="ln">168  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- share data via the array interface protocol ---- \n'</span><span class="s2">)</span>
+<a name="l169"><span class="ln">169  </span></a>    <span class="s1">arr </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">array</span><span class="s2">(</span><span class="s1">buf</span><span class="s2">, </span><span class="s1">copy</span><span class="s0">=False</span><span class="s2">)</span>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">'arr.__array_interface___ = %s\n' </span><span class="s0">% </span><span class="s2">(</span>
+<a name="l171"><span class="ln">171  </span></a>                 <span class="s1">str</span><span class="s2">(</span><span class="s1">arr</span><span class="s2">.</span><span class="s1">__array_interface__</span><span class="s2">)))</span>
+<a name="l172"><span class="ln">172  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">'arr.base = %s\n' </span><span class="s0">% </span><span class="s2">(</span><span class="s1">str</span><span class="s2">(</span><span class="s1">arr</span><span class="s2">.</span><span class="s1">base</span><span class="s2">)))</span>
+<a name="l173"><span class="ln">173  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- OK!\n\n'</span><span class="s2">)</span>
+<a name="l174"><span class="ln">174  </span></a>
+<a name="l175"><span class="ln">175  </span></a>    <span class="s3"># release the source of the shared data. this will not release the data</span>
+<a name="l176"><span class="ln">176  </span></a>    <span class="s3"># that was shared with numpy, that is done in the PyCapsule destructor.</span>
+<a name="l177"><span class="ln">177  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- destroy the object that shared data ---- \n'</span><span class="s2">)</span>
+<a name="l178"><span class="ln">178  </span></a>    <span class="s1">buf </span><span class="s0">= None</span>
+<a name="l179"><span class="ln">179  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- OK!\n\n'</span><span class="s2">)</span>
+<a name="l180"><span class="ln">180  </span></a>
+<a name="l181"><span class="ln">181  </span></a>    <span class="s3"># check that we got the expected data. If the PyCapsule destructor we</span>
+<a name="l182"><span class="ln">182  </span></a>    <span class="s3"># defined was prematurely called then this test will fail because our</span>
+<a name="l183"><span class="ln">183  </span></a>    <span class="s3"># destructor sets the elements of the array to NaN before free'ing the</span>
+<a name="l184"><span class="ln">184  </span></a>    <span class="s3"># buffer. Reading the values here may also cause a SEGV</span>
+<a name="l185"><span class="ln">185  </span></a>    <span class="s0">assert </span><span class="s1">np</span><span class="s2">.</span><span class="s1">allclose</span><span class="s2">(</span><span class="s1">arr</span><span class="s2">, </span><span class="s1">expected_value</span><span class="s2">)</span>
+<a name="l186"><span class="ln">186  </span></a>
+<a name="l187"><span class="ln">187  </span></a>    <span class="s3"># read the data. If the PyCapsule destructor we defined was prematurely</span>
+<a name="l188"><span class="ln">188  </span></a>    <span class="s3"># called then reading the values here may cause a SEGV and will be reported</span>
+<a name="l189"><span class="ln">189  </span></a>    <span class="s3"># as invalid reads by valgrind</span>
+<a name="l190"><span class="ln">190  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- read shared data ---- \n'</span><span class="s2">)</span>
+<a name="l191"><span class="ln">191  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">'arr = %s\n' </span><span class="s0">% </span><span class="s2">(</span><span class="s1">str</span><span class="s2">(</span><span class="s1">arr</span><span class="s2">)))</span>
+<a name="l192"><span class="ln">192  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- OK!\n\n'</span><span class="s2">)</span>
+<a name="l193"><span class="ln">193  </span></a>
+<a name="l194"><span class="ln">194  </span></a>    <span class="s3"># write to the shared buffer. If the shared data was prematurely deleted</span>
+<a name="l195"><span class="ln">195  </span></a>    <span class="s3"># this will may cause a SEGV and valgrind will report invalid writes</span>
+<a name="l196"><span class="ln">196  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- modify shared data ---- \n'</span><span class="s2">)</span>
+<a name="l197"><span class="ln">197  </span></a>    <span class="s1">arr </span><span class="s0">*= </span><span class="s1">multiplier</span>
+<a name="l198"><span class="ln">198  </span></a>    <span class="s1">expected_value </span><span class="s0">*= </span><span class="s1">multiplier</span>
+<a name="l199"><span class="ln">199  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">'arr.__array_interface___ = %s\n' </span><span class="s0">% </span><span class="s2">(</span>
+<a name="l200"><span class="ln">200  </span></a>                 <span class="s1">str</span><span class="s2">(</span><span class="s1">arr</span><span class="s2">.</span><span class="s1">__array_interface__</span><span class="s2">)))</span>
+<a name="l201"><span class="ln">201  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">'arr.base = %s\n' </span><span class="s0">% </span><span class="s2">(</span><span class="s1">str</span><span class="s2">(</span><span class="s1">arr</span><span class="s2">.</span><span class="s1">base</span><span class="s2">)))</span>
+<a name="l202"><span class="ln">202  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- OK!\n\n'</span><span class="s2">)</span>
+<a name="l203"><span class="ln">203  </span></a>
+<a name="l204"><span class="ln">204  </span></a>    <span class="s3"># read the data. If the shared data was prematurely deleted this</span>
+<a name="l205"><span class="ln">205  </span></a>    <span class="s3"># will may cause a SEGV and valgrind will report invalid reads</span>
+<a name="l206"><span class="ln">206  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- read modified shared data ---- \n'</span><span class="s2">)</span>
+<a name="l207"><span class="ln">207  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">'arr = %s\n' </span><span class="s0">% </span><span class="s2">(</span><span class="s1">str</span><span class="s2">(</span><span class="s1">arr</span><span class="s2">)))</span>
+<a name="l208"><span class="ln">208  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- OK!\n\n'</span><span class="s2">)</span>
+<a name="l209"><span class="ln">209  </span></a>
+<a name="l210"><span class="ln">210  </span></a>    <span class="s3"># check that we got the expected data. If the PyCapsule destructor we</span>
+<a name="l211"><span class="ln">211  </span></a>    <span class="s3"># defined was prematurely called then this test will fail because our</span>
+<a name="l212"><span class="ln">212  </span></a>    <span class="s3"># destructor sets the elements of the array to NaN before free'ing the</span>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s3"># buffer. Reading the values here may also cause a SEGV</span>
+<a name="l214"><span class="ln">214  </span></a>    <span class="s0">assert </span><span class="s1">np</span><span class="s2">.</span><span class="s1">allclose</span><span class="s2">(</span><span class="s1">arr</span><span class="s2">, </span><span class="s1">expected_value</span><span class="s2">)</span>
+<a name="l215"><span class="ln">215  </span></a>
+<a name="l216"><span class="ln">216  </span></a>    <span class="s3"># free the shared data, the PyCapsule destructor should run here</span>
+<a name="l217"><span class="ln">217  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- free shared data ---- \n'</span><span class="s2">)</span>
+<a name="l218"><span class="ln">218  </span></a>    <span class="s1">arr </span><span class="s0">= None</span>
+<a name="l219"><span class="ln">219  </span></a>    <span class="s1">stderr</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s4">' ---- OK!\n\n'</span><span class="s2">)</span>
+<a name="l220"><span class="ln">220  </span></a></pre>
+</body>
+</html>

@@ -1,0 +1,233 @@
+<html>
+<head>
+<title>_genz_malik.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #969896;}
+.s4 { color: #0086b3;}
+.s5 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_genz_malik.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">import </span><span class="s1">math</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">import </span><span class="s1">itertools</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s1">functools </span><span class="s0">import </span><span class="s1">cached_property</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">_lib</span><span class="s2">.</span><span class="s1">_array_api </span><span class="s0">import </span><span class="s1">array_namespace</span><span class="s2">, </span><span class="s1">np_compat</span>
+<a name="l7"><span class="ln">7    </span></a>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">integrate</span><span class="s2">.</span><span class="s1">_rules </span><span class="s0">import </span><span class="s1">NestedFixedRule</span>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s0">class </span><span class="s1">GenzMalikCubature</span><span class="s2">(</span><span class="s1">NestedFixedRule</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l12"><span class="ln">12   </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l13"><span class="ln">13   </span></a>    Genz-Malik cubature. 
+<a name="l14"><span class="ln">14   </span></a> 
+<a name="l15"><span class="ln">15   </span></a>    Genz-Malik is only defined for integrals of dimension &gt;= 2. 
+<a name="l16"><span class="ln">16   </span></a> 
+<a name="l17"><span class="ln">17   </span></a>    Parameters 
+<a name="l18"><span class="ln">18   </span></a>    ---------- 
+<a name="l19"><span class="ln">19   </span></a>    ndim : int 
+<a name="l20"><span class="ln">20   </span></a>        The spatial dimension of the integrand. 
+<a name="l21"><span class="ln">21   </span></a> 
+<a name="l22"><span class="ln">22   </span></a>    xp : array_namespace, optional 
+<a name="l23"><span class="ln">23   </span></a>        The namespace for the node and weight arrays. Default is None, where NumPy is 
+<a name="l24"><span class="ln">24   </span></a>        used. 
+<a name="l25"><span class="ln">25   </span></a> 
+<a name="l26"><span class="ln">26   </span></a>    Attributes 
+<a name="l27"><span class="ln">27   </span></a>    ---------- 
+<a name="l28"><span class="ln">28   </span></a>    higher : Cubature 
+<a name="l29"><span class="ln">29   </span></a>        Higher-order rule. 
+<a name="l30"><span class="ln">30   </span></a> 
+<a name="l31"><span class="ln">31   </span></a>    lower : Cubature 
+<a name="l32"><span class="ln">32   </span></a>        Lower-order rule. 
+<a name="l33"><span class="ln">33   </span></a> 
+<a name="l34"><span class="ln">34   </span></a>    References 
+<a name="l35"><span class="ln">35   </span></a>    ---------- 
+<a name="l36"><span class="ln">36   </span></a>    .. [1] A.C. Genz, A.A. Malik, Remarks on algorithm 006: An adaptive algorithm for 
+<a name="l37"><span class="ln">37   </span></a>        numerical integration over an N-dimensional rectangular region, Journal of 
+<a name="l38"><span class="ln">38   </span></a>        Computational and Applied Mathematics, Volume 6, Issue 4, 1980, Pages 295-302, 
+<a name="l39"><span class="ln">39   </span></a>        ISSN 0377-0427, https://doi.org/10.1016/0771-050X(80)90039-X. 
+<a name="l40"><span class="ln">40   </span></a> 
+<a name="l41"><span class="ln">41   </span></a>    Examples 
+<a name="l42"><span class="ln">42   </span></a>    -------- 
+<a name="l43"><span class="ln">43   </span></a>    Evaluate a 3D integral: 
+<a name="l44"><span class="ln">44   </span></a> 
+<a name="l45"><span class="ln">45   </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l46"><span class="ln">46   </span></a>    &gt;&gt;&gt; from scipy.integrate import cubature 
+<a name="l47"><span class="ln">47   </span></a>    &gt;&gt;&gt; from scipy.integrate._rules import GenzMalikCubature 
+<a name="l48"><span class="ln">48   </span></a>    &gt;&gt;&gt; def f(x): 
+<a name="l49"><span class="ln">49   </span></a>    ...     # f(x) = cos(x_1) + cos(x_2) + cos(x_3) 
+<a name="l50"><span class="ln">50   </span></a>    ...     return np.sum(np.cos(x), axis=-1) 
+<a name="l51"><span class="ln">51   </span></a>    &gt;&gt;&gt; rule = GenzMalikCubature(3) # Use 3D Genz-Malik 
+<a name="l52"><span class="ln">52   </span></a>    &gt;&gt;&gt; a, b = np.array([0, 0, 0]), np.array([1, 1, 1]) 
+<a name="l53"><span class="ln">53   </span></a>    &gt;&gt;&gt; rule.estimate(f, a, b) # True value 3*sin(1), approximately 2.5244 
+<a name="l54"><span class="ln">54   </span></a>     np.float64(2.5244129547230862) 
+<a name="l55"><span class="ln">55   </span></a>    &gt;&gt;&gt; rule.estimate_error(f, a, b) 
+<a name="l56"><span class="ln">56   </span></a>     np.float64(1.378269656626685e-06) 
+<a name="l57"><span class="ln">57   </span></a>    &quot;&quot;&quot;</span>
+<a name="l58"><span class="ln">58   </span></a>
+<a name="l59"><span class="ln">59   </span></a>    <span class="s0">def </span><span class="s1">__init__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">ndim</span><span class="s2">, </span><span class="s1">degree</span><span class="s0">=</span><span class="s4">7</span><span class="s2">, </span><span class="s1">lower_degree</span><span class="s0">=</span><span class="s4">5</span><span class="s2">, </span><span class="s1">xp</span><span class="s0">=None</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l60"><span class="ln">60   </span></a>        <span class="s0">if </span><span class="s1">ndim </span><span class="s0">&lt; </span><span class="s4">2</span><span class="s0">:</span>
+<a name="l61"><span class="ln">61   </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s5">&quot;Genz-Malik cubature is only defined for ndim &gt;= 2&quot;</span><span class="s2">)</span>
+<a name="l62"><span class="ln">62   </span></a>
+<a name="l63"><span class="ln">63   </span></a>        <span class="s0">if </span><span class="s1">degree </span><span class="s0">!= </span><span class="s4">7 </span><span class="s0">or </span><span class="s1">lower_degree </span><span class="s0">!= </span><span class="s4">5</span><span class="s0">:</span>
+<a name="l64"><span class="ln">64   </span></a>            <span class="s0">raise </span><span class="s1">NotImplementedError</span><span class="s2">(</span><span class="s5">&quot;Genz-Malik cubature is currently only supported&quot;</span>
+<a name="l65"><span class="ln">65   </span></a>                                      <span class="s5">&quot;for degree=7, lower_degree=5&quot;</span><span class="s2">)</span>
+<a name="l66"><span class="ln">66   </span></a>
+<a name="l67"><span class="ln">67   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">= </span><span class="s1">ndim</span>
+<a name="l68"><span class="ln">68   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">degree </span><span class="s0">= </span><span class="s1">degree</span>
+<a name="l69"><span class="ln">69   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">lower_degree </span><span class="s0">= </span><span class="s1">lower_degree</span>
+<a name="l70"><span class="ln">70   </span></a>
+<a name="l71"><span class="ln">71   </span></a>        <span class="s0">if </span><span class="s1">xp </span><span class="s0">is None:</span>
+<a name="l72"><span class="ln">72   </span></a>            <span class="s1">xp </span><span class="s0">= </span><span class="s1">np_compat</span>
+<a name="l73"><span class="ln">73   </span></a>
+<a name="l74"><span class="ln">74   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">xp </span><span class="s0">= </span><span class="s1">array_namespace</span><span class="s2">(</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">empty</span><span class="s2">(</span><span class="s4">0</span><span class="s2">))</span>
+<a name="l75"><span class="ln">75   </span></a>
+<a name="l76"><span class="ln">76   </span></a>    <span class="s0">@</span><span class="s1">cached_property</span>
+<a name="l77"><span class="ln">77   </span></a>    <span class="s0">def </span><span class="s1">nodes_and_weights</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l78"><span class="ln">78   </span></a>        <span class="s3"># TODO: Currently only support for degree 7 Genz-Malik cubature, should aim to</span>
+<a name="l79"><span class="ln">79   </span></a>        <span class="s3"># support arbitrary degree</span>
+<a name="l80"><span class="ln">80   </span></a>        <span class="s1">l_2 </span><span class="s0">= </span><span class="s1">math</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s4">9</span><span class="s0">/</span><span class="s4">70</span><span class="s2">)</span>
+<a name="l81"><span class="ln">81   </span></a>        <span class="s1">l_3 </span><span class="s0">= </span><span class="s1">math</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s4">9</span><span class="s0">/</span><span class="s4">10</span><span class="s2">)</span>
+<a name="l82"><span class="ln">82   </span></a>        <span class="s1">l_4 </span><span class="s0">= </span><span class="s1">math</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s4">9</span><span class="s0">/</span><span class="s4">10</span><span class="s2">)</span>
+<a name="l83"><span class="ln">83   </span></a>        <span class="s1">l_5 </span><span class="s0">= </span><span class="s1">math</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s4">9</span><span class="s0">/</span><span class="s4">19</span><span class="s2">)</span>
+<a name="l84"><span class="ln">84   </span></a>
+<a name="l85"><span class="ln">85   </span></a>        <span class="s1">its </span><span class="s0">= </span><span class="s1">itertools</span><span class="s2">.</span><span class="s1">chain</span><span class="s2">(</span>
+<a name="l86"><span class="ln">86   </span></a>            <span class="s2">[(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">],</span>
+<a name="l87"><span class="ln">87   </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s1">l_2</span><span class="s2">,) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">1</span><span class="s2">)),</span>
+<a name="l88"><span class="ln">88   </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s0">-</span><span class="s1">l_2</span><span class="s2">,) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">1</span><span class="s2">)),</span>
+<a name="l89"><span class="ln">89   </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s1">l_3</span><span class="s2">,) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">1</span><span class="s2">)),</span>
+<a name="l90"><span class="ln">90   </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s0">-</span><span class="s1">l_3</span><span class="s2">,) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">1</span><span class="s2">)),</span>
+<a name="l91"><span class="ln">91   </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s1">l_4</span><span class="s2">, </span><span class="s1">l_4</span><span class="s2">) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">2</span><span class="s2">)),</span>
+<a name="l92"><span class="ln">92   </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s1">l_4</span><span class="s2">, </span><span class="s0">-</span><span class="s1">l_4</span><span class="s2">) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">2</span><span class="s2">)),</span>
+<a name="l93"><span class="ln">93   </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s0">-</span><span class="s1">l_4</span><span class="s2">, </span><span class="s0">-</span><span class="s1">l_4</span><span class="s2">) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">2</span><span class="s2">)),</span>
+<a name="l94"><span class="ln">94   </span></a>            <span class="s1">itertools</span><span class="s2">.</span><span class="s1">product</span><span class="s2">((</span><span class="s1">l_5</span><span class="s2">, </span><span class="s0">-</span><span class="s1">l_5</span><span class="s2">), </span><span class="s1">repeat</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">),</span>
+<a name="l95"><span class="ln">95   </span></a>        <span class="s2">)</span>
+<a name="l96"><span class="ln">96   </span></a>
+<a name="l97"><span class="ln">97   </span></a>        <span class="s1">nodes_size </span><span class="s0">= </span><span class="s4">1 </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">2 </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">+ </span><span class="s4">1</span><span class="s2">) </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">) </span><span class="s0">+ </span><span class="s4">2</span><span class="s0">**</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span>
+<a name="l98"><span class="ln">98   </span></a>
+<a name="l99"><span class="ln">99   </span></a>        <span class="s1">nodes </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">(</span>
+<a name="l100"><span class="ln">100  </span></a>            <span class="s1">list</span><span class="s2">(</span><span class="s1">zip</span><span class="s2">(</span><span class="s0">*</span><span class="s1">its</span><span class="s2">)),</span>
+<a name="l101"><span class="ln">101  </span></a>            <span class="s1">dtype</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">,</span>
+<a name="l102"><span class="ln">102  </span></a>        <span class="s2">)</span>
+<a name="l103"><span class="ln">103  </span></a>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s1">nodes </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">reshape</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">, (</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">, </span><span class="s1">nodes_size</span><span class="s2">))</span>
+<a name="l105"><span class="ln">105  </span></a>
+<a name="l106"><span class="ln">106  </span></a>        <span class="s3"># It's convenient to generate the nodes as a sequence of evaluation points</span>
+<a name="l107"><span class="ln">107  </span></a>        <span class="s3"># as an array of shape (npoints, ndim), but nodes needs to have shape</span>
+<a name="l108"><span class="ln">108  </span></a>        <span class="s3"># (ndim, npoints)</span>
+<a name="l109"><span class="ln">109  </span></a>        <span class="s1">nodes </span><span class="s0">= </span><span class="s1">nodes</span><span class="s2">.</span><span class="s1">T</span>
+<a name="l110"><span class="ln">110  </span></a>
+<a name="l111"><span class="ln">111  </span></a>        <span class="s1">w_1 </span><span class="s0">= </span><span class="s2">(</span>
+<a name="l112"><span class="ln">112  </span></a>            <span class="s2">(</span><span class="s4">2</span><span class="s0">**</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">) </span><span class="s0">* </span><span class="s2">(</span><span class="s4">12824 </span><span class="s0">- </span><span class="s4">9120</span><span class="s0">*</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">400 </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s0">**</span><span class="s4">2</span><span class="s2">)) </span><span class="s0">/ </span><span class="s4">19683</span>
+<a name="l113"><span class="ln">113  </span></a>        <span class="s2">)</span>
+<a name="l114"><span class="ln">114  </span></a>        <span class="s1">w_2 </span><span class="s0">= </span><span class="s2">(</span><span class="s4">2</span><span class="s0">**</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">) </span><span class="s0">* </span><span class="s4">980</span><span class="s0">/</span><span class="s4">6561</span>
+<a name="l115"><span class="ln">115  </span></a>        <span class="s1">w_3 </span><span class="s0">= </span><span class="s2">(</span><span class="s4">2</span><span class="s0">**</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">) </span><span class="s0">* </span><span class="s2">(</span><span class="s4">1820 </span><span class="s0">- </span><span class="s4">400 </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">) </span><span class="s0">/ </span><span class="s4">19683</span>
+<a name="l116"><span class="ln">116  </span></a>        <span class="s1">w_4 </span><span class="s0">= </span><span class="s2">(</span><span class="s4">2</span><span class="s0">**</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">) </span><span class="s0">* </span><span class="s2">(</span><span class="s4">200 </span><span class="s0">/ </span><span class="s4">19683</span><span class="s2">)</span>
+<a name="l117"><span class="ln">117  </span></a>        <span class="s1">w_5 </span><span class="s0">= </span><span class="s4">6859 </span><span class="s0">/ </span><span class="s4">19683</span>
+<a name="l118"><span class="ln">118  </span></a>
+<a name="l119"><span class="ln">119  </span></a>        <span class="s1">weights </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">concat</span><span class="s2">([</span>
+<a name="l120"><span class="ln">120  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">([</span><span class="s1">w_1</span><span class="s2">] </span><span class="s0">* </span><span class="s4">1</span><span class="s2">, </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">),</span>
+<a name="l121"><span class="ln">121  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">([</span><span class="s1">w_2</span><span class="s2">] </span><span class="s0">* </span><span class="s2">(</span><span class="s4">2 </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">), </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">),</span>
+<a name="l122"><span class="ln">122  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">([</span><span class="s1">w_3</span><span class="s2">] </span><span class="s0">* </span><span class="s2">(</span><span class="s4">2 </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">), </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">),</span>
+<a name="l123"><span class="ln">123  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">(</span>
+<a name="l124"><span class="ln">124  </span></a>                <span class="s2">[</span><span class="s1">w_4</span><span class="s2">] </span><span class="s0">* </span><span class="s2">(</span><span class="s4">2 </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">1</span><span class="s2">) </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">),</span>
+<a name="l125"><span class="ln">125  </span></a>                <span class="s1">dtype</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">,</span>
+<a name="l126"><span class="ln">126  </span></a>            <span class="s2">),</span>
+<a name="l127"><span class="ln">127  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">([</span><span class="s1">w_5</span><span class="s2">] </span><span class="s0">* </span><span class="s2">(</span><span class="s4">2</span><span class="s0">**</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">), </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">),</span>
+<a name="l128"><span class="ln">128  </span></a>        <span class="s2">])</span>
+<a name="l129"><span class="ln">129  </span></a>
+<a name="l130"><span class="ln">130  </span></a>        <span class="s0">return </span><span class="s1">nodes</span><span class="s2">, </span><span class="s1">weights</span>
+<a name="l131"><span class="ln">131  </span></a>
+<a name="l132"><span class="ln">132  </span></a>    <span class="s0">@</span><span class="s1">cached_property</span>
+<a name="l133"><span class="ln">133  </span></a>    <span class="s0">def </span><span class="s1">lower_nodes_and_weights</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l134"><span class="ln">134  </span></a>        <span class="s3"># TODO: Currently only support for the degree 5 lower rule, in the future it</span>
+<a name="l135"><span class="ln">135  </span></a>        <span class="s3"># would be worth supporting arbitrary degree</span>
+<a name="l136"><span class="ln">136  </span></a>
+<a name="l137"><span class="ln">137  </span></a>        <span class="s3"># Nodes are almost the same as the full rule, but there are no nodes</span>
+<a name="l138"><span class="ln">138  </span></a>        <span class="s3"># corresponding to l_5.</span>
+<a name="l139"><span class="ln">139  </span></a>        <span class="s1">l_2 </span><span class="s0">= </span><span class="s1">math</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s4">9</span><span class="s0">/</span><span class="s4">70</span><span class="s2">)</span>
+<a name="l140"><span class="ln">140  </span></a>        <span class="s1">l_3 </span><span class="s0">= </span><span class="s1">math</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s4">9</span><span class="s0">/</span><span class="s4">10</span><span class="s2">)</span>
+<a name="l141"><span class="ln">141  </span></a>        <span class="s1">l_4 </span><span class="s0">= </span><span class="s1">math</span><span class="s2">.</span><span class="s1">sqrt</span><span class="s2">(</span><span class="s4">9</span><span class="s0">/</span><span class="s4">10</span><span class="s2">)</span>
+<a name="l142"><span class="ln">142  </span></a>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s1">its </span><span class="s0">= </span><span class="s1">itertools</span><span class="s2">.</span><span class="s1">chain</span><span class="s2">(</span>
+<a name="l144"><span class="ln">144  </span></a>            <span class="s2">[(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">],</span>
+<a name="l145"><span class="ln">145  </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s1">l_2</span><span class="s2">,) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">1</span><span class="s2">)),</span>
+<a name="l146"><span class="ln">146  </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s0">-</span><span class="s1">l_2</span><span class="s2">,) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">1</span><span class="s2">)),</span>
+<a name="l147"><span class="ln">147  </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s1">l_3</span><span class="s2">,) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">1</span><span class="s2">)),</span>
+<a name="l148"><span class="ln">148  </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s0">-</span><span class="s1">l_3</span><span class="s2">,) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">1</span><span class="s2">)),</span>
+<a name="l149"><span class="ln">149  </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s1">l_4</span><span class="s2">, </span><span class="s1">l_4</span><span class="s2">) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">2</span><span class="s2">)),</span>
+<a name="l150"><span class="ln">150  </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s1">l_4</span><span class="s2">, </span><span class="s0">-</span><span class="s1">l_4</span><span class="s2">) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">2</span><span class="s2">)),</span>
+<a name="l151"><span class="ln">151  </span></a>            <span class="s1">_distinct_permutations</span><span class="s2">((</span><span class="s0">-</span><span class="s1">l_4</span><span class="s2">, </span><span class="s0">-</span><span class="s1">l_4</span><span class="s2">) </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">0</span><span class="s2">,) </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">2</span><span class="s2">)),</span>
+<a name="l152"><span class="ln">152  </span></a>        <span class="s2">)</span>
+<a name="l153"><span class="ln">153  </span></a>
+<a name="l154"><span class="ln">154  </span></a>        <span class="s1">nodes_size </span><span class="s0">= </span><span class="s4">1 </span><span class="s0">+ </span><span class="s2">(</span><span class="s4">2 </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">+ </span><span class="s4">1</span><span class="s2">) </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">)</span>
+<a name="l155"><span class="ln">155  </span></a>
+<a name="l156"><span class="ln">156  </span></a>        <span class="s1">nodes </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">(</span><span class="s1">list</span><span class="s2">(</span><span class="s1">zip</span><span class="s2">(</span><span class="s0">*</span><span class="s1">its</span><span class="s2">)), </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">)</span>
+<a name="l157"><span class="ln">157  </span></a>        <span class="s1">nodes </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">reshape</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">, (</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">, </span><span class="s1">nodes_size</span><span class="s2">))</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s1">nodes </span><span class="s0">= </span><span class="s1">nodes</span><span class="s2">.</span><span class="s1">T</span>
+<a name="l159"><span class="ln">159  </span></a>
+<a name="l160"><span class="ln">160  </span></a>        <span class="s3"># Weights are different from those in the full rule.</span>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s1">w_1 </span><span class="s0">= </span><span class="s2">(</span><span class="s4">2</span><span class="s0">**</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">) </span><span class="s0">* </span><span class="s2">(</span><span class="s4">729 </span><span class="s0">- </span><span class="s4">950</span><span class="s0">*</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">+ </span><span class="s4">50</span><span class="s0">*</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s0">**</span><span class="s4">2</span><span class="s2">) </span><span class="s0">/ </span><span class="s4">729</span>
+<a name="l162"><span class="ln">162  </span></a>        <span class="s1">w_2 </span><span class="s0">= </span><span class="s2">(</span><span class="s4">2</span><span class="s0">**</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">) </span><span class="s0">* </span><span class="s2">(</span><span class="s4">245 </span><span class="s0">/ </span><span class="s4">486</span><span class="s2">)</span>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s1">w_3 </span><span class="s0">= </span><span class="s2">(</span><span class="s4">2</span><span class="s0">**</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">) </span><span class="s0">* </span><span class="s2">(</span><span class="s4">265 </span><span class="s0">- </span><span class="s4">100</span><span class="s0">*</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">) </span><span class="s0">/ </span><span class="s4">1458</span>
+<a name="l164"><span class="ln">164  </span></a>        <span class="s1">w_4 </span><span class="s0">= </span><span class="s2">(</span><span class="s4">2</span><span class="s0">**</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">) </span><span class="s0">* </span><span class="s2">(</span><span class="s4">25 </span><span class="s0">/ </span><span class="s4">729</span><span class="s2">)</span>
+<a name="l165"><span class="ln">165  </span></a>
+<a name="l166"><span class="ln">166  </span></a>        <span class="s1">weights </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">concat</span><span class="s2">([</span>
+<a name="l167"><span class="ln">167  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">([</span><span class="s1">w_1</span><span class="s2">] </span><span class="s0">* </span><span class="s4">1</span><span class="s2">, </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">),</span>
+<a name="l168"><span class="ln">168  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">([</span><span class="s1">w_2</span><span class="s2">] </span><span class="s0">* </span><span class="s2">(</span><span class="s4">2 </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">), </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">),</span>
+<a name="l169"><span class="ln">169  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">([</span><span class="s1">w_3</span><span class="s2">] </span><span class="s0">* </span><span class="s2">(</span><span class="s4">2 </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">), </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">),</span>
+<a name="l170"><span class="ln">170  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">(</span>
+<a name="l171"><span class="ln">171  </span></a>                <span class="s2">[</span><span class="s1">w_4</span><span class="s2">] </span><span class="s0">* </span><span class="s2">(</span><span class="s4">2 </span><span class="s0">* </span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">- </span><span class="s4">1</span><span class="s2">) </span><span class="s0">* </span><span class="s1">self</span><span class="s2">.</span><span class="s1">ndim</span><span class="s2">),</span>
+<a name="l172"><span class="ln">172  </span></a>                <span class="s1">dtype</span><span class="s0">=</span><span class="s1">self</span><span class="s2">.</span><span class="s1">xp</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">,</span>
+<a name="l173"><span class="ln">173  </span></a>            <span class="s2">),</span>
+<a name="l174"><span class="ln">174  </span></a>        <span class="s2">])</span>
+<a name="l175"><span class="ln">175  </span></a>
+<a name="l176"><span class="ln">176  </span></a>        <span class="s0">return </span><span class="s1">nodes</span><span class="s2">, </span><span class="s1">weights</span>
+<a name="l177"><span class="ln">177  </span></a>
+<a name="l178"><span class="ln">178  </span></a>
+<a name="l179"><span class="ln">179  </span></a><span class="s0">def </span><span class="s1">_distinct_permutations</span><span class="s2">(</span><span class="s1">iterable</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l180"><span class="ln">180  </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l181"><span class="ln">181  </span></a>    Find the number of distinct permutations of elements of `iterable`. 
+<a name="l182"><span class="ln">182  </span></a>    &quot;&quot;&quot;</span>
+<a name="l183"><span class="ln">183  </span></a>
+<a name="l184"><span class="ln">184  </span></a>    <span class="s3"># Algorithm: https://w.wiki/Qai</span>
+<a name="l185"><span class="ln">185  </span></a>
+<a name="l186"><span class="ln">186  </span></a>    <span class="s1">items </span><span class="s0">= </span><span class="s1">sorted</span><span class="s2">(</span><span class="s1">iterable</span><span class="s2">)</span>
+<a name="l187"><span class="ln">187  </span></a>    <span class="s1">size </span><span class="s0">= </span><span class="s1">len</span><span class="s2">(</span><span class="s1">items</span><span class="s2">)</span>
+<a name="l188"><span class="ln">188  </span></a>
+<a name="l189"><span class="ln">189  </span></a>    <span class="s0">while True:</span>
+<a name="l190"><span class="ln">190  </span></a>        <span class="s3"># Yield the permutation we have</span>
+<a name="l191"><span class="ln">191  </span></a>        <span class="s0">yield </span><span class="s1">tuple</span><span class="s2">(</span><span class="s1">items</span><span class="s2">)</span>
+<a name="l192"><span class="ln">192  </span></a>
+<a name="l193"><span class="ln">193  </span></a>        <span class="s3"># Find the largest index i such that A[i] &lt; A[i + 1]</span>
+<a name="l194"><span class="ln">194  </span></a>        <span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">range</span><span class="s2">(</span><span class="s1">size </span><span class="s0">- </span><span class="s4">2</span><span class="s2">, </span><span class="s0">-</span><span class="s4">1</span><span class="s2">, </span><span class="s0">-</span><span class="s4">1</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l195"><span class="ln">195  </span></a>            <span class="s0">if </span><span class="s1">items</span><span class="s2">[</span><span class="s1">i</span><span class="s2">] </span><span class="s0">&lt; </span><span class="s1">items</span><span class="s2">[</span><span class="s1">i </span><span class="s0">+ </span><span class="s4">1</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l196"><span class="ln">196  </span></a>                <span class="s0">break</span>
+<a name="l197"><span class="ln">197  </span></a>
+<a name="l198"><span class="ln">198  </span></a>        <span class="s3">#  If no such index exists, this permutation is the last one</span>
+<a name="l199"><span class="ln">199  </span></a>        <span class="s0">else:</span>
+<a name="l200"><span class="ln">200  </span></a>            <span class="s0">return</span>
+<a name="l201"><span class="ln">201  </span></a>
+<a name="l202"><span class="ln">202  </span></a>        <span class="s3"># Find the largest index j greater than j such that A[i] &lt; A[j]</span>
+<a name="l203"><span class="ln">203  </span></a>        <span class="s0">for </span><span class="s1">j </span><span class="s0">in </span><span class="s1">range</span><span class="s2">(</span><span class="s1">size </span><span class="s0">- </span><span class="s4">1</span><span class="s2">, </span><span class="s1">i</span><span class="s2">, </span><span class="s0">-</span><span class="s4">1</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l204"><span class="ln">204  </span></a>            <span class="s0">if </span><span class="s1">items</span><span class="s2">[</span><span class="s1">i</span><span class="s2">] </span><span class="s0">&lt; </span><span class="s1">items</span><span class="s2">[</span><span class="s1">j</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l205"><span class="ln">205  </span></a>                <span class="s0">break</span>
+<a name="l206"><span class="ln">206  </span></a>
+<a name="l207"><span class="ln">207  </span></a>        <span class="s3"># Swap the value of A[i] with that of A[j], then reverse the</span>
+<a name="l208"><span class="ln">208  </span></a>        <span class="s3"># sequence from A[i + 1] to form the new permutation</span>
+<a name="l209"><span class="ln">209  </span></a>        <span class="s1">items</span><span class="s2">[</span><span class="s1">i</span><span class="s2">], </span><span class="s1">items</span><span class="s2">[</span><span class="s1">j</span><span class="s2">] </span><span class="s0">= </span><span class="s1">items</span><span class="s2">[</span><span class="s1">j</span><span class="s2">], </span><span class="s1">items</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]</span>
+<a name="l210"><span class="ln">210  </span></a>        <span class="s1">items</span><span class="s2">[</span><span class="s1">i</span><span class="s0">+</span><span class="s4">1</span><span class="s0">:</span><span class="s2">] </span><span class="s0">= </span><span class="s1">items</span><span class="s2">[</span><span class="s0">:</span><span class="s1">i</span><span class="s0">-</span><span class="s1">size</span><span class="s0">:-</span><span class="s4">1</span><span class="s2">]  </span><span class="s3"># A[i + 1:][::-1]</span>
+<a name="l211"><span class="ln">211  </span></a></pre>
+</body>
+</html>

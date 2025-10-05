@@ -1,0 +1,127 @@
+<html>
+<head>
+<title>_gcutils.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_gcutils.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>Module for testing automatic garbage collection of objects 
+<a name="l3"><span class="ln">3    </span></a> 
+<a name="l4"><span class="ln">4    </span></a>.. autosummary:: 
+<a name="l5"><span class="ln">5    </span></a>   :toctree: generated/ 
+<a name="l6"><span class="ln">6    </span></a> 
+<a name="l7"><span class="ln">7    </span></a>   set_gc_state - enable or disable garbage collection 
+<a name="l8"><span class="ln">8    </span></a>   gc_state - context manager for given state of garbage collector 
+<a name="l9"><span class="ln">9    </span></a>   assert_deallocated - context manager to check for circular references on object 
+<a name="l10"><span class="ln">10   </span></a> 
+<a name="l11"><span class="ln">11   </span></a>&quot;&quot;&quot;</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">import </span><span class="s1">weakref</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">import </span><span class="s1">gc</span>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">from </span><span class="s1">contextlib </span><span class="s2">import </span><span class="s1">contextmanager</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">from </span><span class="s1">platform </span><span class="s2">import </span><span class="s1">python_implementation</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'set_gc_state'</span><span class="s3">, </span><span class="s4">'gc_state'</span><span class="s3">, </span><span class="s4">'assert_deallocated'</span><span class="s3">]</span>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s1">IS_PYPY </span><span class="s2">= </span><span class="s1">python_implementation</span><span class="s3">() </span><span class="s2">== </span><span class="s4">'PyPy'</span>
+<a name="l22"><span class="ln">22   </span></a>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a><span class="s2">class </span><span class="s1">ReferenceError</span><span class="s3">(</span><span class="s1">AssertionError</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s2">pass</span>
+<a name="l26"><span class="ln">26   </span></a>
+<a name="l27"><span class="ln">27   </span></a>
+<a name="l28"><span class="ln">28   </span></a><span class="s2">def </span><span class="s1">set_gc_state</span><span class="s3">(</span><span class="s1">state</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s0">&quot;&quot;&quot; Set status of garbage collector &quot;&quot;&quot;</span>
+<a name="l30"><span class="ln">30   </span></a>    <span class="s2">if </span><span class="s1">gc</span><span class="s3">.</span><span class="s1">isenabled</span><span class="s3">() </span><span class="s2">== </span><span class="s1">state</span><span class="s2">:</span>
+<a name="l31"><span class="ln">31   </span></a>        <span class="s2">return</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s2">if </span><span class="s1">state</span><span class="s2">:</span>
+<a name="l33"><span class="ln">33   </span></a>        <span class="s1">gc</span><span class="s3">.</span><span class="s1">enable</span><span class="s3">()</span>
+<a name="l34"><span class="ln">34   </span></a>    <span class="s2">else:</span>
+<a name="l35"><span class="ln">35   </span></a>        <span class="s1">gc</span><span class="s3">.</span><span class="s1">disable</span><span class="s3">()</span>
+<a name="l36"><span class="ln">36   </span></a>
+<a name="l37"><span class="ln">37   </span></a>
+<a name="l38"><span class="ln">38   </span></a><span class="s2">@</span><span class="s1">contextmanager</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s2">def </span><span class="s1">gc_state</span><span class="s3">(</span><span class="s1">state</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s0">&quot;&quot;&quot; Context manager to set state of garbage collector to `state` 
+<a name="l41"><span class="ln">41   </span></a> 
+<a name="l42"><span class="ln">42   </span></a>    Parameters 
+<a name="l43"><span class="ln">43   </span></a>    ---------- 
+<a name="l44"><span class="ln">44   </span></a>    state : bool 
+<a name="l45"><span class="ln">45   </span></a>        True for gc enabled, False for disabled 
+<a name="l46"><span class="ln">46   </span></a> 
+<a name="l47"><span class="ln">47   </span></a>    Examples 
+<a name="l48"><span class="ln">48   </span></a>    -------- 
+<a name="l49"><span class="ln">49   </span></a>    &gt;&gt;&gt; with gc_state(False): 
+<a name="l50"><span class="ln">50   </span></a>    ...     assert not gc.isenabled() 
+<a name="l51"><span class="ln">51   </span></a>    &gt;&gt;&gt; with gc_state(True): 
+<a name="l52"><span class="ln">52   </span></a>    ...     assert gc.isenabled() 
+<a name="l53"><span class="ln">53   </span></a>    &quot;&quot;&quot;</span>
+<a name="l54"><span class="ln">54   </span></a>    <span class="s1">orig_state </span><span class="s2">= </span><span class="s1">gc</span><span class="s3">.</span><span class="s1">isenabled</span><span class="s3">()</span>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s1">set_gc_state</span><span class="s3">(</span><span class="s1">state</span><span class="s3">)</span>
+<a name="l56"><span class="ln">56   </span></a>    <span class="s2">yield</span>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s1">set_gc_state</span><span class="s3">(</span><span class="s1">orig_state</span><span class="s3">)</span>
+<a name="l58"><span class="ln">58   </span></a>
+<a name="l59"><span class="ln">59   </span></a>
+<a name="l60"><span class="ln">60   </span></a><span class="s2">@</span><span class="s1">contextmanager</span>
+<a name="l61"><span class="ln">61   </span></a><span class="s2">def </span><span class="s1">assert_deallocated</span><span class="s3">(</span><span class="s1">func</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s0">&quot;&quot;&quot;Context manager to check that object is deallocated 
+<a name="l63"><span class="ln">63   </span></a> 
+<a name="l64"><span class="ln">64   </span></a>    This is useful for checking that an object can be freed directly by 
+<a name="l65"><span class="ln">65   </span></a>    reference counting, without requiring gc to break reference cycles. 
+<a name="l66"><span class="ln">66   </span></a>    GC is disabled inside the context manager. 
+<a name="l67"><span class="ln">67   </span></a> 
+<a name="l68"><span class="ln">68   </span></a>    This check is not available on PyPy. 
+<a name="l69"><span class="ln">69   </span></a> 
+<a name="l70"><span class="ln">70   </span></a>    Parameters 
+<a name="l71"><span class="ln">71   </span></a>    ---------- 
+<a name="l72"><span class="ln">72   </span></a>    func : callable 
+<a name="l73"><span class="ln">73   </span></a>        Callable to create object to check 
+<a name="l74"><span class="ln">74   </span></a>    \\*args : sequence 
+<a name="l75"><span class="ln">75   </span></a>        positional arguments to `func` in order to create object to check 
+<a name="l76"><span class="ln">76   </span></a>    \\*\\*kwargs : dict 
+<a name="l77"><span class="ln">77   </span></a>        keyword arguments to `func` in order to create object to check 
+<a name="l78"><span class="ln">78   </span></a> 
+<a name="l79"><span class="ln">79   </span></a>    Examples 
+<a name="l80"><span class="ln">80   </span></a>    -------- 
+<a name="l81"><span class="ln">81   </span></a>    &gt;&gt;&gt; class C: pass 
+<a name="l82"><span class="ln">82   </span></a>    &gt;&gt;&gt; with assert_deallocated(C) as c: 
+<a name="l83"><span class="ln">83   </span></a>    ...     # do something 
+<a name="l84"><span class="ln">84   </span></a>    ...     del c 
+<a name="l85"><span class="ln">85   </span></a> 
+<a name="l86"><span class="ln">86   </span></a>    &gt;&gt;&gt; class C: 
+<a name="l87"><span class="ln">87   </span></a>    ...     def __init__(self): 
+<a name="l88"><span class="ln">88   </span></a>    ...         self._circular = self # Make circular reference 
+<a name="l89"><span class="ln">89   </span></a>    &gt;&gt;&gt; with assert_deallocated(C) as c: #doctest: +IGNORE_EXCEPTION_DETAIL 
+<a name="l90"><span class="ln">90   </span></a>    ...     # do something 
+<a name="l91"><span class="ln">91   </span></a>    ...     del c 
+<a name="l92"><span class="ln">92   </span></a>    Traceback (most recent call last): 
+<a name="l93"><span class="ln">93   </span></a>        ... 
+<a name="l94"><span class="ln">94   </span></a>    ReferenceError: Remaining reference(s) to object 
+<a name="l95"><span class="ln">95   </span></a>    &quot;&quot;&quot;</span>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s2">if </span><span class="s1">IS_PYPY</span><span class="s2">:</span>
+<a name="l97"><span class="ln">97   </span></a>        <span class="s2">raise </span><span class="s1">RuntimeError</span><span class="s3">(</span><span class="s4">&quot;assert_deallocated is unavailable on PyPy&quot;</span><span class="s3">)</span>
+<a name="l98"><span class="ln">98   </span></a>
+<a name="l99"><span class="ln">99   </span></a>    <span class="s2">with </span><span class="s1">gc_state</span><span class="s3">(</span><span class="s2">False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s1">obj </span><span class="s2">= </span><span class="s1">func</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s1">ref </span><span class="s2">= </span><span class="s1">weakref</span><span class="s3">.</span><span class="s1">ref</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">)</span>
+<a name="l102"><span class="ln">102  </span></a>        <span class="s2">yield </span><span class="s1">obj</span>
+<a name="l103"><span class="ln">103  </span></a>        <span class="s2">del </span><span class="s1">obj</span>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s2">if </span><span class="s1">ref</span><span class="s3">() </span><span class="s2">is not None:</span>
+<a name="l105"><span class="ln">105  </span></a>            <span class="s2">raise </span><span class="s1">ReferenceError</span><span class="s3">(</span><span class="s4">&quot;Remaining reference(s) to object&quot;</span><span class="s3">)</span>
+<a name="l106"><span class="ln">106  </span></a></pre>
+</body>
+</html>

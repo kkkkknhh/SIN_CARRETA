@@ -1,0 +1,767 @@
+<html>
+<head>
+<title>DispatchKey.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #000080; font-weight: bold;}
+.s2 { color: #660e7a; font-weight: bold;}
+.s3 { color: #969896; font-style: italic;}
+.s4 { color: #0086b3;}
+.s5 { color: #183691; font-weight: bold;}
+.s6 { color: #ff0000;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+DispatchKey.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/DeviceType.h&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/macros/Export.h&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s1">#include </span><span class="s0">&lt;cstddef&gt;</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s1">#include </span><span class="s0">&lt;cstdint&gt;</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">#include </span><span class="s0">&lt;functional&gt;</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s1">#include </span><span class="s0">&lt;ostream&gt;</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">#include </span><span class="s0">&lt;string&gt;</span>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">namespace </span><span class="s0">c10 {</span>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a><span class="s3">// Semantically, each value of BackendComponent identifies a &quot;backend&quot; for our</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s3">// dispatch. Some functionalities that we may dispatch to are allowed to</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s3">// register different handlers for each backend. The BackendComponent is then</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s3">// used to figure out which backend implementation to dispatch to.</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a><span class="s3">// In implementation terms, the backend component identifies a specific &quot;bit&quot; in</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s3">// a DispatchKeySet. The bits in the DispatchKeySet are split between the bottom</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s3">// ~12 &quot;BackendComponent&quot; bits, while the remaining upper bits are assigned to</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s3">// functionalities. When we encounter a functionality bit that is known to be</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s3">// customizable per-backend, then we also look at the lower BackendComponent</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s3">// bits and take the highest bit to determine which backend's implementation to</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s3">// use.</span>
+<a name="l25"><span class="ln">25   </span></a>
+<a name="l26"><span class="ln">26   </span></a><span class="s3">// WARNING!  If you add a new backend component to the end of this list,</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s3">// make sure you register it before Meta.</span>
+<a name="l28"><span class="ln">28   </span></a><span class="s3">// Meta must be at the end so that meta key in tls triggers meta kernels.</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s3">// (But you shouldn't: private use keys should have higher precedence than all</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s3">// built-in keys)</span>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a><span class="s3">// If you add a new (non-privateuse) backend here,</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s3">// make sure to add an Autograd&lt;Backend&gt; fallthrough kernel</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s3">// in aten/src/ATen/core/VariableFallbackKernel.cpp</span>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a><span class="s1">#define </span><span class="s0">C10_FORALL_BACKEND_COMPONENTS(_, extra) \</span>
+<a name="l37"><span class="ln">37   </span></a>  <span class="s0">_(CPU, extra)                                 \</span>
+<a name="l38"><span class="ln">38   </span></a>  <span class="s0">_(CUDA, extra)                                \</span>
+<a name="l39"><span class="ln">39   </span></a>  <span class="s0">_(HIP, extra)                                 \</span>
+<a name="l40"><span class="ln">40   </span></a>  <span class="s0">_(XLA, extra)                                 \</span>
+<a name="l41"><span class="ln">41   </span></a>  <span class="s0">_(MPS, extra)                                 \</span>
+<a name="l42"><span class="ln">42   </span></a>  <span class="s0">_(IPU, extra)                                 \</span>
+<a name="l43"><span class="ln">43   </span></a>  <span class="s0">_(XPU, extra)                                 \</span>
+<a name="l44"><span class="ln">44   </span></a>  <span class="s0">_(HPU, extra)                                 \</span>
+<a name="l45"><span class="ln">45   </span></a>  <span class="s0">_(VE, extra)                                  \</span>
+<a name="l46"><span class="ln">46   </span></a>  <span class="s0">_(Lazy, extra)                                \</span>
+<a name="l47"><span class="ln">47   </span></a>  <span class="s0">_(MTIA, extra)                                \</span>
+<a name="l48"><span class="ln">48   </span></a>  <span class="s0">_(MAIA, extra)                                \</span>
+<a name="l49"><span class="ln">49   </span></a>  <span class="s0">_(PrivateUse1, extra)                         \</span>
+<a name="l50"><span class="ln">50   </span></a>  <span class="s0">_(PrivateUse2, extra)                         \</span>
+<a name="l51"><span class="ln">51   </span></a>  <span class="s0">_(PrivateUse3, extra)                         \</span>
+<a name="l52"><span class="ln">52   </span></a>  <span class="s0">_(Meta, extra)</span>
+<a name="l53"><span class="ln">53   </span></a>
+<a name="l54"><span class="ln">54   </span></a><span class="s3">// WARNING!  If we add a new per-backend functionality key that has higher</span>
+<a name="l55"><span class="ln">55   </span></a><span class="s3">// priority than Autograd, then make sure you update EndOfRuntimeBackendKeys</span>
+<a name="l56"><span class="ln">56   </span></a>
+<a name="l57"><span class="ln">57   </span></a><span class="s1">#define </span><span class="s0">C10_FORALL_FUNCTIONALITY_KEYS(_) \</span>
+<a name="l58"><span class="ln">58   </span></a>  <span class="s0">_(Dense, )                             \</span>
+<a name="l59"><span class="ln">59   </span></a>  <span class="s0">_(Quantized, Quantized)                \</span>
+<a name="l60"><span class="ln">60   </span></a>  <span class="s0">_(Sparse, Sparse)                      \</span>
+<a name="l61"><span class="ln">61   </span></a>  <span class="s0">_(SparseCsr, SparseCsr)                \</span>
+<a name="l62"><span class="ln">62   </span></a>  <span class="s0">_(NestedTensor, NestedTensor)          \</span>
+<a name="l63"><span class="ln">63   </span></a>  <span class="s0">_(AutogradFunctionality, Autograd)</span>
+<a name="l64"><span class="ln">64   </span></a>
+<a name="l65"><span class="ln">65   </span></a><span class="s1">enum </span><span class="s2">class </span><span class="s0">BackendComponent : uint8_t {</span>
+<a name="l66"><span class="ln">66   </span></a>
+<a name="l67"><span class="ln">67   </span></a>  <span class="s3">// A &quot;backend&quot; is colloquially used to refer to handlers for dispatch</span>
+<a name="l68"><span class="ln">68   </span></a>  <span class="s3">// which actually implement the numerics of an operation in question.</span>
+<a name="l69"><span class="ln">69   </span></a>  <span class="s3">//</span>
+<a name="l70"><span class="ln">70   </span></a>  <span class="s3">// Due to the nature of the enum, these backends are specified in</span>
+<a name="l71"><span class="ln">71   </span></a>  <span class="s3">// an ordered way, but for most backends this order is not semantically</span>
+<a name="l72"><span class="ln">72   </span></a>  <span class="s3">// meaningful (e.g., it's valid to reorder these backends without changing</span>
+<a name="l73"><span class="ln">73   </span></a>  <span class="s3">// semantics).  The only situation when backend ordering is meaningful</span>
+<a name="l74"><span class="ln">74   </span></a>  <span class="s3">// is when the backend participates in multiple dispatch with another</span>
+<a name="l75"><span class="ln">75   </span></a>  <span class="s3">// backend; e.g., CPU and CUDA (cuda must have higher priority).</span>
+<a name="l76"><span class="ln">76   </span></a>
+<a name="l77"><span class="ln">77   </span></a>  <span class="s3">// These keys don't correspond to individual kernels.</span>
+<a name="l78"><span class="ln">78   </span></a>  <span class="s3">// Instead, they represent the backends that are allowed to override specific</span>
+<a name="l79"><span class="ln">79   </span></a>  <span class="s3">// pieces of functionality:</span>
+<a name="l80"><span class="ln">80   </span></a>  <span class="s3">// - dense kernels (e.g. DispatchKey::CPU)</span>
+<a name="l81"><span class="ln">81   </span></a>  <span class="s3">// - sparse kernels (e.g. DispatchKey::SparseCPU)</span>
+<a name="l82"><span class="ln">82   </span></a>  <span class="s3">// - quantized kernels (e.g. DispatchKey::QuantizedCPU)</span>
+<a name="l83"><span class="ln">83   </span></a>  <span class="s3">// - autograd kernels (e.g. DispatchKey::AutogradCPU)</span>
+<a name="l84"><span class="ln">84   </span></a>  <span class="s3">// We reserve space in the runtime operator table for this full cross product</span>
+<a name="l85"><span class="ln">85   </span></a>  <span class="s3">// of</span>
+<a name="l86"><span class="ln">86   </span></a>  <span class="s3">// [backends in this enum] x [keys below that are explicitly marked as having</span>
+<a name="l87"><span class="ln">87   </span></a>  <span class="s3">// per-backend functionality]</span>
+<a name="l88"><span class="ln">88   </span></a>  <span class="s3">//</span>
+<a name="l89"><span class="ln">89   </span></a>  <span class="s3">// A meta tensor is a tensor without any data associated with it.  (They</span>
+<a name="l90"><span class="ln">90   </span></a>  <span class="s3">// have also colloquially been referred to as tensors on the &quot;null&quot; device).</span>
+<a name="l91"><span class="ln">91   </span></a>  <span class="s3">// A meta tensor can be used to dry run operators without actually doing any</span>
+<a name="l92"><span class="ln">92   </span></a>  <span class="s3">// computation, e.g., add on two meta tensors would give you another meta</span>
+<a name="l93"><span class="ln">93   </span></a>  <span class="s3">// tensor with the output shape and dtype, but wouldn't actually add anything.</span>
+<a name="l94"><span class="ln">94   </span></a>
+<a name="l95"><span class="ln">95   </span></a>  <span class="s0">InvalidBit = </span><span class="s4">0</span><span class="s0">,</span>
+<a name="l96"><span class="ln">96   </span></a><span class="s1">#define </span><span class="s0">DEFINE_BACKEND_COMPONENT(n, _) n##Bit,</span>
+<a name="l97"><span class="ln">97   </span></a>  <span class="s0">C10_FORALL_BACKEND_COMPONENTS(DEFINE_BACKEND_COMPONENT, unused)</span>
+<a name="l98"><span class="ln">98   </span></a><span class="s1">#undef </span><span class="s0">DEFINE_BACKEND_COMPONENT</span>
+<a name="l99"><span class="ln">99   </span></a>
+<a name="l100"><span class="ln">100  </span></a>  <span class="s3">// Define an alias to represent end of backend dispatch keys.</span>
+<a name="l101"><span class="ln">101  </span></a>  <span class="s3">// If you add new backend keys after PrivateUse3, please also update it here.</span>
+<a name="l102"><span class="ln">102  </span></a>  <span class="s0">EndOfBackendKeys = MetaBit,</span>
+<a name="l103"><span class="ln">103  </span></a><span class="s0">};</span>
+<a name="l104"><span class="ln">104  </span></a>
+<a name="l105"><span class="ln">105  </span></a><span class="s3">// Semantically, a dispatch key identifies a possible &quot;level&quot; in our</span>
+<a name="l106"><span class="ln">106  </span></a><span class="s3">// dispatch, for which a handler may be registered. Each handler corresponds</span>
+<a name="l107"><span class="ln">107  </span></a><span class="s3">// to a type of functionality.</span>
+<a name="l108"><span class="ln">108  </span></a><span class="s3">//</span>
+<a name="l109"><span class="ln">109  </span></a><span class="s3">// In implementation terms, the dispatch key identifies a specific &quot;bit&quot; in a</span>
+<a name="l110"><span class="ln">110  </span></a><span class="s3">// DispatchKeySet.  Higher bit indexes get handled by dispatching first (because</span>
+<a name="l111"><span class="ln">111  </span></a><span class="s3">// we &quot;count leading zeros&quot; when we extract the highest priority dispatch</span>
+<a name="l112"><span class="ln">112  </span></a><span class="s3">// key.)</span>
+<a name="l113"><span class="ln">113  </span></a><span class="s3">//</span>
+<a name="l114"><span class="ln">114  </span></a><span class="s3">// Note [DispatchKey Classification]</span>
+<a name="l115"><span class="ln">115  </span></a><span class="s3">// This enum actually contains several types of keys, which are explained</span>
+<a name="l116"><span class="ln">116  </span></a><span class="s3">// in more detail further down:</span>
+<a name="l117"><span class="ln">117  </span></a><span class="s3">// (1) non-customizable backends (e.g. FPGA)</span>
+<a name="l118"><span class="ln">118  </span></a><span class="s3">// (2) non-customizable functionalities (e.g. Functionalize)</span>
+<a name="l119"><span class="ln">119  </span></a><span class="s3">// (3) functionalized that are customizable per backend (e.g. Dense, Sparse,</span>
+<a name="l120"><span class="ln">120  </span></a><span class="s3">// AutogradFunctionality) (4) per-backend instances of customizable</span>
+<a name="l121"><span class="ln">121  </span></a><span class="s3">// functionalities (e.g. CPU, SparseCPU, AutogradCPU) (5) alias keys (e.g.</span>
+<a name="l122"><span class="ln">122  </span></a><span class="s3">// CompositeImplicitAutograd)</span>
+<a name="l123"><span class="ln">123  </span></a><span class="s3">//</span>
+<a name="l124"><span class="ln">124  </span></a><span class="s3">// Of the categories above, it's important to note:</span>
+<a name="l125"><span class="ln">125  </span></a><span class="s3">// (a) which keys are assigned individual bits in a DispatchKeySet</span>
+<a name="l126"><span class="ln">126  </span></a><span class="s3">// (b) which keys are assigned individual slots in the runtime operator table</span>
+<a name="l127"><span class="ln">127  </span></a><span class="s3">// (&quot;Runtime keys&quot;)</span>
+<a name="l128"><span class="ln">128  </span></a><span class="s3">//</span>
+<a name="l129"><span class="ln">129  </span></a><span class="s3">// (1), (2) and (3) all get their own dedicated bits in the DispatchKeySet.</span>
+<a name="l130"><span class="ln">130  </span></a><span class="s3">// (1), (2) and (4) all get their own dedicated slots in the runtime operator</span>
+<a name="l131"><span class="ln">131  </span></a><span class="s3">// table.</span>
+<a name="l132"><span class="ln">132  </span></a>
+<a name="l133"><span class="ln">133  </span></a><span class="s3">// See Note [DispatchKeySet Internal Representation] for more details.</span>
+<a name="l134"><span class="ln">134  </span></a><span class="s3">//</span>
+<a name="l135"><span class="ln">135  </span></a><span class="s3">// NOTE: Keep the list in sync with `DispatchKey` in torchgen/model.py</span>
+<a name="l136"><span class="ln">136  </span></a><span class="s1">enum </span><span class="s2">class </span><span class="s0">DispatchKey : uint16_t {</span>
+<a name="l137"><span class="ln">137  </span></a>
+<a name="l138"><span class="ln">138  </span></a>  <span class="s3">// ~~~~~~~~~~~~~~~~~~~~~~~~~~ UNDEFINED ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //</span>
+<a name="l139"><span class="ln">139  </span></a>  <span class="s3">// This is not a &quot;real&quot; functionality, but it exists to give us a &quot;nullopt&quot;</span>
+<a name="l140"><span class="ln">140  </span></a>  <span class="s3">// element we can return for cases when a DispatchKeySet contains no elements.</span>
+<a name="l141"><span class="ln">141  </span></a>  <span class="s3">// You can think a more semantically accurate definition of DispatchKey is:</span>
+<a name="l142"><span class="ln">142  </span></a>  <span class="s3">//</span>
+<a name="l143"><span class="ln">143  </span></a>  <span class="s3">//    using DispatchKey = std::optional&lt;RealDispatchKey&gt;</span>
+<a name="l144"><span class="ln">144  </span></a>  <span class="s3">//</span>
+<a name="l145"><span class="ln">145  </span></a>  <span class="s3">// and Undefined == nullopt.  We didn't actually represent</span>
+<a name="l146"><span class="ln">146  </span></a>  <span class="s3">// it this way because std::optional&lt;RealDispatchKey&gt; would take two</span>
+<a name="l147"><span class="ln">147  </span></a>  <span class="s3">// words, when DispatchKey fits in eight bits.</span>
+<a name="l148"><span class="ln">148  </span></a>
+<a name="l149"><span class="ln">149  </span></a>  <span class="s0">Undefined = </span><span class="s4">0</span><span class="s0">,</span>
+<a name="l150"><span class="ln">150  </span></a>
+<a name="l151"><span class="ln">151  </span></a>  <span class="s3">// Define an alias for Undefined to represent CatchAll (long term</span>
+<a name="l152"><span class="ln">152  </span></a>  <span class="s3">// this will get eliminated, but for now it's convenient)</span>
+<a name="l153"><span class="ln">153  </span></a>  <span class="s0">CatchAll = Undefined,</span>
+<a name="l154"><span class="ln">154  </span></a>
+<a name="l155"><span class="ln">155  </span></a>  <span class="s3">// ~~~~~~~~~~~~~~~~~~~~~~~~~~ Functionality Keys ~~~~~~~~~~~~~~~~~~~~~~ //</span>
+<a name="l156"><span class="ln">156  </span></a>  <span class="s3">// Every value in the enum (up to EndOfFunctionalityKeys)</span>
+<a name="l157"><span class="ln">157  </span></a>  <span class="s3">// corresponds to an individual &quot;functionality&quot; that can be dispatched to.</span>
+<a name="l158"><span class="ln">158  </span></a>  <span class="s3">// This is represented in the DispatchKeySet by assigning each of these enum</span>
+<a name="l159"><span class="ln">159  </span></a>  <span class="s3">// values</span>
+<a name="l160"><span class="ln">160  </span></a>  <span class="s3">// to each of the remaining (64 - len(BackendComponent)) bits.</span>
+<a name="l161"><span class="ln">161  </span></a>  <span class="s3">//</span>
+<a name="l162"><span class="ln">162  </span></a>  <span class="s3">// Most of these functionalities have a single handler assigned to them,</span>
+<a name="l163"><span class="ln">163  </span></a>  <span class="s3">// making them &quot;runtime keys&quot;.</span>
+<a name="l164"><span class="ln">164  </span></a>  <span class="s3">// That map to a single slot in the runtime operator table.</span>
+<a name="l165"><span class="ln">165  </span></a>  <span class="s3">//</span>
+<a name="l166"><span class="ln">166  </span></a>  <span class="s3">// A few functionalities are allowed to be customizable per backend.</span>
+<a name="l167"><span class="ln">167  </span></a>  <span class="s3">// See [Note: Per-Backend Functionality Dispatch Keys] for details.</span>
+<a name="l168"><span class="ln">168  </span></a>
+<a name="l169"><span class="ln">169  </span></a>  <span class="s3">// See [Note: Per-Backend Functionality Dispatch Keys]</span>
+<a name="l170"><span class="ln">170  </span></a>  <span class="s0">Dense,</span>
+<a name="l171"><span class="ln">171  </span></a>
+<a name="l172"><span class="ln">172  </span></a>  <span class="s3">// Below are non-extensible backends.</span>
+<a name="l173"><span class="ln">173  </span></a>  <span class="s3">// These are backends that currently don't have their own overrides for</span>
+<a name="l174"><span class="ln">174  </span></a>  <span class="s3">// Autograd/Sparse/Quantized kernels,</span>
+<a name="l175"><span class="ln">175  </span></a>  <span class="s3">// and we therefore don't waste space in the runtime operator table allocating</span>
+<a name="l176"><span class="ln">176  </span></a>  <span class="s3">// space for them.</span>
+<a name="l177"><span class="ln">177  </span></a>  <span class="s3">// If any of these backends ever need to customize, e.g., Autograd, then we'll</span>
+<a name="l178"><span class="ln">178  </span></a>  <span class="s3">// need to add a DispatchKey::*Bit for them.</span>
+<a name="l179"><span class="ln">179  </span></a>
+<a name="l180"><span class="ln">180  </span></a>  <span class="s3">// TODO: put this in BackendComponents</span>
+<a name="l181"><span class="ln">181  </span></a>  <span class="s0">FPGA, </span><span class="s3">// Xilinx support lives out of tree at</span>
+<a name="l182"><span class="ln">182  </span></a>  <span class="s3">// https://gitlab.com/pytorch-complex/vitis_kernels</span>
+<a name="l183"><span class="ln">183  </span></a>
+<a name="l184"><span class="ln">184  </span></a>  <span class="s0">Vulkan, </span><span class="s3">// TODO: put this in BackendComponents</span>
+<a name="l185"><span class="ln">185  </span></a>  <span class="s0">Metal, </span><span class="s3">// TODO: put this in BackendComponents</span>
+<a name="l186"><span class="ln">186  </span></a>
+<a name="l187"><span class="ln">187  </span></a>  <span class="s3">// See [Note: Per-Backend Functionality Dispatch Keys]</span>
+<a name="l188"><span class="ln">188  </span></a>  <span class="s0">Quantized,</span>
+<a name="l189"><span class="ln">189  </span></a>
+<a name="l190"><span class="ln">190  </span></a>  <span class="s3">// This backend is to support custom RNGs; it lets you go</span>
+<a name="l191"><span class="ln">191  </span></a>  <span class="s3">// to a different kernel if you pass in a generator that is not a</span>
+<a name="l192"><span class="ln">192  </span></a>  <span class="s3">// traditional CPUGeneratorImpl/CUDAGeneratorImpl.  To make use of this</span>
+<a name="l193"><span class="ln">193  </span></a>  <span class="s3">// key:</span>
+<a name="l194"><span class="ln">194  </span></a>  <span class="s3">//  1) set it as a second parameter of at::Generator constructor call in</span>
+<a name="l195"><span class="ln">195  </span></a>  <span class="s3">//     the user-defined PRNG class.</span>
+<a name="l196"><span class="ln">196  </span></a>  <span class="s3">//  2) use it as a dispatch key while registering custom kernels</span>
+<a name="l197"><span class="ln">197  </span></a>  <span class="s3">//     (templatized kernels specialized for user-defined PRNG class)</span>
+<a name="l198"><span class="ln">198  </span></a>  <span class="s3">// intended for out of tree use; tested by aten/src/ATen/test/rng_test.cpp</span>
+<a name="l199"><span class="ln">199  </span></a>  <span class="s0">CustomRNGKeyId,</span>
+<a name="l200"><span class="ln">200  </span></a>
+<a name="l201"><span class="ln">201  </span></a>  <span class="s3">// TODO: Make Mkldnn a functionality key, so we can give it Meta</span>
+<a name="l202"><span class="ln">202  </span></a>  <span class="s3">// support</span>
+<a name="l203"><span class="ln">203  </span></a>  <span class="s3">// Here are backends which specify more specialized operators</span>
+<a name="l204"><span class="ln">204  </span></a>  <span class="s3">// based on the layout of the tensor.  Note that the sparse backends</span>
+<a name="l205"><span class="ln">205  </span></a>  <span class="s3">// are one case where ordering matters: sparse multi-dispatches with</span>
+<a name="l206"><span class="ln">206  </span></a>  <span class="s3">// the corresponding dense tensors, and must be handled before them.</span>
+<a name="l207"><span class="ln">207  </span></a>  <span class="s0">MkldnnCPU, </span><span class="s3">// registered at build/aten/src/ATen/RegisterMkldnnCPU.cpp</span>
+<a name="l208"><span class="ln">208  </span></a>  <span class="s3">// NB: not to be confused with MKLDNN, which is Caffe2 only</span>
+<a name="l209"><span class="ln">209  </span></a>
+<a name="l210"><span class="ln">210  </span></a>  <span class="s3">// See [Note: Per-Backend Functionality Dispatch Keys]</span>
+<a name="l211"><span class="ln">211  </span></a>  <span class="s0">Sparse,</span>
+<a name="l212"><span class="ln">212  </span></a>
+<a name="l213"><span class="ln">213  </span></a>  <span class="s0">SparseCsr,</span>
+<a name="l214"><span class="ln">214  </span></a>
+<a name="l215"><span class="ln">215  </span></a>  <span class="s0">NestedTensor,</span>
+<a name="l216"><span class="ln">216  </span></a>
+<a name="l217"><span class="ln">217  </span></a>  <span class="s3">// In some situations, it is not immediately obvious what the correct</span>
+<a name="l218"><span class="ln">218  </span></a>  <span class="s3">// backend for function is, because the function in question doesn't</span>
+<a name="l219"><span class="ln">219  </span></a>  <span class="s3">// have any &quot;tensor&quot; arguments.  In this case, a BackendSelect function</span>
+<a name="l220"><span class="ln">220  </span></a>  <span class="s3">// can be registered to implement the custom determination of the</span>
+<a name="l221"><span class="ln">221  </span></a>  <span class="s3">// correct backend.</span>
+<a name="l222"><span class="ln">222  </span></a>  <span class="s0">BackendSelect,</span>
+<a name="l223"><span class="ln">223  </span></a>
+<a name="l224"><span class="ln">224  </span></a>  <span class="s0">Python,</span>
+<a name="l225"><span class="ln">225  </span></a>
+<a name="l226"><span class="ln">226  </span></a>  <span class="s3">// Out-of-core key for Fake Tensor in torchdistx.</span>
+<a name="l227"><span class="ln">227  </span></a>  <span class="s3">// See https://pytorch.org/torchdistx/latest/fake_tensor.html</span>
+<a name="l228"><span class="ln">228  </span></a>  <span class="s3">// TODO: delete this in favor of Python-implemented fake tensor</span>
+<a name="l229"><span class="ln">229  </span></a>  <span class="s0">Fake,</span>
+<a name="l230"><span class="ln">230  </span></a>  <span class="s3">// See Note [Out-of-tree vmap+grad prototype]. The purpose of this key</span>
+<a name="l231"><span class="ln">231  </span></a>  <span class="s3">// is to insert code after the &quot;autograd subsystem&quot; runs, so this key should</span>
+<a name="l232"><span class="ln">232  </span></a>  <span class="s3">// be directly after ADInplaceOrView and all of the autograd keys.</span>
+<a name="l233"><span class="ln">233  </span></a>  <span class="s0">FuncTorchDynamicLayerBackMode,</span>
+<a name="l234"><span class="ln">234  </span></a>
+<a name="l235"><span class="ln">235  </span></a>  <span class="s3">// Alias and mutation removal.</span>
+<a name="l236"><span class="ln">236  </span></a>  <span class="s3">// If some backends want to opt into only alias removal or only mutation</span>
+<a name="l237"><span class="ln">237  </span></a>  <span class="s3">// removal,</span>
+<a name="l238"><span class="ln">238  </span></a>  <span class="s3">// we can consider adding separate keys dedicated to those individual passes.</span>
+<a name="l239"><span class="ln">239  </span></a>  <span class="s3">// See Note [Functionalization Pass In Core] for details.</span>
+<a name="l240"><span class="ln">240  </span></a>  <span class="s0">Functionalize,</span>
+<a name="l241"><span class="ln">241  </span></a>
+<a name="l242"><span class="ln">242  </span></a>  <span class="s3">// The named dispatch key is set for any tensors with named dimensions.</span>
+<a name="l243"><span class="ln">243  </span></a>  <span class="s3">// Although we have a dispatch key for named tensors, for historical reasons,</span>
+<a name="l244"><span class="ln">244  </span></a>  <span class="s3">// this dispatch key doesn't do any of the substantive functionality for named</span>
+<a name="l245"><span class="ln">245  </span></a>  <span class="s3">// tensor (though, hypothetically, it could!)  At the moment, it's just</span>
+<a name="l246"><span class="ln">246  </span></a>  <span class="s3">// responsible for letting us give good error messages when operations</span>
+<a name="l247"><span class="ln">247  </span></a>  <span class="s3">// don't support named tensors.</span>
+<a name="l248"><span class="ln">248  </span></a>  <span class="s3">//</span>
+<a name="l249"><span class="ln">249  </span></a>  <span class="s3">// NB: If you ever consider moving named tensor functionality into</span>
+<a name="l250"><span class="ln">250  </span></a>  <span class="s3">// this dispatch key, note that it might be necessary add another dispatch</span>
+<a name="l251"><span class="ln">251  </span></a>  <span class="s3">// key that triggers before composite operators, in case a composite operator</span>
+<a name="l252"><span class="ln">252  </span></a>  <span class="s3">// has named dimension propagation that doesn't match that of its</span>
+<a name="l253"><span class="ln">253  </span></a>  <span class="s3">// constituent parts.</span>
+<a name="l254"><span class="ln">254  </span></a>  <span class="s3">// TODO: delete this once torchdim lands in functorch</span>
+<a name="l255"><span class="ln">255  </span></a>  <span class="s0">Named,</span>
+<a name="l256"><span class="ln">256  </span></a>
+<a name="l257"><span class="ln">257  </span></a>  <span class="s3">// The Conjugate dispatch key is set for any tensors that need to perform</span>
+<a name="l258"><span class="ln">258  </span></a>  <span class="s3">// conjugation</span>
+<a name="l259"><span class="ln">259  </span></a>  <span class="s3">// This is implemented at a dispatch level right before any backends run</span>
+<a name="l260"><span class="ln">260  </span></a>  <span class="s0">Conjugate,</span>
+<a name="l261"><span class="ln">261  </span></a>
+<a name="l262"><span class="ln">262  </span></a>  <span class="s3">// The Negative dispatch key is set for any tensors that need to perform</span>
+<a name="l263"><span class="ln">263  </span></a>  <span class="s3">// negation</span>
+<a name="l264"><span class="ln">264  </span></a>  <span class="s3">// This is implemented at a dispatch level right before any backends run</span>
+<a name="l265"><span class="ln">265  </span></a>  <span class="s0">Negative,</span>
+<a name="l266"><span class="ln">266  </span></a>
+<a name="l267"><span class="ln">267  </span></a>  <span class="s0">ZeroTensor, </span><span class="s3">// registered at build/aten/src/ATen/RegisterZeroTensor.cpp</span>
+<a name="l268"><span class="ln">268  </span></a>
+<a name="l269"><span class="ln">269  </span></a>  <span class="s3">// Note [ADInplaceOrView key]</span>
+<a name="l270"><span class="ln">270  </span></a>  <span class="s3">// ADInplaceOrView key is used by inplace or view ops to register a kernel</span>
+<a name="l271"><span class="ln">271  </span></a>  <span class="s3">// that does additional setup for future autograd computation.</span>
+<a name="l272"><span class="ln">272  </span></a>  <span class="s3">//</span>
+<a name="l273"><span class="ln">273  </span></a>  <span class="s3">// 1. For inplace ops this kernel does version bump</span>
+<a name="l274"><span class="ln">274  </span></a>  <span class="s3">// 2. For view ops this kernel does `as_view` setup where we properly setup</span>
+<a name="l275"><span class="ln">275  </span></a>  <span class="s3">//    DifferentiableViewMeta on the view tensors.</span>
+<a name="l276"><span class="ln">276  </span></a>  <span class="s3">//</span>
+<a name="l277"><span class="ln">277  </span></a>  <span class="s3">// For other ops it's fallthrough kernel since there's no extra</span>
+<a name="l278"><span class="ln">278  </span></a>  <span class="s3">// work to do.</span>
+<a name="l279"><span class="ln">279  </span></a>  <span class="s3">//</span>
+<a name="l280"><span class="ln">280  </span></a>  <span class="s3">// Note [Dream: skip VariableType kernel when requires_grad=false]</span>
+<a name="l281"><span class="ln">281  </span></a>  <span class="s3">//</span>
+<a name="l282"><span class="ln">282  </span></a>  <span class="s3">// In an ideal world where we can skip VariableType kernel for inputs</span>
+<a name="l283"><span class="ln">283  </span></a>  <span class="s3">// with requires_grad=false, instead of a fallthrough kernel, we'll</span>
+<a name="l284"><span class="ln">284  </span></a>  <span class="s3">// register a kernel shown below to all functional ops as well:</span>
+<a name="l285"><span class="ln">285  </span></a>  <span class="s3">// torch::Tensor my_functional_op(...) {</span>
+<a name="l286"><span class="ln">286  </span></a>  <span class="s3">//   {</span>
+<a name="l287"><span class="ln">287  </span></a>  <span class="s3">//     // Note for every op in VariableType, you need to go through</span>
+<a name="l288"><span class="ln">288  </span></a>  <span class="s3">//     // `AutoDispatchBelowADInplaceOrView` guard exactly once to add the</span>
+<a name="l289"><span class="ln">289  </span></a>  <span class="s3">//     // key to TLS excluded set. If you don't go through it at all,</span>
+<a name="l290"><span class="ln">290  </span></a>  <span class="s3">//     // inplace/view ops called through `at::` inside your backend</span>
+<a name="l291"><span class="ln">291  </span></a>  <span class="s3">//     // kernel will dispatch to ADInplaceOrView kernels and do a lot</span>
+<a name="l292"><span class="ln">292  </span></a>  <span class="s3">//     // of extra work.</span>
+<a name="l293"><span class="ln">293  </span></a>  <span class="s3">//     at::AutoDispatchBelowADInplaceOrView guard;</span>
+<a name="l294"><span class="ln">294  </span></a>  <span class="s3">//     at::redispatch::my_functional_op(...);</span>
+<a name="l295"><span class="ln">295  </span></a>  <span class="s3">//   }</span>
+<a name="l296"><span class="ln">296  </span></a>  <span class="s3">// }</span>
+<a name="l297"><span class="ln">297  </span></a>  <span class="s3">// But this work is currently blocked since it adds an extra dispatch</span>
+<a name="l298"><span class="ln">298  </span></a>  <span class="s3">// for all ops and it's non-trivial overhead at model level(a few percents).</span>
+<a name="l299"><span class="ln">299  </span></a>  <span class="s3">// Thus our current approach takes advantage of the fact every kernel go</span>
+<a name="l300"><span class="ln">300  </span></a>  <span class="s3">// through VariableType kernel first and pulls the</span>
+<a name="l301"><span class="ln">301  </span></a>  <span class="s3">// `at::AutoDispatchBelowADInplaceOrView` guard of functional ops</span>
+<a name="l302"><span class="ln">302  </span></a>  <span class="s3">// up to the `VariableType` kernel. Thus we only add the extra dispatch</span>
+<a name="l303"><span class="ln">303  </span></a>  <span class="s3">// to view/inplace ops to minimize its perf impact to real models.</span>
+<a name="l304"><span class="ln">304  </span></a>  <span class="s0">ADInplaceOrView,</span>
+<a name="l305"><span class="ln">305  </span></a>  <span class="s3">// Note [Alias Dispatch Key : Autograd]</span>
+<a name="l306"><span class="ln">306  </span></a>  <span class="s3">// All backends are oblivious to autograd; autograd is handled as a</span>
+<a name="l307"><span class="ln">307  </span></a>  <span class="s3">// layer which happens on top of all backends. It inspects the autograd</span>
+<a name="l308"><span class="ln">308  </span></a>  <span class="s3">// metadata of all inputs, determines what autograd metadata should be</span>
+<a name="l309"><span class="ln">309  </span></a>  <span class="s3">// constructed by the output, and otherwise defers to the backend to</span>
+<a name="l310"><span class="ln">310  </span></a>  <span class="s3">// actually do the numeric computation.  Autograd contains</span>
+<a name="l311"><span class="ln">311  </span></a>  <span class="s3">// the bulk of this logic.</span>
+<a name="l312"><span class="ln">312  </span></a>
+<a name="l313"><span class="ln">313  </span></a>  <span class="s3">// Autograd is now an alias dispatch key which by default maps to all</span>
+<a name="l314"><span class="ln">314  </span></a>  <span class="s3">// backend-specific autograd keys.</span>
+<a name="l315"><span class="ln">315  </span></a>  <span class="s3">// Backend-specific allow backends to override the default kernel registered</span>
+<a name="l316"><span class="ln">316  </span></a>  <span class="s3">// to Autograd key as needed.</span>
+<a name="l317"><span class="ln">317  </span></a>  <span class="s3">// For example, XLA wants to define autograd for einsum directly.</span>
+<a name="l318"><span class="ln">318  </span></a>  <span class="s3">// Registering a custom autograd implementation at the XLA key won't work</span>
+<a name="l319"><span class="ln">319  </span></a>  <span class="s3">// because we process Autograd before XLA.  This key has higher priority and</span>
+<a name="l320"><span class="ln">320  </span></a>  <span class="s3">// gets processed first.  You generally should NOT redispatch after handling</span>
+<a name="l321"><span class="ln">321  </span></a>  <span class="s3">// autograd here (since that would result in execution of the Autograd</span>
+<a name="l322"><span class="ln">322  </span></a>  <span class="s3">// operator, which you're trying to skip).  In AutogradXLA implementations,</span>
+<a name="l323"><span class="ln">323  </span></a>  <span class="s3">// you are responsible for handling autograd yourself, or deferring to other</span>
+<a name="l324"><span class="ln">324  </span></a>  <span class="s3">// operators which support autograd.</span>
+<a name="l325"><span class="ln">325  </span></a>
+<a name="l326"><span class="ln">326  </span></a>  <span class="s3">// Currently we only have backend-specific autograd keys for CPU/CUDA/XLA and</span>
+<a name="l327"><span class="ln">327  </span></a>  <span class="s3">// reserved user-defined backends. All other in-tree backends share the</span>
+<a name="l328"><span class="ln">328  </span></a>  <span class="s3">// AutogradOther key. We can add specific autograd key for those backends</span>
+<a name="l329"><span class="ln">329  </span></a>  <span class="s3">// upon request.</span>
+<a name="l330"><span class="ln">330  </span></a>  <span class="s0">AutogradOther,</span>
+<a name="l331"><span class="ln">331  </span></a>
+<a name="l332"><span class="ln">332  </span></a>  <span class="s3">// See [Note: Per-Backend Functionality Dispatch Keys]</span>
+<a name="l333"><span class="ln">333  </span></a>  <span class="s0">AutogradFunctionality,</span>
+<a name="l334"><span class="ln">334  </span></a>
+<a name="l335"><span class="ln">335  </span></a>  <span class="s3">// NestedTensor is an example of something that isn't a &quot;real backend&quot;</span>
+<a name="l336"><span class="ln">336  </span></a>  <span class="s3">// (because it mostly consists of redispatching kernels)</span>
+<a name="l337"><span class="ln">337  </span></a>  <span class="s3">// but it would like to override autograd functionality in C++.</span>
+<a name="l338"><span class="ln">338  </span></a>  <span class="s3">// We can handle cases like this by adding an extra functionality key</span>
+<a name="l339"><span class="ln">339  </span></a>  <span class="s3">// exclusively for handling autograd for NestedTensor.</span>
+<a name="l340"><span class="ln">340  </span></a>  <span class="s3">// lives out of tree at</span>
+<a name="l341"><span class="ln">341  </span></a>  <span class="s3">// https://github.com/pytorch/nestedtensor</span>
+<a name="l342"><span class="ln">342  </span></a>  <span class="s0">AutogradNestedTensor,</span>
+<a name="l343"><span class="ln">343  </span></a>
+<a name="l344"><span class="ln">344  </span></a>  <span class="s0">Tracer,</span>
+<a name="l345"><span class="ln">345  </span></a>
+<a name="l346"><span class="ln">346  </span></a>  <span class="s3">// TODO: make Autocast a functionality key</span>
+<a name="l347"><span class="ln">347  </span></a>  <span class="s3">// Autocasting precedes VariableTypeId, to ensure casts are autograd-exposed</span>
+<a name="l348"><span class="ln">348  </span></a>  <span class="s3">// and inputs are saved for backward in the post-autocast type.</span>
+<a name="l349"><span class="ln">349  </span></a>  <span class="s0">AutocastCPU,</span>
+<a name="l350"><span class="ln">350  </span></a>  <span class="s0">AutocastMTIA,</span>
+<a name="l351"><span class="ln">351  </span></a>  <span class="s0">AutocastMAIA,</span>
+<a name="l352"><span class="ln">352  </span></a>  <span class="s0">AutocastXPU,</span>
+<a name="l353"><span class="ln">353  </span></a>  <span class="s0">AutocastIPU,</span>
+<a name="l354"><span class="ln">354  </span></a>  <span class="s0">AutocastHPU,</span>
+<a name="l355"><span class="ln">355  </span></a>  <span class="s0">AutocastXLA,</span>
+<a name="l356"><span class="ln">356  </span></a>  <span class="s3">// AutocastXLA is only being used for TPUs. XLA GPUs continue to use</span>
+<a name="l357"><span class="ln">357  </span></a>  <span class="s3">// AutocastCUDA.</span>
+<a name="l358"><span class="ln">358  </span></a>  <span class="s0">AutocastMPS,</span>
+<a name="l359"><span class="ln">359  </span></a>  <span class="s0">AutocastCUDA,</span>
+<a name="l360"><span class="ln">360  </span></a>  <span class="s0">AutocastPrivateUse1,</span>
+<a name="l361"><span class="ln">361  </span></a>
+<a name="l362"><span class="ln">362  </span></a>  <span class="s3">// ~~~~~~~~~~~~~~~~~~~~~~~~~~~ WRAPPERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //</span>
+<a name="l363"><span class="ln">363  </span></a>  <span class="s3">// There are a number of alternative modes which may want to handle before</span>
+<a name="l364"><span class="ln">364  </span></a>  <span class="s3">// autograd; for example, error checking, tracing, profiling or vmap.  They</span>
+<a name="l365"><span class="ln">365  </span></a>  <span class="s3">// go here.</span>
+<a name="l366"><span class="ln">366  </span></a>
+<a name="l367"><span class="ln">367  </span></a>  <span class="s0">FuncTorchBatched, </span><span class="s3">// See Note [Out-of-tree vmap+grad prototype]</span>
+<a name="l368"><span class="ln">368  </span></a>
+<a name="l369"><span class="ln">369  </span></a>  <span class="s3">// Dispatch key for BatchedTensorImpl wrapping a nested tensor.</span>
+<a name="l370"><span class="ln">370  </span></a>  <span class="s0">BatchedNestedTensor,</span>
+<a name="l371"><span class="ln">371  </span></a>
+<a name="l372"><span class="ln">372  </span></a>  <span class="s0">FuncTorchVmapMode, </span><span class="s3">// See Note [Out-of-tree vmap+grad prototype]</span>
+<a name="l373"><span class="ln">373  </span></a>
+<a name="l374"><span class="ln">374  </span></a>  <span class="s3">// This is the dispatch key for BatchedTensorImpl, which is used to implement</span>
+<a name="l375"><span class="ln">375  </span></a>  <span class="s3">// batching rules for vmap.</span>
+<a name="l376"><span class="ln">376  </span></a>  <span class="s0">Batched,</span>
+<a name="l377"><span class="ln">377  </span></a>
+<a name="l378"><span class="ln">378  </span></a>  <span class="s3">// When we are inside a vmap, all tensors dispatch on this key.</span>
+<a name="l379"><span class="ln">379  </span></a>  <span class="s3">// See Note: [DispatchKey::VmapMode usage] for more details.</span>
+<a name="l380"><span class="ln">380  </span></a>  <span class="s0">VmapMode,</span>
+<a name="l381"><span class="ln">381  </span></a>
+<a name="l382"><span class="ln">382  </span></a>  <span class="s0">FuncTorchGradWrapper, </span><span class="s3">// See Note [Out-of-tree vmap+grad prototype]</span>
+<a name="l383"><span class="ln">383  </span></a>
+<a name="l384"><span class="ln">384  </span></a>  <span class="s3">// Out-of-core key for Deferred Module Initialization in torchdistx.</span>
+<a name="l385"><span class="ln">385  </span></a>  <span class="s3">// See https://pytorch.org/torchdistx/latest/deferred_init.html</span>
+<a name="l386"><span class="ln">386  </span></a>  <span class="s0">DeferredInit,</span>
+<a name="l387"><span class="ln">387  </span></a>
+<a name="l388"><span class="ln">388  </span></a>  <span class="s3">// Used by Python key logic to know the set of tls on entry to the dispatcher</span>
+<a name="l389"><span class="ln">389  </span></a>  <span class="s3">// This kernel assumes it is the top-most non-functorch-related DispatchKey.</span>
+<a name="l390"><span class="ln">390  </span></a>  <span class="s3">// If you add a key above, make sure to update the fallback implementation for</span>
+<a name="l391"><span class="ln">391  </span></a>  <span class="s3">// this.</span>
+<a name="l392"><span class="ln">392  </span></a>  <span class="s0">PythonTLSSnapshot,</span>
+<a name="l393"><span class="ln">393  </span></a>
+<a name="l394"><span class="ln">394  </span></a>  <span class="s3">// This key should be at the very top of the dispatcher</span>
+<a name="l395"><span class="ln">395  </span></a>  <span class="s0">FuncTorchDynamicLayerFrontMode, </span><span class="s3">// See Note [Out-of-tree vmap+grad prototype]</span>
+<a name="l396"><span class="ln">396  </span></a>
+<a name="l397"><span class="ln">397  </span></a>  <span class="s3">// TESTING: This is intended to be a generic testing tensor type id.</span>
+<a name="l398"><span class="ln">398  </span></a>  <span class="s3">// Don't use it for anything real; its only acceptable use is within a single</span>
+<a name="l399"><span class="ln">399  </span></a>  <span class="s3">// process test.  Use it by creating a TensorImpl with this DispatchKey, and</span>
+<a name="l400"><span class="ln">400  </span></a>  <span class="s3">// then registering operators to operate on this type id.  See</span>
+<a name="l401"><span class="ln">401  </span></a>  <span class="s3">// aten/src/ATen/core/dispatch/backend_fallback_test.cpp for a usage example.</span>
+<a name="l402"><span class="ln">402  </span></a>  <span class="s0">TESTING_ONLY_GenericWrapper,</span>
+<a name="l403"><span class="ln">403  </span></a>
+<a name="l404"><span class="ln">404  </span></a>  <span class="s3">// TESTING: This is intended to be a generic testing tensor type id.</span>
+<a name="l405"><span class="ln">405  </span></a>  <span class="s3">// Don't use it for anything real; its only acceptable use is within a ingle</span>
+<a name="l406"><span class="ln">406  </span></a>  <span class="s3">// process test.  Use it by toggling the mode on and off via</span>
+<a name="l407"><span class="ln">407  </span></a>  <span class="s3">// TESTING_ONLY_tls_generic_mode_set_enabled and then registering operators</span>
+<a name="l408"><span class="ln">408  </span></a>  <span class="s3">// to operate on this type id.  See</span>
+<a name="l409"><span class="ln">409  </span></a>  <span class="s3">// aten/src/ATen/core/dispatch/backend_fallback_test.cpp</span>
+<a name="l410"><span class="ln">410  </span></a>  <span class="s3">// for a usage example</span>
+<a name="l411"><span class="ln">411  </span></a>  <span class="s0">TESTING_ONLY_GenericMode,</span>
+<a name="l412"><span class="ln">412  </span></a>
+<a name="l413"><span class="ln">413  </span></a>  <span class="s3">// This key is used for pre-dispatch tracing in make_fx.</span>
+<a name="l414"><span class="ln">414  </span></a>  <span class="s3">// It has lower priority than the PythonDispatcher key</span>
+<a name="l415"><span class="ln">415  </span></a>  <span class="s3">// because we use the PythonDispatcher to intercept the key from python,</span>
+<a name="l416"><span class="ln">416  </span></a>  <span class="s3">// and avoid having to implement it in C++.</span>
+<a name="l417"><span class="ln">417  </span></a>  <span class="s0">PreDispatch,</span>
+<a name="l418"><span class="ln">418  </span></a>
+<a name="l419"><span class="ln">419  </span></a>  <span class="s3">// This is a bypass that allows you to skip running the C++ dispatcher</span>
+<a name="l420"><span class="ln">420  </span></a>  <span class="s3">// entirely</span>
+<a name="l421"><span class="ln">421  </span></a>  <span class="s0">PythonDispatcher,</span>
+<a name="l422"><span class="ln">422  </span></a>
+<a name="l423"><span class="ln">423  </span></a>  <span class="s3">// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FIN ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //</span>
+<a name="l424"><span class="ln">424  </span></a>  <span class="s0">EndOfFunctionalityKeys, </span><span class="s3">// End of functionality keys.</span>
+<a name="l425"><span class="ln">425  </span></a>
+<a name="l426"><span class="ln">426  </span></a><span class="s3">// ~~~~~~~~~~~~~~ &quot;Dense&quot; Per-Backend Dispatch keys ~~~~~~~~~~~~~~~~~~~~ //</span>
+<a name="l427"><span class="ln">427  </span></a><span class="s3">// Here are backends which you think of as traditionally specifying</span>
+<a name="l428"><span class="ln">428  </span></a><span class="s3">// how to implement operations on some device.</span>
+<a name="l429"><span class="ln">429  </span></a>
+<a name="l430"><span class="ln">430  </span></a><span class="s1">#define </span><span class="s0">DEFINE_PER_BACKEND_KEYS_FOR_BACKEND(n, prefix) prefix##n,</span>
+<a name="l431"><span class="ln">431  </span></a>
+<a name="l432"><span class="ln">432  </span></a><span class="s1">#define </span><span class="s0">DEFINE_PER_BACKEND_KEYS(fullname, prefix)      \</span>
+<a name="l433"><span class="ln">433  </span></a>  <span class="s0">StartOf##fullname##Backends,                         \</span>
+<a name="l434"><span class="ln">434  </span></a>      <span class="s0">C10_FORALL_BACKEND_COMPONENTS(                   \</span>
+<a name="l435"><span class="ln">435  </span></a>          <span class="s0">DEFINE_PER_BACKEND_KEYS_FOR_BACKEND, prefix) \</span>
+<a name="l436"><span class="ln">436  </span></a>          <span class="s0">EndOf##fullname##Backends = prefix##Meta,</span>
+<a name="l437"><span class="ln">437  </span></a>
+<a name="l438"><span class="ln">438  </span></a>  <span class="s0">C10_FORALL_FUNCTIONALITY_KEYS(DEFINE_PER_BACKEND_KEYS)</span>
+<a name="l439"><span class="ln">439  </span></a>
+<a name="l440"><span class="ln">440  </span></a><span class="s1">#undef </span><span class="s0">DEFINE_PER_BACKEND_KEYS</span>
+<a name="l441"><span class="ln">441  </span></a><span class="s1">#undef </span><span class="s0">DEFINE_PER_BACKEND_KEYS_FOR_BACKEND</span>
+<a name="l442"><span class="ln">442  </span></a>
+<a name="l443"><span class="ln">443  </span></a>      <span class="s0">EndOfRuntimeBackendKeys = EndOfAutogradFunctionalityBackends,</span>
+<a name="l444"><span class="ln">444  </span></a>
+<a name="l445"><span class="ln">445  </span></a>  <span class="s3">// ~~~~~~~~~~~~~~~~~~~~~~ Alias Dispatch Keys ~~~~~~~~~~~~~~~~~~~~~~~~~~ //</span>
+<a name="l446"><span class="ln">446  </span></a>  <span class="s3">// Note [Alias Dispatch Keys]</span>
+<a name="l447"><span class="ln">447  </span></a>  <span class="s3">// Alias dispatch keys are synthetic dispatch keys which map to multiple</span>
+<a name="l448"><span class="ln">448  </span></a>  <span class="s3">// runtime dispatch keys. Alisa keys have precedence, but they are always</span>
+<a name="l449"><span class="ln">449  </span></a>  <span class="s3">// lower precedence than runtime keys. You can register a kernel to an</span>
+<a name="l450"><span class="ln">450  </span></a>  <span class="s3">// alias key, the kernel might be populated to the mapped runtime keys</span>
+<a name="l451"><span class="ln">451  </span></a>  <span class="s3">// during dispatch table computation.</span>
+<a name="l452"><span class="ln">452  </span></a>  <span class="s3">// If a runtime dispatch key has multiple kernels from alias keys, which</span>
+<a name="l453"><span class="ln">453  </span></a>  <span class="s3">// kernel wins is done based on the precedence of alias keys (but runtime</span>
+<a name="l454"><span class="ln">454  </span></a>  <span class="s3">// keys always have precedence over alias keys).</span>
+<a name="l455"><span class="ln">455  </span></a>  <span class="s3">// Alias keys won't be directly called during runtime.</span>
+<a name="l456"><span class="ln">456  </span></a>
+<a name="l457"><span class="ln">457  </span></a>  <span class="s3">// See Note [Alias Dispatch Key : Autograd]</span>
+<a name="l458"><span class="ln">458  </span></a>  <span class="s0">Autograd,</span>
+<a name="l459"><span class="ln">459  </span></a>  <span class="s0">CompositeImplicitAutograd, </span><span class="s3">// registered at</span>
+<a name="l460"><span class="ln">460  </span></a>  <span class="s3">// build/aten/src/ATen/RegisterCompositeImplicitAutograd.cpp</span>
+<a name="l461"><span class="ln">461  </span></a>
+<a name="l462"><span class="ln">462  </span></a>  <span class="s3">// Note: The alias keyset for FuncTorchBatchedDecomposition is disjoint from</span>
+<a name="l463"><span class="ln">463  </span></a>  <span class="s3">// all</span>
+<a name="l464"><span class="ln">464  </span></a>  <span class="s3">// other alias keysets</span>
+<a name="l465"><span class="ln">465  </span></a>  <span class="s3">// and so precedence order doesn't matter</span>
+<a name="l466"><span class="ln">466  </span></a>  <span class="s0">FuncTorchBatchedDecomposition, </span><span class="s3">// registered at</span>
+<a name="l467"><span class="ln">467  </span></a>  <span class="s3">// build/aten/src/ATen/RegisterFuncTorchBatchedDecomposition.cpp</span>
+<a name="l468"><span class="ln">468  </span></a>  <span class="s3">// Note: The alias keyset for CompositeImplicitAutogradNestedTensor is</span>
+<a name="l469"><span class="ln">469  </span></a>  <span class="s3">// disjoint from all other alias keysets</span>
+<a name="l470"><span class="ln">470  </span></a>  <span class="s0">CompositeImplicitAutogradNestedTensor, </span><span class="s3">// registered at</span>
+<a name="l471"><span class="ln">471  </span></a>  <span class="s3">// build/aten/src/ATen/RegisterCompositeImplicitAutogradNestedTensor.cpp</span>
+<a name="l472"><span class="ln">472  </span></a>  <span class="s0">CompositeExplicitAutograd, </span><span class="s3">// registered at</span>
+<a name="l473"><span class="ln">473  </span></a>  <span class="s3">// build/aten/src/ATen/RegisterCompositeExplicitAutograd.cpp</span>
+<a name="l474"><span class="ln">474  </span></a>  <span class="s3">// See Note [CompositeExplicitAutogradNonFunctional Key]</span>
+<a name="l475"><span class="ln">475  </span></a>  <span class="s0">CompositeExplicitAutogradNonFunctional, </span><span class="s3">// registered at</span>
+<a name="l476"><span class="ln">476  </span></a>  <span class="s3">// build/aten/src/ATen/RegisterCompositeExplicitAutograd.cpp</span>
+<a name="l477"><span class="ln">477  </span></a>
+<a name="l478"><span class="ln">478  </span></a>  <span class="s3">// Define an alias key to represent end of alias dispatch keys.</span>
+<a name="l479"><span class="ln">479  </span></a>  <span class="s3">// If you add new alias keys after Autograd, please also update it here.</span>
+<a name="l480"><span class="ln">480  </span></a>  <span class="s0">StartOfAliasKeys = Autograd,</span>
+<a name="l481"><span class="ln">481  </span></a>  <span class="s0">EndOfAliasKeys = CompositeExplicitAutogradNonFunctional, </span><span class="s3">//</span>
+<a name="l482"><span class="ln">482  </span></a>
+<a name="l483"><span class="ln">483  </span></a>  <span class="s3">// ~~~~~~~~~~~~~~~~~~~~~~~~~ BC ALIASES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //</span>
+<a name="l484"><span class="ln">484  </span></a>  <span class="s3">// The aliases exist for backwards compatibility reasons, they shouldn't</span>
+<a name="l485"><span class="ln">485  </span></a>  <span class="s3">// be used</span>
+<a name="l486"><span class="ln">486  </span></a>  <span class="s0">CPUTensorId = CPU,</span>
+<a name="l487"><span class="ln">487  </span></a>  <span class="s0">CUDATensorId = CUDA,</span>
+<a name="l488"><span class="ln">488  </span></a>  <span class="s0">DefaultBackend = CompositeExplicitAutograd,</span>
+<a name="l489"><span class="ln">489  </span></a>  <span class="s0">PrivateUse1_PreAutograd = AutogradPrivateUse1,</span>
+<a name="l490"><span class="ln">490  </span></a>  <span class="s0">PrivateUse2_PreAutograd = AutogradPrivateUse2,</span>
+<a name="l491"><span class="ln">491  </span></a>  <span class="s0">PrivateUse3_PreAutograd = AutogradPrivateUse3,</span>
+<a name="l492"><span class="ln">492  </span></a>  <span class="s0">Autocast = AutocastCUDA,</span>
+<a name="l493"><span class="ln">493  </span></a><span class="s0">};</span>
+<a name="l494"><span class="ln">494  </span></a>
+<a name="l495"><span class="ln">495  </span></a><span class="s3">// Note [Private use DispatchKey]</span>
+<a name="l496"><span class="ln">496  </span></a><span class="s3">// ~~~~~~~~~~~~~~~~~~~~~~~~~~~</span>
+<a name="l497"><span class="ln">497  </span></a><span class="s3">// Private use tensor IDs are preallocated tensor type IDs for use in user</span>
+<a name="l498"><span class="ln">498  </span></a><span class="s3">// applications.  Similar to private use fields in HTTP, they can be used</span>
+<a name="l499"><span class="ln">499  </span></a><span class="s3">// by end users for experimental or private applications, without needing</span>
+<a name="l500"><span class="ln">500  </span></a><span class="s3">// to &quot;standardize&quot; the tensor ID (which would be done by submitting a PR</span>
+<a name="l501"><span class="ln">501  </span></a><span class="s3">// to PyTorch to add your type ID).</span>
+<a name="l502"><span class="ln">502  </span></a><span class="s3">//</span>
+<a name="l503"><span class="ln">503  </span></a><span class="s3">// Private use tensor IDs are appropriate to use if you want to experiment</span>
+<a name="l504"><span class="ln">504  </span></a><span class="s3">// with adding a new tensor type (without having to patch PyTorch first) or</span>
+<a name="l505"><span class="ln">505  </span></a><span class="s3">// have a private, non-distributed application that needs to make use of a</span>
+<a name="l506"><span class="ln">506  </span></a><span class="s3">// new tensor type.  Private use tensor IDs are NOT appropriate to use for</span>
+<a name="l507"><span class="ln">507  </span></a><span class="s3">// libraries intended to be distributed to further users: please contact</span>
+<a name="l508"><span class="ln">508  </span></a><span class="s3">// the PyTorch developers to get a type ID registered in this case.</span>
+<a name="l509"><span class="ln">509  </span></a><span class="s3">//</span>
+<a name="l510"><span class="ln">510  </span></a><span class="s3">// We provide two classes of private user tensor id: regular DispatchKeys</span>
+<a name="l511"><span class="ln">511  </span></a><span class="s3">// and Autograd DispatchKeys.  DispatchKeys serve the role of ordinary &quot;backend&quot;</span>
+<a name="l512"><span class="ln">512  </span></a><span class="s3">// DispatchKeys; if you were adding support for a new type of accelerator, you</span>
+<a name="l513"><span class="ln">513  </span></a><span class="s3">// would use a backend DispatchKey, and ideally automatically reuse</span>
+<a name="l514"><span class="ln">514  </span></a><span class="s3">// AutogradOther definitions already defined in PyTorch.  AutogradPrivateUse</span>
+<a name="l515"><span class="ln">515  </span></a><span class="s3">// DispatchKeys serve as &quot;wrapper&quot; DispatchKeys: they are only necessary for</span>
+<a name="l516"><span class="ln">516  </span></a><span class="s3">// tensors that compose multiple internal tensors, and for cases when the</span>
+<a name="l517"><span class="ln">517  </span></a><span class="s3">// built-in autograd formulas for operators are not appropriate.</span>
+<a name="l518"><span class="ln">518  </span></a>
+<a name="l519"><span class="ln">519  </span></a><span class="s0">static_assert(</span>
+<a name="l520"><span class="ln">520  </span></a>    <span class="s0">(</span><span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(BackendComponent::EndOfBackendKeys) +</span>
+<a name="l521"><span class="ln">521  </span></a>     <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(DispatchKey::EndOfFunctionalityKeys)) &lt;= </span><span class="s4">64</span><span class="s0">,</span>
+<a name="l522"><span class="ln">522  </span></a>    <span class="s5">&quot;The BackendComponent and DispatchKey enums (below EndOfFunctionalityKeys)&quot;</span>
+<a name="l523"><span class="ln">523  </span></a>    <span class="s5">&quot; both map to backend and functionality bits&quot;</span>
+<a name="l524"><span class="ln">524  </span></a>    <span class="s5">&quot; into a 64-bit bitmask; you must have less than 64 total entries between them&quot;</span><span class="s0">);</span>
+<a name="l525"><span class="ln">525  </span></a>
+<a name="l526"><span class="ln">526  </span></a><span class="s3">// Check if a DispatchKey is an alias mapping to other runtime keys.</span>
+<a name="l527"><span class="ln">527  </span></a><span class="s0">constexpr </span><span class="s1">bool </span><span class="s0">isAliasDispatchKey(DispatchKey k) {</span>
+<a name="l528"><span class="ln">528  </span></a>  <span class="s1">return </span><span class="s0">k &gt;= DispatchKey::StartOfAliasKeys &amp;&amp; k &lt;= DispatchKey::EndOfAliasKeys;</span>
+<a name="l529"><span class="ln">529  </span></a><span class="s0">}</span>
+<a name="l530"><span class="ln">530  </span></a>
+<a name="l531"><span class="ln">531  </span></a><span class="s3">// [Note: Per-Backend Functionality Dispatch Keys]</span>
+<a name="l532"><span class="ln">532  </span></a><span class="s3">// Check if a DispatchKey is a per-backend functionality key</span>
+<a name="l533"><span class="ln">533  </span></a><span class="s3">// Any functionalities that can be customized per-backend should be added here.</span>
+<a name="l534"><span class="ln">534  </span></a><span class="s3">// These keys correspond to functionalities that can be customized individually</span>
+<a name="l535"><span class="ln">535  </span></a><span class="s3">// per backend. While they only take up one bit in the `DispatchKeySet` bitset,</span>
+<a name="l536"><span class="ln">536  </span></a><span class="s3">// they map to (# backends) slots in the operator table.</span>
+<a name="l537"><span class="ln">537  </span></a><span class="s3">// Each of these keys also has a separate set of &quot;runtime keys&quot; in the dispatch</span>
+<a name="l538"><span class="ln">538  </span></a><span class="s3">// key enum, per backend, which *do* map to the individual operator table slots.</span>
+<a name="l539"><span class="ln">539  </span></a><span class="s3">// For example, the &quot;Sparse&quot; key maps to an individual bit in the</span>
+<a name="l540"><span class="ln">540  </span></a><span class="s3">// DispatchKeySet, while `SparseCPU`, `SparseCUDA`, etc all map to individual</span>
+<a name="l541"><span class="ln">541  </span></a><span class="s3">// slots in the runtime operator table.</span>
+<a name="l542"><span class="ln">542  </span></a>
+<a name="l543"><span class="ln">543  </span></a><span class="s0">constexpr </span><span class="s1">bool </span><span class="s0">isPerBackendFunctionalityKey(DispatchKey k) {</span>
+<a name="l544"><span class="ln">544  </span></a>  <span class="s1">if </span><span class="s0">(k == DispatchKey::Dense || k == DispatchKey::Quantized ||</span>
+<a name="l545"><span class="ln">545  </span></a>      <span class="s0">k == DispatchKey::Sparse || k == DispatchKey::SparseCsr ||</span>
+<a name="l546"><span class="ln">546  </span></a>      <span class="s0">k == DispatchKey::AutogradFunctionality ||</span>
+<a name="l547"><span class="ln">547  </span></a>      <span class="s0">k == DispatchKey::NestedTensor) {</span>
+<a name="l548"><span class="ln">548  </span></a>    <span class="s1">return </span><span class="s2">true</span><span class="s0">;</span>
+<a name="l549"><span class="ln">549  </span></a>  <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l550"><span class="ln">550  </span></a>    <span class="s1">return false</span><span class="s0">;</span>
+<a name="l551"><span class="ln">551  </span></a>  <span class="s0">}</span>
+<a name="l552"><span class="ln">552  </span></a><span class="s0">}</span>
+<a name="l553"><span class="ln">553  </span></a>
+<a name="l554"><span class="ln">554  </span></a><span class="s3">// Note that this includes Undefined in the total count.</span>
+<a name="l555"><span class="ln">555  </span></a><span class="s3">// BUT EndOfFunctionalityKeys is its own (placeholder) key.</span>
+<a name="l556"><span class="ln">556  </span></a><span class="s3">// e.g. Undefined=0, Dense=1, Sparse=2, EndOfFunctionalityKeys=3.</span>
+<a name="l557"><span class="ln">557  </span></a><span class="s3">// In the above example, there are 3 total functionality keys.</span>
+<a name="l558"><span class="ln">558  </span></a><span class="s0">constexpr uint8_t num_functionality_keys =</span>
+<a name="l559"><span class="ln">559  </span></a>    <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(DispatchKey::EndOfFunctionalityKeys);</span>
+<a name="l560"><span class="ln">560  </span></a>
+<a name="l561"><span class="ln">561  </span></a><span class="s0">constexpr uint8_t num_backends =</span>
+<a name="l562"><span class="ln">562  </span></a>    <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(BackendComponent::EndOfBackendKeys);</span>
+<a name="l563"><span class="ln">563  </span></a>
+<a name="l564"><span class="ln">564  </span></a><span class="s3">// Note [No More Than 16 Backends]</span>
+<a name="l565"><span class="ln">565  </span></a><span class="s3">// Search for this note to find places in the code where the &quot;no more than 16</span>
+<a name="l566"><span class="ln">566  </span></a><span class="s3">// backends&quot; invariant is baked in.</span>
+<a name="l567"><span class="ln">567  </span></a><span class="s0">static_assert(</span>
+<a name="l568"><span class="ln">568  </span></a>    <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(BackendComponent::EndOfBackendKeys) &lt;= </span><span class="s4">16</span><span class="s0">,</span>
+<a name="l569"><span class="ln">569  </span></a>    <span class="s5">&quot;BackendComponent currently only supports &lt;= 16 backends. If we really need to extend this, </span><span class="s6">\</span>
+<a name="l570"><span class="ln">570  </span></a><span class="s0">there are a few places where </span><span class="s2">this </span><span class="s0">invariant is baked in</span><span class="s5">&quot;);</span>
+<a name="l571"><span class="ln">571  </span></a>
+<a name="l572"><span class="ln">572  </span></a><span class="s0">constexpr uint8_t numPerBackendFunctionalityKeys() {</span>
+<a name="l573"><span class="ln">573  </span></a>  <span class="s0">uint8_t count = </span><span class="s4">0</span><span class="s0">;</span>
+<a name="l574"><span class="ln">574  </span></a>  <span class="s1">for </span><span class="s0">(uint8_t k = </span><span class="s4">0</span><span class="s0">; k &lt;= num_functionality_keys; ++k) {</span>
+<a name="l575"><span class="ln">575  </span></a>    <span class="s1">if </span><span class="s0">(isPerBackendFunctionalityKey(</span><span class="s2">static_cast</span><span class="s0">&lt;DispatchKey&gt;(k)))</span>
+<a name="l576"><span class="ln">576  </span></a>      <span class="s0">++count;</span>
+<a name="l577"><span class="ln">577  </span></a>  <span class="s0">}</span>
+<a name="l578"><span class="ln">578  </span></a>  <span class="s1">return </span><span class="s0">count;</span>
+<a name="l579"><span class="ln">579  </span></a><span class="s0">}</span>
+<a name="l580"><span class="ln">580  </span></a>
+<a name="l581"><span class="ln">581  </span></a><span class="s1">#if </span><span class="s0">defined(C10_MOBILE_TRIM_DISPATCH_KEYS)</span>
+<a name="l582"><span class="ln">582  </span></a><span class="s3">// See [Note: Trimmed Mobile Dispatch Keys]</span>
+<a name="l583"><span class="ln">583  </span></a><span class="s0">constexpr uint16_t num_runtime_entries = </span><span class="s4">8</span><span class="s0">;</span>
+<a name="l584"><span class="ln">584  </span></a><span class="s1">#else</span>
+<a name="l585"><span class="ln">585  </span></a><span class="s0">constexpr uint16_t num_runtime_entries = num_functionality_keys +</span>
+<a name="l586"><span class="ln">586  </span></a>    <span class="s0">(numPerBackendFunctionalityKeys() * (num_backends - </span><span class="s4">1</span><span class="s0">));</span>
+<a name="l587"><span class="ln">587  </span></a><span class="s1">#endif</span>
+<a name="l588"><span class="ln">588  </span></a>
+<a name="l589"><span class="ln">589  </span></a><span class="s3">// See Note [No More Than 16 Backends]</span>
+<a name="l590"><span class="ln">590  </span></a><span class="s0">constexpr uint16_t full_backend_mask =</span>
+<a name="l591"><span class="ln">591  </span></a>    <span class="s0">(</span><span class="s2">static_cast</span><span class="s0">&lt;uint16_t&gt;(</span><span class="s4">1</span><span class="s0">) &lt;&lt; num_backends) - </span><span class="s4">1</span><span class="s0">;</span>
+<a name="l592"><span class="ln">592  </span></a>
+<a name="l593"><span class="ln">593  </span></a><span class="s0">C10_API </span><span class="s1">const char</span><span class="s0">* toString(DispatchKey);</span>
+<a name="l594"><span class="ln">594  </span></a><span class="s0">C10_API </span><span class="s1">const char</span><span class="s0">* toString(BackendComponent);</span>
+<a name="l595"><span class="ln">595  </span></a><span class="s0">C10_API std::ostream&amp; </span><span class="s2">operator</span><span class="s0">&lt;&lt;(std::ostream&amp;, DispatchKey);</span>
+<a name="l596"><span class="ln">596  </span></a><span class="s0">C10_API std::ostream&amp; </span><span class="s2">operator</span><span class="s0">&lt;&lt;(std::ostream&amp;, BackendComponent);</span>
+<a name="l597"><span class="ln">597  </span></a>
+<a name="l598"><span class="ln">598  </span></a><span class="s0">C10_API DispatchKey getAutogradKeyFromBackend(BackendComponent k);</span>
+<a name="l599"><span class="ln">599  </span></a>
+<a name="l600"><span class="ln">600  </span></a><span class="s3">// Parses a string into a dispatch key.</span>
+<a name="l601"><span class="ln">601  </span></a><span class="s3">// If the string cannot be correctly parsed, throws an exception.</span>
+<a name="l602"><span class="ln">602  </span></a><span class="s0">C10_API c10::DispatchKey parseDispatchKey(</span><span class="s1">const </span><span class="s0">std::string&amp; k);</span>
+<a name="l603"><span class="ln">603  </span></a>
+<a name="l604"><span class="ln">604  </span></a><span class="s3">// These are some convenience identifiers for dispatch keys which are</span>
+<a name="l605"><span class="ln">605  </span></a><span class="s3">// shorter to type than their long counterparts.  Note that some of these</span>
+<a name="l606"><span class="ln">606  </span></a><span class="s3">// dispatch keys directly correspond to DeviceType; and most APIs that</span>
+<a name="l607"><span class="ln">607  </span></a><span class="s3">// accept DispatchKey also accept DeviceType; e.g.,</span>
+<a name="l608"><span class="ln">608  </span></a><span class="s3">// torch::dispatch(torch::kCPU, ...) is also valid.</span>
+<a name="l609"><span class="ln">609  </span></a><span class="s0">constexpr DispatchKey kAutograd = DispatchKey::Autograd;</span>
+<a name="l610"><span class="ln">610  </span></a>
+<a name="l611"><span class="ln">611  </span></a><span class="s3">// See Note [The Ordering of Per-Backend Dispatch Keys Matters!]</span>
+<a name="l612"><span class="ln">612  </span></a><span class="s3">// This function relies on the invariant that the dispatch keys between</span>
+<a name="l613"><span class="ln">613  </span></a><span class="s3">// StartOfDenseBackends and EndOfRuntimeBackendKeys are ordered by backend</span>
+<a name="l614"><span class="ln">614  </span></a><span class="s3">// in the same order as `BackendComponent`.</span>
+<a name="l615"><span class="ln">615  </span></a><span class="s0">constexpr BackendComponent toBackendComponent(DispatchKey k) {</span>
+<a name="l616"><span class="ln">616  </span></a>  <span class="s1">if </span><span class="s0">(k &gt;= DispatchKey::StartOfDenseBackends &amp;&amp;</span>
+<a name="l617"><span class="ln">617  </span></a>      <span class="s0">k &lt;= DispatchKey::EndOfDenseBackends) {</span>
+<a name="l618"><span class="ln">618  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;BackendComponent&gt;(</span>
+<a name="l619"><span class="ln">619  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(k) -</span>
+<a name="l620"><span class="ln">620  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(DispatchKey::StartOfDenseBackends));</span>
+<a name="l621"><span class="ln">621  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span>
+<a name="l622"><span class="ln">622  </span></a>      <span class="s0">k &gt;= DispatchKey::StartOfQuantizedBackends &amp;&amp;</span>
+<a name="l623"><span class="ln">623  </span></a>      <span class="s0">k &lt;= DispatchKey::EndOfQuantizedBackends) {</span>
+<a name="l624"><span class="ln">624  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;BackendComponent&gt;(</span>
+<a name="l625"><span class="ln">625  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(k) -</span>
+<a name="l626"><span class="ln">626  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(DispatchKey::StartOfQuantizedBackends));</span>
+<a name="l627"><span class="ln">627  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span>
+<a name="l628"><span class="ln">628  </span></a>      <span class="s0">k &gt;= DispatchKey::StartOfSparseBackends &amp;&amp;</span>
+<a name="l629"><span class="ln">629  </span></a>      <span class="s0">k &lt;= DispatchKey::EndOfSparseBackends) {</span>
+<a name="l630"><span class="ln">630  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;BackendComponent&gt;(</span>
+<a name="l631"><span class="ln">631  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(k) -</span>
+<a name="l632"><span class="ln">632  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(DispatchKey::StartOfSparseBackends));</span>
+<a name="l633"><span class="ln">633  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span>
+<a name="l634"><span class="ln">634  </span></a>      <span class="s0">k &gt;= DispatchKey::StartOfSparseCsrBackends &amp;&amp;</span>
+<a name="l635"><span class="ln">635  </span></a>      <span class="s0">k &lt;= DispatchKey::EndOfSparseCsrBackends) {</span>
+<a name="l636"><span class="ln">636  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;BackendComponent&gt;(</span>
+<a name="l637"><span class="ln">637  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(k) -</span>
+<a name="l638"><span class="ln">638  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(DispatchKey::StartOfSparseCsrBackends));</span>
+<a name="l639"><span class="ln">639  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span>
+<a name="l640"><span class="ln">640  </span></a>      <span class="s0">k &gt;= DispatchKey::StartOfNestedTensorBackends &amp;&amp;</span>
+<a name="l641"><span class="ln">641  </span></a>      <span class="s0">k &lt;= DispatchKey::EndOfNestedTensorBackends) {</span>
+<a name="l642"><span class="ln">642  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;BackendComponent&gt;(</span>
+<a name="l643"><span class="ln">643  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(k) -</span>
+<a name="l644"><span class="ln">644  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(DispatchKey::StartOfNestedTensorBackends));</span>
+<a name="l645"><span class="ln">645  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span>
+<a name="l646"><span class="ln">646  </span></a>      <span class="s0">k &gt;= DispatchKey::StartOfAutogradFunctionalityBackends &amp;&amp;</span>
+<a name="l647"><span class="ln">647  </span></a>      <span class="s0">k &lt;= DispatchKey::EndOfAutogradFunctionalityBackends) {</span>
+<a name="l648"><span class="ln">648  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;BackendComponent&gt;(</span>
+<a name="l649"><span class="ln">649  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(k) -</span>
+<a name="l650"><span class="ln">650  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(</span>
+<a name="l651"><span class="ln">651  </span></a>            <span class="s0">DispatchKey::StartOfAutogradFunctionalityBackends));</span>
+<a name="l652"><span class="ln">652  </span></a>  <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l653"><span class="ln">653  </span></a>    <span class="s1">return </span><span class="s0">BackendComponent::InvalidBit;</span>
+<a name="l654"><span class="ln">654  </span></a>  <span class="s0">}</span>
+<a name="l655"><span class="ln">655  </span></a><span class="s0">}</span>
+<a name="l656"><span class="ln">656  </span></a>
+<a name="l657"><span class="ln">657  </span></a><span class="s0">constexpr DispatchKey toFunctionalityKey(DispatchKey k) {</span>
+<a name="l658"><span class="ln">658  </span></a>  <span class="s1">if </span><span class="s0">(k &lt;= DispatchKey::EndOfFunctionalityKeys) {</span>
+<a name="l659"><span class="ln">659  </span></a>    <span class="s1">return </span><span class="s0">k;</span>
+<a name="l660"><span class="ln">660  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(k &lt;= DispatchKey::EndOfDenseBackends) {</span>
+<a name="l661"><span class="ln">661  </span></a>    <span class="s1">return </span><span class="s0">DispatchKey::Dense;</span>
+<a name="l662"><span class="ln">662  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(k &lt;= DispatchKey::EndOfQuantizedBackends) {</span>
+<a name="l663"><span class="ln">663  </span></a>    <span class="s1">return </span><span class="s0">DispatchKey::Quantized;</span>
+<a name="l664"><span class="ln">664  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(k &lt;= DispatchKey::EndOfSparseBackends) {</span>
+<a name="l665"><span class="ln">665  </span></a>    <span class="s1">return </span><span class="s0">DispatchKey::Sparse;</span>
+<a name="l666"><span class="ln">666  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(k &lt;= DispatchKey::EndOfSparseCsrBackends) {</span>
+<a name="l667"><span class="ln">667  </span></a>    <span class="s1">return </span><span class="s0">DispatchKey::SparseCsr;</span>
+<a name="l668"><span class="ln">668  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(k &lt;= DispatchKey::EndOfNestedTensorBackends) {</span>
+<a name="l669"><span class="ln">669  </span></a>    <span class="s1">return </span><span class="s0">DispatchKey::NestedTensor;</span>
+<a name="l670"><span class="ln">670  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(k &lt;= DispatchKey::EndOfAutogradFunctionalityBackends) {</span>
+<a name="l671"><span class="ln">671  </span></a>    <span class="s1">return </span><span class="s0">DispatchKey::AutogradFunctionality;</span>
+<a name="l672"><span class="ln">672  </span></a>  <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l673"><span class="ln">673  </span></a>    <span class="s1">return </span><span class="s0">DispatchKey::Undefined;</span>
+<a name="l674"><span class="ln">674  </span></a>  <span class="s0">}</span>
+<a name="l675"><span class="ln">675  </span></a><span class="s0">}</span>
+<a name="l676"><span class="ln">676  </span></a>
+<a name="l677"><span class="ln">677  </span></a><span class="s0">BackendComponent toBackendComponent(DeviceType device_type);</span>
+<a name="l678"><span class="ln">678  </span></a>
+<a name="l679"><span class="ln">679  </span></a><span class="s3">// Given (DispatchKey::Dense, BackendComponent::CUDABit), returns</span>
+<a name="l680"><span class="ln">680  </span></a><span class="s3">// DispatchKey::CUDA.</span>
+<a name="l681"><span class="ln">681  </span></a><span class="s3">// See Note [The Ordering of Per-Backend Dispatch Keys Matters!]</span>
+<a name="l682"><span class="ln">682  </span></a><span class="s3">// This function relies on the invariant that the dispatch keys between</span>
+<a name="l683"><span class="ln">683  </span></a><span class="s3">// StartOfDenseBackends and EndOfRuntimeBackendKeys are ordered by backend</span>
+<a name="l684"><span class="ln">684  </span></a><span class="s3">// in the same order as `BackendComponent`.</span>
+<a name="l685"><span class="ln">685  </span></a><span class="s0">constexpr DispatchKey toRuntimePerBackendFunctionalityKey(</span>
+<a name="l686"><span class="ln">686  </span></a>    <span class="s0">DispatchKey functionality_k,</span>
+<a name="l687"><span class="ln">687  </span></a>    <span class="s0">BackendComponent backend_k) {</span>
+<a name="l688"><span class="ln">688  </span></a>  <span class="s1">if </span><span class="s0">(functionality_k == DispatchKey::Dense) {</span>
+<a name="l689"><span class="ln">689  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;DispatchKey&gt;(</span>
+<a name="l690"><span class="ln">690  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(DispatchKey::StartOfDenseBackends) +</span>
+<a name="l691"><span class="ln">691  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(backend_k));</span>
+<a name="l692"><span class="ln">692  </span></a>  <span class="s0">}</span>
+<a name="l693"><span class="ln">693  </span></a>  <span class="s1">if </span><span class="s0">(functionality_k == DispatchKey::Sparse) {</span>
+<a name="l694"><span class="ln">694  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;DispatchKey&gt;(</span>
+<a name="l695"><span class="ln">695  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(DispatchKey::StartOfSparseBackends) +</span>
+<a name="l696"><span class="ln">696  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(backend_k));</span>
+<a name="l697"><span class="ln">697  </span></a>  <span class="s0">}</span>
+<a name="l698"><span class="ln">698  </span></a>  <span class="s1">if </span><span class="s0">(functionality_k == DispatchKey::SparseCsr) {</span>
+<a name="l699"><span class="ln">699  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;DispatchKey&gt;(</span>
+<a name="l700"><span class="ln">700  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(DispatchKey::StartOfSparseCsrBackends) +</span>
+<a name="l701"><span class="ln">701  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(backend_k));</span>
+<a name="l702"><span class="ln">702  </span></a>  <span class="s0">}</span>
+<a name="l703"><span class="ln">703  </span></a>  <span class="s1">if </span><span class="s0">(functionality_k == DispatchKey::Quantized) {</span>
+<a name="l704"><span class="ln">704  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;DispatchKey&gt;(</span>
+<a name="l705"><span class="ln">705  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(DispatchKey::StartOfQuantizedBackends) +</span>
+<a name="l706"><span class="ln">706  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(backend_k));</span>
+<a name="l707"><span class="ln">707  </span></a>  <span class="s0">}</span>
+<a name="l708"><span class="ln">708  </span></a>  <span class="s1">if </span><span class="s0">(functionality_k == DispatchKey::NestedTensor) {</span>
+<a name="l709"><span class="ln">709  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;DispatchKey&gt;(</span>
+<a name="l710"><span class="ln">710  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(DispatchKey::StartOfNestedTensorBackends) +</span>
+<a name="l711"><span class="ln">711  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(backend_k));</span>
+<a name="l712"><span class="ln">712  </span></a>  <span class="s0">}</span>
+<a name="l713"><span class="ln">713  </span></a>  <span class="s1">if </span><span class="s0">(functionality_k == DispatchKey::AutogradFunctionality) {</span>
+<a name="l714"><span class="ln">714  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;DispatchKey&gt;(</span>
+<a name="l715"><span class="ln">715  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(</span>
+<a name="l716"><span class="ln">716  </span></a>            <span class="s0">DispatchKey::StartOfAutogradFunctionalityBackends) +</span>
+<a name="l717"><span class="ln">717  </span></a>        <span class="s2">static_cast</span><span class="s0">&lt;uint8_t&gt;(backend_k));</span>
+<a name="l718"><span class="ln">718  </span></a>  <span class="s0">}</span>
+<a name="l719"><span class="ln">719  </span></a>  <span class="s1">return </span><span class="s0">DispatchKey::Undefined;</span>
+<a name="l720"><span class="ln">720  </span></a><span class="s0">}</span>
+<a name="l721"><span class="ln">721  </span></a>
+<a name="l722"><span class="ln">722  </span></a><span class="s0">} </span><span class="s3">// namespace c10</span>
+<a name="l723"><span class="ln">723  </span></a>
+<a name="l724"><span class="ln">724  </span></a><span class="s2">namespace </span><span class="s0">torch {</span>
+<a name="l725"><span class="ln">725  </span></a><span class="s3">// Expose the constant, but not the TYPE (DispatchKey is an implementation</span>
+<a name="l726"><span class="ln">726  </span></a><span class="s3">// detail!)</span>
+<a name="l727"><span class="ln">727  </span></a><span class="s3">// NOLINTNEXTLINE(misc-unused-using-decls)</span>
+<a name="l728"><span class="ln">728  </span></a><span class="s2">using </span><span class="s0">c10::kAutograd;</span>
+<a name="l729"><span class="ln">729  </span></a><span class="s0">} </span><span class="s3">// namespace torch</span>
+<a name="l730"><span class="ln">730  </span></a>
+<a name="l731"><span class="ln">731  </span></a><span class="s3">// NB: You really shouldn't use this instance; this enum is guaranteed</span>
+<a name="l732"><span class="ln">732  </span></a><span class="s3">// to be pretty small so a regular array should be acceptable.</span>
+<a name="l733"><span class="ln">733  </span></a><span class="s2">namespace </span><span class="s0">std {</span>
+<a name="l734"><span class="ln">734  </span></a><span class="s0">template &lt;&gt;</span>
+<a name="l735"><span class="ln">735  </span></a><span class="s1">struct </span><span class="s0">hash&lt;c10::DispatchKey&gt; {</span>
+<a name="l736"><span class="ln">736  </span></a>  <span class="s1">typedef </span><span class="s0">size_t result_type;</span>
+<a name="l737"><span class="ln">737  </span></a>  <span class="s1">typedef </span><span class="s0">c10::DispatchKey argument_type;</span>
+<a name="l738"><span class="ln">738  </span></a>
+<a name="l739"><span class="ln">739  </span></a>  <span class="s0">size_t </span><span class="s2">operator</span><span class="s0">()(c10::DispatchKey x) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l740"><span class="ln">740  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;size_t&gt;(x);</span>
+<a name="l741"><span class="ln">741  </span></a>  <span class="s0">}</span>
+<a name="l742"><span class="ln">742  </span></a><span class="s0">};</span>
+<a name="l743"><span class="ln">743  </span></a><span class="s0">} </span><span class="s3">// namespace std</span>
+<a name="l744"><span class="ln">744  </span></a></pre>
+</body>
+</html>

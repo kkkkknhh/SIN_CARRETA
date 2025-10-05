@@ -1,0 +1,919 @@
+<html>
+<head>
+<title>_linesearch.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_linesearch.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>Functions 
+<a name="l3"><span class="ln">3    </span></a>--------- 
+<a name="l4"><span class="ln">4    </span></a>.. autosummary:: 
+<a name="l5"><span class="ln">5    </span></a>   :toctree: generated/ 
+<a name="l6"><span class="ln">6    </span></a> 
+<a name="l7"><span class="ln">7    </span></a>    line_search_armijo 
+<a name="l8"><span class="ln">8    </span></a>    line_search_wolfe1 
+<a name="l9"><span class="ln">9    </span></a>    line_search_wolfe2 
+<a name="l10"><span class="ln">10   </span></a>    scalar_search_wolfe1 
+<a name="l11"><span class="ln">11   </span></a>    scalar_search_wolfe2 
+<a name="l12"><span class="ln">12   </span></a> 
+<a name="l13"><span class="ln">13   </span></a>&quot;&quot;&quot;</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">from </span><span class="s1">warnings </span><span class="s2">import </span><span class="s1">warn</span>
+<a name="l15"><span class="ln">15   </span></a>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">_dcsrch </span><span class="s2">import </span><span class="s1">DCSRCH</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">import </span><span class="s1">numpy </span><span class="s2">as </span><span class="s1">np</span>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'LineSearchWarning'</span><span class="s3">, </span><span class="s4">'line_search_wolfe1'</span><span class="s3">, </span><span class="s4">'line_search_wolfe2'</span><span class="s3">,</span>
+<a name="l20"><span class="ln">20   </span></a>           <span class="s4">'scalar_search_wolfe1'</span><span class="s3">, </span><span class="s4">'scalar_search_wolfe2'</span><span class="s3">,</span>
+<a name="l21"><span class="ln">21   </span></a>           <span class="s4">'line_search_armijo'</span><span class="s3">]</span>
+<a name="l22"><span class="ln">22   </span></a>
+<a name="l23"><span class="ln">23   </span></a><span class="s2">class </span><span class="s1">LineSearchWarning</span><span class="s3">(</span><span class="s1">RuntimeWarning</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s2">pass</span>
+<a name="l25"><span class="ln">25   </span></a>
+<a name="l26"><span class="ln">26   </span></a>
+<a name="l27"><span class="ln">27   </span></a><span class="s2">def </span><span class="s1">_check_c1_c2</span><span class="s3">(</span><span class="s1">c1</span><span class="s3">, </span><span class="s1">c2</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l28"><span class="ln">28   </span></a>    <span class="s2">if not </span><span class="s3">(</span><span class="s5">0 </span><span class="s2">&lt; </span><span class="s1">c1 </span><span class="s2">&lt; </span><span class="s1">c2 </span><span class="s2">&lt; </span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l29"><span class="ln">29   </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;'c1' and 'c2' do not satisfy&quot;</span>
+<a name="l30"><span class="ln">30   </span></a>                         <span class="s4">&quot;'0 &lt; c1 &lt; c2 &lt; 1'.&quot;</span><span class="s3">)</span>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a>
+<a name="l33"><span class="ln">33   </span></a><span class="s0">#------------------------------------------------------------------------------</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s0"># Minpack's Wolfe line and scalar searches</span>
+<a name="l35"><span class="ln">35   </span></a><span class="s0">#------------------------------------------------------------------------------</span>
+<a name="l36"><span class="ln">36   </span></a>
+<a name="l37"><span class="ln">37   </span></a><span class="s2">def </span><span class="s1">line_search_wolfe1</span><span class="s3">(</span><span class="s1">f</span><span class="s3">, </span><span class="s1">fprime</span><span class="s3">, </span><span class="s1">xk</span><span class="s3">, </span><span class="s1">pk</span><span class="s3">, </span><span class="s1">gfk</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l38"><span class="ln">38   </span></a>                       <span class="s1">old_fval</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">old_old_fval</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l39"><span class="ln">39   </span></a>                       <span class="s1">args</span><span class="s2">=</span><span class="s3">(), </span><span class="s1">c1</span><span class="s2">=</span><span class="s5">1e-4</span><span class="s3">, </span><span class="s1">c2</span><span class="s2">=</span><span class="s5">0.9</span><span class="s3">, </span><span class="s1">amax</span><span class="s2">=</span><span class="s5">50</span><span class="s3">, </span><span class="s1">amin</span><span class="s2">=</span><span class="s5">1e-8</span><span class="s3">,</span>
+<a name="l40"><span class="ln">40   </span></a>                       <span class="s1">xtol</span><span class="s2">=</span><span class="s5">1e-14</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l42"><span class="ln">42   </span></a>    As `scalar_search_wolfe1` but do a line search to direction `pk` 
+<a name="l43"><span class="ln">43   </span></a> 
+<a name="l44"><span class="ln">44   </span></a>    Parameters 
+<a name="l45"><span class="ln">45   </span></a>    ---------- 
+<a name="l46"><span class="ln">46   </span></a>    f : callable 
+<a name="l47"><span class="ln">47   </span></a>        Function `f(x)` 
+<a name="l48"><span class="ln">48   </span></a>    fprime : callable 
+<a name="l49"><span class="ln">49   </span></a>        Gradient of `f` 
+<a name="l50"><span class="ln">50   </span></a>    xk : array_like 
+<a name="l51"><span class="ln">51   </span></a>        Current point 
+<a name="l52"><span class="ln">52   </span></a>    pk : array_like 
+<a name="l53"><span class="ln">53   </span></a>        Search direction 
+<a name="l54"><span class="ln">54   </span></a>    gfk : array_like, optional 
+<a name="l55"><span class="ln">55   </span></a>        Gradient of `f` at point `xk` 
+<a name="l56"><span class="ln">56   </span></a>    old_fval : float, optional 
+<a name="l57"><span class="ln">57   </span></a>        Value of `f` at point `xk` 
+<a name="l58"><span class="ln">58   </span></a>    old_old_fval : float, optional 
+<a name="l59"><span class="ln">59   </span></a>        Value of `f` at point preceding `xk` 
+<a name="l60"><span class="ln">60   </span></a> 
+<a name="l61"><span class="ln">61   </span></a>    The rest of the parameters are the same as for `scalar_search_wolfe1`. 
+<a name="l62"><span class="ln">62   </span></a> 
+<a name="l63"><span class="ln">63   </span></a>    Returns 
+<a name="l64"><span class="ln">64   </span></a>    ------- 
+<a name="l65"><span class="ln">65   </span></a>    stp, f_count, g_count, fval, old_fval 
+<a name="l66"><span class="ln">66   </span></a>        As in `line_search_wolfe1` 
+<a name="l67"><span class="ln">67   </span></a>    gval : array 
+<a name="l68"><span class="ln">68   </span></a>        Gradient of `f` at the final point 
+<a name="l69"><span class="ln">69   </span></a> 
+<a name="l70"><span class="ln">70   </span></a>    Notes 
+<a name="l71"><span class="ln">71   </span></a>    ----- 
+<a name="l72"><span class="ln">72   </span></a>    Parameters `c1` and `c2` must satisfy ``0 &lt; c1 &lt; c2 &lt; 1``. 
+<a name="l73"><span class="ln">73   </span></a> 
+<a name="l74"><span class="ln">74   </span></a>    &quot;&quot;&quot;</span>
+<a name="l75"><span class="ln">75   </span></a>    <span class="s2">if </span><span class="s1">gfk </span><span class="s2">is None:</span>
+<a name="l76"><span class="ln">76   </span></a>        <span class="s1">gfk </span><span class="s2">= </span><span class="s1">fprime</span><span class="s3">(</span><span class="s1">xk</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">)</span>
+<a name="l77"><span class="ln">77   </span></a>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s1">gval </span><span class="s2">= </span><span class="s3">[</span><span class="s1">gfk</span><span class="s3">]</span>
+<a name="l79"><span class="ln">79   </span></a>    <span class="s1">gc </span><span class="s2">= </span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l80"><span class="ln">80   </span></a>    <span class="s1">fc </span><span class="s2">= </span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l81"><span class="ln">81   </span></a>
+<a name="l82"><span class="ln">82   </span></a>    <span class="s2">def </span><span class="s1">phi</span><span class="s3">(</span><span class="s1">s</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l83"><span class="ln">83   </span></a>        <span class="s1">fc</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l84"><span class="ln">84   </span></a>        <span class="s2">return </span><span class="s1">f</span><span class="s3">(</span><span class="s1">xk </span><span class="s2">+ </span><span class="s1">s</span><span class="s2">*</span><span class="s1">pk</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">)</span>
+<a name="l85"><span class="ln">85   </span></a>
+<a name="l86"><span class="ln">86   </span></a>    <span class="s2">def </span><span class="s1">derphi</span><span class="s3">(</span><span class="s1">s</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l87"><span class="ln">87   </span></a>        <span class="s1">gval</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s1">fprime</span><span class="s3">(</span><span class="s1">xk </span><span class="s2">+ </span><span class="s1">s</span><span class="s2">*</span><span class="s1">pk</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">)</span>
+<a name="l88"><span class="ln">88   </span></a>        <span class="s1">gc</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l89"><span class="ln">89   </span></a>        <span class="s2">return </span><span class="s1">np</span><span class="s3">.</span><span class="s1">dot</span><span class="s3">(</span><span class="s1">gval</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">pk</span><span class="s3">)</span>
+<a name="l90"><span class="ln">90   </span></a>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s1">derphi0 </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">dot</span><span class="s3">(</span><span class="s1">gfk</span><span class="s3">, </span><span class="s1">pk</span><span class="s3">)</span>
+<a name="l92"><span class="ln">92   </span></a>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s1">stp</span><span class="s3">, </span><span class="s1">fval</span><span class="s3">, </span><span class="s1">old_fval </span><span class="s2">= </span><span class="s1">scalar_search_wolfe1</span><span class="s3">(</span>
+<a name="l94"><span class="ln">94   </span></a>            <span class="s1">phi</span><span class="s3">, </span><span class="s1">derphi</span><span class="s3">, </span><span class="s1">old_fval</span><span class="s3">, </span><span class="s1">old_old_fval</span><span class="s3">, </span><span class="s1">derphi0</span><span class="s3">,</span>
+<a name="l95"><span class="ln">95   </span></a>            <span class="s1">c1</span><span class="s2">=</span><span class="s1">c1</span><span class="s3">, </span><span class="s1">c2</span><span class="s2">=</span><span class="s1">c2</span><span class="s3">, </span><span class="s1">amax</span><span class="s2">=</span><span class="s1">amax</span><span class="s3">, </span><span class="s1">amin</span><span class="s2">=</span><span class="s1">amin</span><span class="s3">, </span><span class="s1">xtol</span><span class="s2">=</span><span class="s1">xtol</span><span class="s3">)</span>
+<a name="l96"><span class="ln">96   </span></a>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s2">return </span><span class="s1">stp</span><span class="s3">, </span><span class="s1">fc</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">gc</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">fval</span><span class="s3">, </span><span class="s1">old_fval</span><span class="s3">, </span><span class="s1">gval</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l98"><span class="ln">98   </span></a>
+<a name="l99"><span class="ln">99   </span></a>
+<a name="l100"><span class="ln">100  </span></a><span class="s2">def </span><span class="s1">scalar_search_wolfe1</span><span class="s3">(</span><span class="s1">phi</span><span class="s3">, </span><span class="s1">derphi</span><span class="s3">, </span><span class="s1">phi0</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">old_phi0</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">derphi0</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l101"><span class="ln">101  </span></a>                         <span class="s1">c1</span><span class="s2">=</span><span class="s5">1e-4</span><span class="s3">, </span><span class="s1">c2</span><span class="s2">=</span><span class="s5">0.9</span><span class="s3">,</span>
+<a name="l102"><span class="ln">102  </span></a>                         <span class="s1">amax</span><span class="s2">=</span><span class="s5">50</span><span class="s3">, </span><span class="s1">amin</span><span class="s2">=</span><span class="s5">1e-8</span><span class="s3">, </span><span class="s1">xtol</span><span class="s2">=</span><span class="s5">1e-14</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l103"><span class="ln">103  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l104"><span class="ln">104  </span></a>    Scalar function search for alpha that satisfies strong Wolfe conditions 
+<a name="l105"><span class="ln">105  </span></a> 
+<a name="l106"><span class="ln">106  </span></a>    alpha &gt; 0 is assumed to be a descent direction. 
+<a name="l107"><span class="ln">107  </span></a> 
+<a name="l108"><span class="ln">108  </span></a>    Parameters 
+<a name="l109"><span class="ln">109  </span></a>    ---------- 
+<a name="l110"><span class="ln">110  </span></a>    phi : callable phi(alpha) 
+<a name="l111"><span class="ln">111  </span></a>        Function at point `alpha` 
+<a name="l112"><span class="ln">112  </span></a>    derphi : callable phi'(alpha) 
+<a name="l113"><span class="ln">113  </span></a>        Objective function derivative. Returns a scalar. 
+<a name="l114"><span class="ln">114  </span></a>    phi0 : float, optional 
+<a name="l115"><span class="ln">115  </span></a>        Value of phi at 0 
+<a name="l116"><span class="ln">116  </span></a>    old_phi0 : float, optional 
+<a name="l117"><span class="ln">117  </span></a>        Value of phi at previous point 
+<a name="l118"><span class="ln">118  </span></a>    derphi0 : float, optional 
+<a name="l119"><span class="ln">119  </span></a>        Value derphi at 0 
+<a name="l120"><span class="ln">120  </span></a>    c1 : float, optional 
+<a name="l121"><span class="ln">121  </span></a>        Parameter for Armijo condition rule. 
+<a name="l122"><span class="ln">122  </span></a>    c2 : float, optional 
+<a name="l123"><span class="ln">123  </span></a>        Parameter for curvature condition rule. 
+<a name="l124"><span class="ln">124  </span></a>    amax, amin : float, optional 
+<a name="l125"><span class="ln">125  </span></a>        Maximum and minimum step size 
+<a name="l126"><span class="ln">126  </span></a>    xtol : float, optional 
+<a name="l127"><span class="ln">127  </span></a>        Relative tolerance for an acceptable step. 
+<a name="l128"><span class="ln">128  </span></a> 
+<a name="l129"><span class="ln">129  </span></a>    Returns 
+<a name="l130"><span class="ln">130  </span></a>    ------- 
+<a name="l131"><span class="ln">131  </span></a>    alpha : float 
+<a name="l132"><span class="ln">132  </span></a>        Step size, or None if no suitable step was found 
+<a name="l133"><span class="ln">133  </span></a>    phi : float 
+<a name="l134"><span class="ln">134  </span></a>        Value of `phi` at the new point `alpha` 
+<a name="l135"><span class="ln">135  </span></a>    phi0 : float 
+<a name="l136"><span class="ln">136  </span></a>        Value of `phi` at `alpha=0` 
+<a name="l137"><span class="ln">137  </span></a> 
+<a name="l138"><span class="ln">138  </span></a>    Notes 
+<a name="l139"><span class="ln">139  </span></a>    ----- 
+<a name="l140"><span class="ln">140  </span></a>    Uses routine DCSRCH from MINPACK. 
+<a name="l141"><span class="ln">141  </span></a>     
+<a name="l142"><span class="ln">142  </span></a>    Parameters `c1` and `c2` must satisfy ``0 &lt; c1 &lt; c2 &lt; 1`` as described in [1]_. 
+<a name="l143"><span class="ln">143  </span></a> 
+<a name="l144"><span class="ln">144  </span></a>    References 
+<a name="l145"><span class="ln">145  </span></a>    ---------- 
+<a name="l146"><span class="ln">146  </span></a>     
+<a name="l147"><span class="ln">147  </span></a>    .. [1] Nocedal, J., &amp; Wright, S. J. (2006). Numerical optimization. 
+<a name="l148"><span class="ln">148  </span></a>       In Springer Series in Operations Research and Financial Engineering. 
+<a name="l149"><span class="ln">149  </span></a>       (Springer Series in Operations Research and Financial Engineering). 
+<a name="l150"><span class="ln">150  </span></a>       Springer Nature. 
+<a name="l151"><span class="ln">151  </span></a> 
+<a name="l152"><span class="ln">152  </span></a>    &quot;&quot;&quot;</span>
+<a name="l153"><span class="ln">153  </span></a>    <span class="s1">_check_c1_c2</span><span class="s3">(</span><span class="s1">c1</span><span class="s3">, </span><span class="s1">c2</span><span class="s3">)</span>
+<a name="l154"><span class="ln">154  </span></a>
+<a name="l155"><span class="ln">155  </span></a>    <span class="s2">if </span><span class="s1">phi0 </span><span class="s2">is None:</span>
+<a name="l156"><span class="ln">156  </span></a>        <span class="s1">phi0 </span><span class="s2">= </span><span class="s1">phi</span><span class="s3">(</span><span class="s5">0.</span><span class="s3">)</span>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s2">if </span><span class="s1">derphi0 </span><span class="s2">is None:</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s1">derphi0 </span><span class="s2">= </span><span class="s1">derphi</span><span class="s3">(</span><span class="s5">0.</span><span class="s3">)</span>
+<a name="l159"><span class="ln">159  </span></a>
+<a name="l160"><span class="ln">160  </span></a>    <span class="s2">if </span><span class="s1">old_phi0 </span><span class="s2">is not None and </span><span class="s1">derphi0 </span><span class="s2">!= </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s1">alpha1 </span><span class="s2">= </span><span class="s1">min</span><span class="s3">(</span><span class="s5">1.0</span><span class="s3">, </span><span class="s5">1.01</span><span class="s2">*</span><span class="s5">2</span><span class="s2">*</span><span class="s3">(</span><span class="s1">phi0 </span><span class="s2">- </span><span class="s1">old_phi0</span><span class="s3">)</span><span class="s2">/</span><span class="s1">derphi0</span><span class="s3">)</span>
+<a name="l162"><span class="ln">162  </span></a>        <span class="s2">if </span><span class="s1">alpha1 </span><span class="s2">&lt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l163"><span class="ln">163  </span></a>            <span class="s1">alpha1 </span><span class="s2">= </span><span class="s5">1.0</span>
+<a name="l164"><span class="ln">164  </span></a>    <span class="s2">else:</span>
+<a name="l165"><span class="ln">165  </span></a>        <span class="s1">alpha1 </span><span class="s2">= </span><span class="s5">1.0</span>
+<a name="l166"><span class="ln">166  </span></a>
+<a name="l167"><span class="ln">167  </span></a>    <span class="s1">maxiter </span><span class="s2">= </span><span class="s5">100</span>
+<a name="l168"><span class="ln">168  </span></a>
+<a name="l169"><span class="ln">169  </span></a>    <span class="s1">dcsrch </span><span class="s2">= </span><span class="s1">DCSRCH</span><span class="s3">(</span><span class="s1">phi</span><span class="s3">, </span><span class="s1">derphi</span><span class="s3">, </span><span class="s1">c1</span><span class="s3">, </span><span class="s1">c2</span><span class="s3">, </span><span class="s1">xtol</span><span class="s3">, </span><span class="s1">amin</span><span class="s3">, </span><span class="s1">amax</span><span class="s3">)</span>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s1">stp</span><span class="s3">, </span><span class="s1">phi1</span><span class="s3">, </span><span class="s1">phi0</span><span class="s3">, </span><span class="s1">task </span><span class="s2">= </span><span class="s1">dcsrch</span><span class="s3">(</span>
+<a name="l171"><span class="ln">171  </span></a>        <span class="s1">alpha1</span><span class="s3">, </span><span class="s1">phi0</span><span class="s2">=</span><span class="s1">phi0</span><span class="s3">, </span><span class="s1">derphi0</span><span class="s2">=</span><span class="s1">derphi0</span><span class="s3">, </span><span class="s1">maxiter</span><span class="s2">=</span><span class="s1">maxiter</span>
+<a name="l172"><span class="ln">172  </span></a>    <span class="s3">)</span>
+<a name="l173"><span class="ln">173  </span></a>
+<a name="l174"><span class="ln">174  </span></a>    <span class="s2">return </span><span class="s1">stp</span><span class="s3">, </span><span class="s1">phi1</span><span class="s3">, </span><span class="s1">phi0</span>
+<a name="l175"><span class="ln">175  </span></a>
+<a name="l176"><span class="ln">176  </span></a>
+<a name="l177"><span class="ln">177  </span></a><span class="s1">line_search </span><span class="s2">= </span><span class="s1">line_search_wolfe1</span>
+<a name="l178"><span class="ln">178  </span></a>
+<a name="l179"><span class="ln">179  </span></a>
+<a name="l180"><span class="ln">180  </span></a><span class="s0">#------------------------------------------------------------------------------</span>
+<a name="l181"><span class="ln">181  </span></a><span class="s0"># Pure-Python Wolfe line and scalar searches</span>
+<a name="l182"><span class="ln">182  </span></a><span class="s0">#------------------------------------------------------------------------------</span>
+<a name="l183"><span class="ln">183  </span></a>
+<a name="l184"><span class="ln">184  </span></a><span class="s0"># Note: `line_search_wolfe2` is the public `scipy.optimize.line_search`</span>
+<a name="l185"><span class="ln">185  </span></a>
+<a name="l186"><span class="ln">186  </span></a><span class="s2">def </span><span class="s1">line_search_wolfe2</span><span class="s3">(</span><span class="s1">f</span><span class="s3">, </span><span class="s1">myfprime</span><span class="s3">, </span><span class="s1">xk</span><span class="s3">, </span><span class="s1">pk</span><span class="s3">, </span><span class="s1">gfk</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">old_fval</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l187"><span class="ln">187  </span></a>                       <span class="s1">old_old_fval</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">args</span><span class="s2">=</span><span class="s3">(), </span><span class="s1">c1</span><span class="s2">=</span><span class="s5">1e-4</span><span class="s3">, </span><span class="s1">c2</span><span class="s2">=</span><span class="s5">0.9</span><span class="s3">, </span><span class="s1">amax</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l188"><span class="ln">188  </span></a>                       <span class="s1">extra_condition</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">maxiter</span><span class="s2">=</span><span class="s5">10</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l189"><span class="ln">189  </span></a>    <span class="s0">&quot;&quot;&quot;Find alpha that satisfies strong Wolfe conditions. 
+<a name="l190"><span class="ln">190  </span></a> 
+<a name="l191"><span class="ln">191  </span></a>    Parameters 
+<a name="l192"><span class="ln">192  </span></a>    ---------- 
+<a name="l193"><span class="ln">193  </span></a>    f : callable f(x,*args) 
+<a name="l194"><span class="ln">194  </span></a>        Objective function. 
+<a name="l195"><span class="ln">195  </span></a>    myfprime : callable f'(x,*args) 
+<a name="l196"><span class="ln">196  </span></a>        Objective function gradient. 
+<a name="l197"><span class="ln">197  </span></a>    xk : ndarray 
+<a name="l198"><span class="ln">198  </span></a>        Starting point. 
+<a name="l199"><span class="ln">199  </span></a>    pk : ndarray 
+<a name="l200"><span class="ln">200  </span></a>        Search direction. The search direction must be a descent direction 
+<a name="l201"><span class="ln">201  </span></a>        for the algorithm to converge. 
+<a name="l202"><span class="ln">202  </span></a>    gfk : ndarray, optional 
+<a name="l203"><span class="ln">203  </span></a>        Gradient value for x=xk (xk being the current parameter 
+<a name="l204"><span class="ln">204  </span></a>        estimate). Will be recomputed if omitted. 
+<a name="l205"><span class="ln">205  </span></a>    old_fval : float, optional 
+<a name="l206"><span class="ln">206  </span></a>        Function value for x=xk. Will be recomputed if omitted. 
+<a name="l207"><span class="ln">207  </span></a>    old_old_fval : float, optional 
+<a name="l208"><span class="ln">208  </span></a>        Function value for the point preceding x=xk. 
+<a name="l209"><span class="ln">209  </span></a>    args : tuple, optional 
+<a name="l210"><span class="ln">210  </span></a>        Additional arguments passed to objective function. 
+<a name="l211"><span class="ln">211  </span></a>    c1 : float, optional 
+<a name="l212"><span class="ln">212  </span></a>        Parameter for Armijo condition rule. 
+<a name="l213"><span class="ln">213  </span></a>    c2 : float, optional 
+<a name="l214"><span class="ln">214  </span></a>        Parameter for curvature condition rule. 
+<a name="l215"><span class="ln">215  </span></a>    amax : float, optional 
+<a name="l216"><span class="ln">216  </span></a>        Maximum step size 
+<a name="l217"><span class="ln">217  </span></a>    extra_condition : callable, optional 
+<a name="l218"><span class="ln">218  </span></a>        A callable of the form ``extra_condition(alpha, x, f, g)`` 
+<a name="l219"><span class="ln">219  </span></a>        returning a boolean. Arguments are the proposed step ``alpha`` 
+<a name="l220"><span class="ln">220  </span></a>        and the corresponding ``x``, ``f`` and ``g`` values. The line search 
+<a name="l221"><span class="ln">221  </span></a>        accepts the value of ``alpha`` only if this 
+<a name="l222"><span class="ln">222  </span></a>        callable returns ``True``. If the callable returns ``False`` 
+<a name="l223"><span class="ln">223  </span></a>        for the step length, the algorithm will continue with 
+<a name="l224"><span class="ln">224  </span></a>        new iterates. The callable is only called for iterates 
+<a name="l225"><span class="ln">225  </span></a>        satisfying the strong Wolfe conditions. 
+<a name="l226"><span class="ln">226  </span></a>    maxiter : int, optional 
+<a name="l227"><span class="ln">227  </span></a>        Maximum number of iterations to perform. 
+<a name="l228"><span class="ln">228  </span></a> 
+<a name="l229"><span class="ln">229  </span></a>    Returns 
+<a name="l230"><span class="ln">230  </span></a>    ------- 
+<a name="l231"><span class="ln">231  </span></a>    alpha : float or None 
+<a name="l232"><span class="ln">232  </span></a>        Alpha for which ``x_new = x0 + alpha * pk``, 
+<a name="l233"><span class="ln">233  </span></a>        or None if the line search algorithm did not converge. 
+<a name="l234"><span class="ln">234  </span></a>    fc : int 
+<a name="l235"><span class="ln">235  </span></a>        Number of function evaluations made. 
+<a name="l236"><span class="ln">236  </span></a>    gc : int 
+<a name="l237"><span class="ln">237  </span></a>        Number of gradient evaluations made. 
+<a name="l238"><span class="ln">238  </span></a>    new_fval : float or None 
+<a name="l239"><span class="ln">239  </span></a>        New function value ``f(x_new)=f(x0+alpha*pk)``, 
+<a name="l240"><span class="ln">240  </span></a>        or None if the line search algorithm did not converge. 
+<a name="l241"><span class="ln">241  </span></a>    old_fval : float 
+<a name="l242"><span class="ln">242  </span></a>        Old function value ``f(x0)``. 
+<a name="l243"><span class="ln">243  </span></a>    new_slope : float or None 
+<a name="l244"><span class="ln">244  </span></a>        The local slope along the search direction at the 
+<a name="l245"><span class="ln">245  </span></a>        new value ``&lt;myfprime(x_new), pk&gt;``, 
+<a name="l246"><span class="ln">246  </span></a>        or None if the line search algorithm did not converge. 
+<a name="l247"><span class="ln">247  </span></a> 
+<a name="l248"><span class="ln">248  </span></a> 
+<a name="l249"><span class="ln">249  </span></a>    Notes 
+<a name="l250"><span class="ln">250  </span></a>    ----- 
+<a name="l251"><span class="ln">251  </span></a>    Uses the line search algorithm to enforce strong Wolfe 
+<a name="l252"><span class="ln">252  </span></a>    conditions. See Wright and Nocedal, 'Numerical Optimization', 
+<a name="l253"><span class="ln">253  </span></a>    1999, pp. 59-61. 
+<a name="l254"><span class="ln">254  </span></a> 
+<a name="l255"><span class="ln">255  </span></a>    The search direction `pk` must be a descent direction (e.g. 
+<a name="l256"><span class="ln">256  </span></a>    ``-myfprime(xk)``) to find a step length that satisfies the strong Wolfe 
+<a name="l257"><span class="ln">257  </span></a>    conditions. If the search direction is not a descent direction (e.g. 
+<a name="l258"><span class="ln">258  </span></a>    ``myfprime(xk)``), then `alpha`, `new_fval`, and `new_slope` will be None. 
+<a name="l259"><span class="ln">259  </span></a> 
+<a name="l260"><span class="ln">260  </span></a>    Examples 
+<a name="l261"><span class="ln">261  </span></a>    -------- 
+<a name="l262"><span class="ln">262  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l263"><span class="ln">263  </span></a>    &gt;&gt;&gt; from scipy.optimize import line_search 
+<a name="l264"><span class="ln">264  </span></a> 
+<a name="l265"><span class="ln">265  </span></a>    A objective function and its gradient are defined. 
+<a name="l266"><span class="ln">266  </span></a> 
+<a name="l267"><span class="ln">267  </span></a>    &gt;&gt;&gt; def obj_func(x): 
+<a name="l268"><span class="ln">268  </span></a>    ...     return (x[0])**2+(x[1])**2 
+<a name="l269"><span class="ln">269  </span></a>    &gt;&gt;&gt; def obj_grad(x): 
+<a name="l270"><span class="ln">270  </span></a>    ...     return [2*x[0], 2*x[1]] 
+<a name="l271"><span class="ln">271  </span></a> 
+<a name="l272"><span class="ln">272  </span></a>    We can find alpha that satisfies strong Wolfe conditions. 
+<a name="l273"><span class="ln">273  </span></a> 
+<a name="l274"><span class="ln">274  </span></a>    &gt;&gt;&gt; start_point = np.array([1.8, 1.7]) 
+<a name="l275"><span class="ln">275  </span></a>    &gt;&gt;&gt; search_gradient = np.array([-1.0, -1.0]) 
+<a name="l276"><span class="ln">276  </span></a>    &gt;&gt;&gt; line_search(obj_func, obj_grad, start_point, search_gradient) 
+<a name="l277"><span class="ln">277  </span></a>    (1.0, 2, 1, 1.1300000000000001, 6.13, [1.6, 1.4]) 
+<a name="l278"><span class="ln">278  </span></a> 
+<a name="l279"><span class="ln">279  </span></a>    &quot;&quot;&quot;</span>
+<a name="l280"><span class="ln">280  </span></a>    <span class="s1">fc </span><span class="s2">= </span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l281"><span class="ln">281  </span></a>    <span class="s1">gc </span><span class="s2">= </span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l282"><span class="ln">282  </span></a>    <span class="s1">gval </span><span class="s2">= </span><span class="s3">[</span><span class="s2">None</span><span class="s3">]</span>
+<a name="l283"><span class="ln">283  </span></a>    <span class="s1">gval_alpha </span><span class="s2">= </span><span class="s3">[</span><span class="s2">None</span><span class="s3">]</span>
+<a name="l284"><span class="ln">284  </span></a>
+<a name="l285"><span class="ln">285  </span></a>    <span class="s2">def </span><span class="s1">phi</span><span class="s3">(</span><span class="s1">alpha</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l286"><span class="ln">286  </span></a>        <span class="s1">fc</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l287"><span class="ln">287  </span></a>        <span class="s2">return </span><span class="s1">f</span><span class="s3">(</span><span class="s1">xk </span><span class="s2">+ </span><span class="s1">alpha </span><span class="s2">* </span><span class="s1">pk</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">)</span>
+<a name="l288"><span class="ln">288  </span></a>
+<a name="l289"><span class="ln">289  </span></a>    <span class="s1">fprime </span><span class="s2">= </span><span class="s1">myfprime</span>
+<a name="l290"><span class="ln">290  </span></a>
+<a name="l291"><span class="ln">291  </span></a>    <span class="s2">def </span><span class="s1">derphi</span><span class="s3">(</span><span class="s1">alpha</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l292"><span class="ln">292  </span></a>        <span class="s1">gc</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l293"><span class="ln">293  </span></a>        <span class="s1">gval</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s1">fprime</span><span class="s3">(</span><span class="s1">xk </span><span class="s2">+ </span><span class="s1">alpha </span><span class="s2">* </span><span class="s1">pk</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">)  </span><span class="s0"># store for later use</span>
+<a name="l294"><span class="ln">294  </span></a>        <span class="s1">gval_alpha</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s1">alpha</span>
+<a name="l295"><span class="ln">295  </span></a>        <span class="s2">return </span><span class="s1">np</span><span class="s3">.</span><span class="s1">dot</span><span class="s3">(</span><span class="s1">gval</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">pk</span><span class="s3">)</span>
+<a name="l296"><span class="ln">296  </span></a>
+<a name="l297"><span class="ln">297  </span></a>    <span class="s2">if </span><span class="s1">gfk </span><span class="s2">is None:</span>
+<a name="l298"><span class="ln">298  </span></a>        <span class="s1">gfk </span><span class="s2">= </span><span class="s1">fprime</span><span class="s3">(</span><span class="s1">xk</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">)</span>
+<a name="l299"><span class="ln">299  </span></a>    <span class="s1">derphi0 </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">dot</span><span class="s3">(</span><span class="s1">gfk</span><span class="s3">, </span><span class="s1">pk</span><span class="s3">)</span>
+<a name="l300"><span class="ln">300  </span></a>
+<a name="l301"><span class="ln">301  </span></a>    <span class="s2">if </span><span class="s1">extra_condition </span><span class="s2">is not None:</span>
+<a name="l302"><span class="ln">302  </span></a>        <span class="s0"># Add the current gradient as argument, to avoid needless</span>
+<a name="l303"><span class="ln">303  </span></a>        <span class="s0"># re-evaluation</span>
+<a name="l304"><span class="ln">304  </span></a>        <span class="s2">def </span><span class="s1">extra_condition2</span><span class="s3">(</span><span class="s1">alpha</span><span class="s3">, </span><span class="s1">phi</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l305"><span class="ln">305  </span></a>            <span class="s2">if </span><span class="s1">gval_alpha</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">!= </span><span class="s1">alpha</span><span class="s2">:</span>
+<a name="l306"><span class="ln">306  </span></a>                <span class="s1">derphi</span><span class="s3">(</span><span class="s1">alpha</span><span class="s3">)</span>
+<a name="l307"><span class="ln">307  </span></a>            <span class="s1">x </span><span class="s2">= </span><span class="s1">xk </span><span class="s2">+ </span><span class="s1">alpha </span><span class="s2">* </span><span class="s1">pk</span>
+<a name="l308"><span class="ln">308  </span></a>            <span class="s2">return </span><span class="s1">extra_condition</span><span class="s3">(</span><span class="s1">alpha</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">phi</span><span class="s3">, </span><span class="s1">gval</span><span class="s3">[</span><span class="s5">0</span><span class="s3">])</span>
+<a name="l309"><span class="ln">309  </span></a>    <span class="s2">else:</span>
+<a name="l310"><span class="ln">310  </span></a>        <span class="s1">extra_condition2 </span><span class="s2">= None</span>
+<a name="l311"><span class="ln">311  </span></a>
+<a name="l312"><span class="ln">312  </span></a>    <span class="s1">alpha_star</span><span class="s3">, </span><span class="s1">phi_star</span><span class="s3">, </span><span class="s1">old_fval</span><span class="s3">, </span><span class="s1">derphi_star </span><span class="s2">= </span><span class="s1">scalar_search_wolfe2</span><span class="s3">(</span>
+<a name="l313"><span class="ln">313  </span></a>            <span class="s1">phi</span><span class="s3">, </span><span class="s1">derphi</span><span class="s3">, </span><span class="s1">old_fval</span><span class="s3">, </span><span class="s1">old_old_fval</span><span class="s3">, </span><span class="s1">derphi0</span><span class="s3">, </span><span class="s1">c1</span><span class="s3">, </span><span class="s1">c2</span><span class="s3">, </span><span class="s1">amax</span><span class="s3">,</span>
+<a name="l314"><span class="ln">314  </span></a>            <span class="s1">extra_condition2</span><span class="s3">, </span><span class="s1">maxiter</span><span class="s2">=</span><span class="s1">maxiter</span><span class="s3">)</span>
+<a name="l315"><span class="ln">315  </span></a>
+<a name="l316"><span class="ln">316  </span></a>    <span class="s2">if </span><span class="s1">derphi_star </span><span class="s2">is None:</span>
+<a name="l317"><span class="ln">317  </span></a>        <span class="s1">warn</span><span class="s3">(</span><span class="s4">'The line search algorithm did not converge'</span><span class="s3">,</span>
+<a name="l318"><span class="ln">318  </span></a>             <span class="s1">LineSearchWarning</span><span class="s3">, </span><span class="s1">stacklevel</span><span class="s2">=</span><span class="s5">2</span><span class="s3">)</span>
+<a name="l319"><span class="ln">319  </span></a>    <span class="s2">else:</span>
+<a name="l320"><span class="ln">320  </span></a>        <span class="s0"># derphi_star is a number (derphi) -- so use the most recently</span>
+<a name="l321"><span class="ln">321  </span></a>        <span class="s0"># calculated gradient used in computing it derphi = gfk*pk</span>
+<a name="l322"><span class="ln">322  </span></a>        <span class="s0"># this is the gradient at the next step no need to compute it</span>
+<a name="l323"><span class="ln">323  </span></a>        <span class="s0"># again in the outer loop.</span>
+<a name="l324"><span class="ln">324  </span></a>        <span class="s1">derphi_star </span><span class="s2">= </span><span class="s1">gval</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l325"><span class="ln">325  </span></a>
+<a name="l326"><span class="ln">326  </span></a>    <span class="s2">return </span><span class="s1">alpha_star</span><span class="s3">, </span><span class="s1">fc</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">gc</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">phi_star</span><span class="s3">, </span><span class="s1">old_fval</span><span class="s3">, </span><span class="s1">derphi_star</span>
+<a name="l327"><span class="ln">327  </span></a>
+<a name="l328"><span class="ln">328  </span></a>
+<a name="l329"><span class="ln">329  </span></a><span class="s2">def </span><span class="s1">scalar_search_wolfe2</span><span class="s3">(</span><span class="s1">phi</span><span class="s3">, </span><span class="s1">derphi</span><span class="s3">, </span><span class="s1">phi0</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l330"><span class="ln">330  </span></a>                         <span class="s1">old_phi0</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">derphi0</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l331"><span class="ln">331  </span></a>                         <span class="s1">c1</span><span class="s2">=</span><span class="s5">1e-4</span><span class="s3">, </span><span class="s1">c2</span><span class="s2">=</span><span class="s5">0.9</span><span class="s3">, </span><span class="s1">amax</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l332"><span class="ln">332  </span></a>                         <span class="s1">extra_condition</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">maxiter</span><span class="s2">=</span><span class="s5">10</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l333"><span class="ln">333  </span></a>    <span class="s0">&quot;&quot;&quot;Find alpha that satisfies strong Wolfe conditions. 
+<a name="l334"><span class="ln">334  </span></a> 
+<a name="l335"><span class="ln">335  </span></a>    alpha &gt; 0 is assumed to be a descent direction. 
+<a name="l336"><span class="ln">336  </span></a> 
+<a name="l337"><span class="ln">337  </span></a>    Parameters 
+<a name="l338"><span class="ln">338  </span></a>    ---------- 
+<a name="l339"><span class="ln">339  </span></a>    phi : callable phi(alpha) 
+<a name="l340"><span class="ln">340  </span></a>        Objective scalar function. 
+<a name="l341"><span class="ln">341  </span></a>    derphi : callable phi'(alpha) 
+<a name="l342"><span class="ln">342  </span></a>        Objective function derivative. Returns a scalar. 
+<a name="l343"><span class="ln">343  </span></a>    phi0 : float, optional 
+<a name="l344"><span class="ln">344  </span></a>        Value of phi at 0. 
+<a name="l345"><span class="ln">345  </span></a>    old_phi0 : float, optional 
+<a name="l346"><span class="ln">346  </span></a>        Value of phi at previous point. 
+<a name="l347"><span class="ln">347  </span></a>    derphi0 : float, optional 
+<a name="l348"><span class="ln">348  </span></a>        Value of derphi at 0 
+<a name="l349"><span class="ln">349  </span></a>    c1 : float, optional 
+<a name="l350"><span class="ln">350  </span></a>        Parameter for Armijo condition rule. 
+<a name="l351"><span class="ln">351  </span></a>    c2 : float, optional 
+<a name="l352"><span class="ln">352  </span></a>        Parameter for curvature condition rule. 
+<a name="l353"><span class="ln">353  </span></a>    amax : float, optional 
+<a name="l354"><span class="ln">354  </span></a>        Maximum step size. 
+<a name="l355"><span class="ln">355  </span></a>    extra_condition : callable, optional 
+<a name="l356"><span class="ln">356  </span></a>        A callable of the form ``extra_condition(alpha, phi_value)`` 
+<a name="l357"><span class="ln">357  </span></a>        returning a boolean. The line search accepts the value 
+<a name="l358"><span class="ln">358  </span></a>        of ``alpha`` only if this callable returns ``True``. 
+<a name="l359"><span class="ln">359  </span></a>        If the callable returns ``False`` for the step length, 
+<a name="l360"><span class="ln">360  </span></a>        the algorithm will continue with new iterates. 
+<a name="l361"><span class="ln">361  </span></a>        The callable is only called for iterates satisfying 
+<a name="l362"><span class="ln">362  </span></a>        the strong Wolfe conditions. 
+<a name="l363"><span class="ln">363  </span></a>    maxiter : int, optional 
+<a name="l364"><span class="ln">364  </span></a>        Maximum number of iterations to perform. 
+<a name="l365"><span class="ln">365  </span></a> 
+<a name="l366"><span class="ln">366  </span></a>    Returns 
+<a name="l367"><span class="ln">367  </span></a>    ------- 
+<a name="l368"><span class="ln">368  </span></a>    alpha_star : float or None 
+<a name="l369"><span class="ln">369  </span></a>        Best alpha, or None if the line search algorithm did not converge. 
+<a name="l370"><span class="ln">370  </span></a>    phi_star : float 
+<a name="l371"><span class="ln">371  </span></a>        phi at alpha_star. 
+<a name="l372"><span class="ln">372  </span></a>    phi0 : float 
+<a name="l373"><span class="ln">373  </span></a>        phi at 0. 
+<a name="l374"><span class="ln">374  </span></a>    derphi_star : float or None 
+<a name="l375"><span class="ln">375  </span></a>        derphi at alpha_star, or None if the line search algorithm 
+<a name="l376"><span class="ln">376  </span></a>        did not converge. 
+<a name="l377"><span class="ln">377  </span></a> 
+<a name="l378"><span class="ln">378  </span></a>    Notes 
+<a name="l379"><span class="ln">379  </span></a>    ----- 
+<a name="l380"><span class="ln">380  </span></a>    Uses the line search algorithm to enforce strong Wolfe 
+<a name="l381"><span class="ln">381  </span></a>    conditions. See Wright and Nocedal, 'Numerical Optimization', 
+<a name="l382"><span class="ln">382  </span></a>    1999, pp. 59-61. 
+<a name="l383"><span class="ln">383  </span></a> 
+<a name="l384"><span class="ln">384  </span></a>    &quot;&quot;&quot;</span>
+<a name="l385"><span class="ln">385  </span></a>    <span class="s1">_check_c1_c2</span><span class="s3">(</span><span class="s1">c1</span><span class="s3">, </span><span class="s1">c2</span><span class="s3">)</span>
+<a name="l386"><span class="ln">386  </span></a>
+<a name="l387"><span class="ln">387  </span></a>    <span class="s2">if </span><span class="s1">phi0 </span><span class="s2">is None:</span>
+<a name="l388"><span class="ln">388  </span></a>        <span class="s1">phi0 </span><span class="s2">= </span><span class="s1">phi</span><span class="s3">(</span><span class="s5">0.</span><span class="s3">)</span>
+<a name="l389"><span class="ln">389  </span></a>
+<a name="l390"><span class="ln">390  </span></a>    <span class="s2">if </span><span class="s1">derphi0 </span><span class="s2">is None:</span>
+<a name="l391"><span class="ln">391  </span></a>        <span class="s1">derphi0 </span><span class="s2">= </span><span class="s1">derphi</span><span class="s3">(</span><span class="s5">0.</span><span class="s3">)</span>
+<a name="l392"><span class="ln">392  </span></a>
+<a name="l393"><span class="ln">393  </span></a>    <span class="s1">alpha0 </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l394"><span class="ln">394  </span></a>    <span class="s2">if </span><span class="s1">old_phi0 </span><span class="s2">is not None and </span><span class="s1">derphi0 </span><span class="s2">!= </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l395"><span class="ln">395  </span></a>        <span class="s1">alpha1 </span><span class="s2">= </span><span class="s1">min</span><span class="s3">(</span><span class="s5">1.0</span><span class="s3">, </span><span class="s5">1.01</span><span class="s2">*</span><span class="s5">2</span><span class="s2">*</span><span class="s3">(</span><span class="s1">phi0 </span><span class="s2">- </span><span class="s1">old_phi0</span><span class="s3">)</span><span class="s2">/</span><span class="s1">derphi0</span><span class="s3">)</span>
+<a name="l396"><span class="ln">396  </span></a>    <span class="s2">else:</span>
+<a name="l397"><span class="ln">397  </span></a>        <span class="s1">alpha1 </span><span class="s2">= </span><span class="s5">1.0</span>
+<a name="l398"><span class="ln">398  </span></a>
+<a name="l399"><span class="ln">399  </span></a>    <span class="s2">if </span><span class="s1">alpha1 </span><span class="s2">&lt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l400"><span class="ln">400  </span></a>        <span class="s1">alpha1 </span><span class="s2">= </span><span class="s5">1.0</span>
+<a name="l401"><span class="ln">401  </span></a>
+<a name="l402"><span class="ln">402  </span></a>    <span class="s2">if </span><span class="s1">amax </span><span class="s2">is not None:</span>
+<a name="l403"><span class="ln">403  </span></a>        <span class="s1">alpha1 </span><span class="s2">= </span><span class="s1">min</span><span class="s3">(</span><span class="s1">alpha1</span><span class="s3">, </span><span class="s1">amax</span><span class="s3">)</span>
+<a name="l404"><span class="ln">404  </span></a>
+<a name="l405"><span class="ln">405  </span></a>    <span class="s1">phi_a1 </span><span class="s2">= </span><span class="s1">phi</span><span class="s3">(</span><span class="s1">alpha1</span><span class="s3">)</span>
+<a name="l406"><span class="ln">406  </span></a>    <span class="s0">#derphi_a1 = derphi(alpha1) evaluated below</span>
+<a name="l407"><span class="ln">407  </span></a>
+<a name="l408"><span class="ln">408  </span></a>    <span class="s1">phi_a0 </span><span class="s2">= </span><span class="s1">phi0</span>
+<a name="l409"><span class="ln">409  </span></a>    <span class="s1">derphi_a0 </span><span class="s2">= </span><span class="s1">derphi0</span>
+<a name="l410"><span class="ln">410  </span></a>
+<a name="l411"><span class="ln">411  </span></a>    <span class="s2">if </span><span class="s1">extra_condition </span><span class="s2">is None:</span>
+<a name="l412"><span class="ln">412  </span></a>        <span class="s2">def </span><span class="s1">extra_condition</span><span class="s3">(</span><span class="s1">alpha</span><span class="s3">, </span><span class="s1">phi</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l413"><span class="ln">413  </span></a>            <span class="s2">return True</span>
+<a name="l414"><span class="ln">414  </span></a>
+<a name="l415"><span class="ln">415  </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">maxiter</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l416"><span class="ln">416  </span></a>        <span class="s2">if </span><span class="s1">alpha1 </span><span class="s2">== </span><span class="s5">0 </span><span class="s2">or </span><span class="s3">(</span><span class="s1">amax </span><span class="s2">is not None and </span><span class="s1">alpha0 </span><span class="s2">&gt; </span><span class="s1">amax</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l417"><span class="ln">417  </span></a>            <span class="s0"># alpha1 == 0: This shouldn't happen. Perhaps the increment has</span>
+<a name="l418"><span class="ln">418  </span></a>            <span class="s0"># slipped below machine precision?</span>
+<a name="l419"><span class="ln">419  </span></a>            <span class="s1">alpha_star </span><span class="s2">= None</span>
+<a name="l420"><span class="ln">420  </span></a>            <span class="s1">phi_star </span><span class="s2">= </span><span class="s1">phi0</span>
+<a name="l421"><span class="ln">421  </span></a>            <span class="s1">phi0 </span><span class="s2">= </span><span class="s1">old_phi0</span>
+<a name="l422"><span class="ln">422  </span></a>            <span class="s1">derphi_star </span><span class="s2">= None</span>
+<a name="l423"><span class="ln">423  </span></a>
+<a name="l424"><span class="ln">424  </span></a>            <span class="s2">if </span><span class="s1">alpha1 </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l425"><span class="ln">425  </span></a>                <span class="s1">msg </span><span class="s2">= </span><span class="s4">'Rounding errors prevent the line search from converging'</span>
+<a name="l426"><span class="ln">426  </span></a>            <span class="s2">else:</span>
+<a name="l427"><span class="ln">427  </span></a>                <span class="s1">msg </span><span class="s2">= </span><span class="s4">&quot;The line search algorithm could not find a solution &quot; </span><span class="s2">+ </span><span class="s1">\</span>
+<a name="l428"><span class="ln">428  </span></a>                      <span class="s4">f&quot;less than or equal to amax: {</span><span class="s1">amax</span><span class="s4">}&quot;</span>
+<a name="l429"><span class="ln">429  </span></a>
+<a name="l430"><span class="ln">430  </span></a>            <span class="s1">warn</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">, </span><span class="s1">LineSearchWarning</span><span class="s3">, </span><span class="s1">stacklevel</span><span class="s2">=</span><span class="s5">2</span><span class="s3">)</span>
+<a name="l431"><span class="ln">431  </span></a>            <span class="s2">break</span>
+<a name="l432"><span class="ln">432  </span></a>
+<a name="l433"><span class="ln">433  </span></a>        <span class="s1">not_first_iteration </span><span class="s2">= </span><span class="s1">i </span><span class="s2">&gt; </span><span class="s5">0</span>
+<a name="l434"><span class="ln">434  </span></a>        <span class="s2">if </span><span class="s3">(</span><span class="s1">phi_a1 </span><span class="s2">&gt; </span><span class="s1">phi0 </span><span class="s2">+ </span><span class="s1">c1 </span><span class="s2">* </span><span class="s1">alpha1 </span><span class="s2">* </span><span class="s1">derphi0</span><span class="s3">) </span><span class="s2">or </span><span class="s1">\</span>
+<a name="l435"><span class="ln">435  </span></a>           <span class="s3">((</span><span class="s1">phi_a1 </span><span class="s2">&gt;= </span><span class="s1">phi_a0</span><span class="s3">) </span><span class="s2">and </span><span class="s1">not_first_iteration</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l436"><span class="ln">436  </span></a>            <span class="s1">alpha_star</span><span class="s3">, </span><span class="s1">phi_star</span><span class="s3">, </span><span class="s1">derphi_star </span><span class="s2">= </span><span class="s1">\</span>
+<a name="l437"><span class="ln">437  </span></a>                        <span class="s1">_zoom</span><span class="s3">(</span><span class="s1">alpha0</span><span class="s3">, </span><span class="s1">alpha1</span><span class="s3">, </span><span class="s1">phi_a0</span><span class="s3">,</span>
+<a name="l438"><span class="ln">438  </span></a>                              <span class="s1">phi_a1</span><span class="s3">, </span><span class="s1">derphi_a0</span><span class="s3">, </span><span class="s1">phi</span><span class="s3">, </span><span class="s1">derphi</span><span class="s3">,</span>
+<a name="l439"><span class="ln">439  </span></a>                              <span class="s1">phi0</span><span class="s3">, </span><span class="s1">derphi0</span><span class="s3">, </span><span class="s1">c1</span><span class="s3">, </span><span class="s1">c2</span><span class="s3">, </span><span class="s1">extra_condition</span><span class="s3">)</span>
+<a name="l440"><span class="ln">440  </span></a>            <span class="s2">break</span>
+<a name="l441"><span class="ln">441  </span></a>
+<a name="l442"><span class="ln">442  </span></a>        <span class="s1">derphi_a1 </span><span class="s2">= </span><span class="s1">derphi</span><span class="s3">(</span><span class="s1">alpha1</span><span class="s3">)</span>
+<a name="l443"><span class="ln">443  </span></a>        <span class="s2">if </span><span class="s3">(</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">derphi_a1</span><span class="s3">) </span><span class="s2">&lt;= -</span><span class="s1">c2</span><span class="s2">*</span><span class="s1">derphi0</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l444"><span class="ln">444  </span></a>            <span class="s2">if </span><span class="s1">extra_condition</span><span class="s3">(</span><span class="s1">alpha1</span><span class="s3">, </span><span class="s1">phi_a1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l445"><span class="ln">445  </span></a>                <span class="s1">alpha_star </span><span class="s2">= </span><span class="s1">alpha1</span>
+<a name="l446"><span class="ln">446  </span></a>                <span class="s1">phi_star </span><span class="s2">= </span><span class="s1">phi_a1</span>
+<a name="l447"><span class="ln">447  </span></a>                <span class="s1">derphi_star </span><span class="s2">= </span><span class="s1">derphi_a1</span>
+<a name="l448"><span class="ln">448  </span></a>                <span class="s2">break</span>
+<a name="l449"><span class="ln">449  </span></a>
+<a name="l450"><span class="ln">450  </span></a>        <span class="s2">if </span><span class="s3">(</span><span class="s1">derphi_a1 </span><span class="s2">&gt;= </span><span class="s5">0</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l451"><span class="ln">451  </span></a>            <span class="s1">alpha_star</span><span class="s3">, </span><span class="s1">phi_star</span><span class="s3">, </span><span class="s1">derphi_star </span><span class="s2">= </span><span class="s1">\</span>
+<a name="l452"><span class="ln">452  </span></a>                        <span class="s1">_zoom</span><span class="s3">(</span><span class="s1">alpha1</span><span class="s3">, </span><span class="s1">alpha0</span><span class="s3">, </span><span class="s1">phi_a1</span><span class="s3">,</span>
+<a name="l453"><span class="ln">453  </span></a>                              <span class="s1">phi_a0</span><span class="s3">, </span><span class="s1">derphi_a1</span><span class="s3">, </span><span class="s1">phi</span><span class="s3">, </span><span class="s1">derphi</span><span class="s3">,</span>
+<a name="l454"><span class="ln">454  </span></a>                              <span class="s1">phi0</span><span class="s3">, </span><span class="s1">derphi0</span><span class="s3">, </span><span class="s1">c1</span><span class="s3">, </span><span class="s1">c2</span><span class="s3">, </span><span class="s1">extra_condition</span><span class="s3">)</span>
+<a name="l455"><span class="ln">455  </span></a>            <span class="s2">break</span>
+<a name="l456"><span class="ln">456  </span></a>
+<a name="l457"><span class="ln">457  </span></a>        <span class="s1">alpha2 </span><span class="s2">= </span><span class="s5">2 </span><span class="s2">* </span><span class="s1">alpha1  </span><span class="s0"># increase by factor of two on each iteration</span>
+<a name="l458"><span class="ln">458  </span></a>        <span class="s2">if </span><span class="s1">amax </span><span class="s2">is not None:</span>
+<a name="l459"><span class="ln">459  </span></a>            <span class="s1">alpha2 </span><span class="s2">= </span><span class="s1">min</span><span class="s3">(</span><span class="s1">alpha2</span><span class="s3">, </span><span class="s1">amax</span><span class="s3">)</span>
+<a name="l460"><span class="ln">460  </span></a>        <span class="s1">alpha0 </span><span class="s2">= </span><span class="s1">alpha1</span>
+<a name="l461"><span class="ln">461  </span></a>        <span class="s1">alpha1 </span><span class="s2">= </span><span class="s1">alpha2</span>
+<a name="l462"><span class="ln">462  </span></a>        <span class="s1">phi_a0 </span><span class="s2">= </span><span class="s1">phi_a1</span>
+<a name="l463"><span class="ln">463  </span></a>        <span class="s1">phi_a1 </span><span class="s2">= </span><span class="s1">phi</span><span class="s3">(</span><span class="s1">alpha1</span><span class="s3">)</span>
+<a name="l464"><span class="ln">464  </span></a>        <span class="s1">derphi_a0 </span><span class="s2">= </span><span class="s1">derphi_a1</span>
+<a name="l465"><span class="ln">465  </span></a>
+<a name="l466"><span class="ln">466  </span></a>    <span class="s2">else:</span>
+<a name="l467"><span class="ln">467  </span></a>        <span class="s0"># stopping test maxiter reached</span>
+<a name="l468"><span class="ln">468  </span></a>        <span class="s1">alpha_star </span><span class="s2">= </span><span class="s1">alpha1</span>
+<a name="l469"><span class="ln">469  </span></a>        <span class="s1">phi_star </span><span class="s2">= </span><span class="s1">phi_a1</span>
+<a name="l470"><span class="ln">470  </span></a>        <span class="s1">derphi_star </span><span class="s2">= None</span>
+<a name="l471"><span class="ln">471  </span></a>        <span class="s1">warn</span><span class="s3">(</span><span class="s4">'The line search algorithm did not converge'</span><span class="s3">,</span>
+<a name="l472"><span class="ln">472  </span></a>             <span class="s1">LineSearchWarning</span><span class="s3">, </span><span class="s1">stacklevel</span><span class="s2">=</span><span class="s5">2</span><span class="s3">)</span>
+<a name="l473"><span class="ln">473  </span></a>
+<a name="l474"><span class="ln">474  </span></a>    <span class="s2">return </span><span class="s1">alpha_star</span><span class="s3">, </span><span class="s1">phi_star</span><span class="s3">, </span><span class="s1">phi0</span><span class="s3">, </span><span class="s1">derphi_star</span>
+<a name="l475"><span class="ln">475  </span></a>
+<a name="l476"><span class="ln">476  </span></a>
+<a name="l477"><span class="ln">477  </span></a><span class="s2">def </span><span class="s1">_cubicmin</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">fa</span><span class="s3">, </span><span class="s1">fpa</span><span class="s3">, </span><span class="s1">b</span><span class="s3">, </span><span class="s1">fb</span><span class="s3">, </span><span class="s1">c</span><span class="s3">, </span><span class="s1">fc</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l478"><span class="ln">478  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l479"><span class="ln">479  </span></a>    Finds the minimizer for a cubic polynomial that goes through the 
+<a name="l480"><span class="ln">480  </span></a>    points (a,fa), (b,fb), and (c,fc) with derivative at a of fpa. 
+<a name="l481"><span class="ln">481  </span></a> 
+<a name="l482"><span class="ln">482  </span></a>    If no minimizer can be found, return None. 
+<a name="l483"><span class="ln">483  </span></a> 
+<a name="l484"><span class="ln">484  </span></a>    &quot;&quot;&quot;</span>
+<a name="l485"><span class="ln">485  </span></a>    <span class="s0"># f(x) = A *(x-a)^3 + B*(x-a)^2 + C*(x-a) + D</span>
+<a name="l486"><span class="ln">486  </span></a>
+<a name="l487"><span class="ln">487  </span></a>    <span class="s2">with </span><span class="s1">np</span><span class="s3">.</span><span class="s1">errstate</span><span class="s3">(</span><span class="s1">divide</span><span class="s2">=</span><span class="s4">'raise'</span><span class="s3">, </span><span class="s1">over</span><span class="s2">=</span><span class="s4">'raise'</span><span class="s3">, </span><span class="s1">invalid</span><span class="s2">=</span><span class="s4">'raise'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l488"><span class="ln">488  </span></a>        <span class="s2">try:</span>
+<a name="l489"><span class="ln">489  </span></a>            <span class="s1">C </span><span class="s2">= </span><span class="s1">fpa</span>
+<a name="l490"><span class="ln">490  </span></a>            <span class="s1">db </span><span class="s2">= </span><span class="s1">b </span><span class="s2">- </span><span class="s1">a</span>
+<a name="l491"><span class="ln">491  </span></a>            <span class="s1">dc </span><span class="s2">= </span><span class="s1">c </span><span class="s2">- </span><span class="s1">a</span>
+<a name="l492"><span class="ln">492  </span></a>            <span class="s1">denom </span><span class="s2">= </span><span class="s3">(</span><span class="s1">db </span><span class="s2">* </span><span class="s1">dc</span><span class="s3">) </span><span class="s2">** </span><span class="s5">2 </span><span class="s2">* </span><span class="s3">(</span><span class="s1">db </span><span class="s2">- </span><span class="s1">dc</span><span class="s3">)</span>
+<a name="l493"><span class="ln">493  </span></a>            <span class="s1">d1 </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">empty</span><span class="s3">((</span><span class="s5">2</span><span class="s3">, </span><span class="s5">2</span><span class="s3">))</span>
+<a name="l494"><span class="ln">494  </span></a>            <span class="s1">d1</span><span class="s3">[</span><span class="s5">0</span><span class="s3">, </span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s1">dc </span><span class="s2">** </span><span class="s5">2</span>
+<a name="l495"><span class="ln">495  </span></a>            <span class="s1">d1</span><span class="s3">[</span><span class="s5">0</span><span class="s3">, </span><span class="s5">1</span><span class="s3">] </span><span class="s2">= -</span><span class="s1">db </span><span class="s2">** </span><span class="s5">2</span>
+<a name="l496"><span class="ln">496  </span></a>            <span class="s1">d1</span><span class="s3">[</span><span class="s5">1</span><span class="s3">, </span><span class="s5">0</span><span class="s3">] </span><span class="s2">= -</span><span class="s1">dc </span><span class="s2">** </span><span class="s5">3</span>
+<a name="l497"><span class="ln">497  </span></a>            <span class="s1">d1</span><span class="s3">[</span><span class="s5">1</span><span class="s3">, </span><span class="s5">1</span><span class="s3">] </span><span class="s2">= </span><span class="s1">db </span><span class="s2">** </span><span class="s5">3</span>
+<a name="l498"><span class="ln">498  </span></a>            <span class="s3">[</span><span class="s1">A</span><span class="s3">, </span><span class="s1">B</span><span class="s3">] </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">dot</span><span class="s3">(</span><span class="s1">d1</span><span class="s3">, </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">([</span><span class="s1">fb </span><span class="s2">- </span><span class="s1">fa </span><span class="s2">- </span><span class="s1">C </span><span class="s2">* </span><span class="s1">db</span><span class="s3">,</span>
+<a name="l499"><span class="ln">499  </span></a>                                            <span class="s1">fc </span><span class="s2">- </span><span class="s1">fa </span><span class="s2">- </span><span class="s1">C </span><span class="s2">* </span><span class="s1">dc</span><span class="s3">]).</span><span class="s1">flatten</span><span class="s3">())</span>
+<a name="l500"><span class="ln">500  </span></a>            <span class="s1">A </span><span class="s2">/= </span><span class="s1">denom</span>
+<a name="l501"><span class="ln">501  </span></a>            <span class="s1">B </span><span class="s2">/= </span><span class="s1">denom</span>
+<a name="l502"><span class="ln">502  </span></a>            <span class="s1">radical </span><span class="s2">= </span><span class="s1">B </span><span class="s2">* </span><span class="s1">B </span><span class="s2">- </span><span class="s5">3 </span><span class="s2">* </span><span class="s1">A </span><span class="s2">* </span><span class="s1">C</span>
+<a name="l503"><span class="ln">503  </span></a>            <span class="s1">xmin </span><span class="s2">= </span><span class="s1">a </span><span class="s2">+ </span><span class="s3">(</span><span class="s2">-</span><span class="s1">B </span><span class="s2">+ </span><span class="s1">np</span><span class="s3">.</span><span class="s1">sqrt</span><span class="s3">(</span><span class="s1">radical</span><span class="s3">)) </span><span class="s2">/ </span><span class="s3">(</span><span class="s5">3 </span><span class="s2">* </span><span class="s1">A</span><span class="s3">)</span>
+<a name="l504"><span class="ln">504  </span></a>        <span class="s2">except </span><span class="s1">ArithmeticError</span><span class="s2">:</span>
+<a name="l505"><span class="ln">505  </span></a>            <span class="s2">return None</span>
+<a name="l506"><span class="ln">506  </span></a>    <span class="s2">if not </span><span class="s1">np</span><span class="s3">.</span><span class="s1">isfinite</span><span class="s3">(</span><span class="s1">xmin</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l507"><span class="ln">507  </span></a>        <span class="s2">return None</span>
+<a name="l508"><span class="ln">508  </span></a>    <span class="s2">return </span><span class="s1">xmin</span>
+<a name="l509"><span class="ln">509  </span></a>
+<a name="l510"><span class="ln">510  </span></a>
+<a name="l511"><span class="ln">511  </span></a><span class="s2">def </span><span class="s1">_quadmin</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">fa</span><span class="s3">, </span><span class="s1">fpa</span><span class="s3">, </span><span class="s1">b</span><span class="s3">, </span><span class="s1">fb</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l512"><span class="ln">512  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l513"><span class="ln">513  </span></a>    Finds the minimizer for a quadratic polynomial that goes through 
+<a name="l514"><span class="ln">514  </span></a>    the points (a,fa), (b,fb) with derivative at a of fpa. 
+<a name="l515"><span class="ln">515  </span></a> 
+<a name="l516"><span class="ln">516  </span></a>    &quot;&quot;&quot;</span>
+<a name="l517"><span class="ln">517  </span></a>    <span class="s0"># f(x) = B*(x-a)^2 + C*(x-a) + D</span>
+<a name="l518"><span class="ln">518  </span></a>    <span class="s2">with </span><span class="s1">np</span><span class="s3">.</span><span class="s1">errstate</span><span class="s3">(</span><span class="s1">divide</span><span class="s2">=</span><span class="s4">'raise'</span><span class="s3">, </span><span class="s1">over</span><span class="s2">=</span><span class="s4">'raise'</span><span class="s3">, </span><span class="s1">invalid</span><span class="s2">=</span><span class="s4">'raise'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l519"><span class="ln">519  </span></a>        <span class="s2">try:</span>
+<a name="l520"><span class="ln">520  </span></a>            <span class="s1">D </span><span class="s2">= </span><span class="s1">fa</span>
+<a name="l521"><span class="ln">521  </span></a>            <span class="s1">C </span><span class="s2">= </span><span class="s1">fpa</span>
+<a name="l522"><span class="ln">522  </span></a>            <span class="s1">db </span><span class="s2">= </span><span class="s1">b </span><span class="s2">- </span><span class="s1">a </span><span class="s2">* </span><span class="s5">1.0</span>
+<a name="l523"><span class="ln">523  </span></a>            <span class="s1">B </span><span class="s2">= </span><span class="s3">(</span><span class="s1">fb </span><span class="s2">- </span><span class="s1">D </span><span class="s2">- </span><span class="s1">C </span><span class="s2">* </span><span class="s1">db</span><span class="s3">) </span><span class="s2">/ </span><span class="s3">(</span><span class="s1">db </span><span class="s2">* </span><span class="s1">db</span><span class="s3">)</span>
+<a name="l524"><span class="ln">524  </span></a>            <span class="s1">xmin </span><span class="s2">= </span><span class="s1">a </span><span class="s2">- </span><span class="s1">C </span><span class="s2">/ </span><span class="s3">(</span><span class="s5">2.0 </span><span class="s2">* </span><span class="s1">B</span><span class="s3">)</span>
+<a name="l525"><span class="ln">525  </span></a>        <span class="s2">except </span><span class="s1">ArithmeticError</span><span class="s2">:</span>
+<a name="l526"><span class="ln">526  </span></a>            <span class="s2">return None</span>
+<a name="l527"><span class="ln">527  </span></a>    <span class="s2">if not </span><span class="s1">np</span><span class="s3">.</span><span class="s1">isfinite</span><span class="s3">(</span><span class="s1">xmin</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l528"><span class="ln">528  </span></a>        <span class="s2">return None</span>
+<a name="l529"><span class="ln">529  </span></a>    <span class="s2">return </span><span class="s1">xmin</span>
+<a name="l530"><span class="ln">530  </span></a>
+<a name="l531"><span class="ln">531  </span></a>
+<a name="l532"><span class="ln">532  </span></a><span class="s2">def </span><span class="s1">_zoom</span><span class="s3">(</span><span class="s1">a_lo</span><span class="s3">, </span><span class="s1">a_hi</span><span class="s3">, </span><span class="s1">phi_lo</span><span class="s3">, </span><span class="s1">phi_hi</span><span class="s3">, </span><span class="s1">derphi_lo</span><span class="s3">,</span>
+<a name="l533"><span class="ln">533  </span></a>          <span class="s1">phi</span><span class="s3">, </span><span class="s1">derphi</span><span class="s3">, </span><span class="s1">phi0</span><span class="s3">, </span><span class="s1">derphi0</span><span class="s3">, </span><span class="s1">c1</span><span class="s3">, </span><span class="s1">c2</span><span class="s3">, </span><span class="s1">extra_condition</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l534"><span class="ln">534  </span></a>    <span class="s0">&quot;&quot;&quot;Zoom stage of approximate linesearch satisfying strong Wolfe conditions. 
+<a name="l535"><span class="ln">535  </span></a> 
+<a name="l536"><span class="ln">536  </span></a>    Part of the optimization algorithm in `scalar_search_wolfe2`. 
+<a name="l537"><span class="ln">537  </span></a> 
+<a name="l538"><span class="ln">538  </span></a>    Notes 
+<a name="l539"><span class="ln">539  </span></a>    ----- 
+<a name="l540"><span class="ln">540  </span></a>    Implements Algorithm 3.6 (zoom) in Wright and Nocedal, 
+<a name="l541"><span class="ln">541  </span></a>    'Numerical Optimization', 1999, pp. 61. 
+<a name="l542"><span class="ln">542  </span></a> 
+<a name="l543"><span class="ln">543  </span></a>    &quot;&quot;&quot;</span>
+<a name="l544"><span class="ln">544  </span></a>
+<a name="l545"><span class="ln">545  </span></a>    <span class="s1">maxiter </span><span class="s2">= </span><span class="s5">10</span>
+<a name="l546"><span class="ln">546  </span></a>    <span class="s1">i </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l547"><span class="ln">547  </span></a>    <span class="s1">delta1 </span><span class="s2">= </span><span class="s5">0.2  </span><span class="s0"># cubic interpolant check</span>
+<a name="l548"><span class="ln">548  </span></a>    <span class="s1">delta2 </span><span class="s2">= </span><span class="s5">0.1  </span><span class="s0"># quadratic interpolant check</span>
+<a name="l549"><span class="ln">549  </span></a>    <span class="s1">phi_rec </span><span class="s2">= </span><span class="s1">phi0</span>
+<a name="l550"><span class="ln">550  </span></a>    <span class="s1">a_rec </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l551"><span class="ln">551  </span></a>    <span class="s2">while True:</span>
+<a name="l552"><span class="ln">552  </span></a>        <span class="s0"># interpolate to find a trial step length between a_lo and</span>
+<a name="l553"><span class="ln">553  </span></a>        <span class="s0"># a_hi Need to choose interpolation here. Use cubic</span>
+<a name="l554"><span class="ln">554  </span></a>        <span class="s0"># interpolation and then if the result is within delta *</span>
+<a name="l555"><span class="ln">555  </span></a>        <span class="s0"># dalpha or outside of the interval bounded by a_lo or a_hi</span>
+<a name="l556"><span class="ln">556  </span></a>        <span class="s0"># then use quadratic interpolation, if the result is still too</span>
+<a name="l557"><span class="ln">557  </span></a>        <span class="s0"># close, then use bisection</span>
+<a name="l558"><span class="ln">558  </span></a>
+<a name="l559"><span class="ln">559  </span></a>        <span class="s1">dalpha </span><span class="s2">= </span><span class="s1">a_hi </span><span class="s2">- </span><span class="s1">a_lo</span>
+<a name="l560"><span class="ln">560  </span></a>        <span class="s2">if </span><span class="s1">dalpha </span><span class="s2">&lt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l561"><span class="ln">561  </span></a>            <span class="s1">a</span><span class="s3">, </span><span class="s1">b </span><span class="s2">= </span><span class="s1">a_hi</span><span class="s3">, </span><span class="s1">a_lo</span>
+<a name="l562"><span class="ln">562  </span></a>        <span class="s2">else:</span>
+<a name="l563"><span class="ln">563  </span></a>            <span class="s1">a</span><span class="s3">, </span><span class="s1">b </span><span class="s2">= </span><span class="s1">a_lo</span><span class="s3">, </span><span class="s1">a_hi</span>
+<a name="l564"><span class="ln">564  </span></a>
+<a name="l565"><span class="ln">565  </span></a>        <span class="s0"># minimizer of cubic interpolant</span>
+<a name="l566"><span class="ln">566  </span></a>        <span class="s0"># (uses phi_lo, derphi_lo, phi_hi, and the most recent value of phi)</span>
+<a name="l567"><span class="ln">567  </span></a>        <span class="s0">#</span>
+<a name="l568"><span class="ln">568  </span></a>        <span class="s0"># if the result is too close to the end points (or out of the</span>
+<a name="l569"><span class="ln">569  </span></a>        <span class="s0"># interval), then use quadratic interpolation with phi_lo,</span>
+<a name="l570"><span class="ln">570  </span></a>        <span class="s0"># derphi_lo and phi_hi if the result is still too close to the</span>
+<a name="l571"><span class="ln">571  </span></a>        <span class="s0"># end points (or out of the interval) then use bisection</span>
+<a name="l572"><span class="ln">572  </span></a>
+<a name="l573"><span class="ln">573  </span></a>        <span class="s2">if </span><span class="s3">(</span><span class="s1">i </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l574"><span class="ln">574  </span></a>            <span class="s1">cchk </span><span class="s2">= </span><span class="s1">delta1 </span><span class="s2">* </span><span class="s1">dalpha</span>
+<a name="l575"><span class="ln">575  </span></a>            <span class="s1">a_j </span><span class="s2">= </span><span class="s1">_cubicmin</span><span class="s3">(</span><span class="s1">a_lo</span><span class="s3">, </span><span class="s1">phi_lo</span><span class="s3">, </span><span class="s1">derphi_lo</span><span class="s3">, </span><span class="s1">a_hi</span><span class="s3">, </span><span class="s1">phi_hi</span><span class="s3">,</span>
+<a name="l576"><span class="ln">576  </span></a>                            <span class="s1">a_rec</span><span class="s3">, </span><span class="s1">phi_rec</span><span class="s3">)</span>
+<a name="l577"><span class="ln">577  </span></a>        <span class="s2">if </span><span class="s3">(</span><span class="s1">i </span><span class="s2">== </span><span class="s5">0</span><span class="s3">) </span><span class="s2">or </span><span class="s3">(</span><span class="s1">a_j </span><span class="s2">is None</span><span class="s3">) </span><span class="s2">or </span><span class="s3">(</span><span class="s1">a_j </span><span class="s2">&gt; </span><span class="s1">b </span><span class="s2">- </span><span class="s1">cchk</span><span class="s3">) </span><span class="s2">or </span><span class="s3">(</span><span class="s1">a_j </span><span class="s2">&lt; </span><span class="s1">a </span><span class="s2">+ </span><span class="s1">cchk</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l578"><span class="ln">578  </span></a>            <span class="s1">qchk </span><span class="s2">= </span><span class="s1">delta2 </span><span class="s2">* </span><span class="s1">dalpha</span>
+<a name="l579"><span class="ln">579  </span></a>            <span class="s1">a_j </span><span class="s2">= </span><span class="s1">_quadmin</span><span class="s3">(</span><span class="s1">a_lo</span><span class="s3">, </span><span class="s1">phi_lo</span><span class="s3">, </span><span class="s1">derphi_lo</span><span class="s3">, </span><span class="s1">a_hi</span><span class="s3">, </span><span class="s1">phi_hi</span><span class="s3">)</span>
+<a name="l580"><span class="ln">580  </span></a>            <span class="s2">if </span><span class="s3">(</span><span class="s1">a_j </span><span class="s2">is None</span><span class="s3">) </span><span class="s2">or </span><span class="s3">(</span><span class="s1">a_j </span><span class="s2">&gt; </span><span class="s1">b</span><span class="s2">-</span><span class="s1">qchk</span><span class="s3">) </span><span class="s2">or </span><span class="s3">(</span><span class="s1">a_j </span><span class="s2">&lt; </span><span class="s1">a</span><span class="s2">+</span><span class="s1">qchk</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l581"><span class="ln">581  </span></a>                <span class="s1">a_j </span><span class="s2">= </span><span class="s1">a_lo </span><span class="s2">+ </span><span class="s5">0.5</span><span class="s2">*</span><span class="s1">dalpha</span>
+<a name="l582"><span class="ln">582  </span></a>
+<a name="l583"><span class="ln">583  </span></a>        <span class="s0"># Check new value of a_j</span>
+<a name="l584"><span class="ln">584  </span></a>
+<a name="l585"><span class="ln">585  </span></a>        <span class="s1">phi_aj </span><span class="s2">= </span><span class="s1">phi</span><span class="s3">(</span><span class="s1">a_j</span><span class="s3">)</span>
+<a name="l586"><span class="ln">586  </span></a>        <span class="s2">if </span><span class="s3">(</span><span class="s1">phi_aj </span><span class="s2">&gt; </span><span class="s1">phi0 </span><span class="s2">+ </span><span class="s1">c1</span><span class="s2">*</span><span class="s1">a_j</span><span class="s2">*</span><span class="s1">derphi0</span><span class="s3">) </span><span class="s2">or </span><span class="s3">(</span><span class="s1">phi_aj </span><span class="s2">&gt;= </span><span class="s1">phi_lo</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l587"><span class="ln">587  </span></a>            <span class="s1">phi_rec </span><span class="s2">= </span><span class="s1">phi_hi</span>
+<a name="l588"><span class="ln">588  </span></a>            <span class="s1">a_rec </span><span class="s2">= </span><span class="s1">a_hi</span>
+<a name="l589"><span class="ln">589  </span></a>            <span class="s1">a_hi </span><span class="s2">= </span><span class="s1">a_j</span>
+<a name="l590"><span class="ln">590  </span></a>            <span class="s1">phi_hi </span><span class="s2">= </span><span class="s1">phi_aj</span>
+<a name="l591"><span class="ln">591  </span></a>        <span class="s2">else:</span>
+<a name="l592"><span class="ln">592  </span></a>            <span class="s1">derphi_aj </span><span class="s2">= </span><span class="s1">derphi</span><span class="s3">(</span><span class="s1">a_j</span><span class="s3">)</span>
+<a name="l593"><span class="ln">593  </span></a>            <span class="s2">if </span><span class="s1">abs</span><span class="s3">(</span><span class="s1">derphi_aj</span><span class="s3">) </span><span class="s2">&lt;= -</span><span class="s1">c2</span><span class="s2">*</span><span class="s1">derphi0 </span><span class="s2">and </span><span class="s1">extra_condition</span><span class="s3">(</span><span class="s1">a_j</span><span class="s3">, </span><span class="s1">phi_aj</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l594"><span class="ln">594  </span></a>                <span class="s1">a_star </span><span class="s2">= </span><span class="s1">a_j</span>
+<a name="l595"><span class="ln">595  </span></a>                <span class="s1">val_star </span><span class="s2">= </span><span class="s1">phi_aj</span>
+<a name="l596"><span class="ln">596  </span></a>                <span class="s1">valprime_star </span><span class="s2">= </span><span class="s1">derphi_aj</span>
+<a name="l597"><span class="ln">597  </span></a>                <span class="s2">break</span>
+<a name="l598"><span class="ln">598  </span></a>            <span class="s2">if </span><span class="s1">derphi_aj</span><span class="s2">*</span><span class="s3">(</span><span class="s1">a_hi </span><span class="s2">- </span><span class="s1">a_lo</span><span class="s3">) </span><span class="s2">&gt;= </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l599"><span class="ln">599  </span></a>                <span class="s1">phi_rec </span><span class="s2">= </span><span class="s1">phi_hi</span>
+<a name="l600"><span class="ln">600  </span></a>                <span class="s1">a_rec </span><span class="s2">= </span><span class="s1">a_hi</span>
+<a name="l601"><span class="ln">601  </span></a>                <span class="s1">a_hi </span><span class="s2">= </span><span class="s1">a_lo</span>
+<a name="l602"><span class="ln">602  </span></a>                <span class="s1">phi_hi </span><span class="s2">= </span><span class="s1">phi_lo</span>
+<a name="l603"><span class="ln">603  </span></a>            <span class="s2">else:</span>
+<a name="l604"><span class="ln">604  </span></a>                <span class="s1">phi_rec </span><span class="s2">= </span><span class="s1">phi_lo</span>
+<a name="l605"><span class="ln">605  </span></a>                <span class="s1">a_rec </span><span class="s2">= </span><span class="s1">a_lo</span>
+<a name="l606"><span class="ln">606  </span></a>            <span class="s1">a_lo </span><span class="s2">= </span><span class="s1">a_j</span>
+<a name="l607"><span class="ln">607  </span></a>            <span class="s1">phi_lo </span><span class="s2">= </span><span class="s1">phi_aj</span>
+<a name="l608"><span class="ln">608  </span></a>            <span class="s1">derphi_lo </span><span class="s2">= </span><span class="s1">derphi_aj</span>
+<a name="l609"><span class="ln">609  </span></a>        <span class="s1">i </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l610"><span class="ln">610  </span></a>        <span class="s2">if </span><span class="s3">(</span><span class="s1">i </span><span class="s2">&gt; </span><span class="s1">maxiter</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l611"><span class="ln">611  </span></a>            <span class="s0"># Failed to find a conforming step size</span>
+<a name="l612"><span class="ln">612  </span></a>            <span class="s1">a_star </span><span class="s2">= None</span>
+<a name="l613"><span class="ln">613  </span></a>            <span class="s1">val_star </span><span class="s2">= None</span>
+<a name="l614"><span class="ln">614  </span></a>            <span class="s1">valprime_star </span><span class="s2">= None</span>
+<a name="l615"><span class="ln">615  </span></a>            <span class="s2">break</span>
+<a name="l616"><span class="ln">616  </span></a>    <span class="s2">return </span><span class="s1">a_star</span><span class="s3">, </span><span class="s1">val_star</span><span class="s3">, </span><span class="s1">valprime_star</span>
+<a name="l617"><span class="ln">617  </span></a>
+<a name="l618"><span class="ln">618  </span></a>
+<a name="l619"><span class="ln">619  </span></a><span class="s0">#------------------------------------------------------------------------------</span>
+<a name="l620"><span class="ln">620  </span></a><span class="s0"># Armijo line and scalar searches</span>
+<a name="l621"><span class="ln">621  </span></a><span class="s0">#------------------------------------------------------------------------------</span>
+<a name="l622"><span class="ln">622  </span></a>
+<a name="l623"><span class="ln">623  </span></a><span class="s2">def </span><span class="s1">line_search_armijo</span><span class="s3">(</span><span class="s1">f</span><span class="s3">, </span><span class="s1">xk</span><span class="s3">, </span><span class="s1">pk</span><span class="s3">, </span><span class="s1">gfk</span><span class="s3">, </span><span class="s1">old_fval</span><span class="s3">, </span><span class="s1">args</span><span class="s2">=</span><span class="s3">(), </span><span class="s1">c1</span><span class="s2">=</span><span class="s5">1e-4</span><span class="s3">, </span><span class="s1">alpha0</span><span class="s2">=</span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l624"><span class="ln">624  </span></a>    <span class="s0">&quot;&quot;&quot;Minimize over alpha, the function ``f(xk+alpha pk)``. 
+<a name="l625"><span class="ln">625  </span></a> 
+<a name="l626"><span class="ln">626  </span></a>    Parameters 
+<a name="l627"><span class="ln">627  </span></a>    ---------- 
+<a name="l628"><span class="ln">628  </span></a>    f : callable 
+<a name="l629"><span class="ln">629  </span></a>        Function to be minimized. 
+<a name="l630"><span class="ln">630  </span></a>    xk : array_like 
+<a name="l631"><span class="ln">631  </span></a>        Current point. 
+<a name="l632"><span class="ln">632  </span></a>    pk : array_like 
+<a name="l633"><span class="ln">633  </span></a>        Search direction. 
+<a name="l634"><span class="ln">634  </span></a>    gfk : array_like 
+<a name="l635"><span class="ln">635  </span></a>        Gradient of `f` at point `xk`. 
+<a name="l636"><span class="ln">636  </span></a>    old_fval : float 
+<a name="l637"><span class="ln">637  </span></a>        Value of `f` at point `xk`. 
+<a name="l638"><span class="ln">638  </span></a>    args : tuple, optional 
+<a name="l639"><span class="ln">639  </span></a>        Optional arguments. 
+<a name="l640"><span class="ln">640  </span></a>    c1 : float, optional 
+<a name="l641"><span class="ln">641  </span></a>        Value to control stopping criterion. 
+<a name="l642"><span class="ln">642  </span></a>    alpha0 : scalar, optional 
+<a name="l643"><span class="ln">643  </span></a>        Value of `alpha` at start of the optimization. 
+<a name="l644"><span class="ln">644  </span></a> 
+<a name="l645"><span class="ln">645  </span></a>    Returns 
+<a name="l646"><span class="ln">646  </span></a>    ------- 
+<a name="l647"><span class="ln">647  </span></a>    alpha 
+<a name="l648"><span class="ln">648  </span></a>    f_count 
+<a name="l649"><span class="ln">649  </span></a>    f_val_at_alpha 
+<a name="l650"><span class="ln">650  </span></a> 
+<a name="l651"><span class="ln">651  </span></a>    Notes 
+<a name="l652"><span class="ln">652  </span></a>    ----- 
+<a name="l653"><span class="ln">653  </span></a>    Uses the interpolation algorithm (Armijo backtracking) as suggested by 
+<a name="l654"><span class="ln">654  </span></a>    Wright and Nocedal in 'Numerical Optimization', 1999, pp. 56-57 
+<a name="l655"><span class="ln">655  </span></a> 
+<a name="l656"><span class="ln">656  </span></a>    &quot;&quot;&quot;</span>
+<a name="l657"><span class="ln">657  </span></a>    <span class="s1">xk </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">atleast_1d</span><span class="s3">(</span><span class="s1">xk</span><span class="s3">)</span>
+<a name="l658"><span class="ln">658  </span></a>    <span class="s1">fc </span><span class="s2">= </span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l659"><span class="ln">659  </span></a>
+<a name="l660"><span class="ln">660  </span></a>    <span class="s2">def </span><span class="s1">phi</span><span class="s3">(</span><span class="s1">alpha1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l661"><span class="ln">661  </span></a>        <span class="s1">fc</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l662"><span class="ln">662  </span></a>        <span class="s2">return </span><span class="s1">f</span><span class="s3">(</span><span class="s1">xk </span><span class="s2">+ </span><span class="s1">alpha1</span><span class="s2">*</span><span class="s1">pk</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">)</span>
+<a name="l663"><span class="ln">663  </span></a>
+<a name="l664"><span class="ln">664  </span></a>    <span class="s2">if </span><span class="s1">old_fval </span><span class="s2">is None:</span>
+<a name="l665"><span class="ln">665  </span></a>        <span class="s1">phi0 </span><span class="s2">= </span><span class="s1">phi</span><span class="s3">(</span><span class="s5">0.</span><span class="s3">)</span>
+<a name="l666"><span class="ln">666  </span></a>    <span class="s2">else:</span>
+<a name="l667"><span class="ln">667  </span></a>        <span class="s1">phi0 </span><span class="s2">= </span><span class="s1">old_fval  </span><span class="s0"># compute f(xk) -- done in past loop</span>
+<a name="l668"><span class="ln">668  </span></a>
+<a name="l669"><span class="ln">669  </span></a>    <span class="s1">derphi0 </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">dot</span><span class="s3">(</span><span class="s1">gfk</span><span class="s3">, </span><span class="s1">pk</span><span class="s3">)</span>
+<a name="l670"><span class="ln">670  </span></a>    <span class="s1">alpha</span><span class="s3">, </span><span class="s1">phi1 </span><span class="s2">= </span><span class="s1">scalar_search_armijo</span><span class="s3">(</span><span class="s1">phi</span><span class="s3">, </span><span class="s1">phi0</span><span class="s3">, </span><span class="s1">derphi0</span><span class="s3">, </span><span class="s1">c1</span><span class="s2">=</span><span class="s1">c1</span><span class="s3">,</span>
+<a name="l671"><span class="ln">671  </span></a>                                       <span class="s1">alpha0</span><span class="s2">=</span><span class="s1">alpha0</span><span class="s3">)</span>
+<a name="l672"><span class="ln">672  </span></a>    <span class="s2">return </span><span class="s1">alpha</span><span class="s3">, </span><span class="s1">fc</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">phi1</span>
+<a name="l673"><span class="ln">673  </span></a>
+<a name="l674"><span class="ln">674  </span></a>
+<a name="l675"><span class="ln">675  </span></a><span class="s2">def </span><span class="s1">line_search_BFGS</span><span class="s3">(</span><span class="s1">f</span><span class="s3">, </span><span class="s1">xk</span><span class="s3">, </span><span class="s1">pk</span><span class="s3">, </span><span class="s1">gfk</span><span class="s3">, </span><span class="s1">old_fval</span><span class="s3">, </span><span class="s1">args</span><span class="s2">=</span><span class="s3">(), </span><span class="s1">c1</span><span class="s2">=</span><span class="s5">1e-4</span><span class="s3">, </span><span class="s1">alpha0</span><span class="s2">=</span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l676"><span class="ln">676  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l677"><span class="ln">677  </span></a>    Compatibility wrapper for `line_search_armijo` 
+<a name="l678"><span class="ln">678  </span></a>    &quot;&quot;&quot;</span>
+<a name="l679"><span class="ln">679  </span></a>    <span class="s1">r </span><span class="s2">= </span><span class="s1">line_search_armijo</span><span class="s3">(</span><span class="s1">f</span><span class="s3">, </span><span class="s1">xk</span><span class="s3">, </span><span class="s1">pk</span><span class="s3">, </span><span class="s1">gfk</span><span class="s3">, </span><span class="s1">old_fval</span><span class="s3">, </span><span class="s1">args</span><span class="s2">=</span><span class="s1">args</span><span class="s3">, </span><span class="s1">c1</span><span class="s2">=</span><span class="s1">c1</span><span class="s3">,</span>
+<a name="l680"><span class="ln">680  </span></a>                           <span class="s1">alpha0</span><span class="s2">=</span><span class="s1">alpha0</span><span class="s3">)</span>
+<a name="l681"><span class="ln">681  </span></a>    <span class="s2">return </span><span class="s1">r</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">r</span><span class="s3">[</span><span class="s5">1</span><span class="s3">], </span><span class="s5">0</span><span class="s3">, </span><span class="s1">r</span><span class="s3">[</span><span class="s5">2</span><span class="s3">]</span>
+<a name="l682"><span class="ln">682  </span></a>
+<a name="l683"><span class="ln">683  </span></a>
+<a name="l684"><span class="ln">684  </span></a><span class="s2">def </span><span class="s1">scalar_search_armijo</span><span class="s3">(</span><span class="s1">phi</span><span class="s3">, </span><span class="s1">phi0</span><span class="s3">, </span><span class="s1">derphi0</span><span class="s3">, </span><span class="s1">c1</span><span class="s2">=</span><span class="s5">1e-4</span><span class="s3">, </span><span class="s1">alpha0</span><span class="s2">=</span><span class="s5">1</span><span class="s3">, </span><span class="s1">amin</span><span class="s2">=</span><span class="s5">0</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l685"><span class="ln">685  </span></a>    <span class="s0">&quot;&quot;&quot;Minimize over alpha, the function ``phi(alpha)``. 
+<a name="l686"><span class="ln">686  </span></a> 
+<a name="l687"><span class="ln">687  </span></a>    Uses the interpolation algorithm (Armijo backtracking) as suggested by 
+<a name="l688"><span class="ln">688  </span></a>    Wright and Nocedal in 'Numerical Optimization', 1999, pp. 56-57 
+<a name="l689"><span class="ln">689  </span></a> 
+<a name="l690"><span class="ln">690  </span></a>    alpha &gt; 0 is assumed to be a descent direction. 
+<a name="l691"><span class="ln">691  </span></a> 
+<a name="l692"><span class="ln">692  </span></a>    Returns 
+<a name="l693"><span class="ln">693  </span></a>    ------- 
+<a name="l694"><span class="ln">694  </span></a>    alpha 
+<a name="l695"><span class="ln">695  </span></a>    phi1 
+<a name="l696"><span class="ln">696  </span></a> 
+<a name="l697"><span class="ln">697  </span></a>    &quot;&quot;&quot;</span>
+<a name="l698"><span class="ln">698  </span></a>    <span class="s1">phi_a0 </span><span class="s2">= </span><span class="s1">phi</span><span class="s3">(</span><span class="s1">alpha0</span><span class="s3">)</span>
+<a name="l699"><span class="ln">699  </span></a>    <span class="s2">if </span><span class="s1">phi_a0 </span><span class="s2">&lt;= </span><span class="s1">phi0 </span><span class="s2">+ </span><span class="s1">c1</span><span class="s2">*</span><span class="s1">alpha0</span><span class="s2">*</span><span class="s1">derphi0</span><span class="s2">:</span>
+<a name="l700"><span class="ln">700  </span></a>        <span class="s2">return </span><span class="s1">alpha0</span><span class="s3">, </span><span class="s1">phi_a0</span>
+<a name="l701"><span class="ln">701  </span></a>
+<a name="l702"><span class="ln">702  </span></a>    <span class="s0"># Otherwise, compute the minimizer of a quadratic interpolant:</span>
+<a name="l703"><span class="ln">703  </span></a>
+<a name="l704"><span class="ln">704  </span></a>    <span class="s1">alpha1 </span><span class="s2">= -</span><span class="s3">(</span><span class="s1">derphi0</span><span class="s3">) </span><span class="s2">* </span><span class="s1">alpha0</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">/ </span><span class="s5">2.0 </span><span class="s2">/ </span><span class="s3">(</span><span class="s1">phi_a0 </span><span class="s2">- </span><span class="s1">phi0 </span><span class="s2">- </span><span class="s1">derphi0 </span><span class="s2">* </span><span class="s1">alpha0</span><span class="s3">)</span>
+<a name="l705"><span class="ln">705  </span></a>    <span class="s1">phi_a1 </span><span class="s2">= </span><span class="s1">phi</span><span class="s3">(</span><span class="s1">alpha1</span><span class="s3">)</span>
+<a name="l706"><span class="ln">706  </span></a>
+<a name="l707"><span class="ln">707  </span></a>    <span class="s2">if </span><span class="s3">(</span><span class="s1">phi_a1 </span><span class="s2">&lt;= </span><span class="s1">phi0 </span><span class="s2">+ </span><span class="s1">c1</span><span class="s2">*</span><span class="s1">alpha1</span><span class="s2">*</span><span class="s1">derphi0</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l708"><span class="ln">708  </span></a>        <span class="s2">return </span><span class="s1">alpha1</span><span class="s3">, </span><span class="s1">phi_a1</span>
+<a name="l709"><span class="ln">709  </span></a>
+<a name="l710"><span class="ln">710  </span></a>    <span class="s0"># Otherwise, loop with cubic interpolation until we find an alpha which</span>
+<a name="l711"><span class="ln">711  </span></a>    <span class="s0"># satisfies the first Wolfe condition (since we are backtracking, we will</span>
+<a name="l712"><span class="ln">712  </span></a>    <span class="s0"># assume that the value of alpha is not too small and satisfies the second</span>
+<a name="l713"><span class="ln">713  </span></a>    <span class="s0"># condition.</span>
+<a name="l714"><span class="ln">714  </span></a>
+<a name="l715"><span class="ln">715  </span></a>    <span class="s2">while </span><span class="s1">alpha1 </span><span class="s2">&gt; </span><span class="s1">amin</span><span class="s2">:       </span><span class="s0"># we are assuming alpha&gt;0 is a descent direction</span>
+<a name="l716"><span class="ln">716  </span></a>        <span class="s1">factor </span><span class="s2">= </span><span class="s1">alpha0</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">* </span><span class="s1">alpha1</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">* </span><span class="s3">(</span><span class="s1">alpha1</span><span class="s2">-</span><span class="s1">alpha0</span><span class="s3">)</span>
+<a name="l717"><span class="ln">717  </span></a>        <span class="s1">a </span><span class="s2">= </span><span class="s1">alpha0</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">* </span><span class="s3">(</span><span class="s1">phi_a1 </span><span class="s2">- </span><span class="s1">phi0 </span><span class="s2">- </span><span class="s1">derphi0</span><span class="s2">*</span><span class="s1">alpha1</span><span class="s3">) </span><span class="s2">- </span><span class="s1">\</span>
+<a name="l718"><span class="ln">718  </span></a>            <span class="s1">alpha1</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">* </span><span class="s3">(</span><span class="s1">phi_a0 </span><span class="s2">- </span><span class="s1">phi0 </span><span class="s2">- </span><span class="s1">derphi0</span><span class="s2">*</span><span class="s1">alpha0</span><span class="s3">)</span>
+<a name="l719"><span class="ln">719  </span></a>        <span class="s1">a </span><span class="s2">= </span><span class="s1">a </span><span class="s2">/ </span><span class="s1">factor</span>
+<a name="l720"><span class="ln">720  </span></a>        <span class="s1">b </span><span class="s2">= -</span><span class="s1">alpha0</span><span class="s2">**</span><span class="s5">3 </span><span class="s2">* </span><span class="s3">(</span><span class="s1">phi_a1 </span><span class="s2">- </span><span class="s1">phi0 </span><span class="s2">- </span><span class="s1">derphi0</span><span class="s2">*</span><span class="s1">alpha1</span><span class="s3">) </span><span class="s2">+ </span><span class="s1">\</span>
+<a name="l721"><span class="ln">721  </span></a>            <span class="s1">alpha1</span><span class="s2">**</span><span class="s5">3 </span><span class="s2">* </span><span class="s3">(</span><span class="s1">phi_a0 </span><span class="s2">- </span><span class="s1">phi0 </span><span class="s2">- </span><span class="s1">derphi0</span><span class="s2">*</span><span class="s1">alpha0</span><span class="s3">)</span>
+<a name="l722"><span class="ln">722  </span></a>        <span class="s1">b </span><span class="s2">= </span><span class="s1">b </span><span class="s2">/ </span><span class="s1">factor</span>
+<a name="l723"><span class="ln">723  </span></a>
+<a name="l724"><span class="ln">724  </span></a>        <span class="s1">alpha2 </span><span class="s2">= </span><span class="s3">(</span><span class="s2">-</span><span class="s1">b </span><span class="s2">+ </span><span class="s1">np</span><span class="s3">.</span><span class="s1">sqrt</span><span class="s3">(</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">b</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">- </span><span class="s5">3 </span><span class="s2">* </span><span class="s1">a </span><span class="s2">* </span><span class="s1">derphi0</span><span class="s3">))) </span><span class="s2">/ </span><span class="s3">(</span><span class="s5">3.0</span><span class="s2">*</span><span class="s1">a</span><span class="s3">)</span>
+<a name="l725"><span class="ln">725  </span></a>        <span class="s1">phi_a2 </span><span class="s2">= </span><span class="s1">phi</span><span class="s3">(</span><span class="s1">alpha2</span><span class="s3">)</span>
+<a name="l726"><span class="ln">726  </span></a>
+<a name="l727"><span class="ln">727  </span></a>        <span class="s2">if </span><span class="s3">(</span><span class="s1">phi_a2 </span><span class="s2">&lt;= </span><span class="s1">phi0 </span><span class="s2">+ </span><span class="s1">c1</span><span class="s2">*</span><span class="s1">alpha2</span><span class="s2">*</span><span class="s1">derphi0</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l728"><span class="ln">728  </span></a>            <span class="s2">return </span><span class="s1">alpha2</span><span class="s3">, </span><span class="s1">phi_a2</span>
+<a name="l729"><span class="ln">729  </span></a>
+<a name="l730"><span class="ln">730  </span></a>        <span class="s2">if </span><span class="s3">(</span><span class="s1">alpha1 </span><span class="s2">- </span><span class="s1">alpha2</span><span class="s3">) </span><span class="s2">&gt; </span><span class="s1">alpha1 </span><span class="s2">/ </span><span class="s5">2.0 </span><span class="s2">or </span><span class="s3">(</span><span class="s5">1 </span><span class="s2">- </span><span class="s1">alpha2</span><span class="s2">/</span><span class="s1">alpha1</span><span class="s3">) </span><span class="s2">&lt; </span><span class="s5">0.96</span><span class="s2">:</span>
+<a name="l731"><span class="ln">731  </span></a>            <span class="s1">alpha2 </span><span class="s2">= </span><span class="s1">alpha1 </span><span class="s2">/ </span><span class="s5">2.0</span>
+<a name="l732"><span class="ln">732  </span></a>
+<a name="l733"><span class="ln">733  </span></a>        <span class="s1">alpha0 </span><span class="s2">= </span><span class="s1">alpha1</span>
+<a name="l734"><span class="ln">734  </span></a>        <span class="s1">alpha1 </span><span class="s2">= </span><span class="s1">alpha2</span>
+<a name="l735"><span class="ln">735  </span></a>        <span class="s1">phi_a0 </span><span class="s2">= </span><span class="s1">phi_a1</span>
+<a name="l736"><span class="ln">736  </span></a>        <span class="s1">phi_a1 </span><span class="s2">= </span><span class="s1">phi_a2</span>
+<a name="l737"><span class="ln">737  </span></a>
+<a name="l738"><span class="ln">738  </span></a>    <span class="s0"># Failed to find a suitable step length</span>
+<a name="l739"><span class="ln">739  </span></a>    <span class="s2">return None</span><span class="s3">, </span><span class="s1">phi_a1</span>
+<a name="l740"><span class="ln">740  </span></a>
+<a name="l741"><span class="ln">741  </span></a>
+<a name="l742"><span class="ln">742  </span></a><span class="s0">#------------------------------------------------------------------------------</span>
+<a name="l743"><span class="ln">743  </span></a><span class="s0"># Non-monotone line search for DF-SANE</span>
+<a name="l744"><span class="ln">744  </span></a><span class="s0">#------------------------------------------------------------------------------</span>
+<a name="l745"><span class="ln">745  </span></a>
+<a name="l746"><span class="ln">746  </span></a><span class="s2">def </span><span class="s1">_nonmonotone_line_search_cruz</span><span class="s3">(</span><span class="s1">f</span><span class="s3">, </span><span class="s1">x_k</span><span class="s3">, </span><span class="s1">d</span><span class="s3">, </span><span class="s1">prev_fs</span><span class="s3">, </span><span class="s1">eta</span><span class="s3">,</span>
+<a name="l747"><span class="ln">747  </span></a>                                  <span class="s1">gamma</span><span class="s2">=</span><span class="s5">1e-4</span><span class="s3">, </span><span class="s1">tau_min</span><span class="s2">=</span><span class="s5">0.1</span><span class="s3">, </span><span class="s1">tau_max</span><span class="s2">=</span><span class="s5">0.5</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l748"><span class="ln">748  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l749"><span class="ln">749  </span></a>    Nonmonotone backtracking line search as described in [1]_ 
+<a name="l750"><span class="ln">750  </span></a> 
+<a name="l751"><span class="ln">751  </span></a>    Parameters 
+<a name="l752"><span class="ln">752  </span></a>    ---------- 
+<a name="l753"><span class="ln">753  </span></a>    f : callable 
+<a name="l754"><span class="ln">754  </span></a>        Function returning a tuple ``(f, F)`` where ``f`` is the value 
+<a name="l755"><span class="ln">755  </span></a>        of a merit function and ``F`` the residual. 
+<a name="l756"><span class="ln">756  </span></a>    x_k : ndarray 
+<a name="l757"><span class="ln">757  </span></a>        Initial position. 
+<a name="l758"><span class="ln">758  </span></a>    d : ndarray 
+<a name="l759"><span class="ln">759  </span></a>        Search direction. 
+<a name="l760"><span class="ln">760  </span></a>    prev_fs : float 
+<a name="l761"><span class="ln">761  </span></a>        List of previous merit function values. Should have ``len(prev_fs) &lt;= M`` 
+<a name="l762"><span class="ln">762  </span></a>        where ``M`` is the nonmonotonicity window parameter. 
+<a name="l763"><span class="ln">763  </span></a>    eta : float 
+<a name="l764"><span class="ln">764  </span></a>        Allowed merit function increase, see [1]_ 
+<a name="l765"><span class="ln">765  </span></a>    gamma, tau_min, tau_max : float, optional 
+<a name="l766"><span class="ln">766  </span></a>        Search parameters, see [1]_ 
+<a name="l767"><span class="ln">767  </span></a> 
+<a name="l768"><span class="ln">768  </span></a>    Returns 
+<a name="l769"><span class="ln">769  </span></a>    ------- 
+<a name="l770"><span class="ln">770  </span></a>    alpha : float 
+<a name="l771"><span class="ln">771  </span></a>        Step length 
+<a name="l772"><span class="ln">772  </span></a>    xp : ndarray 
+<a name="l773"><span class="ln">773  </span></a>        Next position 
+<a name="l774"><span class="ln">774  </span></a>    fp : float 
+<a name="l775"><span class="ln">775  </span></a>        Merit function value at next position 
+<a name="l776"><span class="ln">776  </span></a>    Fp : ndarray 
+<a name="l777"><span class="ln">777  </span></a>        Residual at next position 
+<a name="l778"><span class="ln">778  </span></a> 
+<a name="l779"><span class="ln">779  </span></a>    References 
+<a name="l780"><span class="ln">780  </span></a>    ---------- 
+<a name="l781"><span class="ln">781  </span></a>    [1] &quot;Spectral residual method without gradient information for solving 
+<a name="l782"><span class="ln">782  </span></a>        large-scale nonlinear systems of equations.&quot; W. La Cruz, 
+<a name="l783"><span class="ln">783  </span></a>        J.M. Martinez, M. Raydan. Math. Comp. **75**, 1429 (2006). 
+<a name="l784"><span class="ln">784  </span></a> 
+<a name="l785"><span class="ln">785  </span></a>    &quot;&quot;&quot;</span>
+<a name="l786"><span class="ln">786  </span></a>    <span class="s1">f_k </span><span class="s2">= </span><span class="s1">prev_fs</span><span class="s3">[</span><span class="s2">-</span><span class="s5">1</span><span class="s3">]</span>
+<a name="l787"><span class="ln">787  </span></a>    <span class="s1">f_bar </span><span class="s2">= </span><span class="s1">max</span><span class="s3">(</span><span class="s1">prev_fs</span><span class="s3">)</span>
+<a name="l788"><span class="ln">788  </span></a>
+<a name="l789"><span class="ln">789  </span></a>    <span class="s1">alpha_p </span><span class="s2">= </span><span class="s5">1</span>
+<a name="l790"><span class="ln">790  </span></a>    <span class="s1">alpha_m </span><span class="s2">= </span><span class="s5">1</span>
+<a name="l791"><span class="ln">791  </span></a>    <span class="s1">alpha </span><span class="s2">= </span><span class="s5">1</span>
+<a name="l792"><span class="ln">792  </span></a>
+<a name="l793"><span class="ln">793  </span></a>    <span class="s2">while True:</span>
+<a name="l794"><span class="ln">794  </span></a>        <span class="s1">xp </span><span class="s2">= </span><span class="s1">x_k </span><span class="s2">+ </span><span class="s1">alpha_p </span><span class="s2">* </span><span class="s1">d</span>
+<a name="l795"><span class="ln">795  </span></a>        <span class="s1">fp</span><span class="s3">, </span><span class="s1">Fp </span><span class="s2">= </span><span class="s1">f</span><span class="s3">(</span><span class="s1">xp</span><span class="s3">)</span>
+<a name="l796"><span class="ln">796  </span></a>
+<a name="l797"><span class="ln">797  </span></a>        <span class="s2">if </span><span class="s1">fp </span><span class="s2">&lt;= </span><span class="s1">f_bar </span><span class="s2">+ </span><span class="s1">eta </span><span class="s2">- </span><span class="s1">gamma </span><span class="s2">* </span><span class="s1">alpha_p</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">* </span><span class="s1">f_k</span><span class="s2">:</span>
+<a name="l798"><span class="ln">798  </span></a>            <span class="s1">alpha </span><span class="s2">= </span><span class="s1">alpha_p</span>
+<a name="l799"><span class="ln">799  </span></a>            <span class="s2">break</span>
+<a name="l800"><span class="ln">800  </span></a>
+<a name="l801"><span class="ln">801  </span></a>        <span class="s1">alpha_tp </span><span class="s2">= </span><span class="s1">alpha_p</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">* </span><span class="s1">f_k </span><span class="s2">/ </span><span class="s3">(</span><span class="s1">fp </span><span class="s2">+ </span><span class="s3">(</span><span class="s5">2</span><span class="s2">*</span><span class="s1">alpha_p </span><span class="s2">- </span><span class="s5">1</span><span class="s3">)</span><span class="s2">*</span><span class="s1">f_k</span><span class="s3">)</span>
+<a name="l802"><span class="ln">802  </span></a>
+<a name="l803"><span class="ln">803  </span></a>        <span class="s1">xp </span><span class="s2">= </span><span class="s1">x_k </span><span class="s2">- </span><span class="s1">alpha_m </span><span class="s2">* </span><span class="s1">d</span>
+<a name="l804"><span class="ln">804  </span></a>        <span class="s1">fp</span><span class="s3">, </span><span class="s1">Fp </span><span class="s2">= </span><span class="s1">f</span><span class="s3">(</span><span class="s1">xp</span><span class="s3">)</span>
+<a name="l805"><span class="ln">805  </span></a>
+<a name="l806"><span class="ln">806  </span></a>        <span class="s2">if </span><span class="s1">fp </span><span class="s2">&lt;= </span><span class="s1">f_bar </span><span class="s2">+ </span><span class="s1">eta </span><span class="s2">- </span><span class="s1">gamma </span><span class="s2">* </span><span class="s1">alpha_m</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">* </span><span class="s1">f_k</span><span class="s2">:</span>
+<a name="l807"><span class="ln">807  </span></a>            <span class="s1">alpha </span><span class="s2">= -</span><span class="s1">alpha_m</span>
+<a name="l808"><span class="ln">808  </span></a>            <span class="s2">break</span>
+<a name="l809"><span class="ln">809  </span></a>
+<a name="l810"><span class="ln">810  </span></a>        <span class="s1">alpha_tm </span><span class="s2">= </span><span class="s1">alpha_m</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">* </span><span class="s1">f_k </span><span class="s2">/ </span><span class="s3">(</span><span class="s1">fp </span><span class="s2">+ </span><span class="s3">(</span><span class="s5">2</span><span class="s2">*</span><span class="s1">alpha_m </span><span class="s2">- </span><span class="s5">1</span><span class="s3">)</span><span class="s2">*</span><span class="s1">f_k</span><span class="s3">)</span>
+<a name="l811"><span class="ln">811  </span></a>
+<a name="l812"><span class="ln">812  </span></a>        <span class="s1">alpha_p </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">clip</span><span class="s3">(</span><span class="s1">alpha_tp</span><span class="s3">, </span><span class="s1">tau_min </span><span class="s2">* </span><span class="s1">alpha_p</span><span class="s3">, </span><span class="s1">tau_max </span><span class="s2">* </span><span class="s1">alpha_p</span><span class="s3">)</span>
+<a name="l813"><span class="ln">813  </span></a>        <span class="s1">alpha_m </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">clip</span><span class="s3">(</span><span class="s1">alpha_tm</span><span class="s3">, </span><span class="s1">tau_min </span><span class="s2">* </span><span class="s1">alpha_m</span><span class="s3">, </span><span class="s1">tau_max </span><span class="s2">* </span><span class="s1">alpha_m</span><span class="s3">)</span>
+<a name="l814"><span class="ln">814  </span></a>
+<a name="l815"><span class="ln">815  </span></a>    <span class="s2">return </span><span class="s1">alpha</span><span class="s3">, </span><span class="s1">xp</span><span class="s3">, </span><span class="s1">fp</span><span class="s3">, </span><span class="s1">Fp</span>
+<a name="l816"><span class="ln">816  </span></a>
+<a name="l817"><span class="ln">817  </span></a>
+<a name="l818"><span class="ln">818  </span></a><span class="s2">def </span><span class="s1">_nonmonotone_line_search_cheng</span><span class="s3">(</span><span class="s1">f</span><span class="s3">, </span><span class="s1">x_k</span><span class="s3">, </span><span class="s1">d</span><span class="s3">, </span><span class="s1">f_k</span><span class="s3">, </span><span class="s1">C</span><span class="s3">, </span><span class="s1">Q</span><span class="s3">, </span><span class="s1">eta</span><span class="s3">,</span>
+<a name="l819"><span class="ln">819  </span></a>                                   <span class="s1">gamma</span><span class="s2">=</span><span class="s5">1e-4</span><span class="s3">, </span><span class="s1">tau_min</span><span class="s2">=</span><span class="s5">0.1</span><span class="s3">, </span><span class="s1">tau_max</span><span class="s2">=</span><span class="s5">0.5</span><span class="s3">,</span>
+<a name="l820"><span class="ln">820  </span></a>                                   <span class="s1">nu</span><span class="s2">=</span><span class="s5">0.85</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l821"><span class="ln">821  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l822"><span class="ln">822  </span></a>    Nonmonotone line search from [1] 
+<a name="l823"><span class="ln">823  </span></a> 
+<a name="l824"><span class="ln">824  </span></a>    Parameters 
+<a name="l825"><span class="ln">825  </span></a>    ---------- 
+<a name="l826"><span class="ln">826  </span></a>    f : callable 
+<a name="l827"><span class="ln">827  </span></a>        Function returning a tuple ``(f, F)`` where ``f`` is the value 
+<a name="l828"><span class="ln">828  </span></a>        of a merit function and ``F`` the residual. 
+<a name="l829"><span class="ln">829  </span></a>    x_k : ndarray 
+<a name="l830"><span class="ln">830  </span></a>        Initial position. 
+<a name="l831"><span class="ln">831  </span></a>    d : ndarray 
+<a name="l832"><span class="ln">832  </span></a>        Search direction. 
+<a name="l833"><span class="ln">833  </span></a>    f_k : float 
+<a name="l834"><span class="ln">834  </span></a>        Initial merit function value. 
+<a name="l835"><span class="ln">835  </span></a>    C, Q : float 
+<a name="l836"><span class="ln">836  </span></a>        Control parameters. On the first iteration, give values 
+<a name="l837"><span class="ln">837  </span></a>        Q=1.0, C=f_k 
+<a name="l838"><span class="ln">838  </span></a>    eta : float 
+<a name="l839"><span class="ln">839  </span></a>        Allowed merit function increase, see [1]_ 
+<a name="l840"><span class="ln">840  </span></a>    nu, gamma, tau_min, tau_max : float, optional 
+<a name="l841"><span class="ln">841  </span></a>        Search parameters, see [1]_ 
+<a name="l842"><span class="ln">842  </span></a> 
+<a name="l843"><span class="ln">843  </span></a>    Returns 
+<a name="l844"><span class="ln">844  </span></a>    ------- 
+<a name="l845"><span class="ln">845  </span></a>    alpha : float 
+<a name="l846"><span class="ln">846  </span></a>        Step length 
+<a name="l847"><span class="ln">847  </span></a>    xp : ndarray 
+<a name="l848"><span class="ln">848  </span></a>        Next position 
+<a name="l849"><span class="ln">849  </span></a>    fp : float 
+<a name="l850"><span class="ln">850  </span></a>        Merit function value at next position 
+<a name="l851"><span class="ln">851  </span></a>    Fp : ndarray 
+<a name="l852"><span class="ln">852  </span></a>        Residual at next position 
+<a name="l853"><span class="ln">853  </span></a>    C : float 
+<a name="l854"><span class="ln">854  </span></a>        New value for the control parameter C 
+<a name="l855"><span class="ln">855  </span></a>    Q : float 
+<a name="l856"><span class="ln">856  </span></a>        New value for the control parameter Q 
+<a name="l857"><span class="ln">857  </span></a> 
+<a name="l858"><span class="ln">858  </span></a>    References 
+<a name="l859"><span class="ln">859  </span></a>    ---------- 
+<a name="l860"><span class="ln">860  </span></a>    .. [1] W. Cheng &amp; D.-H. Li, ''A derivative-free nonmonotone line 
+<a name="l861"><span class="ln">861  </span></a>           search and its application to the spectral residual 
+<a name="l862"><span class="ln">862  </span></a>           method'', IMA J. Numer. Anal. 29, 814 (2009). 
+<a name="l863"><span class="ln">863  </span></a> 
+<a name="l864"><span class="ln">864  </span></a>    &quot;&quot;&quot;</span>
+<a name="l865"><span class="ln">865  </span></a>    <span class="s1">alpha_p </span><span class="s2">= </span><span class="s5">1</span>
+<a name="l866"><span class="ln">866  </span></a>    <span class="s1">alpha_m </span><span class="s2">= </span><span class="s5">1</span>
+<a name="l867"><span class="ln">867  </span></a>    <span class="s1">alpha </span><span class="s2">= </span><span class="s5">1</span>
+<a name="l868"><span class="ln">868  </span></a>
+<a name="l869"><span class="ln">869  </span></a>    <span class="s2">while True:</span>
+<a name="l870"><span class="ln">870  </span></a>        <span class="s1">xp </span><span class="s2">= </span><span class="s1">x_k </span><span class="s2">+ </span><span class="s1">alpha_p </span><span class="s2">* </span><span class="s1">d</span>
+<a name="l871"><span class="ln">871  </span></a>        <span class="s1">fp</span><span class="s3">, </span><span class="s1">Fp </span><span class="s2">= </span><span class="s1">f</span><span class="s3">(</span><span class="s1">xp</span><span class="s3">)</span>
+<a name="l872"><span class="ln">872  </span></a>
+<a name="l873"><span class="ln">873  </span></a>        <span class="s2">if </span><span class="s1">fp </span><span class="s2">&lt;= </span><span class="s1">C </span><span class="s2">+ </span><span class="s1">eta </span><span class="s2">- </span><span class="s1">gamma </span><span class="s2">* </span><span class="s1">alpha_p</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">* </span><span class="s1">f_k</span><span class="s2">:</span>
+<a name="l874"><span class="ln">874  </span></a>            <span class="s1">alpha </span><span class="s2">= </span><span class="s1">alpha_p</span>
+<a name="l875"><span class="ln">875  </span></a>            <span class="s2">break</span>
+<a name="l876"><span class="ln">876  </span></a>
+<a name="l877"><span class="ln">877  </span></a>        <span class="s1">alpha_tp </span><span class="s2">= </span><span class="s1">alpha_p</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">* </span><span class="s1">f_k </span><span class="s2">/ </span><span class="s3">(</span><span class="s1">fp </span><span class="s2">+ </span><span class="s3">(</span><span class="s5">2</span><span class="s2">*</span><span class="s1">alpha_p </span><span class="s2">- </span><span class="s5">1</span><span class="s3">)</span><span class="s2">*</span><span class="s1">f_k</span><span class="s3">)</span>
+<a name="l878"><span class="ln">878  </span></a>
+<a name="l879"><span class="ln">879  </span></a>        <span class="s1">xp </span><span class="s2">= </span><span class="s1">x_k </span><span class="s2">- </span><span class="s1">alpha_m </span><span class="s2">* </span><span class="s1">d</span>
+<a name="l880"><span class="ln">880  </span></a>        <span class="s1">fp</span><span class="s3">, </span><span class="s1">Fp </span><span class="s2">= </span><span class="s1">f</span><span class="s3">(</span><span class="s1">xp</span><span class="s3">)</span>
+<a name="l881"><span class="ln">881  </span></a>
+<a name="l882"><span class="ln">882  </span></a>        <span class="s2">if </span><span class="s1">fp </span><span class="s2">&lt;= </span><span class="s1">C </span><span class="s2">+ </span><span class="s1">eta </span><span class="s2">- </span><span class="s1">gamma </span><span class="s2">* </span><span class="s1">alpha_m</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">* </span><span class="s1">f_k</span><span class="s2">:</span>
+<a name="l883"><span class="ln">883  </span></a>            <span class="s1">alpha </span><span class="s2">= -</span><span class="s1">alpha_m</span>
+<a name="l884"><span class="ln">884  </span></a>            <span class="s2">break</span>
+<a name="l885"><span class="ln">885  </span></a>
+<a name="l886"><span class="ln">886  </span></a>        <span class="s1">alpha_tm </span><span class="s2">= </span><span class="s1">alpha_m</span><span class="s2">**</span><span class="s5">2 </span><span class="s2">* </span><span class="s1">f_k </span><span class="s2">/ </span><span class="s3">(</span><span class="s1">fp </span><span class="s2">+ </span><span class="s3">(</span><span class="s5">2</span><span class="s2">*</span><span class="s1">alpha_m </span><span class="s2">- </span><span class="s5">1</span><span class="s3">)</span><span class="s2">*</span><span class="s1">f_k</span><span class="s3">)</span>
+<a name="l887"><span class="ln">887  </span></a>
+<a name="l888"><span class="ln">888  </span></a>        <span class="s1">alpha_p </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">clip</span><span class="s3">(</span><span class="s1">alpha_tp</span><span class="s3">, </span><span class="s1">tau_min </span><span class="s2">* </span><span class="s1">alpha_p</span><span class="s3">, </span><span class="s1">tau_max </span><span class="s2">* </span><span class="s1">alpha_p</span><span class="s3">)</span>
+<a name="l889"><span class="ln">889  </span></a>        <span class="s1">alpha_m </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">clip</span><span class="s3">(</span><span class="s1">alpha_tm</span><span class="s3">, </span><span class="s1">tau_min </span><span class="s2">* </span><span class="s1">alpha_m</span><span class="s3">, </span><span class="s1">tau_max </span><span class="s2">* </span><span class="s1">alpha_m</span><span class="s3">)</span>
+<a name="l890"><span class="ln">890  </span></a>
+<a name="l891"><span class="ln">891  </span></a>    <span class="s0"># Update C and Q</span>
+<a name="l892"><span class="ln">892  </span></a>    <span class="s1">Q_next </span><span class="s2">= </span><span class="s1">nu </span><span class="s2">* </span><span class="s1">Q </span><span class="s2">+ </span><span class="s5">1</span>
+<a name="l893"><span class="ln">893  </span></a>    <span class="s1">C </span><span class="s2">= </span><span class="s3">(</span><span class="s1">nu </span><span class="s2">* </span><span class="s1">Q </span><span class="s2">* </span><span class="s3">(</span><span class="s1">C </span><span class="s2">+ </span><span class="s1">eta</span><span class="s3">) </span><span class="s2">+ </span><span class="s1">fp</span><span class="s3">) </span><span class="s2">/ </span><span class="s1">Q_next</span>
+<a name="l894"><span class="ln">894  </span></a>    <span class="s1">Q </span><span class="s2">= </span><span class="s1">Q_next</span>
+<a name="l895"><span class="ln">895  </span></a>
+<a name="l896"><span class="ln">896  </span></a>    <span class="s2">return </span><span class="s1">alpha</span><span class="s3">, </span><span class="s1">xp</span><span class="s3">, </span><span class="s1">fp</span><span class="s3">, </span><span class="s1">Fp</span><span class="s3">, </span><span class="s1">C</span><span class="s3">, </span><span class="s1">Q</span>
+<a name="l897"><span class="ln">897  </span></a></pre>
+</body>
+</html>

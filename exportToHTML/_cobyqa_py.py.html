@@ -1,0 +1,95 @@
+<html>
+<head>
+<title>_cobyqa_py.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #0086b3;}
+.s4 { color: #969896;}
+.s5 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_cobyqa_py.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">import </span><span class="s1">numpy </span><span class="s0">as </span><span class="s1">np</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s1">threading </span><span class="s0">import </span><span class="s1">Lock</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">_optimize </span><span class="s0">import </span><span class="s1">_check_unknown_options</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">COBYQA_LOCK </span><span class="s0">= </span><span class="s1">Lock</span><span class="s2">()</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">def </span><span class="s1">_minimize_cobyqa</span><span class="s2">(</span><span class="s1">fun</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s0">=</span><span class="s2">(), </span><span class="s1">bounds</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">constraints</span><span class="s0">=</span><span class="s2">(),</span>
+<a name="l11"><span class="ln">11   </span></a>                     <span class="s1">callback</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">disp</span><span class="s0">=False</span><span class="s2">, </span><span class="s1">maxfev</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">maxiter</span><span class="s0">=None</span><span class="s2">,</span>
+<a name="l12"><span class="ln">12   </span></a>                     <span class="s1">f_target</span><span class="s0">=-</span><span class="s1">np</span><span class="s2">.</span><span class="s1">inf</span><span class="s2">, </span><span class="s1">feasibility_tol</span><span class="s0">=</span><span class="s3">1e-8</span><span class="s2">,</span>
+<a name="l13"><span class="ln">13   </span></a>                     <span class="s1">initial_tr_radius</span><span class="s0">=</span><span class="s3">1.0</span><span class="s2">, </span><span class="s1">final_tr_radius</span><span class="s0">=</span><span class="s3">1e-6</span><span class="s2">, </span><span class="s1">scale</span><span class="s0">=False</span><span class="s2">,</span>
+<a name="l14"><span class="ln">14   </span></a>                     <span class="s0">**</span><span class="s1">unknown_options</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l15"><span class="ln">15   </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l16"><span class="ln">16   </span></a>    Minimize a scalar function of one or more variables using the 
+<a name="l17"><span class="ln">17   </span></a>    Constrained Optimization BY Quadratic Approximations (COBYQA) algorithm [1]_. 
+<a name="l18"><span class="ln">18   </span></a> 
+<a name="l19"><span class="ln">19   </span></a>    .. versionadded:: 1.14.0 
+<a name="l20"><span class="ln">20   </span></a> 
+<a name="l21"><span class="ln">21   </span></a>    Options 
+<a name="l22"><span class="ln">22   </span></a>    ------- 
+<a name="l23"><span class="ln">23   </span></a>    disp : bool 
+<a name="l24"><span class="ln">24   </span></a>        Set to True to print information about the optimization procedure. 
+<a name="l25"><span class="ln">25   </span></a>        Default is ``False``. 
+<a name="l26"><span class="ln">26   </span></a>    maxfev : int 
+<a name="l27"><span class="ln">27   </span></a>        Maximum number of function evaluations. Default is ``500 * n``, where 
+<a name="l28"><span class="ln">28   </span></a>        ``n`` is the number of variables. 
+<a name="l29"><span class="ln">29   </span></a>    maxiter : int 
+<a name="l30"><span class="ln">30   </span></a>        Maximum number of iterations. Default is ``1000 * n``, where ``n`` is 
+<a name="l31"><span class="ln">31   </span></a>        the number of variables. 
+<a name="l32"><span class="ln">32   </span></a>    f_target : float 
+<a name="l33"><span class="ln">33   </span></a>        Target value for the objective function. The optimization procedure is 
+<a name="l34"><span class="ln">34   </span></a>        terminated when the objective function value of a feasible point (see 
+<a name="l35"><span class="ln">35   </span></a>        `feasibility_tol` below) is less than or equal to this target. Default 
+<a name="l36"><span class="ln">36   </span></a>        is ``-numpy.inf``. 
+<a name="l37"><span class="ln">37   </span></a>    feasibility_tol : float 
+<a name="l38"><span class="ln">38   </span></a>        Absolute tolerance for the constraint violation. Default is ``1e-8``. 
+<a name="l39"><span class="ln">39   </span></a>    initial_tr_radius : float 
+<a name="l40"><span class="ln">40   </span></a>        Initial trust-region radius. Typically, this value should be in the 
+<a name="l41"><span class="ln">41   </span></a>        order of one tenth of the greatest expected change to the variables. 
+<a name="l42"><span class="ln">42   </span></a>        Default is ``1.0``. 
+<a name="l43"><span class="ln">43   </span></a>    final_tr_radius : float 
+<a name="l44"><span class="ln">44   </span></a>        Final trust-region radius. It should indicate the accuracy required in 
+<a name="l45"><span class="ln">45   </span></a>        the final values of the variables. If provided, this option overrides 
+<a name="l46"><span class="ln">46   </span></a>        the value of `tol` in the `minimize` function. Default is ``1e-6``. 
+<a name="l47"><span class="ln">47   </span></a>    scale : bool 
+<a name="l48"><span class="ln">48   </span></a>        Set to True to scale the variables according to the bounds. If True and 
+<a name="l49"><span class="ln">49   </span></a>        if all the lower and upper bounds are finite, the variables are scaled 
+<a name="l50"><span class="ln">50   </span></a>        to be within the range :math:`[-1, 1]`. If any of the lower or upper 
+<a name="l51"><span class="ln">51   </span></a>        bounds is infinite, the variables are not scaled. Default is ``False``. 
+<a name="l52"><span class="ln">52   </span></a> 
+<a name="l53"><span class="ln">53   </span></a>    References 
+<a name="l54"><span class="ln">54   </span></a>    ---------- 
+<a name="l55"><span class="ln">55   </span></a>    .. [1] COBYQA 
+<a name="l56"><span class="ln">56   </span></a>           https://www.cobyqa.com/stable/ 
+<a name="l57"><span class="ln">57   </span></a>    &quot;&quot;&quot;</span>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s0">from </span><span class="s2">..</span><span class="s1">_lib</span><span class="s2">.</span><span class="s1">cobyqa </span><span class="s0">import </span><span class="s1">minimize  </span><span class="s4"># import here to avoid circular imports</span>
+<a name="l59"><span class="ln">59   </span></a>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s1">_check_unknown_options</span><span class="s2">(</span><span class="s1">unknown_options</span><span class="s2">)</span>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s1">options </span><span class="s0">= </span><span class="s2">{</span>
+<a name="l62"><span class="ln">62   </span></a>        <span class="s5">'disp'</span><span class="s0">: </span><span class="s1">bool</span><span class="s2">(</span><span class="s1">disp</span><span class="s2">),</span>
+<a name="l63"><span class="ln">63   </span></a>        <span class="s5">'maxfev'</span><span class="s0">: </span><span class="s1">int</span><span class="s2">(</span><span class="s1">maxfev</span><span class="s2">) </span><span class="s0">if </span><span class="s1">maxfev </span><span class="s0">is not None else </span><span class="s3">500 </span><span class="s0">* </span><span class="s1">len</span><span class="s2">(</span><span class="s1">x0</span><span class="s2">),</span>
+<a name="l64"><span class="ln">64   </span></a>        <span class="s5">'maxiter'</span><span class="s0">: </span><span class="s1">int</span><span class="s2">(</span><span class="s1">maxiter</span><span class="s2">) </span><span class="s0">if </span><span class="s1">maxiter </span><span class="s0">is not None else </span><span class="s3">1000 </span><span class="s0">* </span><span class="s1">len</span><span class="s2">(</span><span class="s1">x0</span><span class="s2">),</span>
+<a name="l65"><span class="ln">65   </span></a>        <span class="s5">'target'</span><span class="s0">: </span><span class="s1">float</span><span class="s2">(</span><span class="s1">f_target</span><span class="s2">),</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s5">'feasibility_tol'</span><span class="s0">: </span><span class="s1">float</span><span class="s2">(</span><span class="s1">feasibility_tol</span><span class="s2">),</span>
+<a name="l67"><span class="ln">67   </span></a>        <span class="s5">'radius_init'</span><span class="s0">: </span><span class="s1">float</span><span class="s2">(</span><span class="s1">initial_tr_radius</span><span class="s2">),</span>
+<a name="l68"><span class="ln">68   </span></a>        <span class="s5">'radius_final'</span><span class="s0">: </span><span class="s1">float</span><span class="s2">(</span><span class="s1">final_tr_radius</span><span class="s2">),</span>
+<a name="l69"><span class="ln">69   </span></a>        <span class="s5">'scale'</span><span class="s0">: </span><span class="s1">bool</span><span class="s2">(</span><span class="s1">scale</span><span class="s2">),</span>
+<a name="l70"><span class="ln">70   </span></a>    <span class="s2">}</span>
+<a name="l71"><span class="ln">71   </span></a>    <span class="s0">with </span><span class="s1">COBYQA_LOCK</span><span class="s0">:</span>
+<a name="l72"><span class="ln">72   </span></a>        <span class="s0">return </span><span class="s1">minimize</span><span class="s2">(</span><span class="s1">fun</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s1">bounds</span><span class="s2">, </span><span class="s1">constraints</span><span class="s2">, </span><span class="s1">callback</span><span class="s2">, </span><span class="s1">options</span><span class="s2">)</span>
+<a name="l73"><span class="ln">73   </span></a></pre>
+</body>
+</html>

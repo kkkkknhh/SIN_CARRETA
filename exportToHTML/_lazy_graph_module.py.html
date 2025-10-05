@@ -1,0 +1,207 @@
+<html>
+<head>
+<title>_lazy_graph_module.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_lazy_graph_module.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: allow-untyped-defs</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s2">from </span><span class="s1">contextlib </span><span class="s2">import </span><span class="s1">contextmanager</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">graph_module </span><span class="s2">import </span><span class="s3">(</span>
+<a name="l5"><span class="ln">5    </span></a>    <span class="s1">_format_import_block</span><span class="s3">,</span>
+<a name="l6"><span class="ln">6    </span></a>    <span class="s1">GraphModule</span><span class="s3">,</span>
+<a name="l7"><span class="ln">7    </span></a>    <span class="s1">reduce_graph_module</span><span class="s3">,</span>
+<a name="l8"><span class="ln">8    </span></a>    <span class="s1">reduce_package_graph_module</span><span class="s3">,</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s3">)</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">package </span><span class="s2">import </span><span class="s1">PackageExporter</span><span class="s3">, </span><span class="s1">sys_importer</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">_compatibility </span><span class="s2">import </span><span class="s1">compatibility</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s1">_use_lazy_graph_module_flag </span><span class="s2">= False</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s1">_force_skip_lazy_graph_module_flag </span><span class="s2">= False</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">@</span><span class="s1">compatibility</span><span class="s3">(</span><span class="s1">is_backward_compatible</span><span class="s2">=False</span><span class="s3">)</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s2">@</span><span class="s1">contextmanager</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s2">def </span><span class="s1">_force_skip_lazy_graph_module</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l23"><span class="ln">23   </span></a>    Skip using lazy graph module disregarding the setting of _use_lazy_graph_module. 
+<a name="l24"><span class="ln">24   </span></a>    Use to skip _LazyGraphModule when testing inductor torchscript related backend. 
+<a name="l25"><span class="ln">25   </span></a> 
+<a name="l26"><span class="ln">26   </span></a>    torch.jit.script a _LazyGraphModule results in following error: 
+<a name="l27"><span class="ln">27   </span></a>        https://gist.github.com/shunting314/5143654c8084aed84ecd19b818258a69 
+<a name="l28"><span class="ln">28   </span></a>    &quot;&quot;&quot;</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s2">try:</span>
+<a name="l30"><span class="ln">30   </span></a>        <span class="s2">global </span><span class="s1">_force_skip_lazy_graph_module_flag</span>
+<a name="l31"><span class="ln">31   </span></a>        <span class="s1">prior </span><span class="s2">= </span><span class="s1">_force_skip_lazy_graph_module_flag</span>
+<a name="l32"><span class="ln">32   </span></a>        <span class="s1">_force_skip_lazy_graph_module_flag </span><span class="s2">= True</span>
+<a name="l33"><span class="ln">33   </span></a>        <span class="s2">yield</span>
+<a name="l34"><span class="ln">34   </span></a>    <span class="s2">finally:</span>
+<a name="l35"><span class="ln">35   </span></a>        <span class="s1">_force_skip_lazy_graph_module_flag </span><span class="s2">= </span><span class="s1">prior</span>
+<a name="l36"><span class="ln">36   </span></a>
+<a name="l37"><span class="ln">37   </span></a>
+<a name="l38"><span class="ln">38   </span></a><span class="s2">@</span><span class="s1">compatibility</span><span class="s3">(</span><span class="s1">is_backward_compatible</span><span class="s2">=False</span><span class="s3">)</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s2">@</span><span class="s1">contextmanager</span>
+<a name="l40"><span class="ln">40   </span></a><span class="s2">def </span><span class="s1">_use_lazy_graph_module</span><span class="s3">(</span><span class="s1">should_use</span><span class="s2">: </span><span class="s1">bool</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s2">try:</span>
+<a name="l42"><span class="ln">42   </span></a>        <span class="s2">global </span><span class="s1">_use_lazy_graph_module_flag</span>
+<a name="l43"><span class="ln">43   </span></a>        <span class="s1">prior </span><span class="s2">= </span><span class="s1">_use_lazy_graph_module_flag</span>
+<a name="l44"><span class="ln">44   </span></a>        <span class="s1">_use_lazy_graph_module_flag </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l45"><span class="ln">45   </span></a>            <span class="s1">should_use </span><span class="s2">and not </span><span class="s1">_force_skip_lazy_graph_module_flag</span>
+<a name="l46"><span class="ln">46   </span></a>        <span class="s3">)</span>
+<a name="l47"><span class="ln">47   </span></a>        <span class="s2">yield</span>
+<a name="l48"><span class="ln">48   </span></a>    <span class="s2">finally:</span>
+<a name="l49"><span class="ln">49   </span></a>        <span class="s1">_use_lazy_graph_module_flag </span><span class="s2">= </span><span class="s1">prior</span>
+<a name="l50"><span class="ln">50   </span></a>
+<a name="l51"><span class="ln">51   </span></a>
+<a name="l52"><span class="ln">52   </span></a><span class="s2">@</span><span class="s1">compatibility</span><span class="s3">(</span><span class="s1">is_backward_compatible</span><span class="s2">=False</span><span class="s3">)</span>
+<a name="l53"><span class="ln">53   </span></a><span class="s2">def </span><span class="s1">_get_graph_module_cls</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l54"><span class="ln">54   </span></a>    <span class="s2">return </span><span class="s1">_LazyGraphModule </span><span class="s2">if </span><span class="s1">_use_lazy_graph_module_flag </span><span class="s2">else </span><span class="s1">GraphModule</span>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a>
+<a name="l57"><span class="ln">57   </span></a><span class="s2">def </span><span class="s1">_make_graph_module</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s1">graph_module_cls</span><span class="s2">=None</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s2">if </span><span class="s1">graph_module_cls </span><span class="s2">is None:</span>
+<a name="l59"><span class="ln">59   </span></a>        <span class="s1">graph_module_cls </span><span class="s2">= </span><span class="s1">_get_graph_module_cls</span><span class="s3">()</span>
+<a name="l60"><span class="ln">60   </span></a>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s2">return </span><span class="s1">graph_module_cls</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l62"><span class="ln">62   </span></a>
+<a name="l63"><span class="ln">63   </span></a>
+<a name="l64"><span class="ln">64   </span></a><span class="s2">@</span><span class="s1">compatibility</span><span class="s3">(</span><span class="s1">is_backward_compatible</span><span class="s2">=False</span><span class="s3">)</span>
+<a name="l65"><span class="ln">65   </span></a><span class="s2">class </span><span class="s1">_LazyGraphModule</span><span class="s3">(</span><span class="s1">GraphModule</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l67"><span class="ln">67   </span></a>    The main difference between _LazyGraphModule and GraphModule is how recompile happens. 
+<a name="l68"><span class="ln">68   </span></a>    GraphModule will do a 'recompile' call to generate python code and the forward method when it's 
+<a name="l69"><span class="ln">69   </span></a>    constructed. Later on if the graph get updated, recompile method can be called again to refresh 
+<a name="l70"><span class="ln">70   </span></a>    the saved python code and forward method. 
+<a name="l71"><span class="ln">71   </span></a> 
+<a name="l72"><span class="ln">72   </span></a>    However in some cases especially in inductor, the recompilation can be a waste since we never 
+<a name="l73"><span class="ln">73   </span></a>    check the python code for the graph module or call its forward method. A few more concreate 
+<a name="l74"><span class="ln">74   </span></a>    examples regarding pattern matching fx passes in inductor: 
+<a name="l75"><span class="ln">75   </span></a>    1. some passes will update the graph to be compiled and then call recompile on the GraphModule. 
+<a name="l76"><span class="ln">76   </span></a>    2. some passes will trace small pattern function to search it in the graph being compiled and 
+<a name="l77"><span class="ln">77   </span></a>       replace the match with the traced graph of a replacement function. The pattern graph and 
+<a name="l78"><span class="ln">78   </span></a>       replacement graph are quite small but there are large amount of them. Doing GraphModule.recompile 
+<a name="l79"><span class="ln">79   </span></a>       for them in GraphModule.__init__ is also a waste of time. 
+<a name="l80"><span class="ln">80   </span></a> 
+<a name="l81"><span class="ln">81   </span></a>    However simply skip calling GraphModule.recompile in these scenarios is also dangeruous. 
+<a name="l82"><span class="ln">82   </span></a>    People may want to check the python code or call the GraphModule's forward method for debugging purposes. 
+<a name="l83"><span class="ln">83   </span></a> 
+<a name="l84"><span class="ln">84   </span></a>    The way _LazyGraphModule solves it is, we override the recompile method to just mark the 
+<a name="l85"><span class="ln">85   </span></a>    need for recompilation but does not do the actual recompilation. Later on if people really 
+<a name="l86"><span class="ln">86   </span></a>    access the compiled python code or call the GraphModule's forward method, we do the real 
+<a name="l87"><span class="ln">87   </span></a>    recompilation. 
+<a name="l88"><span class="ln">88   </span></a>    &quot;&quot;&quot;</span>
+<a name="l89"><span class="ln">89   </span></a>
+<a name="l90"><span class="ln">90   </span></a>    <span class="s2">@</span><span class="s1">classmethod</span>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s2">def </span><span class="s1">from_graphmodule</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s1">gm</span><span class="s2">: </span><span class="s1">GraphModule</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l92"><span class="ln">92   </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">gm</span><span class="s3">, </span><span class="s1">_LazyGraphModule</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l93"><span class="ln">93   </span></a>            <span class="s2">return </span><span class="s1">gm</span>
+<a name="l94"><span class="ln">94   </span></a>        <span class="s2">else:</span>
+<a name="l95"><span class="ln">95   </span></a>            <span class="s2">return </span><span class="s1">_LazyGraphModule</span><span class="s3">(</span><span class="s1">gm</span><span class="s3">, </span><span class="s1">gm</span><span class="s3">.</span><span class="s1">graph</span><span class="s3">)</span>
+<a name="l96"><span class="ln">96   </span></a>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s2">@</span><span class="s1">staticmethod</span>
+<a name="l98"><span class="ln">98   </span></a>    <span class="s2">def </span><span class="s1">force_recompile</span><span class="s3">(</span><span class="s1">gm</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l99"><span class="ln">99   </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l100"><span class="ln">100  </span></a>        Sometimes we need force a recompile as a workaround 
+<a name="l101"><span class="ln">101  </span></a>        - we want to do the real recompilation before symbolic_trace to avoid error: 
+<a name="l102"><span class="ln">102  </span></a>            https://gist.github.com/shunting314/75549c2e82ae07ac1139c94a3583d259 
+<a name="l103"><span class="ln">103  </span></a>        &quot;&quot;&quot;</span>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">gm</span><span class="s3">, </span><span class="s1">_LazyGraphModule</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l105"><span class="ln">105  </span></a>            <span class="s1">gm</span><span class="s3">.</span><span class="s1">real_recompile</span><span class="s3">()</span>
+<a name="l106"><span class="ln">106  </span></a>
+<a name="l107"><span class="ln">107  </span></a>    <span class="s2">def </span><span class="s1">real_recompile</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l108"><span class="ln">108  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_needs_recompile</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l109"><span class="ln">109  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_real_recompile</span><span class="s3">()</span>
+<a name="l110"><span class="ln">110  </span></a>
+<a name="l111"><span class="ln">111  </span></a>    <span class="s2">@</span><span class="s1">classmethod</span>
+<a name="l112"><span class="ln">112  </span></a>    <span class="s2">def </span><span class="s1">_needs_recompile</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l113"><span class="ln">113  </span></a>        <span class="s2">return </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">forward </span><span class="s2">is </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_lazy_forward</span>
+<a name="l114"><span class="ln">114  </span></a>
+<a name="l115"><span class="ln">115  </span></a>    <span class="s2">def </span><span class="s1">_lazy_forward</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l116"><span class="ln">116  </span></a>        <span class="s0"># Call self.real_recompile() rather than self._real_recompile() here.</span>
+<a name="l117"><span class="ln">117  </span></a>        <span class="s0"># The _lazy_forward method may be saved and call repeatedly.</span>
+<a name="l118"><span class="ln">118  </span></a>        <span class="s0"># Calling self.real_recompile can make sure we skip recompilation if</span>
+<a name="l119"><span class="ln">119  </span></a>        <span class="s0"># we have already done so.</span>
+<a name="l120"><span class="ln">120  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">real_recompile</span><span class="s3">()</span>
+<a name="l121"><span class="ln">121  </span></a>        <span class="s2">assert not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_needs_recompile</span><span class="s3">()</span>
+<a name="l122"><span class="ln">122  </span></a>
+<a name="l123"><span class="ln">123  </span></a>        <span class="s0"># call `__call__` rather than 'forward' since recompilation may</span>
+<a name="l124"><span class="ln">124  </span></a>        <span class="s0"># install a wrapper for `__call__` to provide a customized error</span>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s0"># message.</span>
+<a name="l126"><span class="ln">126  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l127"><span class="ln">127  </span></a>
+<a name="l128"><span class="ln">128  </span></a>    <span class="s1">forward </span><span class="s2">= </span><span class="s1">_lazy_forward</span>
+<a name="l129"><span class="ln">129  </span></a>
+<a name="l130"><span class="ln">130  </span></a>    <span class="s0"># TODO: we shold handle __reduce_deploy__ the same way as __reduce_package__,</span>
+<a name="l131"><span class="ln">131  </span></a>    <span class="s0"># or __reduce__ by calling _real_recompile. But I don't find a good way</span>
+<a name="l132"><span class="ln">132  </span></a>    <span class="s0"># to test __reduce_deploy__ out. Also it's very unlikely that LazyGraphModule</span>
+<a name="l133"><span class="ln">133  </span></a>    <span class="s0"># will be used in torch::deploy. So it's skipped for now.</span>
+<a name="l134"><span class="ln">134  </span></a>
+<a name="l135"><span class="ln">135  </span></a>    <span class="s2">def </span><span class="s1">__reduce_package__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">exporter</span><span class="s2">: </span><span class="s1">PackageExporter</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l136"><span class="ln">136  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l137"><span class="ln">137  </span></a>        Follow GraphModule.__reduce__ but call 'self._real_recompile' rather 
+<a name="l138"><span class="ln">138  </span></a>        than 'self.recompile' since for a _LazyGraphModule, self.recompile just 
+<a name="l139"><span class="ln">139  </span></a>        mark the need of recompilation and does not return the PythonCode object. 
+<a name="l140"><span class="ln">140  </span></a>        &quot;&quot;&quot;</span>
+<a name="l141"><span class="ln">141  </span></a>        <span class="s1">python_code </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_real_recompile</span><span class="s3">()</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s1">dict_without_graph </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">__dict__</span><span class="s3">.</span><span class="s1">copy</span><span class="s3">()</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s1">dict_without_graph</span><span class="s3">[</span><span class="s4">&quot;_graphmodule_cls_name&quot;</span><span class="s3">] </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">.</span><span class="s1">__name__</span>
+<a name="l144"><span class="ln">144  </span></a>        <span class="s2">del </span><span class="s1">dict_without_graph</span><span class="s3">[</span><span class="s4">&quot;_graph&quot;</span><span class="s3">]</span>
+<a name="l145"><span class="ln">145  </span></a>
+<a name="l146"><span class="ln">146  </span></a>        <span class="s1">generated_module_name </span><span class="s2">= </span><span class="s4">f&quot;fx-generated._{</span><span class="s1">exporter</span><span class="s3">.</span><span class="s1">get_unique_id</span><span class="s3">()</span><span class="s4">}&quot;</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s1">import_block </span><span class="s2">= </span><span class="s1">_format_import_block</span><span class="s3">(</span><span class="s1">python_code</span><span class="s3">.</span><span class="s1">globals</span><span class="s3">, </span><span class="s1">exporter</span><span class="s3">.</span><span class="s1">importer</span><span class="s3">)</span>
+<a name="l148"><span class="ln">148  </span></a>        <span class="s1">module_code </span><span class="s2">= </span><span class="s1">import_block </span><span class="s2">+ </span><span class="s1">self</span><span class="s3">.</span><span class="s1">code</span>
+<a name="l149"><span class="ln">149  </span></a>        <span class="s1">exporter</span><span class="s3">.</span><span class="s1">save_source_string</span><span class="s3">(</span><span class="s1">generated_module_name</span><span class="s3">, </span><span class="s1">module_code</span><span class="s3">)</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s2">return </span><span class="s3">(</span>
+<a name="l151"><span class="ln">151  </span></a>            <span class="s1">reduce_package_graph_module</span><span class="s3">,</span>
+<a name="l152"><span class="ln">152  </span></a>            <span class="s3">(</span><span class="s1">dict_without_graph</span><span class="s3">, </span><span class="s1">generated_module_name</span><span class="s3">),</span>
+<a name="l153"><span class="ln">153  </span></a>        <span class="s3">)</span>
+<a name="l154"><span class="ln">154  </span></a>
+<a name="l155"><span class="ln">155  </span></a>    <span class="s2">def </span><span class="s1">__reduce__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l156"><span class="ln">156  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l157"><span class="ln">157  </span></a>        Follow GraphModule.__reduce__ but call 'self._real_recompile' rather 
+<a name="l158"><span class="ln">158  </span></a>        than 'self.recompile' since for a _LazyGraphModule, self.recompile just 
+<a name="l159"><span class="ln">159  </span></a>        mark the need of recompilation and does not return the PythonCode object. 
+<a name="l160"><span class="ln">160  </span></a>        &quot;&quot;&quot;</span>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s1">python_code </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_real_recompile</span><span class="s3">()</span>
+<a name="l162"><span class="ln">162  </span></a>        <span class="s1">dict_without_graph </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">__dict__</span><span class="s3">.</span><span class="s1">copy</span><span class="s3">()</span>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s1">import_block </span><span class="s2">= </span><span class="s1">_format_import_block</span><span class="s3">(</span><span class="s1">python_code</span><span class="s3">.</span><span class="s1">globals</span><span class="s3">, </span><span class="s1">sys_importer</span><span class="s3">)</span>
+<a name="l164"><span class="ln">164  </span></a>        <span class="s2">del </span><span class="s1">dict_without_graph</span><span class="s3">[</span><span class="s4">&quot;_graph&quot;</span><span class="s3">]</span>
+<a name="l165"><span class="ln">165  </span></a>        <span class="s2">return </span><span class="s3">(</span><span class="s1">reduce_graph_module</span><span class="s3">, (</span><span class="s1">dict_without_graph</span><span class="s3">, </span><span class="s1">import_block</span><span class="s3">))</span>
+<a name="l166"><span class="ln">166  </span></a>
+<a name="l167"><span class="ln">167  </span></a>    <span class="s2">def </span><span class="s1">_real_recompile</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l168"><span class="ln">168  </span></a>        <span class="s2">return </span><span class="s1">super</span><span class="s3">().</span><span class="s1">recompile</span><span class="s3">()</span>
+<a name="l169"><span class="ln">169  </span></a>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s2">@</span><span class="s1">classmethod</span>
+<a name="l171"><span class="ln">171  </span></a>    <span class="s2">def </span><span class="s1">recompile</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l172"><span class="ln">172  </span></a>        <span class="s1">cls</span><span class="s3">.</span><span class="s1">forward </span><span class="s2">= </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_lazy_forward</span>
+<a name="l173"><span class="ln">173  </span></a>
+<a name="l174"><span class="ln">174  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l175"><span class="ln">175  </span></a>    <span class="s2">def </span><span class="s1">code</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; str</span><span class="s2">:</span>
+<a name="l176"><span class="ln">176  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">real_recompile</span><span class="s3">()</span>
+<a name="l177"><span class="ln">177  </span></a>        <span class="s2">return </span><span class="s1">super</span><span class="s3">().</span><span class="s1">code</span>
+<a name="l178"><span class="ln">178  </span></a>
+<a name="l179"><span class="ln">179  </span></a>    <span class="s2">def </span><span class="s1">__str__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; str</span><span class="s2">:</span>
+<a name="l180"><span class="ln">180  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l181"><span class="ln">181  </span></a>        str(GraphModule) will access the _code attribute. Make sure recompile 
+<a name="l182"><span class="ln">182  </span></a>        happens so _code attribute is available. 
+<a name="l183"><span class="ln">183  </span></a>        &quot;&quot;&quot;</span>
+<a name="l184"><span class="ln">184  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">real_recompile</span><span class="s3">()</span>
+<a name="l185"><span class="ln">185  </span></a>        <span class="s2">return </span><span class="s1">super</span><span class="s3">().</span><span class="s1">__str__</span><span class="s3">()</span>
+<a name="l186"><span class="ln">186  </span></a></pre>
+</body>
+</html>

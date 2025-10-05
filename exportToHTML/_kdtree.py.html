@@ -1,0 +1,943 @@
+<html>
+<head>
+<title>_kdtree.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_kdtree.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># Copyright Anne M. Archibald 2008</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0"># Released under the scipy license</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s2">import </span><span class="s1">numpy </span><span class="s2">as </span><span class="s1">np</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">_ckdtree </span><span class="s2">import </span><span class="s1">cKDTree</span><span class="s3">, </span><span class="s1">cKDTreeNode  </span><span class="s0"># type: ignore[import-not-found]</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'minkowski_distance_p'</span><span class="s3">, </span><span class="s4">'minkowski_distance'</span><span class="s3">,</span>
+<a name="l7"><span class="ln">7    </span></a>           <span class="s4">'distance_matrix'</span><span class="s3">,</span>
+<a name="l8"><span class="ln">8    </span></a>           <span class="s4">'Rectangle'</span><span class="s3">, </span><span class="s4">'KDTree'</span><span class="s3">]</span>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">def </span><span class="s1">minkowski_distance_p</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">p</span><span class="s2">=</span><span class="s5">2</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l12"><span class="ln">12   </span></a>    <span class="s0">&quot;&quot;&quot;Compute the pth power of the L**p distance between two arrays. 
+<a name="l13"><span class="ln">13   </span></a> 
+<a name="l14"><span class="ln">14   </span></a>    For efficiency, this function computes the L**p distance but does 
+<a name="l15"><span class="ln">15   </span></a>    not extract the pth root. If `p` is 1 or infinity, this is equal to 
+<a name="l16"><span class="ln">16   </span></a>    the actual L**p distance. 
+<a name="l17"><span class="ln">17   </span></a> 
+<a name="l18"><span class="ln">18   </span></a>    The last dimensions of `x` and `y` must be the same length.  Any 
+<a name="l19"><span class="ln">19   </span></a>    other dimensions must be compatible for broadcasting. 
+<a name="l20"><span class="ln">20   </span></a> 
+<a name="l21"><span class="ln">21   </span></a>    Parameters 
+<a name="l22"><span class="ln">22   </span></a>    ---------- 
+<a name="l23"><span class="ln">23   </span></a>    x : (..., K) array_like 
+<a name="l24"><span class="ln">24   </span></a>        Input array. 
+<a name="l25"><span class="ln">25   </span></a>    y : (..., K) array_like 
+<a name="l26"><span class="ln">26   </span></a>        Input array. 
+<a name="l27"><span class="ln">27   </span></a>    p : float, 1 &lt;= p &lt;= infinity 
+<a name="l28"><span class="ln">28   </span></a>        Which Minkowski p-norm to use. 
+<a name="l29"><span class="ln">29   </span></a> 
+<a name="l30"><span class="ln">30   </span></a>    Returns 
+<a name="l31"><span class="ln">31   </span></a>    ------- 
+<a name="l32"><span class="ln">32   </span></a>    dist : ndarray 
+<a name="l33"><span class="ln">33   </span></a>        pth power of the distance between the input arrays. 
+<a name="l34"><span class="ln">34   </span></a> 
+<a name="l35"><span class="ln">35   </span></a>    Examples 
+<a name="l36"><span class="ln">36   </span></a>    -------- 
+<a name="l37"><span class="ln">37   </span></a>    &gt;&gt;&gt; from scipy.spatial import minkowski_distance_p 
+<a name="l38"><span class="ln">38   </span></a>    &gt;&gt;&gt; minkowski_distance_p([[0, 0], [0, 0]], [[1, 1], [0, 1]]) 
+<a name="l39"><span class="ln">39   </span></a>    array([2., 1.]) 
+<a name="l40"><span class="ln">40   </span></a> 
+<a name="l41"><span class="ln">41   </span></a>    &quot;&quot;&quot;</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s1">x </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s1">y </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">y</span><span class="s3">)</span>
+<a name="l44"><span class="ln">44   </span></a>
+<a name="l45"><span class="ln">45   </span></a>    <span class="s0"># Find smallest common datatype with float64 (return type of this</span>
+<a name="l46"><span class="ln">46   </span></a>    <span class="s0"># function) - addresses #10262.</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s0"># Don't just cast to float64 for complex input case.</span>
+<a name="l48"><span class="ln">48   </span></a>    <span class="s1">common_datatype </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">promote_types</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">promote_types</span><span class="s3">(</span><span class="s1">x</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">y</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">),</span>
+<a name="l49"><span class="ln">49   </span></a>                                       <span class="s4">'float64'</span><span class="s3">)</span>
+<a name="l50"><span class="ln">50   </span></a>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s0"># Make sure x and y are NumPy arrays of correct datatype.</span>
+<a name="l52"><span class="ln">52   </span></a>    <span class="s1">x </span><span class="s2">= </span><span class="s1">x</span><span class="s3">.</span><span class="s1">astype</span><span class="s3">(</span><span class="s1">common_datatype</span><span class="s3">)</span>
+<a name="l53"><span class="ln">53   </span></a>    <span class="s1">y </span><span class="s2">= </span><span class="s1">y</span><span class="s3">.</span><span class="s1">astype</span><span class="s3">(</span><span class="s1">common_datatype</span><span class="s3">)</span>
+<a name="l54"><span class="ln">54   </span></a>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s2">if </span><span class="s1">p </span><span class="s2">== </span><span class="s1">np</span><span class="s3">.</span><span class="s1">inf</span><span class="s2">:</span>
+<a name="l56"><span class="ln">56   </span></a>        <span class="s2">return </span><span class="s1">np</span><span class="s3">.</span><span class="s1">amax</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">y</span><span class="s2">-</span><span class="s1">x</span><span class="s3">), </span><span class="s1">axis</span><span class="s2">=-</span><span class="s5">1</span><span class="s3">)</span>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s2">elif </span><span class="s1">p </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l58"><span class="ln">58   </span></a>        <span class="s2">return </span><span class="s1">np</span><span class="s3">.</span><span class="s1">sum</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">y</span><span class="s2">-</span><span class="s1">x</span><span class="s3">), </span><span class="s1">axis</span><span class="s2">=-</span><span class="s5">1</span><span class="s3">)</span>
+<a name="l59"><span class="ln">59   </span></a>    <span class="s2">else:</span>
+<a name="l60"><span class="ln">60   </span></a>        <span class="s2">return </span><span class="s1">np</span><span class="s3">.</span><span class="s1">sum</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">y</span><span class="s2">-</span><span class="s1">x</span><span class="s3">)</span><span class="s2">**</span><span class="s1">p</span><span class="s3">, </span><span class="s1">axis</span><span class="s2">=-</span><span class="s5">1</span><span class="s3">)</span>
+<a name="l61"><span class="ln">61   </span></a>
+<a name="l62"><span class="ln">62   </span></a>
+<a name="l63"><span class="ln">63   </span></a><span class="s2">def </span><span class="s1">minkowski_distance</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">p</span><span class="s2">=</span><span class="s5">2</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s0">&quot;&quot;&quot;Compute the L**p distance between two arrays. 
+<a name="l65"><span class="ln">65   </span></a> 
+<a name="l66"><span class="ln">66   </span></a>    The last dimensions of `x` and `y` must be the same length.  Any 
+<a name="l67"><span class="ln">67   </span></a>    other dimensions must be compatible for broadcasting. 
+<a name="l68"><span class="ln">68   </span></a> 
+<a name="l69"><span class="ln">69   </span></a>    Parameters 
+<a name="l70"><span class="ln">70   </span></a>    ---------- 
+<a name="l71"><span class="ln">71   </span></a>    x : (..., K) array_like 
+<a name="l72"><span class="ln">72   </span></a>        Input array. 
+<a name="l73"><span class="ln">73   </span></a>    y : (..., K) array_like 
+<a name="l74"><span class="ln">74   </span></a>        Input array. 
+<a name="l75"><span class="ln">75   </span></a>    p : float, 1 &lt;= p &lt;= infinity 
+<a name="l76"><span class="ln">76   </span></a>        Which Minkowski p-norm to use. 
+<a name="l77"><span class="ln">77   </span></a> 
+<a name="l78"><span class="ln">78   </span></a>    Returns 
+<a name="l79"><span class="ln">79   </span></a>    ------- 
+<a name="l80"><span class="ln">80   </span></a>    dist : ndarray 
+<a name="l81"><span class="ln">81   </span></a>        Distance between the input arrays. 
+<a name="l82"><span class="ln">82   </span></a> 
+<a name="l83"><span class="ln">83   </span></a>    Examples 
+<a name="l84"><span class="ln">84   </span></a>    -------- 
+<a name="l85"><span class="ln">85   </span></a>    &gt;&gt;&gt; from scipy.spatial import minkowski_distance 
+<a name="l86"><span class="ln">86   </span></a>    &gt;&gt;&gt; minkowski_distance([[0, 0], [0, 0]], [[1, 1], [0, 1]]) 
+<a name="l87"><span class="ln">87   </span></a>    array([ 1.41421356,  1.        ]) 
+<a name="l88"><span class="ln">88   </span></a> 
+<a name="l89"><span class="ln">89   </span></a>    &quot;&quot;&quot;</span>
+<a name="l90"><span class="ln">90   </span></a>    <span class="s1">x </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s1">y </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">y</span><span class="s3">)</span>
+<a name="l92"><span class="ln">92   </span></a>    <span class="s2">if </span><span class="s1">p </span><span class="s2">== </span><span class="s1">np</span><span class="s3">.</span><span class="s1">inf </span><span class="s2">or </span><span class="s1">p </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l93"><span class="ln">93   </span></a>        <span class="s2">return </span><span class="s1">minkowski_distance_p</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">p</span><span class="s3">)</span>
+<a name="l94"><span class="ln">94   </span></a>    <span class="s2">else:</span>
+<a name="l95"><span class="ln">95   </span></a>        <span class="s2">return </span><span class="s1">minkowski_distance_p</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">p</span><span class="s3">)</span><span class="s2">**</span><span class="s3">(</span><span class="s5">1.</span><span class="s2">/</span><span class="s1">p</span><span class="s3">)</span>
+<a name="l96"><span class="ln">96   </span></a>
+<a name="l97"><span class="ln">97   </span></a>
+<a name="l98"><span class="ln">98   </span></a><span class="s2">class </span><span class="s1">Rectangle</span><span class="s2">:</span>
+<a name="l99"><span class="ln">99   </span></a>    <span class="s0">&quot;&quot;&quot;Hyperrectangle class. 
+<a name="l100"><span class="ln">100  </span></a> 
+<a name="l101"><span class="ln">101  </span></a>    Represents a Cartesian product of intervals. 
+<a name="l102"><span class="ln">102  </span></a>    &quot;&quot;&quot;</span>
+<a name="l103"><span class="ln">103  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">maxes</span><span class="s3">, </span><span class="s1">mins</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s0">&quot;&quot;&quot;Construct a hyperrectangle.&quot;&quot;&quot;</span>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">maxes </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">maximum</span><span class="s3">(</span><span class="s1">maxes</span><span class="s3">,</span><span class="s1">mins</span><span class="s3">).</span><span class="s1">astype</span><span class="s3">(</span><span class="s1">float</span><span class="s3">)</span>
+<a name="l106"><span class="ln">106  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">mins </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">minimum</span><span class="s3">(</span><span class="s1">maxes</span><span class="s3">,</span><span class="s1">mins</span><span class="s3">).</span><span class="s1">astype</span><span class="s3">(</span><span class="s1">float</span><span class="s3">)</span>
+<a name="l107"><span class="ln">107  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">m</span><span class="s3">, </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">maxes</span><span class="s3">.</span><span class="s1">shape</span>
+<a name="l108"><span class="ln">108  </span></a>
+<a name="l109"><span class="ln">109  </span></a>    <span class="s2">def </span><span class="s1">__repr__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l110"><span class="ln">110  </span></a>        <span class="s2">return </span><span class="s4">f&quot;&lt;Rectangle {</span><span class="s1">list</span><span class="s3">(</span><span class="s1">zip</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">mins</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">maxes</span><span class="s3">))</span><span class="s4">}&gt;&quot;</span>
+<a name="l111"><span class="ln">111  </span></a>
+<a name="l112"><span class="ln">112  </span></a>    <span class="s2">def </span><span class="s1">volume</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l113"><span class="ln">113  </span></a>        <span class="s0">&quot;&quot;&quot;Total volume.&quot;&quot;&quot;</span>
+<a name="l114"><span class="ln">114  </span></a>        <span class="s2">return </span><span class="s1">np</span><span class="s3">.</span><span class="s1">prod</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">maxes</span><span class="s2">-</span><span class="s1">self</span><span class="s3">.</span><span class="s1">mins</span><span class="s3">)</span>
+<a name="l115"><span class="ln">115  </span></a>
+<a name="l116"><span class="ln">116  </span></a>    <span class="s2">def </span><span class="s1">split</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">d</span><span class="s3">, </span><span class="s1">split</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l117"><span class="ln">117  </span></a>        <span class="s0">&quot;&quot;&quot;Produce two hyperrectangles by splitting. 
+<a name="l118"><span class="ln">118  </span></a> 
+<a name="l119"><span class="ln">119  </span></a>        In general, if you need to compute maximum and minimum 
+<a name="l120"><span class="ln">120  </span></a>        distances to the children, it can be done more efficiently 
+<a name="l121"><span class="ln">121  </span></a>        by updating the maximum and minimum distances to the parent. 
+<a name="l122"><span class="ln">122  </span></a> 
+<a name="l123"><span class="ln">123  </span></a>        Parameters 
+<a name="l124"><span class="ln">124  </span></a>        ---------- 
+<a name="l125"><span class="ln">125  </span></a>        d : int 
+<a name="l126"><span class="ln">126  </span></a>            Axis to split hyperrectangle along. 
+<a name="l127"><span class="ln">127  </span></a>        split : float 
+<a name="l128"><span class="ln">128  </span></a>            Position along axis `d` to split at. 
+<a name="l129"><span class="ln">129  </span></a> 
+<a name="l130"><span class="ln">130  </span></a>        &quot;&quot;&quot;</span>
+<a name="l131"><span class="ln">131  </span></a>        <span class="s1">mid </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">copy</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">maxes</span><span class="s3">)</span>
+<a name="l132"><span class="ln">132  </span></a>        <span class="s1">mid</span><span class="s3">[</span><span class="s1">d</span><span class="s3">] </span><span class="s2">= </span><span class="s1">split</span>
+<a name="l133"><span class="ln">133  </span></a>        <span class="s1">less </span><span class="s2">= </span><span class="s1">Rectangle</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">mins</span><span class="s3">, </span><span class="s1">mid</span><span class="s3">)</span>
+<a name="l134"><span class="ln">134  </span></a>        <span class="s1">mid </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">copy</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">mins</span><span class="s3">)</span>
+<a name="l135"><span class="ln">135  </span></a>        <span class="s1">mid</span><span class="s3">[</span><span class="s1">d</span><span class="s3">] </span><span class="s2">= </span><span class="s1">split</span>
+<a name="l136"><span class="ln">136  </span></a>        <span class="s1">greater </span><span class="s2">= </span><span class="s1">Rectangle</span><span class="s3">(</span><span class="s1">mid</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">maxes</span><span class="s3">)</span>
+<a name="l137"><span class="ln">137  </span></a>        <span class="s2">return </span><span class="s1">less</span><span class="s3">, </span><span class="s1">greater</span>
+<a name="l138"><span class="ln">138  </span></a>
+<a name="l139"><span class="ln">139  </span></a>    <span class="s2">def </span><span class="s1">min_distance_point</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">p</span><span class="s2">=</span><span class="s5">2.</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l140"><span class="ln">140  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l141"><span class="ln">141  </span></a>        Return the minimum distance between input and points in the 
+<a name="l142"><span class="ln">142  </span></a>        hyperrectangle. 
+<a name="l143"><span class="ln">143  </span></a> 
+<a name="l144"><span class="ln">144  </span></a>        Parameters 
+<a name="l145"><span class="ln">145  </span></a>        ---------- 
+<a name="l146"><span class="ln">146  </span></a>        x : array_like 
+<a name="l147"><span class="ln">147  </span></a>            Input. 
+<a name="l148"><span class="ln">148  </span></a>        p : float, optional 
+<a name="l149"><span class="ln">149  </span></a>            Input. 
+<a name="l150"><span class="ln">150  </span></a> 
+<a name="l151"><span class="ln">151  </span></a>        &quot;&quot;&quot;</span>
+<a name="l152"><span class="ln">152  </span></a>        <span class="s2">return </span><span class="s1">minkowski_distance</span><span class="s3">(</span>
+<a name="l153"><span class="ln">153  </span></a>            <span class="s5">0</span><span class="s3">, </span><span class="s1">np</span><span class="s3">.</span><span class="s1">maximum</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s1">np</span><span class="s3">.</span><span class="s1">maximum</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">mins</span><span class="s2">-</span><span class="s1">x</span><span class="s3">, </span><span class="s1">x</span><span class="s2">-</span><span class="s1">self</span><span class="s3">.</span><span class="s1">maxes</span><span class="s3">)),</span>
+<a name="l154"><span class="ln">154  </span></a>            <span class="s1">p</span>
+<a name="l155"><span class="ln">155  </span></a>        <span class="s3">)</span>
+<a name="l156"><span class="ln">156  </span></a>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s2">def </span><span class="s1">max_distance_point</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">p</span><span class="s2">=</span><span class="s5">2.</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l159"><span class="ln">159  </span></a>        Return the maximum distance between input and points in the hyperrectangle. 
+<a name="l160"><span class="ln">160  </span></a> 
+<a name="l161"><span class="ln">161  </span></a>        Parameters 
+<a name="l162"><span class="ln">162  </span></a>        ---------- 
+<a name="l163"><span class="ln">163  </span></a>        x : array_like 
+<a name="l164"><span class="ln">164  </span></a>            Input array. 
+<a name="l165"><span class="ln">165  </span></a>        p : float, optional 
+<a name="l166"><span class="ln">166  </span></a>            Input. 
+<a name="l167"><span class="ln">167  </span></a> 
+<a name="l168"><span class="ln">168  </span></a>        &quot;&quot;&quot;</span>
+<a name="l169"><span class="ln">169  </span></a>        <span class="s2">return </span><span class="s1">minkowski_distance</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s1">np</span><span class="s3">.</span><span class="s1">maximum</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">maxes</span><span class="s2">-</span><span class="s1">x</span><span class="s3">, </span><span class="s1">x</span><span class="s2">-</span><span class="s1">self</span><span class="s3">.</span><span class="s1">mins</span><span class="s3">), </span><span class="s1">p</span><span class="s3">)</span>
+<a name="l170"><span class="ln">170  </span></a>
+<a name="l171"><span class="ln">171  </span></a>    <span class="s2">def </span><span class="s1">min_distance_rectangle</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">, </span><span class="s1">p</span><span class="s2">=</span><span class="s5">2.</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l172"><span class="ln">172  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l173"><span class="ln">173  </span></a>        Compute the minimum distance between points in the two hyperrectangles. 
+<a name="l174"><span class="ln">174  </span></a> 
+<a name="l175"><span class="ln">175  </span></a>        Parameters 
+<a name="l176"><span class="ln">176  </span></a>        ---------- 
+<a name="l177"><span class="ln">177  </span></a>        other : hyperrectangle 
+<a name="l178"><span class="ln">178  </span></a>            Input. 
+<a name="l179"><span class="ln">179  </span></a>        p : float 
+<a name="l180"><span class="ln">180  </span></a>            Input. 
+<a name="l181"><span class="ln">181  </span></a> 
+<a name="l182"><span class="ln">182  </span></a>        &quot;&quot;&quot;</span>
+<a name="l183"><span class="ln">183  </span></a>        <span class="s2">return </span><span class="s1">minkowski_distance</span><span class="s3">(</span>
+<a name="l184"><span class="ln">184  </span></a>            <span class="s5">0</span><span class="s3">,</span>
+<a name="l185"><span class="ln">185  </span></a>            <span class="s1">np</span><span class="s3">.</span><span class="s1">maximum</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s1">np</span><span class="s3">.</span><span class="s1">maximum</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">mins</span><span class="s2">-</span><span class="s1">other</span><span class="s3">.</span><span class="s1">maxes</span><span class="s3">,</span>
+<a name="l186"><span class="ln">186  </span></a>                                     <span class="s1">other</span><span class="s3">.</span><span class="s1">mins</span><span class="s2">-</span><span class="s1">self</span><span class="s3">.</span><span class="s1">maxes</span><span class="s3">)),</span>
+<a name="l187"><span class="ln">187  </span></a>            <span class="s1">p</span>
+<a name="l188"><span class="ln">188  </span></a>        <span class="s3">)</span>
+<a name="l189"><span class="ln">189  </span></a>
+<a name="l190"><span class="ln">190  </span></a>    <span class="s2">def </span><span class="s1">max_distance_rectangle</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">, </span><span class="s1">p</span><span class="s2">=</span><span class="s5">2.</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l191"><span class="ln">191  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l192"><span class="ln">192  </span></a>        Compute the maximum distance between points in the two hyperrectangles. 
+<a name="l193"><span class="ln">193  </span></a> 
+<a name="l194"><span class="ln">194  </span></a>        Parameters 
+<a name="l195"><span class="ln">195  </span></a>        ---------- 
+<a name="l196"><span class="ln">196  </span></a>        other : hyperrectangle 
+<a name="l197"><span class="ln">197  </span></a>            Input. 
+<a name="l198"><span class="ln">198  </span></a>        p : float, optional 
+<a name="l199"><span class="ln">199  </span></a>            Input. 
+<a name="l200"><span class="ln">200  </span></a> 
+<a name="l201"><span class="ln">201  </span></a>        &quot;&quot;&quot;</span>
+<a name="l202"><span class="ln">202  </span></a>        <span class="s2">return </span><span class="s1">minkowski_distance</span><span class="s3">(</span>
+<a name="l203"><span class="ln">203  </span></a>            <span class="s5">0</span><span class="s3">, </span><span class="s1">np</span><span class="s3">.</span><span class="s1">maximum</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">maxes</span><span class="s2">-</span><span class="s1">other</span><span class="s3">.</span><span class="s1">mins</span><span class="s3">, </span><span class="s1">other</span><span class="s3">.</span><span class="s1">maxes</span><span class="s2">-</span><span class="s1">self</span><span class="s3">.</span><span class="s1">mins</span><span class="s3">), </span><span class="s1">p</span><span class="s3">)</span>
+<a name="l204"><span class="ln">204  </span></a>
+<a name="l205"><span class="ln">205  </span></a>
+<a name="l206"><span class="ln">206  </span></a><span class="s2">class </span><span class="s1">KDTree</span><span class="s3">(</span><span class="s1">cKDTree</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l207"><span class="ln">207  </span></a>    <span class="s0">&quot;&quot;&quot;kd-tree for quick nearest-neighbor lookup. 
+<a name="l208"><span class="ln">208  </span></a> 
+<a name="l209"><span class="ln">209  </span></a>    This class provides an index into a set of k-dimensional points 
+<a name="l210"><span class="ln">210  </span></a>    which can be used to rapidly look up the nearest neighbors of any 
+<a name="l211"><span class="ln">211  </span></a>    point. 
+<a name="l212"><span class="ln">212  </span></a> 
+<a name="l213"><span class="ln">213  </span></a>    Parameters 
+<a name="l214"><span class="ln">214  </span></a>    ---------- 
+<a name="l215"><span class="ln">215  </span></a>    data : array_like, shape (n,m) 
+<a name="l216"><span class="ln">216  </span></a>        The n data points of dimension m to be indexed. This array is 
+<a name="l217"><span class="ln">217  </span></a>        not copied unless this is necessary to produce a contiguous 
+<a name="l218"><span class="ln">218  </span></a>        array of doubles, and so modifying this data will result in 
+<a name="l219"><span class="ln">219  </span></a>        bogus results. The data are also copied if the kd-tree is built 
+<a name="l220"><span class="ln">220  </span></a>        with copy_data=True. 
+<a name="l221"><span class="ln">221  </span></a>    leafsize : positive int, optional 
+<a name="l222"><span class="ln">222  </span></a>        The number of points at which the algorithm switches over to 
+<a name="l223"><span class="ln">223  </span></a>        brute-force.  Default: 10. 
+<a name="l224"><span class="ln">224  </span></a>    compact_nodes : bool, optional 
+<a name="l225"><span class="ln">225  </span></a>        If True, the kd-tree is built to shrink the hyperrectangles to 
+<a name="l226"><span class="ln">226  </span></a>        the actual data range. This usually gives a more compact tree that 
+<a name="l227"><span class="ln">227  </span></a>        is robust against degenerated input data and gives faster queries 
+<a name="l228"><span class="ln">228  </span></a>        at the expense of longer build time. Default: True. 
+<a name="l229"><span class="ln">229  </span></a>    copy_data : bool, optional 
+<a name="l230"><span class="ln">230  </span></a>        If True the data is always copied to protect the kd-tree against 
+<a name="l231"><span class="ln">231  </span></a>        data corruption. Default: False. 
+<a name="l232"><span class="ln">232  </span></a>    balanced_tree : bool, optional 
+<a name="l233"><span class="ln">233  </span></a>        If True, the median is used to split the hyperrectangles instead of 
+<a name="l234"><span class="ln">234  </span></a>        the midpoint. This usually gives a more compact tree and 
+<a name="l235"><span class="ln">235  </span></a>        faster queries at the expense of longer build time. Default: True. 
+<a name="l236"><span class="ln">236  </span></a>    boxsize : array_like or scalar, optional 
+<a name="l237"><span class="ln">237  </span></a>        Apply a m-d toroidal topology to the KDTree.. The topology is generated 
+<a name="l238"><span class="ln">238  </span></a>        by :math:`x_i + n_i L_i` where :math:`n_i` are integers and :math:`L_i` 
+<a name="l239"><span class="ln">239  </span></a>        is the boxsize along i-th dimension. The input data shall be wrapped 
+<a name="l240"><span class="ln">240  </span></a>        into :math:`[0, L_i)`. A ValueError is raised if any of the data is 
+<a name="l241"><span class="ln">241  </span></a>        outside of this bound. 
+<a name="l242"><span class="ln">242  </span></a> 
+<a name="l243"><span class="ln">243  </span></a>    Notes 
+<a name="l244"><span class="ln">244  </span></a>    ----- 
+<a name="l245"><span class="ln">245  </span></a>    The algorithm used is described in Maneewongvatana and Mount 1999. 
+<a name="l246"><span class="ln">246  </span></a>    The general idea is that the kd-tree is a binary tree, each of whose 
+<a name="l247"><span class="ln">247  </span></a>    nodes represents an axis-aligned hyperrectangle. Each node specifies 
+<a name="l248"><span class="ln">248  </span></a>    an axis and splits the set of points based on whether their coordinate 
+<a name="l249"><span class="ln">249  </span></a>    along that axis is greater than or less than a particular value. 
+<a name="l250"><span class="ln">250  </span></a> 
+<a name="l251"><span class="ln">251  </span></a>    During construction, the axis and splitting point are chosen by the 
+<a name="l252"><span class="ln">252  </span></a>    &quot;sliding midpoint&quot; rule, which ensures that the cells do not all 
+<a name="l253"><span class="ln">253  </span></a>    become long and thin. 
+<a name="l254"><span class="ln">254  </span></a> 
+<a name="l255"><span class="ln">255  </span></a>    The tree can be queried for the r closest neighbors of any given point 
+<a name="l256"><span class="ln">256  </span></a>    (optionally returning only those within some maximum distance of the 
+<a name="l257"><span class="ln">257  </span></a>    point). It can also be queried, with a substantial gain in efficiency, 
+<a name="l258"><span class="ln">258  </span></a>    for the r approximate closest neighbors. 
+<a name="l259"><span class="ln">259  </span></a> 
+<a name="l260"><span class="ln">260  </span></a>    For large dimensions (20 is already large) do not expect this to run 
+<a name="l261"><span class="ln">261  </span></a>    significantly faster than brute force. High-dimensional nearest-neighbor 
+<a name="l262"><span class="ln">262  </span></a>    queries are a substantial open problem in computer science. 
+<a name="l263"><span class="ln">263  </span></a> 
+<a name="l264"><span class="ln">264  </span></a>    Attributes 
+<a name="l265"><span class="ln">265  </span></a>    ---------- 
+<a name="l266"><span class="ln">266  </span></a>    data : ndarray, shape (n,m) 
+<a name="l267"><span class="ln">267  </span></a>        The n data points of dimension m to be indexed. This array is 
+<a name="l268"><span class="ln">268  </span></a>        not copied unless this is necessary to produce a contiguous 
+<a name="l269"><span class="ln">269  </span></a>        array of doubles. The data are also copied if the kd-tree is built 
+<a name="l270"><span class="ln">270  </span></a>        with ``copy_data=True``. 
+<a name="l271"><span class="ln">271  </span></a>    leafsize : positive int 
+<a name="l272"><span class="ln">272  </span></a>        The number of points at which the algorithm switches over to 
+<a name="l273"><span class="ln">273  </span></a>        brute-force. 
+<a name="l274"><span class="ln">274  </span></a>    m : int 
+<a name="l275"><span class="ln">275  </span></a>        The dimension of a single data-point. 
+<a name="l276"><span class="ln">276  </span></a>    n : int 
+<a name="l277"><span class="ln">277  </span></a>        The number of data points. 
+<a name="l278"><span class="ln">278  </span></a>    maxes : ndarray, shape (m,) 
+<a name="l279"><span class="ln">279  </span></a>        The maximum value in each dimension of the n data points. 
+<a name="l280"><span class="ln">280  </span></a>    mins : ndarray, shape (m,) 
+<a name="l281"><span class="ln">281  </span></a>        The minimum value in each dimension of the n data points. 
+<a name="l282"><span class="ln">282  </span></a>    size : int 
+<a name="l283"><span class="ln">283  </span></a>        The number of nodes in the tree. 
+<a name="l284"><span class="ln">284  </span></a> 
+<a name="l285"><span class="ln">285  </span></a>    &quot;&quot;&quot;</span>
+<a name="l286"><span class="ln">286  </span></a>
+<a name="l287"><span class="ln">287  </span></a>    <span class="s2">class </span><span class="s1">node</span><span class="s2">:</span>
+<a name="l288"><span class="ln">288  </span></a>        <span class="s2">@</span><span class="s1">staticmethod</span>
+<a name="l289"><span class="ln">289  </span></a>        <span class="s2">def </span><span class="s1">_create</span><span class="s3">(</span><span class="s1">ckdtree_node</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l290"><span class="ln">290  </span></a>            <span class="s0">&quot;&quot;&quot;Create either an inner or leaf node, wrapping a cKDTreeNode instance&quot;&quot;&quot;</span>
+<a name="l291"><span class="ln">291  </span></a>            <span class="s2">if </span><span class="s1">ckdtree_node </span><span class="s2">is None:</span>
+<a name="l292"><span class="ln">292  </span></a>                <span class="s2">return </span><span class="s1">KDTree</span><span class="s3">.</span><span class="s1">node</span><span class="s3">(</span><span class="s1">ckdtree_node</span><span class="s3">)</span>
+<a name="l293"><span class="ln">293  </span></a>            <span class="s2">elif </span><span class="s1">ckdtree_node</span><span class="s3">.</span><span class="s1">split_dim </span><span class="s2">== -</span><span class="s5">1</span><span class="s2">:</span>
+<a name="l294"><span class="ln">294  </span></a>                <span class="s2">return </span><span class="s1">KDTree</span><span class="s3">.</span><span class="s1">leafnode</span><span class="s3">(</span><span class="s1">ckdtree_node</span><span class="s3">)</span>
+<a name="l295"><span class="ln">295  </span></a>            <span class="s2">else:</span>
+<a name="l296"><span class="ln">296  </span></a>                <span class="s2">return </span><span class="s1">KDTree</span><span class="s3">.</span><span class="s1">innernode</span><span class="s3">(</span><span class="s1">ckdtree_node</span><span class="s3">)</span>
+<a name="l297"><span class="ln">297  </span></a>
+<a name="l298"><span class="ln">298  </span></a>        <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">ckdtree_node</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l299"><span class="ln">299  </span></a>            <span class="s2">if </span><span class="s1">ckdtree_node </span><span class="s2">is None:</span>
+<a name="l300"><span class="ln">300  </span></a>                <span class="s1">ckdtree_node </span><span class="s2">= </span><span class="s1">cKDTreeNode</span><span class="s3">()</span>
+<a name="l301"><span class="ln">301  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_node </span><span class="s2">= </span><span class="s1">ckdtree_node</span>
+<a name="l302"><span class="ln">302  </span></a>
+<a name="l303"><span class="ln">303  </span></a>        <span class="s2">def </span><span class="s1">__lt__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l304"><span class="ln">304  </span></a>            <span class="s2">return </span><span class="s1">id</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s2">&lt; </span><span class="s1">id</span><span class="s3">(</span><span class="s1">other</span><span class="s3">)</span>
+<a name="l305"><span class="ln">305  </span></a>
+<a name="l306"><span class="ln">306  </span></a>        <span class="s2">def </span><span class="s1">__gt__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l307"><span class="ln">307  </span></a>            <span class="s2">return </span><span class="s1">id</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s2">&gt; </span><span class="s1">id</span><span class="s3">(</span><span class="s1">other</span><span class="s3">)</span>
+<a name="l308"><span class="ln">308  </span></a>
+<a name="l309"><span class="ln">309  </span></a>        <span class="s2">def </span><span class="s1">__le__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l310"><span class="ln">310  </span></a>            <span class="s2">return </span><span class="s1">id</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s2">&lt;= </span><span class="s1">id</span><span class="s3">(</span><span class="s1">other</span><span class="s3">)</span>
+<a name="l311"><span class="ln">311  </span></a>
+<a name="l312"><span class="ln">312  </span></a>        <span class="s2">def </span><span class="s1">__ge__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l313"><span class="ln">313  </span></a>            <span class="s2">return </span><span class="s1">id</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s2">&gt;= </span><span class="s1">id</span><span class="s3">(</span><span class="s1">other</span><span class="s3">)</span>
+<a name="l314"><span class="ln">314  </span></a>
+<a name="l315"><span class="ln">315  </span></a>        <span class="s2">def </span><span class="s1">__eq__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l316"><span class="ln">316  </span></a>            <span class="s2">return </span><span class="s1">id</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s2">== </span><span class="s1">id</span><span class="s3">(</span><span class="s1">other</span><span class="s3">)</span>
+<a name="l317"><span class="ln">317  </span></a>
+<a name="l318"><span class="ln">318  </span></a>    <span class="s2">class </span><span class="s1">leafnode</span><span class="s3">(</span><span class="s1">node</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l319"><span class="ln">319  </span></a>        <span class="s2">@</span><span class="s1">property</span>
+<a name="l320"><span class="ln">320  </span></a>        <span class="s2">def </span><span class="s1">idx</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l321"><span class="ln">321  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_node</span><span class="s3">.</span><span class="s1">indices</span>
+<a name="l322"><span class="ln">322  </span></a>
+<a name="l323"><span class="ln">323  </span></a>        <span class="s2">@</span><span class="s1">property</span>
+<a name="l324"><span class="ln">324  </span></a>        <span class="s2">def </span><span class="s1">children</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l325"><span class="ln">325  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_node</span><span class="s3">.</span><span class="s1">children</span>
+<a name="l326"><span class="ln">326  </span></a>
+<a name="l327"><span class="ln">327  </span></a>    <span class="s2">class </span><span class="s1">innernode</span><span class="s3">(</span><span class="s1">node</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l328"><span class="ln">328  </span></a>        <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">ckdtreenode</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l329"><span class="ln">329  </span></a>            <span class="s2">assert </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">ckdtreenode</span><span class="s3">, </span><span class="s1">cKDTreeNode</span><span class="s3">)</span>
+<a name="l330"><span class="ln">330  </span></a>            <span class="s1">super</span><span class="s3">().</span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">ckdtreenode</span><span class="s3">)</span>
+<a name="l331"><span class="ln">331  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">less </span><span class="s2">= </span><span class="s1">KDTree</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">_create</span><span class="s3">(</span><span class="s1">ckdtreenode</span><span class="s3">.</span><span class="s1">lesser</span><span class="s3">)</span>
+<a name="l332"><span class="ln">332  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">greater </span><span class="s2">= </span><span class="s1">KDTree</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">_create</span><span class="s3">(</span><span class="s1">ckdtreenode</span><span class="s3">.</span><span class="s1">greater</span><span class="s3">)</span>
+<a name="l333"><span class="ln">333  </span></a>
+<a name="l334"><span class="ln">334  </span></a>        <span class="s2">@</span><span class="s1">property</span>
+<a name="l335"><span class="ln">335  </span></a>        <span class="s2">def </span><span class="s1">split_dim</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l336"><span class="ln">336  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_node</span><span class="s3">.</span><span class="s1">split_dim</span>
+<a name="l337"><span class="ln">337  </span></a>
+<a name="l338"><span class="ln">338  </span></a>        <span class="s2">@</span><span class="s1">property</span>
+<a name="l339"><span class="ln">339  </span></a>        <span class="s2">def </span><span class="s1">split</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l340"><span class="ln">340  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_node</span><span class="s3">.</span><span class="s1">split</span>
+<a name="l341"><span class="ln">341  </span></a>
+<a name="l342"><span class="ln">342  </span></a>        <span class="s2">@</span><span class="s1">property</span>
+<a name="l343"><span class="ln">343  </span></a>        <span class="s2">def </span><span class="s1">children</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l344"><span class="ln">344  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_node</span><span class="s3">.</span><span class="s1">children</span>
+<a name="l345"><span class="ln">345  </span></a>
+<a name="l346"><span class="ln">346  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l347"><span class="ln">347  </span></a>    <span class="s2">def </span><span class="s1">tree</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l348"><span class="ln">348  </span></a>        <span class="s2">if not </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">&quot;_tree&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l349"><span class="ln">349  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_tree </span><span class="s2">= </span><span class="s1">KDTree</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">_create</span><span class="s3">(</span><span class="s1">super</span><span class="s3">().</span><span class="s1">tree</span><span class="s3">)</span>
+<a name="l350"><span class="ln">350  </span></a>
+<a name="l351"><span class="ln">351  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tree</span>
+<a name="l352"><span class="ln">352  </span></a>
+<a name="l353"><span class="ln">353  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">data</span><span class="s3">, </span><span class="s1">leafsize</span><span class="s2">=</span><span class="s5">10</span><span class="s3">, </span><span class="s1">compact_nodes</span><span class="s2">=True</span><span class="s3">, </span><span class="s1">copy_data</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l354"><span class="ln">354  </span></a>                 <span class="s1">balanced_tree</span><span class="s2">=True</span><span class="s3">, </span><span class="s1">boxsize</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l355"><span class="ln">355  </span></a>        <span class="s1">data </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">data</span><span class="s3">)</span>
+<a name="l356"><span class="ln">356  </span></a>        <span class="s2">if </span><span class="s1">data</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">kind </span><span class="s2">== </span><span class="s4">'c'</span><span class="s2">:</span>
+<a name="l357"><span class="ln">357  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;KDTree does not work with complex data&quot;</span><span class="s3">)</span>
+<a name="l358"><span class="ln">358  </span></a>
+<a name="l359"><span class="ln">359  </span></a>        <span class="s0"># Note KDTree has different default leafsize from cKDTree</span>
+<a name="l360"><span class="ln">360  </span></a>        <span class="s1">super</span><span class="s3">().</span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">data</span><span class="s3">, </span><span class="s1">leafsize</span><span class="s3">, </span><span class="s1">compact_nodes</span><span class="s3">, </span><span class="s1">copy_data</span><span class="s3">,</span>
+<a name="l361"><span class="ln">361  </span></a>                         <span class="s1">balanced_tree</span><span class="s3">, </span><span class="s1">boxsize</span><span class="s3">)</span>
+<a name="l362"><span class="ln">362  </span></a>
+<a name="l363"><span class="ln">363  </span></a>    <span class="s2">def </span><span class="s1">query</span><span class="s3">(</span>
+<a name="l364"><span class="ln">364  </span></a>            <span class="s1">self</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">k</span><span class="s2">=</span><span class="s5">1</span><span class="s3">, </span><span class="s1">eps</span><span class="s2">=</span><span class="s5">0</span><span class="s3">, </span><span class="s1">p</span><span class="s2">=</span><span class="s5">2</span><span class="s3">, </span><span class="s1">distance_upper_bound</span><span class="s2">=</span><span class="s1">np</span><span class="s3">.</span><span class="s1">inf</span><span class="s3">, </span><span class="s1">workers</span><span class="s2">=</span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l365"><span class="ln">365  </span></a>        <span class="s0">r&quot;&quot;&quot;Query the kd-tree for nearest neighbors. 
+<a name="l366"><span class="ln">366  </span></a> 
+<a name="l367"><span class="ln">367  </span></a>        Parameters 
+<a name="l368"><span class="ln">368  </span></a>        ---------- 
+<a name="l369"><span class="ln">369  </span></a>        x : array_like, last dimension self.m 
+<a name="l370"><span class="ln">370  </span></a>            An array of points to query. 
+<a name="l371"><span class="ln">371  </span></a>        k : int or Sequence[int], optional 
+<a name="l372"><span class="ln">372  </span></a>            Either the number of nearest neighbors to return, or a list of the 
+<a name="l373"><span class="ln">373  </span></a>            k-th nearest neighbors to return, starting from 1. 
+<a name="l374"><span class="ln">374  </span></a>        eps : nonnegative float, optional 
+<a name="l375"><span class="ln">375  </span></a>            Return approximate nearest neighbors; the kth returned value 
+<a name="l376"><span class="ln">376  </span></a>            is guaranteed to be no further than (1+eps) times the 
+<a name="l377"><span class="ln">377  </span></a>            distance to the real kth nearest neighbor. 
+<a name="l378"><span class="ln">378  </span></a>        p : float, 1&lt;=p&lt;=infinity, optional 
+<a name="l379"><span class="ln">379  </span></a>            Which Minkowski p-norm to use. 
+<a name="l380"><span class="ln">380  </span></a>            1 is the sum-of-absolute-values distance (&quot;Manhattan&quot; distance). 
+<a name="l381"><span class="ln">381  </span></a>            2 is the usual Euclidean distance. 
+<a name="l382"><span class="ln">382  </span></a>            infinity is the maximum-coordinate-difference distance. 
+<a name="l383"><span class="ln">383  </span></a>            A large, finite p may cause a ValueError if overflow can occur. 
+<a name="l384"><span class="ln">384  </span></a>        distance_upper_bound : nonnegative float, optional 
+<a name="l385"><span class="ln">385  </span></a>            Return only neighbors within this distance. This is used to prune 
+<a name="l386"><span class="ln">386  </span></a>            tree searches, so if you are doing a series of nearest-neighbor 
+<a name="l387"><span class="ln">387  </span></a>            queries, it may help to supply the distance to the nearest neighbor 
+<a name="l388"><span class="ln">388  </span></a>            of the most recent point. 
+<a name="l389"><span class="ln">389  </span></a>        workers : int, optional 
+<a name="l390"><span class="ln">390  </span></a>            Number of workers to use for parallel processing. If -1 is given 
+<a name="l391"><span class="ln">391  </span></a>            all CPU threads are used. Default: 1. 
+<a name="l392"><span class="ln">392  </span></a> 
+<a name="l393"><span class="ln">393  </span></a>            .. versionadded:: 1.6.0 
+<a name="l394"><span class="ln">394  </span></a> 
+<a name="l395"><span class="ln">395  </span></a>        Returns 
+<a name="l396"><span class="ln">396  </span></a>        ------- 
+<a name="l397"><span class="ln">397  </span></a>        d : float or array of floats 
+<a name="l398"><span class="ln">398  </span></a>            The distances to the nearest neighbors. 
+<a name="l399"><span class="ln">399  </span></a>            If ``x`` has shape ``tuple+(self.m,)``, then ``d`` has shape 
+<a name="l400"><span class="ln">400  </span></a>            ``tuple+(k,)``. 
+<a name="l401"><span class="ln">401  </span></a>            When k == 1, the last dimension of the output is squeezed. 
+<a name="l402"><span class="ln">402  </span></a>            Missing neighbors are indicated with infinite distances. 
+<a name="l403"><span class="ln">403  </span></a>            Hits are sorted by distance (nearest first). 
+<a name="l404"><span class="ln">404  </span></a> 
+<a name="l405"><span class="ln">405  </span></a>            .. versionchanged:: 1.9.0 
+<a name="l406"><span class="ln">406  </span></a>               Previously if ``k=None``, then `d` was an object array of 
+<a name="l407"><span class="ln">407  </span></a>               shape ``tuple``, containing lists of distances. This behavior 
+<a name="l408"><span class="ln">408  </span></a>               has been removed, use `query_ball_point` instead. 
+<a name="l409"><span class="ln">409  </span></a> 
+<a name="l410"><span class="ln">410  </span></a>        i : integer or array of integers 
+<a name="l411"><span class="ln">411  </span></a>            The index of each neighbor in ``self.data``. 
+<a name="l412"><span class="ln">412  </span></a>            ``i`` is the same shape as d. 
+<a name="l413"><span class="ln">413  </span></a>            Missing neighbors are indicated with ``self.n``. 
+<a name="l414"><span class="ln">414  </span></a> 
+<a name="l415"><span class="ln">415  </span></a>        Examples 
+<a name="l416"><span class="ln">416  </span></a>        -------- 
+<a name="l417"><span class="ln">417  </span></a> 
+<a name="l418"><span class="ln">418  </span></a>        &gt;&gt;&gt; import numpy as np 
+<a name="l419"><span class="ln">419  </span></a>        &gt;&gt;&gt; from scipy.spatial import KDTree 
+<a name="l420"><span class="ln">420  </span></a>        &gt;&gt;&gt; x, y = np.mgrid[0:5, 2:8] 
+<a name="l421"><span class="ln">421  </span></a>        &gt;&gt;&gt; tree = KDTree(np.c_[x.ravel(), y.ravel()]) 
+<a name="l422"><span class="ln">422  </span></a> 
+<a name="l423"><span class="ln">423  </span></a>        To query the nearest neighbours and return squeezed result, use 
+<a name="l424"><span class="ln">424  </span></a> 
+<a name="l425"><span class="ln">425  </span></a>        &gt;&gt;&gt; dd, ii = tree.query([[0, 0], [2.2, 2.9]], k=1) 
+<a name="l426"><span class="ln">426  </span></a>        &gt;&gt;&gt; print(dd, ii, sep='\n') 
+<a name="l427"><span class="ln">427  </span></a>        [2.         0.2236068] 
+<a name="l428"><span class="ln">428  </span></a>        [ 0 13] 
+<a name="l429"><span class="ln">429  </span></a> 
+<a name="l430"><span class="ln">430  </span></a>        To query the nearest neighbours and return unsqueezed result, use 
+<a name="l431"><span class="ln">431  </span></a> 
+<a name="l432"><span class="ln">432  </span></a>        &gt;&gt;&gt; dd, ii = tree.query([[0, 0], [2.2, 2.9]], k=[1]) 
+<a name="l433"><span class="ln">433  </span></a>        &gt;&gt;&gt; print(dd, ii, sep='\n') 
+<a name="l434"><span class="ln">434  </span></a>        [[2.        ] 
+<a name="l435"><span class="ln">435  </span></a>         [0.2236068]] 
+<a name="l436"><span class="ln">436  </span></a>        [[ 0] 
+<a name="l437"><span class="ln">437  </span></a>         [13]] 
+<a name="l438"><span class="ln">438  </span></a> 
+<a name="l439"><span class="ln">439  </span></a>        To query the second nearest neighbours and return unsqueezed result, 
+<a name="l440"><span class="ln">440  </span></a>        use 
+<a name="l441"><span class="ln">441  </span></a> 
+<a name="l442"><span class="ln">442  </span></a>        &gt;&gt;&gt; dd, ii = tree.query([[0, 0], [2.2, 2.9]], k=[2]) 
+<a name="l443"><span class="ln">443  </span></a>        &gt;&gt;&gt; print(dd, ii, sep='\n') 
+<a name="l444"><span class="ln">444  </span></a>        [[2.23606798] 
+<a name="l445"><span class="ln">445  </span></a>         [0.80622577]] 
+<a name="l446"><span class="ln">446  </span></a>        [[ 6] 
+<a name="l447"><span class="ln">447  </span></a>         [19]] 
+<a name="l448"><span class="ln">448  </span></a> 
+<a name="l449"><span class="ln">449  </span></a>        To query the first and second nearest neighbours, use 
+<a name="l450"><span class="ln">450  </span></a> 
+<a name="l451"><span class="ln">451  </span></a>        &gt;&gt;&gt; dd, ii = tree.query([[0, 0], [2.2, 2.9]], k=2) 
+<a name="l452"><span class="ln">452  </span></a>        &gt;&gt;&gt; print(dd, ii, sep='\n') 
+<a name="l453"><span class="ln">453  </span></a>        [[2.         2.23606798] 
+<a name="l454"><span class="ln">454  </span></a>         [0.2236068  0.80622577]] 
+<a name="l455"><span class="ln">455  </span></a>        [[ 0  6] 
+<a name="l456"><span class="ln">456  </span></a>         [13 19]] 
+<a name="l457"><span class="ln">457  </span></a> 
+<a name="l458"><span class="ln">458  </span></a>        or, be more specific 
+<a name="l459"><span class="ln">459  </span></a> 
+<a name="l460"><span class="ln">460  </span></a>        &gt;&gt;&gt; dd, ii = tree.query([[0, 0], [2.2, 2.9]], k=[1, 2]) 
+<a name="l461"><span class="ln">461  </span></a>        &gt;&gt;&gt; print(dd, ii, sep='\n') 
+<a name="l462"><span class="ln">462  </span></a>        [[2.         2.23606798] 
+<a name="l463"><span class="ln">463  </span></a>         [0.2236068  0.80622577]] 
+<a name="l464"><span class="ln">464  </span></a>        [[ 0  6] 
+<a name="l465"><span class="ln">465  </span></a>         [13 19]] 
+<a name="l466"><span class="ln">466  </span></a> 
+<a name="l467"><span class="ln">467  </span></a>        &quot;&quot;&quot;</span>
+<a name="l468"><span class="ln">468  </span></a>        <span class="s1">x </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span>
+<a name="l469"><span class="ln">469  </span></a>        <span class="s2">if </span><span class="s1">x</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">kind </span><span class="s2">== </span><span class="s4">'c'</span><span class="s2">:</span>
+<a name="l470"><span class="ln">470  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;KDTree does not work with complex data&quot;</span><span class="s3">)</span>
+<a name="l471"><span class="ln">471  </span></a>
+<a name="l472"><span class="ln">472  </span></a>        <span class="s2">if </span><span class="s1">k </span><span class="s2">is None:</span>
+<a name="l473"><span class="ln">473  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;k must be an integer or a sequence of integers&quot;</span><span class="s3">)</span>
+<a name="l474"><span class="ln">474  </span></a>
+<a name="l475"><span class="ln">475  </span></a>        <span class="s1">d</span><span class="s3">, </span><span class="s1">i </span><span class="s2">= </span><span class="s1">super</span><span class="s3">().</span><span class="s1">query</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">k</span><span class="s3">, </span><span class="s1">eps</span><span class="s3">, </span><span class="s1">p</span><span class="s3">, </span><span class="s1">distance_upper_bound</span><span class="s3">, </span><span class="s1">workers</span><span class="s3">)</span>
+<a name="l476"><span class="ln">476  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s1">int</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l477"><span class="ln">477  </span></a>            <span class="s1">i </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">intp</span><span class="s3">(</span><span class="s1">i</span><span class="s3">)</span>
+<a name="l478"><span class="ln">478  </span></a>        <span class="s2">return </span><span class="s1">d</span><span class="s3">, </span><span class="s1">i</span>
+<a name="l479"><span class="ln">479  </span></a>
+<a name="l480"><span class="ln">480  </span></a>    <span class="s2">def </span><span class="s1">query_ball_point</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">r</span><span class="s3">, </span><span class="s1">p</span><span class="s2">=</span><span class="s5">2.</span><span class="s3">, </span><span class="s1">eps</span><span class="s2">=</span><span class="s5">0</span><span class="s3">, </span><span class="s1">workers</span><span class="s2">=</span><span class="s5">1</span><span class="s3">,</span>
+<a name="l481"><span class="ln">481  </span></a>                         <span class="s1">return_sorted</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">return_length</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l482"><span class="ln">482  </span></a>        <span class="s0">&quot;&quot;&quot;Find all points within distance r of point(s) x. 
+<a name="l483"><span class="ln">483  </span></a> 
+<a name="l484"><span class="ln">484  </span></a>        Parameters 
+<a name="l485"><span class="ln">485  </span></a>        ---------- 
+<a name="l486"><span class="ln">486  </span></a>        x : array_like, shape tuple + (self.m,) 
+<a name="l487"><span class="ln">487  </span></a>            The point or points to search for neighbors of. 
+<a name="l488"><span class="ln">488  </span></a>        r : array_like, float 
+<a name="l489"><span class="ln">489  </span></a>            The radius of points to return, must broadcast to the length of x. 
+<a name="l490"><span class="ln">490  </span></a>        p : float, optional 
+<a name="l491"><span class="ln">491  </span></a>            Which Minkowski p-norm to use.  Should be in the range [1, inf]. 
+<a name="l492"><span class="ln">492  </span></a>            A finite large p may cause a ValueError if overflow can occur. 
+<a name="l493"><span class="ln">493  </span></a>        eps : nonnegative float, optional 
+<a name="l494"><span class="ln">494  </span></a>            Approximate search. Branches of the tree are not explored if their 
+<a name="l495"><span class="ln">495  </span></a>            nearest points are further than ``r / (1 + eps)``, and branches are 
+<a name="l496"><span class="ln">496  </span></a>            added in bulk if their furthest points are nearer than 
+<a name="l497"><span class="ln">497  </span></a>            ``r * (1 + eps)``. 
+<a name="l498"><span class="ln">498  </span></a>        workers : int, optional 
+<a name="l499"><span class="ln">499  </span></a>            Number of jobs to schedule for parallel processing. If -1 is given 
+<a name="l500"><span class="ln">500  </span></a>            all processors are used. Default: 1. 
+<a name="l501"><span class="ln">501  </span></a> 
+<a name="l502"><span class="ln">502  </span></a>            .. versionadded:: 1.6.0 
+<a name="l503"><span class="ln">503  </span></a>        return_sorted : bool, optional 
+<a name="l504"><span class="ln">504  </span></a>            Sorts returned indices if True and does not sort them if False. If 
+<a name="l505"><span class="ln">505  </span></a>            None, does not sort single point queries, but does sort 
+<a name="l506"><span class="ln">506  </span></a>            multi-point queries which was the behavior before this option 
+<a name="l507"><span class="ln">507  </span></a>            was added. 
+<a name="l508"><span class="ln">508  </span></a> 
+<a name="l509"><span class="ln">509  </span></a>            .. versionadded:: 1.6.0 
+<a name="l510"><span class="ln">510  </span></a>        return_length : bool, optional 
+<a name="l511"><span class="ln">511  </span></a>            Return the number of points inside the radius instead of a list 
+<a name="l512"><span class="ln">512  </span></a>            of the indices. 
+<a name="l513"><span class="ln">513  </span></a> 
+<a name="l514"><span class="ln">514  </span></a>            .. versionadded:: 1.6.0 
+<a name="l515"><span class="ln">515  </span></a> 
+<a name="l516"><span class="ln">516  </span></a>        Returns 
+<a name="l517"><span class="ln">517  </span></a>        ------- 
+<a name="l518"><span class="ln">518  </span></a>        results : list or array of lists 
+<a name="l519"><span class="ln">519  </span></a>            If `x` is a single point, returns a list of the indices of the 
+<a name="l520"><span class="ln">520  </span></a>            neighbors of `x`. If `x` is an array of points, returns an object 
+<a name="l521"><span class="ln">521  </span></a>            array of shape tuple containing lists of neighbors. 
+<a name="l522"><span class="ln">522  </span></a> 
+<a name="l523"><span class="ln">523  </span></a>        Notes 
+<a name="l524"><span class="ln">524  </span></a>        ----- 
+<a name="l525"><span class="ln">525  </span></a>        If you have many points whose neighbors you want to find, you may save 
+<a name="l526"><span class="ln">526  </span></a>        substantial amounts of time by putting them in a KDTree and using 
+<a name="l527"><span class="ln">527  </span></a>        query_ball_tree. 
+<a name="l528"><span class="ln">528  </span></a> 
+<a name="l529"><span class="ln">529  </span></a>        Examples 
+<a name="l530"><span class="ln">530  </span></a>        -------- 
+<a name="l531"><span class="ln">531  </span></a>        &gt;&gt;&gt; import numpy as np 
+<a name="l532"><span class="ln">532  </span></a>        &gt;&gt;&gt; from scipy import spatial 
+<a name="l533"><span class="ln">533  </span></a>        &gt;&gt;&gt; x, y = np.mgrid[0:5, 0:5] 
+<a name="l534"><span class="ln">534  </span></a>        &gt;&gt;&gt; points = np.c_[x.ravel(), y.ravel()] 
+<a name="l535"><span class="ln">535  </span></a>        &gt;&gt;&gt; tree = spatial.KDTree(points) 
+<a name="l536"><span class="ln">536  </span></a>        &gt;&gt;&gt; sorted(tree.query_ball_point([2, 0], 1)) 
+<a name="l537"><span class="ln">537  </span></a>        [5, 10, 11, 15] 
+<a name="l538"><span class="ln">538  </span></a> 
+<a name="l539"><span class="ln">539  </span></a>        Query multiple points and plot the results: 
+<a name="l540"><span class="ln">540  </span></a> 
+<a name="l541"><span class="ln">541  </span></a>        &gt;&gt;&gt; import matplotlib.pyplot as plt 
+<a name="l542"><span class="ln">542  </span></a>        &gt;&gt;&gt; points = np.asarray(points) 
+<a name="l543"><span class="ln">543  </span></a>        &gt;&gt;&gt; plt.plot(points[:,0], points[:,1], '.') 
+<a name="l544"><span class="ln">544  </span></a>        &gt;&gt;&gt; for results in tree.query_ball_point(([2, 0], [3, 3]), 1): 
+<a name="l545"><span class="ln">545  </span></a>        ...     nearby_points = points[results] 
+<a name="l546"><span class="ln">546  </span></a>        ...     plt.plot(nearby_points[:,0], nearby_points[:,1], 'o') 
+<a name="l547"><span class="ln">547  </span></a>        &gt;&gt;&gt; plt.margins(0.1, 0.1) 
+<a name="l548"><span class="ln">548  </span></a>        &gt;&gt;&gt; plt.show() 
+<a name="l549"><span class="ln">549  </span></a> 
+<a name="l550"><span class="ln">550  </span></a>        &quot;&quot;&quot;</span>
+<a name="l551"><span class="ln">551  </span></a>        <span class="s1">x </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span>
+<a name="l552"><span class="ln">552  </span></a>        <span class="s2">if </span><span class="s1">x</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">kind </span><span class="s2">== </span><span class="s4">'c'</span><span class="s2">:</span>
+<a name="l553"><span class="ln">553  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;KDTree does not work with complex data&quot;</span><span class="s3">)</span>
+<a name="l554"><span class="ln">554  </span></a>        <span class="s2">return </span><span class="s1">super</span><span class="s3">().</span><span class="s1">query_ball_point</span><span class="s3">(</span>
+<a name="l555"><span class="ln">555  </span></a>            <span class="s1">x</span><span class="s3">, </span><span class="s1">r</span><span class="s3">, </span><span class="s1">p</span><span class="s3">, </span><span class="s1">eps</span><span class="s3">, </span><span class="s1">workers</span><span class="s3">, </span><span class="s1">return_sorted</span><span class="s3">, </span><span class="s1">return_length</span><span class="s3">)</span>
+<a name="l556"><span class="ln">556  </span></a>
+<a name="l557"><span class="ln">557  </span></a>    <span class="s2">def </span><span class="s1">query_ball_tree</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">, </span><span class="s1">r</span><span class="s3">, </span><span class="s1">p</span><span class="s2">=</span><span class="s5">2.</span><span class="s3">, </span><span class="s1">eps</span><span class="s2">=</span><span class="s5">0</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l558"><span class="ln">558  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l559"><span class="ln">559  </span></a>        Find all pairs of points between `self` and `other` whose distance is 
+<a name="l560"><span class="ln">560  </span></a>        at most r. 
+<a name="l561"><span class="ln">561  </span></a> 
+<a name="l562"><span class="ln">562  </span></a>        Parameters 
+<a name="l563"><span class="ln">563  </span></a>        ---------- 
+<a name="l564"><span class="ln">564  </span></a>        other : KDTree instance 
+<a name="l565"><span class="ln">565  </span></a>            The tree containing points to search against. 
+<a name="l566"><span class="ln">566  </span></a>        r : float 
+<a name="l567"><span class="ln">567  </span></a>            The maximum distance, has to be positive. 
+<a name="l568"><span class="ln">568  </span></a>        p : float, optional 
+<a name="l569"><span class="ln">569  </span></a>            Which Minkowski norm to use.  `p` has to meet the condition 
+<a name="l570"><span class="ln">570  </span></a>            ``1 &lt;= p &lt;= infinity``. 
+<a name="l571"><span class="ln">571  </span></a>        eps : float, optional 
+<a name="l572"><span class="ln">572  </span></a>            Approximate search.  Branches of the tree are not explored 
+<a name="l573"><span class="ln">573  </span></a>            if their nearest points are further than ``r/(1+eps)``, and 
+<a name="l574"><span class="ln">574  </span></a>            branches are added in bulk if their furthest points are nearer 
+<a name="l575"><span class="ln">575  </span></a>            than ``r * (1+eps)``.  `eps` has to be non-negative. 
+<a name="l576"><span class="ln">576  </span></a> 
+<a name="l577"><span class="ln">577  </span></a>        Returns 
+<a name="l578"><span class="ln">578  </span></a>        ------- 
+<a name="l579"><span class="ln">579  </span></a>        results : list of lists 
+<a name="l580"><span class="ln">580  </span></a>            For each element ``self.data[i]`` of this tree, ``results[i]`` is a 
+<a name="l581"><span class="ln">581  </span></a>            list of the indices of its neighbors in ``other.data``. 
+<a name="l582"><span class="ln">582  </span></a> 
+<a name="l583"><span class="ln">583  </span></a>        Examples 
+<a name="l584"><span class="ln">584  </span></a>        -------- 
+<a name="l585"><span class="ln">585  </span></a>        You can search all pairs of points between two kd-trees within a distance: 
+<a name="l586"><span class="ln">586  </span></a> 
+<a name="l587"><span class="ln">587  </span></a>        &gt;&gt;&gt; import matplotlib.pyplot as plt 
+<a name="l588"><span class="ln">588  </span></a>        &gt;&gt;&gt; import numpy as np 
+<a name="l589"><span class="ln">589  </span></a>        &gt;&gt;&gt; from scipy.spatial import KDTree 
+<a name="l590"><span class="ln">590  </span></a>        &gt;&gt;&gt; rng = np.random.default_rng() 
+<a name="l591"><span class="ln">591  </span></a>        &gt;&gt;&gt; points1 = rng.random((15, 2)) 
+<a name="l592"><span class="ln">592  </span></a>        &gt;&gt;&gt; points2 = rng.random((15, 2)) 
+<a name="l593"><span class="ln">593  </span></a>        &gt;&gt;&gt; plt.figure(figsize=(6, 6)) 
+<a name="l594"><span class="ln">594  </span></a>        &gt;&gt;&gt; plt.plot(points1[:, 0], points1[:, 1], &quot;xk&quot;, markersize=14) 
+<a name="l595"><span class="ln">595  </span></a>        &gt;&gt;&gt; plt.plot(points2[:, 0], points2[:, 1], &quot;og&quot;, markersize=14) 
+<a name="l596"><span class="ln">596  </span></a>        &gt;&gt;&gt; kd_tree1 = KDTree(points1) 
+<a name="l597"><span class="ln">597  </span></a>        &gt;&gt;&gt; kd_tree2 = KDTree(points2) 
+<a name="l598"><span class="ln">598  </span></a>        &gt;&gt;&gt; indexes = kd_tree1.query_ball_tree(kd_tree2, r=0.2) 
+<a name="l599"><span class="ln">599  </span></a>        &gt;&gt;&gt; for i in range(len(indexes)): 
+<a name="l600"><span class="ln">600  </span></a>        ...     for j in indexes[i]: 
+<a name="l601"><span class="ln">601  </span></a>        ...         plt.plot([points1[i, 0], points2[j, 0]], 
+<a name="l602"><span class="ln">602  </span></a>        ...             [points1[i, 1], points2[j, 1]], &quot;-r&quot;) 
+<a name="l603"><span class="ln">603  </span></a>        &gt;&gt;&gt; plt.show() 
+<a name="l604"><span class="ln">604  </span></a> 
+<a name="l605"><span class="ln">605  </span></a>        &quot;&quot;&quot;</span>
+<a name="l606"><span class="ln">606  </span></a>        <span class="s2">return </span><span class="s1">super</span><span class="s3">().</span><span class="s1">query_ball_tree</span><span class="s3">(</span><span class="s1">other</span><span class="s3">, </span><span class="s1">r</span><span class="s3">, </span><span class="s1">p</span><span class="s3">, </span><span class="s1">eps</span><span class="s3">)</span>
+<a name="l607"><span class="ln">607  </span></a>
+<a name="l608"><span class="ln">608  </span></a>    <span class="s2">def </span><span class="s1">query_pairs</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">r</span><span class="s3">, </span><span class="s1">p</span><span class="s2">=</span><span class="s5">2.</span><span class="s3">, </span><span class="s1">eps</span><span class="s2">=</span><span class="s5">0</span><span class="s3">, </span><span class="s1">output_type</span><span class="s2">=</span><span class="s4">'set'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l609"><span class="ln">609  </span></a>        <span class="s0">&quot;&quot;&quot;Find all pairs of points in `self` whose distance is at most r. 
+<a name="l610"><span class="ln">610  </span></a> 
+<a name="l611"><span class="ln">611  </span></a>        Parameters 
+<a name="l612"><span class="ln">612  </span></a>        ---------- 
+<a name="l613"><span class="ln">613  </span></a>        r : positive float 
+<a name="l614"><span class="ln">614  </span></a>            The maximum distance. 
+<a name="l615"><span class="ln">615  </span></a>        p : float, optional 
+<a name="l616"><span class="ln">616  </span></a>            Which Minkowski norm to use.  `p` has to meet the condition 
+<a name="l617"><span class="ln">617  </span></a>            ``1 &lt;= p &lt;= infinity``. 
+<a name="l618"><span class="ln">618  </span></a>        eps : float, optional 
+<a name="l619"><span class="ln">619  </span></a>            Approximate search.  Branches of the tree are not explored 
+<a name="l620"><span class="ln">620  </span></a>            if their nearest points are further than ``r/(1+eps)``, and 
+<a name="l621"><span class="ln">621  </span></a>            branches are added in bulk if their furthest points are nearer 
+<a name="l622"><span class="ln">622  </span></a>            than ``r * (1+eps)``.  `eps` has to be non-negative. 
+<a name="l623"><span class="ln">623  </span></a>        output_type : string, optional 
+<a name="l624"><span class="ln">624  </span></a>            Choose the output container, 'set' or 'ndarray'. Default: 'set' 
+<a name="l625"><span class="ln">625  </span></a> 
+<a name="l626"><span class="ln">626  </span></a>            .. versionadded:: 1.6.0 
+<a name="l627"><span class="ln">627  </span></a> 
+<a name="l628"><span class="ln">628  </span></a>        Returns 
+<a name="l629"><span class="ln">629  </span></a>        ------- 
+<a name="l630"><span class="ln">630  </span></a>        results : set or ndarray 
+<a name="l631"><span class="ln">631  </span></a>            Set of pairs ``(i,j)``, with ``i &lt; j``, for which the corresponding 
+<a name="l632"><span class="ln">632  </span></a>            positions are close. If output_type is 'ndarray', an ndarry is 
+<a name="l633"><span class="ln">633  </span></a>            returned instead of a set. 
+<a name="l634"><span class="ln">634  </span></a> 
+<a name="l635"><span class="ln">635  </span></a>        Examples 
+<a name="l636"><span class="ln">636  </span></a>        -------- 
+<a name="l637"><span class="ln">637  </span></a>        You can search all pairs of points in a kd-tree within a distance: 
+<a name="l638"><span class="ln">638  </span></a> 
+<a name="l639"><span class="ln">639  </span></a>        &gt;&gt;&gt; import matplotlib.pyplot as plt 
+<a name="l640"><span class="ln">640  </span></a>        &gt;&gt;&gt; import numpy as np 
+<a name="l641"><span class="ln">641  </span></a>        &gt;&gt;&gt; from scipy.spatial import KDTree 
+<a name="l642"><span class="ln">642  </span></a>        &gt;&gt;&gt; rng = np.random.default_rng() 
+<a name="l643"><span class="ln">643  </span></a>        &gt;&gt;&gt; points = rng.random((20, 2)) 
+<a name="l644"><span class="ln">644  </span></a>        &gt;&gt;&gt; plt.figure(figsize=(6, 6)) 
+<a name="l645"><span class="ln">645  </span></a>        &gt;&gt;&gt; plt.plot(points[:, 0], points[:, 1], &quot;xk&quot;, markersize=14) 
+<a name="l646"><span class="ln">646  </span></a>        &gt;&gt;&gt; kd_tree = KDTree(points) 
+<a name="l647"><span class="ln">647  </span></a>        &gt;&gt;&gt; pairs = kd_tree.query_pairs(r=0.2) 
+<a name="l648"><span class="ln">648  </span></a>        &gt;&gt;&gt; for (i, j) in pairs: 
+<a name="l649"><span class="ln">649  </span></a>        ...     plt.plot([points[i, 0], points[j, 0]], 
+<a name="l650"><span class="ln">650  </span></a>        ...             [points[i, 1], points[j, 1]], &quot;-r&quot;) 
+<a name="l651"><span class="ln">651  </span></a>        &gt;&gt;&gt; plt.show() 
+<a name="l652"><span class="ln">652  </span></a> 
+<a name="l653"><span class="ln">653  </span></a>        &quot;&quot;&quot;</span>
+<a name="l654"><span class="ln">654  </span></a>        <span class="s2">return </span><span class="s1">super</span><span class="s3">().</span><span class="s1">query_pairs</span><span class="s3">(</span><span class="s1">r</span><span class="s3">, </span><span class="s1">p</span><span class="s3">, </span><span class="s1">eps</span><span class="s3">, </span><span class="s1">output_type</span><span class="s3">)</span>
+<a name="l655"><span class="ln">655  </span></a>
+<a name="l656"><span class="ln">656  </span></a>    <span class="s2">def </span><span class="s1">count_neighbors</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">, </span><span class="s1">r</span><span class="s3">, </span><span class="s1">p</span><span class="s2">=</span><span class="s5">2.</span><span class="s3">, </span><span class="s1">weights</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">cumulative</span><span class="s2">=True</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l657"><span class="ln">657  </span></a>        <span class="s0">&quot;&quot;&quot;Count how many nearby pairs can be formed. 
+<a name="l658"><span class="ln">658  </span></a> 
+<a name="l659"><span class="ln">659  </span></a>        Count the number of pairs ``(x1,x2)`` can be formed, with ``x1`` drawn 
+<a name="l660"><span class="ln">660  </span></a>        from ``self`` and ``x2`` drawn from ``other``, and where 
+<a name="l661"><span class="ln">661  </span></a>        ``distance(x1, x2, p) &lt;= r``. 
+<a name="l662"><span class="ln">662  </span></a> 
+<a name="l663"><span class="ln">663  </span></a>        Data points on ``self`` and ``other`` are optionally weighted by the 
+<a name="l664"><span class="ln">664  </span></a>        ``weights`` argument. (See below) 
+<a name="l665"><span class="ln">665  </span></a> 
+<a name="l666"><span class="ln">666  </span></a>        This is adapted from the &quot;two-point correlation&quot; algorithm described by 
+<a name="l667"><span class="ln">667  </span></a>        Gray and Moore [1]_.  See notes for further discussion. 
+<a name="l668"><span class="ln">668  </span></a> 
+<a name="l669"><span class="ln">669  </span></a>        Parameters 
+<a name="l670"><span class="ln">670  </span></a>        ---------- 
+<a name="l671"><span class="ln">671  </span></a>        other : KDTree 
+<a name="l672"><span class="ln">672  </span></a>            The other tree to draw points from, can be the same tree as self. 
+<a name="l673"><span class="ln">673  </span></a>        r : float or one-dimensional array of floats 
+<a name="l674"><span class="ln">674  </span></a>            The radius to produce a count for. Multiple radii are searched with 
+<a name="l675"><span class="ln">675  </span></a>            a single tree traversal. 
+<a name="l676"><span class="ln">676  </span></a>            If the count is non-cumulative(``cumulative=False``), ``r`` defines 
+<a name="l677"><span class="ln">677  </span></a>            the edges of the bins, and must be non-decreasing. 
+<a name="l678"><span class="ln">678  </span></a>        p : float, optional 
+<a name="l679"><span class="ln">679  </span></a>            1&lt;=p&lt;=infinity. 
+<a name="l680"><span class="ln">680  </span></a>            Which Minkowski p-norm to use. 
+<a name="l681"><span class="ln">681  </span></a>            Default 2.0. 
+<a name="l682"><span class="ln">682  </span></a>            A finite large p may cause a ValueError if overflow can occur. 
+<a name="l683"><span class="ln">683  </span></a>        weights : tuple, array_like, or None, optional 
+<a name="l684"><span class="ln">684  </span></a>            If None, the pair-counting is unweighted. 
+<a name="l685"><span class="ln">685  </span></a>            If given as a tuple, weights[0] is the weights of points in 
+<a name="l686"><span class="ln">686  </span></a>            ``self``, and weights[1] is the weights of points in ``other``; 
+<a name="l687"><span class="ln">687  </span></a>            either can be None to indicate the points are unweighted. 
+<a name="l688"><span class="ln">688  </span></a>            If given as an array_like, weights is the weights of points in 
+<a name="l689"><span class="ln">689  </span></a>            ``self`` and ``other``. For this to make sense, ``self`` and 
+<a name="l690"><span class="ln">690  </span></a>            ``other`` must be the same tree. If ``self`` and ``other`` are two 
+<a name="l691"><span class="ln">691  </span></a>            different trees, a ``ValueError`` is raised. 
+<a name="l692"><span class="ln">692  </span></a>            Default: None 
+<a name="l693"><span class="ln">693  </span></a> 
+<a name="l694"><span class="ln">694  </span></a>            .. versionadded:: 1.6.0 
+<a name="l695"><span class="ln">695  </span></a>        cumulative : bool, optional 
+<a name="l696"><span class="ln">696  </span></a>            Whether the returned counts are cumulative. When cumulative is set 
+<a name="l697"><span class="ln">697  </span></a>            to ``False`` the algorithm is optimized to work with a large number 
+<a name="l698"><span class="ln">698  </span></a>            of bins (&gt;10) specified by ``r``. When ``cumulative`` is set to 
+<a name="l699"><span class="ln">699  </span></a>            True, the algorithm is optimized to work with a small number of 
+<a name="l700"><span class="ln">700  </span></a>            ``r``. Default: True 
+<a name="l701"><span class="ln">701  </span></a> 
+<a name="l702"><span class="ln">702  </span></a>            .. versionadded:: 1.6.0 
+<a name="l703"><span class="ln">703  </span></a> 
+<a name="l704"><span class="ln">704  </span></a>        Returns 
+<a name="l705"><span class="ln">705  </span></a>        ------- 
+<a name="l706"><span class="ln">706  </span></a>        result : scalar or 1-D array 
+<a name="l707"><span class="ln">707  </span></a>            The number of pairs. For unweighted counts, the result is integer. 
+<a name="l708"><span class="ln">708  </span></a>            For weighted counts, the result is float. 
+<a name="l709"><span class="ln">709  </span></a>            If cumulative is False, ``result[i]`` contains the counts with 
+<a name="l710"><span class="ln">710  </span></a>            ``(-inf if i == 0 else r[i-1]) &lt; R &lt;= r[i]`` 
+<a name="l711"><span class="ln">711  </span></a> 
+<a name="l712"><span class="ln">712  </span></a>        Notes 
+<a name="l713"><span class="ln">713  </span></a>        ----- 
+<a name="l714"><span class="ln">714  </span></a>        Pair-counting is the basic operation used to calculate the two point 
+<a name="l715"><span class="ln">715  </span></a>        correlation functions from a data set composed of position of objects. 
+<a name="l716"><span class="ln">716  </span></a> 
+<a name="l717"><span class="ln">717  </span></a>        Two point correlation function measures the clustering of objects and 
+<a name="l718"><span class="ln">718  </span></a>        is widely used in cosmology to quantify the large scale structure 
+<a name="l719"><span class="ln">719  </span></a>        in our Universe, but it may be useful for data analysis in other fields 
+<a name="l720"><span class="ln">720  </span></a>        where self-similar assembly of objects also occur. 
+<a name="l721"><span class="ln">721  </span></a> 
+<a name="l722"><span class="ln">722  </span></a>        The Landy-Szalay estimator for the two point correlation function of 
+<a name="l723"><span class="ln">723  </span></a>        ``D`` measures the clustering signal in ``D``. [2]_ 
+<a name="l724"><span class="ln">724  </span></a> 
+<a name="l725"><span class="ln">725  </span></a>        For example, given the position of two sets of objects, 
+<a name="l726"><span class="ln">726  </span></a> 
+<a name="l727"><span class="ln">727  </span></a>        - objects ``D`` (data) contains the clustering signal, and 
+<a name="l728"><span class="ln">728  </span></a> 
+<a name="l729"><span class="ln">729  </span></a>        - objects ``R`` (random) that contains no signal, 
+<a name="l730"><span class="ln">730  </span></a> 
+<a name="l731"><span class="ln">731  </span></a>        .. math:: 
+<a name="l732"><span class="ln">732  </span></a> 
+<a name="l733"><span class="ln">733  </span></a>             \\xi(r) = \\frac{&lt;D, D&gt; - 2 f &lt;D, R&gt; + f^2&lt;R, R&gt;}{f^2&lt;R, R&gt;}, 
+<a name="l734"><span class="ln">734  </span></a> 
+<a name="l735"><span class="ln">735  </span></a>        where the brackets represents counting pairs between two data sets 
+<a name="l736"><span class="ln">736  </span></a>        in a finite bin around ``r`` (distance), corresponding to setting 
+<a name="l737"><span class="ln">737  </span></a>        `cumulative=False`, and ``f = float(len(D)) / float(len(R))`` is the 
+<a name="l738"><span class="ln">738  </span></a>        ratio between number of objects from data and random. 
+<a name="l739"><span class="ln">739  </span></a> 
+<a name="l740"><span class="ln">740  </span></a>        The algorithm implemented here is loosely based on the dual-tree 
+<a name="l741"><span class="ln">741  </span></a>        algorithm described in [1]_. We switch between two different 
+<a name="l742"><span class="ln">742  </span></a>        pair-cumulation scheme depending on the setting of ``cumulative``. 
+<a name="l743"><span class="ln">743  </span></a>        The computing time of the method we use when for 
+<a name="l744"><span class="ln">744  </span></a>        ``cumulative == False`` does not scale with the total number of bins. 
+<a name="l745"><span class="ln">745  </span></a>        The algorithm for ``cumulative == True`` scales linearly with the 
+<a name="l746"><span class="ln">746  </span></a>        number of bins, though it is slightly faster when only 
+<a name="l747"><span class="ln">747  </span></a>        1 or 2 bins are used. [5]_. 
+<a name="l748"><span class="ln">748  </span></a> 
+<a name="l749"><span class="ln">749  </span></a>        As an extension to the naive pair-counting, 
+<a name="l750"><span class="ln">750  </span></a>        weighted pair-counting counts the product of weights instead 
+<a name="l751"><span class="ln">751  </span></a>        of number of pairs. 
+<a name="l752"><span class="ln">752  </span></a>        Weighted pair-counting is used to estimate marked correlation functions 
+<a name="l753"><span class="ln">753  </span></a>        ([3]_, section 2.2), 
+<a name="l754"><span class="ln">754  </span></a>        or to properly calculate the average of data per distance bin 
+<a name="l755"><span class="ln">755  </span></a>        (e.g. [4]_, section 2.1 on redshift). 
+<a name="l756"><span class="ln">756  </span></a> 
+<a name="l757"><span class="ln">757  </span></a>        .. [1] Gray and Moore, 
+<a name="l758"><span class="ln">758  </span></a>               &quot;N-body problems in statistical learning&quot;, 
+<a name="l759"><span class="ln">759  </span></a>               Mining the sky, 2000, 
+<a name="l760"><span class="ln">760  </span></a>               https://arxiv.org/abs/astro-ph/0012333 
+<a name="l761"><span class="ln">761  </span></a> 
+<a name="l762"><span class="ln">762  </span></a>        .. [2] Landy and Szalay, 
+<a name="l763"><span class="ln">763  </span></a>               &quot;Bias and variance of angular correlation functions&quot;, 
+<a name="l764"><span class="ln">764  </span></a>               The Astrophysical Journal, 1993, 
+<a name="l765"><span class="ln">765  </span></a>               http://adsabs.harvard.edu/abs/1993ApJ...412...64L 
+<a name="l766"><span class="ln">766  </span></a> 
+<a name="l767"><span class="ln">767  </span></a>        .. [3] Sheth, Connolly and Skibba, 
+<a name="l768"><span class="ln">768  </span></a>               &quot;Marked correlations in galaxy formation models&quot;, 
+<a name="l769"><span class="ln">769  </span></a>               Arxiv e-print, 2005, 
+<a name="l770"><span class="ln">770  </span></a>               https://arxiv.org/abs/astro-ph/0511773 
+<a name="l771"><span class="ln">771  </span></a> 
+<a name="l772"><span class="ln">772  </span></a>        .. [4] Hawkins, et al., 
+<a name="l773"><span class="ln">773  </span></a>               &quot;The 2dF Galaxy Redshift Survey: correlation functions, 
+<a name="l774"><span class="ln">774  </span></a>               peculiar velocities and the matter density of the Universe&quot;, 
+<a name="l775"><span class="ln">775  </span></a>               Monthly Notices of the Royal Astronomical Society, 2002, 
+<a name="l776"><span class="ln">776  </span></a>               http://adsabs.harvard.edu/abs/2003MNRAS.346...78H 
+<a name="l777"><span class="ln">777  </span></a> 
+<a name="l778"><span class="ln">778  </span></a>        .. [5] https://github.com/scipy/scipy/pull/5647#issuecomment-168474926 
+<a name="l779"><span class="ln">779  </span></a> 
+<a name="l780"><span class="ln">780  </span></a>        Examples 
+<a name="l781"><span class="ln">781  </span></a>        -------- 
+<a name="l782"><span class="ln">782  </span></a>        You can count neighbors number between two kd-trees within a distance: 
+<a name="l783"><span class="ln">783  </span></a> 
+<a name="l784"><span class="ln">784  </span></a>        &gt;&gt;&gt; import numpy as np 
+<a name="l785"><span class="ln">785  </span></a>        &gt;&gt;&gt; from scipy.spatial import KDTree 
+<a name="l786"><span class="ln">786  </span></a>        &gt;&gt;&gt; rng = np.random.default_rng() 
+<a name="l787"><span class="ln">787  </span></a>        &gt;&gt;&gt; points1 = rng.random((5, 2)) 
+<a name="l788"><span class="ln">788  </span></a>        &gt;&gt;&gt; points2 = rng.random((5, 2)) 
+<a name="l789"><span class="ln">789  </span></a>        &gt;&gt;&gt; kd_tree1 = KDTree(points1) 
+<a name="l790"><span class="ln">790  </span></a>        &gt;&gt;&gt; kd_tree2 = KDTree(points2) 
+<a name="l791"><span class="ln">791  </span></a>        &gt;&gt;&gt; kd_tree1.count_neighbors(kd_tree2, 0.2) 
+<a name="l792"><span class="ln">792  </span></a>        1 
+<a name="l793"><span class="ln">793  </span></a> 
+<a name="l794"><span class="ln">794  </span></a>        This number is same as the total pair number calculated by 
+<a name="l795"><span class="ln">795  </span></a>        `query_ball_tree`: 
+<a name="l796"><span class="ln">796  </span></a> 
+<a name="l797"><span class="ln">797  </span></a>        &gt;&gt;&gt; indexes = kd_tree1.query_ball_tree(kd_tree2, r=0.2) 
+<a name="l798"><span class="ln">798  </span></a>        &gt;&gt;&gt; sum([len(i) for i in indexes]) 
+<a name="l799"><span class="ln">799  </span></a>        1 
+<a name="l800"><span class="ln">800  </span></a> 
+<a name="l801"><span class="ln">801  </span></a>        &quot;&quot;&quot;</span>
+<a name="l802"><span class="ln">802  </span></a>        <span class="s2">return </span><span class="s1">super</span><span class="s3">().</span><span class="s1">count_neighbors</span><span class="s3">(</span><span class="s1">other</span><span class="s3">, </span><span class="s1">r</span><span class="s3">, </span><span class="s1">p</span><span class="s3">, </span><span class="s1">weights</span><span class="s3">, </span><span class="s1">cumulative</span><span class="s3">)</span>
+<a name="l803"><span class="ln">803  </span></a>
+<a name="l804"><span class="ln">804  </span></a>    <span class="s2">def </span><span class="s1">sparse_distance_matrix</span><span class="s3">(</span>
+<a name="l805"><span class="ln">805  </span></a>            <span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">, </span><span class="s1">max_distance</span><span class="s3">, </span><span class="s1">p</span><span class="s2">=</span><span class="s5">2.</span><span class="s3">, </span><span class="s1">output_type</span><span class="s2">=</span><span class="s4">'dok_matrix'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l806"><span class="ln">806  </span></a>        <span class="s0">&quot;&quot;&quot;Compute a sparse distance matrix. 
+<a name="l807"><span class="ln">807  </span></a> 
+<a name="l808"><span class="ln">808  </span></a>        Computes a distance matrix between two KDTrees, leaving as zero 
+<a name="l809"><span class="ln">809  </span></a>        any distance greater than max_distance. 
+<a name="l810"><span class="ln">810  </span></a> 
+<a name="l811"><span class="ln">811  </span></a>        Parameters 
+<a name="l812"><span class="ln">812  </span></a>        ---------- 
+<a name="l813"><span class="ln">813  </span></a>        other : KDTree 
+<a name="l814"><span class="ln">814  </span></a> 
+<a name="l815"><span class="ln">815  </span></a>        max_distance : positive float 
+<a name="l816"><span class="ln">816  </span></a> 
+<a name="l817"><span class="ln">817  </span></a>        p : float, 1&lt;=p&lt;=infinity 
+<a name="l818"><span class="ln">818  </span></a>            Which Minkowski p-norm to use. 
+<a name="l819"><span class="ln">819  </span></a>            A finite large p may cause a ValueError if overflow can occur. 
+<a name="l820"><span class="ln">820  </span></a> 
+<a name="l821"><span class="ln">821  </span></a>        output_type : string, optional 
+<a name="l822"><span class="ln">822  </span></a>            Which container to use for output data. Options: 'dok_matrix', 
+<a name="l823"><span class="ln">823  </span></a>            'coo_matrix', 'dict', or 'ndarray'. Default: 'dok_matrix'. 
+<a name="l824"><span class="ln">824  </span></a> 
+<a name="l825"><span class="ln">825  </span></a>            .. versionadded:: 1.6.0 
+<a name="l826"><span class="ln">826  </span></a> 
+<a name="l827"><span class="ln">827  </span></a>        Returns 
+<a name="l828"><span class="ln">828  </span></a>        ------- 
+<a name="l829"><span class="ln">829  </span></a>        result : dok_matrix, coo_matrix, dict or ndarray 
+<a name="l830"><span class="ln">830  </span></a>            Sparse matrix representing the results in &quot;dictionary of keys&quot; 
+<a name="l831"><span class="ln">831  </span></a>            format. If a dict is returned the keys are (i,j) tuples of indices. 
+<a name="l832"><span class="ln">832  </span></a>            If output_type is 'ndarray' a record array with fields 'i', 'j', 
+<a name="l833"><span class="ln">833  </span></a>            and 'v' is returned, 
+<a name="l834"><span class="ln">834  </span></a> 
+<a name="l835"><span class="ln">835  </span></a>        Examples 
+<a name="l836"><span class="ln">836  </span></a>        -------- 
+<a name="l837"><span class="ln">837  </span></a>        You can compute a sparse distance matrix between two kd-trees: 
+<a name="l838"><span class="ln">838  </span></a> 
+<a name="l839"><span class="ln">839  </span></a>        &gt;&gt;&gt; import numpy as np 
+<a name="l840"><span class="ln">840  </span></a>        &gt;&gt;&gt; from scipy.spatial import KDTree 
+<a name="l841"><span class="ln">841  </span></a>        &gt;&gt;&gt; rng = np.random.default_rng() 
+<a name="l842"><span class="ln">842  </span></a>        &gt;&gt;&gt; points1 = rng.random((5, 2)) 
+<a name="l843"><span class="ln">843  </span></a>        &gt;&gt;&gt; points2 = rng.random((5, 2)) 
+<a name="l844"><span class="ln">844  </span></a>        &gt;&gt;&gt; kd_tree1 = KDTree(points1) 
+<a name="l845"><span class="ln">845  </span></a>        &gt;&gt;&gt; kd_tree2 = KDTree(points2) 
+<a name="l846"><span class="ln">846  </span></a>        &gt;&gt;&gt; sdm = kd_tree1.sparse_distance_matrix(kd_tree2, 0.3) 
+<a name="l847"><span class="ln">847  </span></a>        &gt;&gt;&gt; sdm.toarray() 
+<a name="l848"><span class="ln">848  </span></a>        array([[0.        , 0.        , 0.12295571, 0.        , 0.        ], 
+<a name="l849"><span class="ln">849  </span></a>           [0.        , 0.        , 0.        , 0.        , 0.        ], 
+<a name="l850"><span class="ln">850  </span></a>           [0.28942611, 0.        , 0.        , 0.2333084 , 0.        ], 
+<a name="l851"><span class="ln">851  </span></a>           [0.        , 0.        , 0.        , 0.        , 0.        ], 
+<a name="l852"><span class="ln">852  </span></a>           [0.24617575, 0.29571802, 0.26836782, 0.        , 0.        ]]) 
+<a name="l853"><span class="ln">853  </span></a> 
+<a name="l854"><span class="ln">854  </span></a>        You can check distances above the `max_distance` are zeros: 
+<a name="l855"><span class="ln">855  </span></a> 
+<a name="l856"><span class="ln">856  </span></a>        &gt;&gt;&gt; from scipy.spatial import distance_matrix 
+<a name="l857"><span class="ln">857  </span></a>        &gt;&gt;&gt; distance_matrix(points1, points2) 
+<a name="l858"><span class="ln">858  </span></a>        array([[0.56906522, 0.39923701, 0.12295571, 0.8658745 , 0.79428925], 
+<a name="l859"><span class="ln">859  </span></a>           [0.37327919, 0.7225693 , 0.87665969, 0.32580855, 0.75679479], 
+<a name="l860"><span class="ln">860  </span></a>           [0.28942611, 0.30088013, 0.6395831 , 0.2333084 , 0.33630734], 
+<a name="l861"><span class="ln">861  </span></a>           [0.31994999, 0.72658602, 0.71124834, 0.55396483, 0.90785663], 
+<a name="l862"><span class="ln">862  </span></a>           [0.24617575, 0.29571802, 0.26836782, 0.57714465, 0.6473269 ]]) 
+<a name="l863"><span class="ln">863  </span></a> 
+<a name="l864"><span class="ln">864  </span></a>        &quot;&quot;&quot;</span>
+<a name="l865"><span class="ln">865  </span></a>        <span class="s2">return </span><span class="s1">super</span><span class="s3">().</span><span class="s1">sparse_distance_matrix</span><span class="s3">(</span>
+<a name="l866"><span class="ln">866  </span></a>            <span class="s1">other</span><span class="s3">, </span><span class="s1">max_distance</span><span class="s3">, </span><span class="s1">p</span><span class="s3">, </span><span class="s1">output_type</span><span class="s3">)</span>
+<a name="l867"><span class="ln">867  </span></a>
+<a name="l868"><span class="ln">868  </span></a>
+<a name="l869"><span class="ln">869  </span></a><span class="s2">def </span><span class="s1">distance_matrix</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">p</span><span class="s2">=</span><span class="s5">2</span><span class="s3">, </span><span class="s1">threshold</span><span class="s2">=</span><span class="s5">1000000</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l870"><span class="ln">870  </span></a>    <span class="s0">&quot;&quot;&quot;Compute the distance matrix. 
+<a name="l871"><span class="ln">871  </span></a> 
+<a name="l872"><span class="ln">872  </span></a>    Returns the matrix of all pair-wise distances. 
+<a name="l873"><span class="ln">873  </span></a> 
+<a name="l874"><span class="ln">874  </span></a>    Parameters 
+<a name="l875"><span class="ln">875  </span></a>    ---------- 
+<a name="l876"><span class="ln">876  </span></a>    x : (M, K) array_like 
+<a name="l877"><span class="ln">877  </span></a>        Matrix of M vectors in K dimensions. 
+<a name="l878"><span class="ln">878  </span></a>    y : (N, K) array_like 
+<a name="l879"><span class="ln">879  </span></a>        Matrix of N vectors in K dimensions. 
+<a name="l880"><span class="ln">880  </span></a>    p : float, 1 &lt;= p &lt;= infinity 
+<a name="l881"><span class="ln">881  </span></a>        Which Minkowski p-norm to use. 
+<a name="l882"><span class="ln">882  </span></a>    threshold : positive int 
+<a name="l883"><span class="ln">883  </span></a>        If ``M * N * K`` &gt; `threshold`, algorithm uses a Python loop instead 
+<a name="l884"><span class="ln">884  </span></a>        of large temporary arrays. 
+<a name="l885"><span class="ln">885  </span></a> 
+<a name="l886"><span class="ln">886  </span></a>    Returns 
+<a name="l887"><span class="ln">887  </span></a>    ------- 
+<a name="l888"><span class="ln">888  </span></a>    result : (M, N) ndarray 
+<a name="l889"><span class="ln">889  </span></a>        Matrix containing the distance from every vector in `x` to every vector 
+<a name="l890"><span class="ln">890  </span></a>        in `y`. 
+<a name="l891"><span class="ln">891  </span></a> 
+<a name="l892"><span class="ln">892  </span></a>    Examples 
+<a name="l893"><span class="ln">893  </span></a>    -------- 
+<a name="l894"><span class="ln">894  </span></a>    &gt;&gt;&gt; from scipy.spatial import distance_matrix 
+<a name="l895"><span class="ln">895  </span></a>    &gt;&gt;&gt; distance_matrix([[0,0],[0,1]], [[1,0],[1,1]]) 
+<a name="l896"><span class="ln">896  </span></a>    array([[ 1.        ,  1.41421356], 
+<a name="l897"><span class="ln">897  </span></a>           [ 1.41421356,  1.        ]]) 
+<a name="l898"><span class="ln">898  </span></a> 
+<a name="l899"><span class="ln">899  </span></a>    &quot;&quot;&quot;</span>
+<a name="l900"><span class="ln">900  </span></a>
+<a name="l901"><span class="ln">901  </span></a>    <span class="s1">x </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span>
+<a name="l902"><span class="ln">902  </span></a>    <span class="s1">m</span><span class="s3">, </span><span class="s1">k </span><span class="s2">= </span><span class="s1">x</span><span class="s3">.</span><span class="s1">shape</span>
+<a name="l903"><span class="ln">903  </span></a>    <span class="s1">y </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">y</span><span class="s3">)</span>
+<a name="l904"><span class="ln">904  </span></a>    <span class="s1">n</span><span class="s3">, </span><span class="s1">kk </span><span class="s2">= </span><span class="s1">y</span><span class="s3">.</span><span class="s1">shape</span>
+<a name="l905"><span class="ln">905  </span></a>
+<a name="l906"><span class="ln">906  </span></a>    <span class="s2">if </span><span class="s1">k </span><span class="s2">!= </span><span class="s1">kk</span><span class="s2">:</span>
+<a name="l907"><span class="ln">907  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">f&quot;x contains {</span><span class="s1">k</span><span class="s4">}-dimensional vectors but y contains &quot;</span>
+<a name="l908"><span class="ln">908  </span></a>                         <span class="s4">f&quot;{</span><span class="s1">kk</span><span class="s4">}-dimensional vectors&quot;</span><span class="s3">)</span>
+<a name="l909"><span class="ln">909  </span></a>
+<a name="l910"><span class="ln">910  </span></a>    <span class="s2">if </span><span class="s1">m</span><span class="s2">*</span><span class="s1">n</span><span class="s2">*</span><span class="s1">k </span><span class="s2">&lt;= </span><span class="s1">threshold</span><span class="s2">:</span>
+<a name="l911"><span class="ln">911  </span></a>        <span class="s2">return </span><span class="s1">minkowski_distance</span><span class="s3">(</span><span class="s1">x</span><span class="s3">[</span><span class="s2">:</span><span class="s3">,</span><span class="s1">np</span><span class="s3">.</span><span class="s1">newaxis</span><span class="s3">,</span><span class="s2">:</span><span class="s3">],</span><span class="s1">y</span><span class="s3">[</span><span class="s1">np</span><span class="s3">.</span><span class="s1">newaxis</span><span class="s3">,</span><span class="s2">:</span><span class="s3">,</span><span class="s2">:</span><span class="s3">],</span><span class="s1">p</span><span class="s3">)</span>
+<a name="l912"><span class="ln">912  </span></a>    <span class="s2">else:</span>
+<a name="l913"><span class="ln">913  </span></a>        <span class="s1">result </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">empty</span><span class="s3">((</span><span class="s1">m</span><span class="s3">,</span><span class="s1">n</span><span class="s3">),</span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">float</span><span class="s3">)  </span><span class="s0"># FIXME: figure out the best dtype</span>
+<a name="l914"><span class="ln">914  </span></a>        <span class="s2">if </span><span class="s1">m </span><span class="s2">&lt; </span><span class="s1">n</span><span class="s2">:</span>
+<a name="l915"><span class="ln">915  </span></a>            <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">m</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l916"><span class="ln">916  </span></a>                <span class="s1">result</span><span class="s3">[</span><span class="s1">i</span><span class="s3">,</span><span class="s2">:</span><span class="s3">] </span><span class="s2">= </span><span class="s1">minkowski_distance</span><span class="s3">(</span><span class="s1">x</span><span class="s3">[</span><span class="s1">i</span><span class="s3">],</span><span class="s1">y</span><span class="s3">,</span><span class="s1">p</span><span class="s3">)</span>
+<a name="l917"><span class="ln">917  </span></a>        <span class="s2">else:</span>
+<a name="l918"><span class="ln">918  </span></a>            <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l919"><span class="ln">919  </span></a>                <span class="s1">result</span><span class="s3">[</span><span class="s2">:</span><span class="s3">,</span><span class="s1">j</span><span class="s3">] </span><span class="s2">= </span><span class="s1">minkowski_distance</span><span class="s3">(</span><span class="s1">x</span><span class="s3">,</span><span class="s1">y</span><span class="s3">[</span><span class="s1">j</span><span class="s3">],</span><span class="s1">p</span><span class="s3">)</span>
+<a name="l920"><span class="ln">920  </span></a>        <span class="s2">return </span><span class="s1">result</span>
+<a name="l921"><span class="ln">921  </span></a></pre>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<html>
+<head>
+<title>signal_handling.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+signal_handling.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: allow-untyped-defs</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">r&quot;&quot;&quot;Signal handling for multiprocessing data loading. 
+<a name="l3"><span class="ln">3    </span></a> 
+<a name="l4"><span class="ln">4    </span></a>NOTE [ Signal handling in multiprocessing data loading ] 
+<a name="l5"><span class="ln">5    </span></a> 
+<a name="l6"><span class="ln">6    </span></a>In cases like DataLoader, if a worker process dies due to bus error/segfault 
+<a name="l7"><span class="ln">7    </span></a>or just hang, the main process will hang waiting for data. This is difficult 
+<a name="l8"><span class="ln">8    </span></a>to avoid on PyTorch side as it can be caused by limited shm, or other 
+<a name="l9"><span class="ln">9    </span></a>libraries users call in the workers. In this file and `DataLoader.cpp`, we make 
+<a name="l10"><span class="ln">10   </span></a>our best effort to provide some error message to users when such unfortunate 
+<a name="l11"><span class="ln">11   </span></a>events happen. 
+<a name="l12"><span class="ln">12   </span></a> 
+<a name="l13"><span class="ln">13   </span></a>When a _BaseDataLoaderIter starts worker processes, their pids are registered in a 
+<a name="l14"><span class="ln">14   </span></a>defined in `DataLoader.cpp`: id(_BaseDataLoaderIter) =&gt; Collection[ Worker pids ] 
+<a name="l15"><span class="ln">15   </span></a>via `_set_worker_pids`. 
+<a name="l16"><span class="ln">16   </span></a> 
+<a name="l17"><span class="ln">17   </span></a>When an error happens in a worker process, the main process received a SIGCHLD, 
+<a name="l18"><span class="ln">18   </span></a>and Python will eventually call the handler registered below 
+<a name="l19"><span class="ln">19   </span></a>(in `_set_SIGCHLD_handler`). In the handler, the `_error_if_any_worker_fails` 
+<a name="l20"><span class="ln">20   </span></a>call checks all registered worker pids and raise proper error message to 
+<a name="l21"><span class="ln">21   </span></a>prevent main process from hanging waiting for data from worker. 
+<a name="l22"><span class="ln">22   </span></a> 
+<a name="l23"><span class="ln">23   </span></a>Additionally, at the beginning of each worker's `_utils.worker._worker_loop`, 
+<a name="l24"><span class="ln">24   </span></a>`_set_worker_signal_handlers` is called to register critical signal handlers 
+<a name="l25"><span class="ln">25   </span></a>(e.g., for SIGSEGV, SIGBUS, SIGFPE, SIGTERM) in C, which just prints an error 
+<a name="l26"><span class="ln">26   </span></a>message to stderr before triggering the default handler. So a message will also 
+<a name="l27"><span class="ln">27   </span></a>be printed from the worker process when it is killed by such signals. 
+<a name="l28"><span class="ln">28   </span></a> 
+<a name="l29"><span class="ln">29   </span></a>See NOTE [ Data Loader Multiprocessing Shutdown Logic ] for the reasoning of 
+<a name="l30"><span class="ln">30   </span></a>this signal handling design and other mechanism we implement to make our 
+<a name="l31"><span class="ln">31   </span></a>multiprocessing data loading robust to errors. 
+<a name="l32"><span class="ln">32   </span></a>&quot;&quot;&quot;</span>
+<a name="l33"><span class="ln">33   </span></a>
+<a name="l34"><span class="ln">34   </span></a><span class="s2">import </span><span class="s1">signal</span>
+<a name="l35"><span class="ln">35   </span></a><span class="s2">import </span><span class="s1">threading</span>
+<a name="l36"><span class="ln">36   </span></a>
+<a name="l37"><span class="ln">37   </span></a><span class="s0"># Some of the following imported functions are not used in this file, but are to</span>
+<a name="l38"><span class="ln">38   </span></a><span class="s0"># be used `_utils.signal_handling.XXXXX`.</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C </span><span class="s2">import </span><span class="s3">(  </span><span class="s0"># noqa: F401</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s1">_error_if_any_worker_fails</span><span class="s3">,</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s1">_remove_worker_pids</span><span class="s3">,</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s1">_set_worker_pids</span><span class="s3">,</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s1">_set_worker_signal_handlers</span><span class="s3">,</span>
+<a name="l44"><span class="ln">44   </span></a><span class="s3">)</span>
+<a name="l45"><span class="ln">45   </span></a>
+<a name="l46"><span class="ln">46   </span></a><span class="s2">from </span><span class="s3">. </span><span class="s2">import </span><span class="s1">IS_WINDOWS</span>
+<a name="l47"><span class="ln">47   </span></a>
+<a name="l48"><span class="ln">48   </span></a>
+<a name="l49"><span class="ln">49   </span></a><span class="s1">_SIGCHLD_handler_set </span><span class="s2">= False</span>
+<a name="l50"><span class="ln">50   </span></a><span class="s4">r&quot;&quot;&quot;Whether SIGCHLD handler is set for DataLoader worker failures. Only one 
+<a name="l51"><span class="ln">51   </span></a>handler needs to be set for all DataLoaders in a process.&quot;&quot;&quot;</span>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a>
+<a name="l54"><span class="ln">54   </span></a><span class="s2">def </span><span class="s1">_set_SIGCHLD_handler</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s0"># Windows doesn't support SIGCHLD handler</span>
+<a name="l56"><span class="ln">56   </span></a>    <span class="s2">if </span><span class="s1">IS_WINDOWS</span><span class="s2">:</span>
+<a name="l57"><span class="ln">57   </span></a>        <span class="s2">return</span>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s0"># can't set signal in child threads</span>
+<a name="l59"><span class="ln">59   </span></a>    <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">threading</span><span class="s3">.</span><span class="s1">current_thread</span><span class="s3">(), </span><span class="s1">threading</span><span class="s3">.</span><span class="s1">_MainThread</span><span class="s3">)</span><span class="s2">:  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l60"><span class="ln">60   </span></a>        <span class="s2">return</span>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s2">global </span><span class="s1">_SIGCHLD_handler_set</span>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s2">if </span><span class="s1">_SIGCHLD_handler_set</span><span class="s2">:</span>
+<a name="l63"><span class="ln">63   </span></a>        <span class="s2">return</span>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s1">previous_handler </span><span class="s2">= </span><span class="s1">signal</span><span class="s3">.</span><span class="s1">getsignal</span><span class="s3">(</span><span class="s1">signal</span><span class="s3">.</span><span class="s1">SIGCHLD</span><span class="s3">)</span>
+<a name="l65"><span class="ln">65   </span></a>    <span class="s2">if not </span><span class="s1">callable</span><span class="s3">(</span><span class="s1">previous_handler</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s0"># This doesn't catch default handler, but SIGCHLD default handler is a</span>
+<a name="l67"><span class="ln">67   </span></a>        <span class="s0"># no-op.</span>
+<a name="l68"><span class="ln">68   </span></a>        <span class="s1">previous_handler </span><span class="s2">= None</span>
+<a name="l69"><span class="ln">69   </span></a>
+<a name="l70"><span class="ln">70   </span></a>    <span class="s2">def </span><span class="s1">handler</span><span class="s3">(</span><span class="s1">signum</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l71"><span class="ln">71   </span></a>        <span class="s0"># This following call uses `waitid` with WNOHANG from C side. Therefore,</span>
+<a name="l72"><span class="ln">72   </span></a>        <span class="s0"># Python can still get and update the process status successfully.</span>
+<a name="l73"><span class="ln">73   </span></a>        <span class="s1">_error_if_any_worker_fails</span><span class="s3">()</span>
+<a name="l74"><span class="ln">74   </span></a>        <span class="s2">if </span><span class="s1">previous_handler </span><span class="s2">is not None:</span>
+<a name="l75"><span class="ln">75   </span></a>            <span class="s2">assert </span><span class="s1">callable</span><span class="s3">(</span><span class="s1">previous_handler</span><span class="s3">)</span>
+<a name="l76"><span class="ln">76   </span></a>            <span class="s1">previous_handler</span><span class="s3">(</span><span class="s1">signum</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">)</span>
+<a name="l77"><span class="ln">77   </span></a>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s1">signal</span><span class="s3">.</span><span class="s1">signal</span><span class="s3">(</span><span class="s1">signal</span><span class="s3">.</span><span class="s1">SIGCHLD</span><span class="s3">, </span><span class="s1">handler</span><span class="s3">)</span>
+<a name="l79"><span class="ln">79   </span></a>    <span class="s1">_SIGCHLD_handler_set </span><span class="s2">= True</span>
+<a name="l80"><span class="ln">80   </span></a></pre>
+</body>
+</html>

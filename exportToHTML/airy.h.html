@@ -1,0 +1,578 @@
+<html>
+<head>
+    <title>airy.h</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <style type="text/css">
+        .s0 { color: #969896; font-style: italic;}
+        .s1 { color: #333333;}
+        .s2 { color: #000080; font-weight: bold;}
+        .s3 { color: #183691; font-weight: bold;}
+        .s4 { color: #660e7a; font-weight: bold;}
+        .s5 { color: #0086b3;}
+        .ln { color: #333333; font-weight: normal; font-style: normal; }
+    </style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0">
+    <tr>
+        <td>
+            <center>
+                <font face="Arial, Helvetica" color="#000000">
+                    airy.h</font>
+            </center>
+        </td>
+    </tr>
+</table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">/* Translated into C++ by SciPy developers in 2024. 
+<a name="l2"><span class="ln">2    </span></a> * Original header with Copyright information appears below. 
+<a name="l3"><span class="ln">3    </span></a> */</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">/*                                                     airy.c 
+<a name="l6"><span class="ln">6    </span></a> * 
+<a name="l7"><span class="ln">7    </span></a> *     Airy function 
+<a name="l8"><span class="ln">8    </span></a> * 
+<a name="l9"><span class="ln">9    </span></a> * 
+<a name="l10"><span class="ln">10   </span></a> * 
+<a name="l11"><span class="ln">11   </span></a> * SYNOPSIS: 
+<a name="l12"><span class="ln">12   </span></a> * 
+<a name="l13"><span class="ln">13   </span></a> * double x, ai, aip, bi, bip; 
+<a name="l14"><span class="ln">14   </span></a> * int airy(); 
+<a name="l15"><span class="ln">15   </span></a> * 
+<a name="l16"><span class="ln">16   </span></a> * airy( x, _&amp;ai, _&amp;aip, _&amp;bi, _&amp;bip ); 
+<a name="l17"><span class="ln">17   </span></a> * 
+<a name="l18"><span class="ln">18   </span></a> * 
+<a name="l19"><span class="ln">19   </span></a> * 
+<a name="l20"><span class="ln">20   </span></a> * DESCRIPTION: 
+<a name="l21"><span class="ln">21   </span></a> * 
+<a name="l22"><span class="ln">22   </span></a> * Solution of the differential equation 
+<a name="l23"><span class="ln">23   </span></a> * 
+<a name="l24"><span class="ln">24   </span></a> *     y&quot;(x) = xy. 
+<a name="l25"><span class="ln">25   </span></a> * 
+<a name="l26"><span class="ln">26   </span></a> * The function returns the two independent solutions Ai, Bi 
+<a name="l27"><span class="ln">27   </span></a> * and their first derivatives Ai'(x), Bi'(x). 
+<a name="l28"><span class="ln">28   </span></a> * 
+<a name="l29"><span class="ln">29   </span></a> * Evaluation is by power series summation for small x, 
+<a name="l30"><span class="ln">30   </span></a> * by rational minimax approximations for large x. 
+<a name="l31"><span class="ln">31   </span></a> * 
+<a name="l32"><span class="ln">32   </span></a> * 
+<a name="l33"><span class="ln">33   </span></a> * 
+<a name="l34"><span class="ln">34   </span></a> * ACCURACY: 
+<a name="l35"><span class="ln">35   </span></a> * Error criterion is absolute when function &lt;= 1, relative 
+<a name="l36"><span class="ln">36   </span></a> * when function &gt; 1, except * denotes relative error criterion. 
+<a name="l37"><span class="ln">37   </span></a> * For large negative x, the absolute error increases as x^1.5. 
+<a name="l38"><span class="ln">38   </span></a> * For large positive x, the relative error increases as x^1.5. 
+<a name="l39"><span class="ln">39   </span></a> * 
+<a name="l40"><span class="ln">40   </span></a> * Arithmetic  domain   function  # trials      peak         rms 
+<a name="l41"><span class="ln">41   </span></a> * IEEE        -10, 0     Ai        10000       1.6e-15     2.7e-16 
+<a name="l42"><span class="ln">42   </span></a> * IEEE          0, 10    Ai        10000       2.3e-14*    1.8e-15* 
+<a name="l43"><span class="ln">43   </span></a> * IEEE        -10, 0     Ai'       10000       4.6e-15     7.6e-16 
+<a name="l44"><span class="ln">44   </span></a> * IEEE          0, 10    Ai'       10000       1.8e-14*    1.5e-15* 
+<a name="l45"><span class="ln">45   </span></a> * IEEE        -10, 10    Bi        30000       4.2e-15     5.3e-16 
+<a name="l46"><span class="ln">46   </span></a> * IEEE        -10, 10    Bi'       30000       4.9e-15     7.3e-16 
+<a name="l47"><span class="ln">47   </span></a> * 
+<a name="l48"><span class="ln">48   </span></a> */</span>
+<a name="l49"><span class="ln">49   </span></a><span class="s0">/*                          airy.c */</span>
+<a name="l50"><span class="ln">50   </span></a>
+<a name="l51"><span class="ln">51   </span></a><span class="s0">/* 
+<a name="l52"><span class="ln">52   </span></a> * Cephes Math Library Release 2.8:  June, 2000 
+<a name="l53"><span class="ln">53   </span></a> * Copyright 1984, 1987, 1989, 2000 by Stephen L. Moshier 
+<a name="l54"><span class="ln">54   </span></a> */</span>
+<a name="l55"><span class="ln">55   </span></a><span class="s1">#pragma once</span>
+<a name="l56"><span class="ln">56   </span></a>
+<a name="l57"><span class="ln">57   </span></a><span class="s2">#include </span><span
+            class="s3">&quot;../config.h&quot;</span>
+<a name="l58"><span class="ln">58   </span></a><span class="s2">#include </span><span
+            class="s3">&quot;const.h&quot;</span>
+<a name="l59"><span class="ln">59   </span></a><span class="s2">#include </span><span
+            class="s3">&quot;polevl.h&quot;</span>
+<a name="l60"><span class="ln">60   </span></a>
+<a name="l61"><span class="ln">61   </span></a><span class="s4">namespace </span><span class="s1">xsf {</span>
+<a name="l62"><span class="ln">62   </span></a><span class="s4">namespace </span><span class="s1">cephes {</span>
+<a name="l63"><span class="ln">63   </span></a>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s4">namespace </span><span class="s1">detail {</span>
+<a name="l65"><span class="ln">65   </span></a>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s1">constexpr </span><span class="s2">double </span><span
+            class="s1">airy_c1 = </span><span class="s5">0.35502805388781723926</span><span class="s1">;</span>
+<a name="l67"><span class="ln">67   </span></a>        <span class="s1">constexpr </span><span class="s2">double </span><span
+            class="s1">airy_c2 = </span><span class="s5">0.258819403792806798405</span><span class="s1">;</span>
+<a name="l68"><span class="ln">68   </span></a>        <span class="s1">constexpr </span><span class="s2">double </span><span
+            class="s1">MAXAIRY = </span><span class="s5">103.892</span><span class="s1">;</span>
+<a name="l69"><span class="ln">69   </span></a>
+<a name="l70"><span class="ln">70   </span></a>        <span class="s1">constexpr </span><span class="s2">double </span><span
+            class="s1">airy_AN[</span><span class="s5">8</span><span class="s1">] = {</span>
+<a name="l71"><span class="ln">71   </span></a>            <span class="s5">3</span><span class="s1">.</span><span
+            class="s5">46538101525629032477</span><span class="s1">E-1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">20075952739645805542</span><span class="s1">E1, </span><span class="s5">7</span><span
+            class="s1">.</span><span class="s5">62796053615234516538</span><span class="s1">E1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">68089224934630576269</span><span class="s1">E2,</span>
+<a name="l72"><span class="ln">72   </span></a>            <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">59756391350164413639</span><span class="s1">E2,  </span><span class="s5">7</span><span
+            class="s1">.</span><span class="s5">05360906840444183113</span><span class="s1">E1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">40264691163389668864</span><span class="s1">E1, </span><span class="s5">9</span><span
+            class="s1">.</span><span class="s5">99999999999999995305</span><span class="s1">E-1,</span>
+<a name="l73"><span class="ln">73   </span></a>        <span class="s1">};</span>
+<a name="l74"><span class="ln">74   </span></a>
+<a name="l75"><span class="ln">75   </span></a>        <span class="s1">constexpr </span><span class="s2">double </span><span
+            class="s1">airy_AD[</span><span class="s5">8</span><span class="s1">] = {</span>
+<a name="l76"><span class="ln">76   </span></a>            <span class="s5">5</span><span class="s1">.</span><span
+            class="s5">67594532638770212846</span><span class="s1">E-1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">47562562584847203173</span><span class="s1">E1, </span><span class="s5">8</span><span
+            class="s1">.</span><span class="s5">45138970141474626562</span><span class="s1">E1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">77318088145400459522</span><span class="s1">E2,</span>
+<a name="l77"><span class="ln">77   </span></a>            <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">64234692871529701831</span><span class="s1">E2,  </span><span class="s5">7</span><span
+            class="s1">.</span><span class="s5">14778400825575695274</span><span class="s1">E1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">40959135607834029598</span><span class="s1">E1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">00000000000000000470</span><span class="s1">E0,</span>
+<a name="l78"><span class="ln">78   </span></a>        <span class="s1">};</span>
+<a name="l79"><span class="ln">79   </span></a>
+<a name="l80"><span class="ln">80   </span></a>        <span class="s1">constexpr </span><span class="s2">double </span><span
+            class="s1">airy_APN[</span><span class="s5">8</span><span class="s1">] = {</span>
+<a name="l81"><span class="ln">81   </span></a>            <span class="s5">6</span><span class="s1">.</span><span
+            class="s5">13759184814035759225</span><span class="s1">E-1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">47454670787755323881</span><span class="s1">E1, </span><span class="s5">8</span><span
+            class="s1">.</span><span class="s5">20584123476060982430</span><span class="s1">E1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">71184781360976385540</span><span class="s1">E2,</span>
+<a name="l82"><span class="ln">82   </span></a>            <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">59317847137141783523</span><span class="s1">E2,  </span><span class="s5">6</span><span
+            class="s1">.</span><span class="s5">99778599330103016170</span><span class="s1">E1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">39470856980481566958</span><span class="s1">E1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">00000000000000000550</span><span class="s1">E0,</span>
+<a name="l83"><span class="ln">83   </span></a>        <span class="s1">};</span>
+<a name="l84"><span class="ln">84   </span></a>
+<a name="l85"><span class="ln">85   </span></a>        <span class="s1">constexpr </span><span class="s2">double </span><span
+            class="s1">airy_APD[</span><span class="s5">8</span><span class="s1">] = {</span>
+<a name="l86"><span class="ln">86   </span></a>            <span class="s5">3</span><span class="s1">.</span><span
+            class="s5">34203677749736953049</span><span class="s1">E-1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">11810297306158156705</span><span class="s1">E1, </span><span class="s5">7</span><span
+            class="s1">.</span><span class="s5">11727352147859965283</span><span class="s1">E1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">58778084372838313640</span><span class="s1">E2,</span>
+<a name="l87"><span class="ln">87   </span></a>            <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">53206427475809220834</span><span class="s1">E2,  </span><span class="s5">6</span><span
+            class="s1">.</span><span class="s5">86752304592780337944</span><span class="s1">E1, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">38498634758259442477</span><span class="s1">E1, </span><span class="s5">9</span><span
+            class="s1">.</span><span class="s5">99999999999999994502</span><span class="s1">E-1,</span>
+<a name="l88"><span class="ln">88   </span></a>        <span class="s1">};</span>
+<a name="l89"><span class="ln">89   </span></a>
+<a name="l90"><span class="ln">90   </span></a>        <span class="s1">constexpr </span><span class="s2">double </span><span
+            class="s1">airy_BN16[</span><span class="s5">5</span><span class="s1">] = {</span>
+<a name="l91"><span class="ln">91   </span></a>            <span class="s1">-</span><span class="s5">2</span><span
+            class="s1">.</span><span class="s5">53240795869364152689</span><span class="s1">E-1, </span><span
+            class="s5">5</span><span class="s1">.</span><span class="s5">75285167332467384228</span><span class="s1">E-1,  -</span><span
+            class="s5">3</span><span class="s1">.</span><span class="s5">29907036873225371650</span><span class="s1">E-1,</span>
+<a name="l92"><span class="ln">92   </span></a>            <span class="s5">6</span><span class="s1">.</span><span
+            class="s5">44404068948199951727</span><span class="s1">E-2,  -</span><span class="s5">3</span><span
+            class="s1">.</span><span class="s5">82519546641336734394</span><span class="s1">E-3,</span>
+<a name="l93"><span class="ln">93   </span></a>        <span class="s1">};</span>
+<a name="l94"><span class="ln">94   </span></a>
+<a name="l95"><span class="ln">95   </span></a>        <span class="s1">constexpr </span><span class="s2">double </span><span
+            class="s1">airy_BD16[</span><span class="s5">5</span><span class="s1">] = {</span>
+<a name="l96"><span class="ln">96   </span></a>            <span class="s0">/* 1.00000000000000000000E0, */</span>
+<a name="l97"><span class="ln">97   </span></a>            <span class="s1">-</span><span class="s5">7</span><span
+            class="s1">.</span><span class="s5">15685095054035237902</span><span class="s1">E0, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">06039580715664694291</span><span class="s1">E1,   -</span><span
+            class="s5">5</span><span class="s1">.</span><span class="s5">23246636471251500874</span><span
+            class="s1">E0,</span>
+<a name="l98"><span class="ln">98   </span></a>            <span class="s5">9</span><span class="s1">.</span><span
+            class="s5">57395864378383833152</span><span class="s1">E-1, -</span><span class="s5">5</span><span
+            class="s1">.</span><span class="s5">50828147163549611107</span><span class="s1">E-2,</span>
+<a name="l99"><span class="ln">99   </span></a>        <span class="s1">};</span>
+<a name="l100"><span class="ln">100  </span></a>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s1">constexpr </span><span
+            class="s2">double </span><span class="s1">airy_BPPN[</span><span class="s5">5</span><span
+            class="s1">] = {</span>
+<a name="l102"><span class="ln">102  </span></a>            <span class="s5">4</span><span class="s1">.</span><span
+            class="s5">65461162774651610328</span><span class="s1">E-1,  -</span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">08992173800493920734</span><span class="s1">E0, </span><span class="s5">6</span><span
+            class="s1">.</span><span class="s5">38800117371827987759</span><span class="s1">E-1,</span>
+<a name="l103"><span class="ln">103  </span></a>            <span class="s1">-</span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">26844349553102907034</span><span class="s1">E-1, </span><span
+            class="s5">7</span><span class="s1">.</span><span class="s5">62487844342109852105</span><span class="s1">E-3,</span>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s1">};</span>
+<a name="l105"><span class="ln">105  </span></a>
+<a name="l106"><span class="ln">106  </span></a>        <span class="s1">constexpr </span><span
+            class="s2">double </span><span class="s1">airy_BPPD[</span><span class="s5">5</span><span
+            class="s1">] = {</span>
+<a name="l107"><span class="ln">107  </span></a>            <span class="s0">/* 1.00000000000000000000E0, */</span>
+<a name="l108"><span class="ln">108  </span></a>            <span class="s1">-</span><span class="s5">8</span><span
+            class="s1">.</span><span class="s5">70622787633159124240</span><span class="s1">E0, </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">38993162704553213172</span><span class="s1">E1,   -</span><span
+            class="s5">7</span><span class="s1">.</span><span class="s5">14116144616431159572</span><span
+            class="s1">E0,</span>
+<a name="l109"><span class="ln">109  </span></a>            <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">34008595960680518666</span><span class="s1">E0,  -</span><span class="s5">7</span><span
+            class="s1">.</span><span class="s5">84273211323341930448</span><span class="s1">E-2,</span>
+<a name="l110"><span class="ln">110  </span></a>        <span class="s1">};</span>
+<a name="l111"><span class="ln">111  </span></a>
+<a name="l112"><span class="ln">112  </span></a>        <span class="s1">constexpr </span><span
+            class="s2">double </span><span class="s1">airy_AFN[</span><span class="s5">9</span><span
+            class="s1">] = {</span>
+<a name="l113"><span class="ln">113  </span></a>            <span class="s1">-</span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">31696323418331795333</span><span class="s1">E-1, -</span><span
+            class="s5">6</span><span class="s1">.</span><span class="s5">26456544431912369773</span><span class="s1">E-1, -</span><span
+            class="s5">6</span><span class="s1">.</span><span class="s5">93158036036933542233</span><span class="s1">E-1,</span>
+<a name="l114"><span class="ln">114  </span></a>            <span class="s1">-</span><span class="s5">2</span><span
+            class="s1">.</span><span class="s5">79779981545119124951</span><span class="s1">E-1, -</span><span
+            class="s5">4</span><span class="s1">.</span><span class="s5">91900132609500318020</span><span class="s1">E-2, -</span><span
+            class="s5">4</span><span class="s1">.</span><span class="s5">06265923594885404393</span><span class="s1">E-3,</span>
+<a name="l115"><span class="ln">115  </span></a>            <span class="s1">-</span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">59276496239262096340</span><span class="s1">E-4, -</span><span
+            class="s5">2</span><span class="s1">.</span><span class="s5">77649108155232920844</span><span class="s1">E-6, -</span><span
+            class="s5">1</span><span class="s1">.</span><span class="s5">67787698489114633780</span><span class="s1">E-8,</span>
+<a name="l116"><span class="ln">116  </span></a>        <span class="s1">};</span>
+<a name="l117"><span class="ln">117  </span></a>
+<a name="l118"><span class="ln">118  </span></a>        <span class="s1">constexpr </span><span
+            class="s2">double </span><span class="s1">airy_AFD[</span><span class="s5">9</span><span
+            class="s1">] = {</span>
+<a name="l119"><span class="ln">119  </span></a>            <span class="s0">/* 1.00000000000000000000E0, */</span>
+<a name="l120"><span class="ln">120  </span></a>            <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">33560420706553243746</span><span class="s1">E1,  </span><span class="s5">3</span><span
+            class="s1">.</span><span class="s5">26825032795224613948</span><span class="s1">E1,  </span><span
+            class="s5">2</span><span class="s1">.</span><span class="s5">67367040941499554804</span><span
+            class="s1">E1,</span>
+<a name="l121"><span class="ln">121  </span></a>            <span class="s5">9</span><span class="s1">.</span><span
+            class="s5">18707402907259625840</span><span class="s1">E0,  </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">47529146771666414581</span><span class="s1">E0,  </span><span
+            class="s5">1</span><span class="s1">.</span><span class="s5">15687173795188044134</span><span class="s1">E-1,</span>
+<a name="l122"><span class="ln">122  </span></a>            <span class="s5">4</span><span class="s1">.</span><span
+            class="s5">40291641615211203805</span><span class="s1">E-3, </span><span class="s5">7</span><span
+            class="s1">.</span><span class="s5">54720348287414296618</span><span class="s1">E-5, </span><span
+            class="s5">4</span><span class="s1">.</span><span class="s5">51850092970580378464</span><span class="s1">E-7,</span>
+<a name="l123"><span class="ln">123  </span></a>        <span class="s1">};</span>
+<a name="l124"><span class="ln">124  </span></a>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s1">constexpr </span><span
+            class="s2">double </span><span class="s1">airy_AGN[</span><span class="s5">11</span><span
+            class="s1">] = {</span>
+<a name="l126"><span class="ln">126  </span></a>            <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">97339932091685679179</span><span class="s1">E-2, </span><span class="s5">3</span><span
+            class="s1">.</span><span class="s5">91103029615688277255</span><span class="s1">E-1, </span><span
+            class="s5">1</span><span class="s1">.</span><span class="s5">06579897599595591108</span><span
+            class="s1">E0,   </span><span class="s5">9</span><span class="s1">.</span><span class="s5">39169229816650230044</span><span
+            class="s1">E-1,</span>
+<a name="l127"><span class="ln">127  </span></a>            <span class="s5">3</span><span class="s1">.</span><span
+            class="s5">51465656105547619242</span><span class="s1">E-1, </span><span class="s5">6</span><span
+            class="s1">.</span><span class="s5">33888919628925490927</span><span class="s1">E-2, </span><span
+            class="s5">5</span><span class="s1">.</span><span class="s5">85804113048388458567</span><span class="s1">E-3,  </span><span
+            class="s5">2</span><span class="s1">.</span><span class="s5">82851600836737019778</span><span class="s1">E-4,</span>
+<a name="l128"><span class="ln">128  </span></a>            <span class="s5">6</span><span class="s1">.</span><span
+            class="s5">98793669997260967291</span><span class="s1">E-6, </span><span class="s5">8</span><span
+            class="s1">.</span><span class="s5">11789239554389293311</span><span class="s1">E-8, </span><span
+            class="s5">3</span><span class="s1">.</span><span class="s5">41551784765923618484</span><span class="s1">E-10,</span>
+<a name="l129"><span class="ln">129  </span></a>        <span class="s1">};</span>
+<a name="l130"><span class="ln">130  </span></a>
+<a name="l131"><span class="ln">131  </span></a>        <span class="s1">constexpr </span><span
+            class="s2">double </span><span class="s1">airy_AGD[</span><span class="s5">10</span><span
+            class="s1">] = {</span>
+<a name="l132"><span class="ln">132  </span></a>            <span class="s0">/*  1.00000000000000000000E0, */</span>
+<a name="l133"><span class="ln">133  </span></a>            <span class="s5">9</span><span class="s1">.</span><span
+            class="s5">30892908077441974853</span><span class="s1">E0,  </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">98352928718312140417</span><span class="s1">E1,  </span><span
+            class="s5">1</span><span class="s1">.</span><span class="s5">55646628932864612953</span><span
+            class="s1">E1,  </span><span class="s5">5</span><span class="s1">.</span><span class="s5">47686069422975497931</span><span
+            class="s1">E0,</span>
+<a name="l134"><span class="ln">134  </span></a>            <span class="s5">9</span><span class="s1">.</span><span
+            class="s5">54293611618961883998</span><span class="s1">E-1, </span><span class="s5">8</span><span
+            class="s1">.</span><span class="s5">64580826352392193095</span><span class="s1">E-2, </span><span
+            class="s5">4</span><span class="s1">.</span><span class="s5">12656523824222607191</span><span class="s1">E-3, </span><span
+            class="s5">1</span><span class="s1">.</span><span class="s5">01259085116509135510</span><span class="s1">E-4,</span>
+<a name="l135"><span class="ln">135  </span></a>            <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">17166733214413521882</span><span class="s1">E-6, </span><span class="s5">4</span><span
+            class="s1">.</span><span class="s5">91834570062930015649</span><span class="s1">E-9,</span>
+<a name="l136"><span class="ln">136  </span></a>        <span class="s1">};</span>
+<a name="l137"><span class="ln">137  </span></a>
+<a name="l138"><span class="ln">138  </span></a>        <span class="s1">constexpr </span><span
+            class="s2">double </span><span class="s1">airy_APFN[</span><span class="s5">9</span><span
+            class="s1">] = {</span>
+<a name="l139"><span class="ln">139  </span></a>            <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">85365624022535566142</span><span class="s1">E-1, </span><span class="s5">8</span><span
+            class="s1">.</span><span class="s5">86712188052584095637</span><span class="s1">E-1, </span><span
+            class="s5">9</span><span class="s1">.</span><span class="s5">87391981747398547272</span><span class="s1">E-1,</span>
+<a name="l140"><span class="ln">140  </span></a>            <span class="s5">4</span><span class="s1">.</span><span
+            class="s5">01241082318003734092</span><span class="s1">E-1, </span><span class="s5">7</span><span
+            class="s1">.</span><span class="s5">10304926289631174579</span><span class="s1">E-2, </span><span
+            class="s5">5</span><span class="s1">.</span><span class="s5">90618657995661810071</span><span class="s1">E-3,</span>
+<a name="l141"><span class="ln">141  </span></a>            <span class="s5">2</span><span class="s1">.</span><span
+            class="s5">33051409401776799569</span><span class="s1">E-4, </span><span class="s5">4</span><span
+            class="s1">.</span><span class="s5">08718778289035454598</span><span class="s1">E-6, </span><span
+            class="s5">2</span><span class="s1">.</span><span class="s5">48379932900442457853</span><span class="s1">E-8,</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s1">};</span>
+<a name="l143"><span class="ln">143  </span></a>
+<a name="l144"><span class="ln">144  </span></a>        <span class="s1">constexpr </span><span
+            class="s2">double </span><span class="s1">airy_APFD[</span><span class="s5">9</span><span
+            class="s1">] = {</span>
+<a name="l145"><span class="ln">145  </span></a>            <span class="s0">/*  1.00000000000000000000E0, */</span>
+<a name="l146"><span class="ln">146  </span></a>            <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">47345854687502542552</span><span class="s1">E1,  </span><span class="s5">3</span><span
+            class="s1">.</span><span class="s5">75423933435489594466</span><span class="s1">E1,  </span><span
+            class="s5">3</span><span class="s1">.</span><span class="s5">14657751203046424330</span><span
+            class="s1">E1,</span>
+<a name="l147"><span class="ln">147  </span></a>            <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">09969125207298778536</span><span class="s1">E1,  </span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">78885054766999417817</span><span class="s1">E0,  </span><span
+            class="s5">1</span><span class="s1">.</span><span class="s5">41733275753662636873</span><span class="s1">E-1,</span>
+<a name="l148"><span class="ln">148  </span></a>            <span class="s5">5</span><span class="s1">.</span><span
+            class="s5">44066067017226003627</span><span class="s1">E-3, </span><span class="s5">9</span><span
+            class="s1">.</span><span class="s5">39421290654511171663</span><span class="s1">E-5, </span><span
+            class="s5">5</span><span class="s1">.</span><span class="s5">65978713036027009243</span><span class="s1">E-7,</span>
+<a name="l149"><span class="ln">149  </span></a>        <span class="s1">};</span>
+<a name="l150"><span class="ln">150  </span></a>
+<a name="l151"><span class="ln">151  </span></a>        <span class="s1">constexpr </span><span
+            class="s2">double </span><span class="s1">airy_APGN[</span><span class="s5">11</span><span
+            class="s1">] = {</span>
+<a name="l152"><span class="ln">152  </span></a>            <span class="s1">-</span><span class="s5">3</span><span
+            class="s1">.</span><span class="s5">55615429033082288335</span><span class="s1">E-2, -</span><span
+            class="s5">6</span><span class="s1">.</span><span class="s5">37311518129435504426</span><span class="s1">E-1,  -</span><span
+            class="s5">1</span><span class="s1">.</span><span class="s5">70856738884312371053</span><span
+            class="s1">E0,</span>
+<a name="l153"><span class="ln">153  </span></a>            <span class="s1">-</span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">50221872117316635393</span><span class="s1">E0,  -</span><span
+            class="s5">5</span><span class="s1">.</span><span class="s5">63606665822102676611</span><span class="s1">E-1,  -</span><span
+            class="s5">1</span><span class="s1">.</span><span class="s5">02101031120216891789</span><span class="s1">E-1,</span>
+<a name="l154"><span class="ln">154  </span></a>            <span class="s1">-</span><span class="s5">9</span><span
+            class="s1">.</span><span class="s5">48396695961445269093</span><span class="s1">E-3, -</span><span
+            class="s5">4</span><span class="s1">.</span><span class="s5">60325307486780994357</span><span class="s1">E-4,  -</span><span
+            class="s5">1</span><span class="s1">.</span><span class="s5">14300836484517375919</span><span class="s1">E-5,</span>
+<a name="l155"><span class="ln">155  </span></a>            <span class="s1">-</span><span class="s5">1</span><span
+            class="s1">.</span><span class="s5">33415518685547420648</span><span class="s1">E-7, -</span><span
+            class="s5">5</span><span class="s1">.</span><span class="s5">63803833958893494476</span><span class="s1">E-10,</span>
+<a name="l156"><span class="ln">156  </span></a>        <span class="s1">};</span>
+<a name="l157"><span class="ln">157  </span></a>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s1">constexpr </span><span
+            class="s2">double </span><span class="s1">airy_APGD[</span><span class="s5">11</span><span
+            class="s1">] = {</span>
+<a name="l159"><span class="ln">159  </span></a>            <span class="s0">/*  1.00000000000000000000E0, */</span>
+<a name="l160"><span class="ln">160  </span></a>            <span class="s5">9</span><span class="s1">.</span><span
+            class="s5">85865801696130355144</span><span class="s1">E0,  </span><span class="s5">2</span><span
+            class="s1">.</span><span class="s5">16401867356585941885</span><span class="s1">E1,  </span><span
+            class="s5">1</span><span class="s1">.</span><span class="s5">73130776389749389525</span><span
+            class="s1">E1,  </span><span class="s5">6</span><span class="s1">.</span><span class="s5">17872175280828766327</span><span
+            class="s1">E0,</span>
+<a name="l161"><span class="ln">161  </span></a>            <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">08848694396321495475</span><span class="s1">E0,  </span><span class="s5">9</span><span
+            class="s1">.</span><span class="s5">95005543440888479402</span><span class="s1">E-2, </span><span
+            class="s5">4</span><span class="s1">.</span><span class="s5">78468199683886610842</span><span class="s1">E-3, </span><span
+            class="s5">1</span><span class="s1">.</span><span class="s5">18159633322838625562</span><span class="s1">E-4,</span>
+<a name="l162"><span class="ln">162  </span></a>            <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">37480673554219441465</span><span class="s1">E-6, </span><span class="s5">5</span><span
+            class="s1">.</span><span class="s5">79912514929147598821</span><span class="s1">E-9,</span>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s1">};</span>
+<a name="l164"><span class="ln">164  </span></a>
+<a name="l165"><span class="ln">165  </span></a>    <span class="s1">} </span><span
+            class="s0">// namespace detail</span>
+<a name="l166"><span class="ln">166  </span></a>
+<a name="l167"><span class="ln">167  </span></a>    <span class="s1">XSF_HOST_DEVICE </span><span
+            class="s4">inline </span><span class="s2">int </span><span class="s1">airy(</span><span
+            class="s2">double </span><span class="s1">x, </span><span class="s2">double </span><span
+            class="s1">*ai, </span><span class="s2">double </span><span class="s1">*aip, </span><span
+            class="s2">double </span><span class="s1">*bi, </span><span class="s2">double </span><span class="s1">*bip) {</span>
+<a name="l168"><span class="ln">168  </span></a>        <span class="s2">double </span><span class="s1">z, zz, t, f, g, uf, ug, k, zeta, theta;</span>
+<a name="l169"><span class="ln">169  </span></a>        <span class="s2">int </span><span class="s1">domflg;</span>
+<a name="l170"><span class="ln">170  </span></a>
+<a name="l171"><span class="ln">171  </span></a>        <span class="s1">domflg = </span><span class="s5">0</span><span
+            class="s1">;</span>
+<a name="l172"><span class="ln">172  </span></a>        <span class="s2">if </span><span class="s1">(x &gt; detail::MAXAIRY) {</span>
+<a name="l173"><span class="ln">173  </span></a>            <span class="s1">*ai = </span><span class="s5">0</span><span
+            class="s1">;</span>
+<a name="l174"><span class="ln">174  </span></a>            <span class="s1">*aip = </span><span
+            class="s5">0</span><span class="s1">;</span>
+<a name="l175"><span class="ln">175  </span></a>            <span class="s1">*bi = std::numeric_limits&lt;</span><span
+            class="s2">double</span><span class="s1">&gt;::infinity();</span>
+<a name="l176"><span class="ln">176  </span></a>            <span class="s1">*bip = std::numeric_limits&lt;</span><span
+            class="s2">double</span><span class="s1">&gt;::infinity();</span>
+<a name="l177"><span class="ln">177  </span></a>            <span class="s2">return </span><span
+            class="s1">(-</span><span class="s5">1</span><span class="s1">);</span>
+<a name="l178"><span class="ln">178  </span></a>        <span class="s1">}</span>
+<a name="l179"><span class="ln">179  </span></a>
+<a name="l180"><span class="ln">180  </span></a>        <span class="s2">if </span><span
+            class="s1">(x &lt; -</span><span class="s5">2.09</span><span class="s1">) {</span>
+<a name="l181"><span class="ln">181  </span></a>            <span class="s1">domflg = </span><span
+            class="s5">15</span><span class="s1">;</span>
+<a name="l182"><span class="ln">182  </span></a>            <span class="s1">t = std::sqrt(-x);</span>
+<a name="l183"><span class="ln">183  </span></a>            <span class="s1">zeta = -</span><span class="s5">2.0 </span><span
+            class="s1">* x * t / </span><span class="s5">3.0</span><span class="s1">;</span>
+<a name="l184"><span class="ln">184  </span></a>            <span class="s1">t = std::sqrt(t);</span>
+<a name="l185"><span class="ln">185  </span></a>            <span class="s1">k = detail::SQRT1OPI / t;</span>
+<a name="l186"><span class="ln">186  </span></a>            <span class="s1">z = </span><span
+            class="s5">1.0 </span><span class="s1">/ zeta;</span>
+<a name="l187"><span class="ln">187  </span></a>            <span class="s1">zz = z * z;</span>
+<a name="l188"><span class="ln">188  </span></a>            <span class="s1">uf = </span><span
+            class="s5">1.0 </span><span class="s1">+ zz * polevl(zz, detail::airy_AFN, </span><span
+            class="s5">8</span><span class="s1">) / p1evl(zz, detail::airy_AFD, </span><span class="s5">9</span><span
+            class="s1">);</span>
+<a name="l189"><span class="ln">189  </span></a>            <span
+            class="s1">ug = z * polevl(zz, detail::airy_AGN, </span><span class="s5">10</span><span class="s1">) / p1evl(zz, detail::airy_AGD, </span><span
+            class="s5">10</span><span class="s1">);</span>
+<a name="l190"><span class="ln">190  </span></a>            <span class="s1">theta = zeta + </span><span
+            class="s5">0.25 </span><span class="s1">* M_PI;</span>
+<a name="l191"><span class="ln">191  </span></a>            <span class="s1">f = std::sin(theta);</span>
+<a name="l192"><span class="ln">192  </span></a>            <span class="s1">g = std::cos(theta);</span>
+<a name="l193"><span class="ln">193  </span></a>            <span class="s1">*ai = k * (f * uf - g * ug);</span>
+<a name="l194"><span class="ln">194  </span></a>            <span class="s1">*bi = k * (g * uf + f * ug);</span>
+<a name="l195"><span class="ln">195  </span></a>            <span class="s1">uf = </span><span
+            class="s5">1.0 </span><span class="s1">+ zz * polevl(zz, detail::airy_APFN, </span><span class="s5">8</span><span
+            class="s1">) / p1evl(zz, detail::airy_APFD, </span><span class="s5">9</span><span class="s1">);</span>
+<a name="l196"><span class="ln">196  </span></a>            <span
+            class="s1">ug = z * polevl(zz, detail::airy_APGN, </span><span class="s5">10</span><span class="s1">) / p1evl(zz, detail::airy_APGD, </span><span
+            class="s5">10</span><span class="s1">);</span>
+<a name="l197"><span class="ln">197  </span></a>            <span class="s1">k = detail::SQRT1OPI * t;</span>
+<a name="l198"><span class="ln">198  </span></a>            <span class="s1">*aip = -k * (g * uf + f * ug);</span>
+<a name="l199"><span class="ln">199  </span></a>            <span class="s1">*bip = k * (f * uf - g * ug);</span>
+<a name="l200"><span class="ln">200  </span></a>            <span class="s2">return </span><span
+            class="s1">(</span><span class="s5">0</span><span class="s1">);</span>
+<a name="l201"><span class="ln">201  </span></a>        <span class="s1">}</span>
+<a name="l202"><span class="ln">202  </span></a>
+<a name="l203"><span class="ln">203  </span></a>        <span class="s2">if </span><span
+            class="s1">(x &gt;= </span><span class="s5">2.09</span><span class="s1">) { </span><span class="s0">/* cbrt(9) */</span>
+<a name="l204"><span class="ln">204  </span></a>            <span class="s1">domflg = </span><span
+            class="s5">5</span><span class="s1">;</span>
+<a name="l205"><span class="ln">205  </span></a>            <span class="s1">t = std::sqrt(x);</span>
+<a name="l206"><span class="ln">206  </span></a>            <span class="s1">zeta = </span><span
+            class="s5">2.0 </span><span class="s1">* x * t / </span><span class="s5">3.0</span><span class="s1">;</span>
+<a name="l207"><span class="ln">207  </span></a>            <span class="s1">g = std::exp(zeta);</span>
+<a name="l208"><span class="ln">208  </span></a>            <span class="s1">t = std::sqrt(t);</span>
+<a name="l209"><span class="ln">209  </span></a>            <span class="s1">k = </span><span
+            class="s5">2.0 </span><span class="s1">* t * g;</span>
+<a name="l210"><span class="ln">210  </span></a>            <span class="s1">z = </span><span
+            class="s5">1.0 </span><span class="s1">/ zeta;</span>
+<a name="l211"><span class="ln">211  </span></a>            <span class="s1">f = polevl(z, detail::airy_AN, </span><span
+            class="s5">7</span><span class="s1">) / polevl(z, detail::airy_AD, </span><span class="s5">7</span><span
+            class="s1">);</span>
+<a name="l212"><span class="ln">212  </span></a>            <span class="s1">*ai = detail::SQRT1OPI * f / k;</span>
+<a name="l213"><span class="ln">213  </span></a>            <span class="s1">k = -</span><span
+            class="s5">0.5 </span><span class="s1">* detail::SQRT1OPI * t / g;</span>
+<a name="l214"><span class="ln">214  </span></a>            <span
+            class="s1">f = polevl(z, detail::airy_APN, </span><span class="s5">7</span><span class="s1">) / polevl(z, detail::airy_APD, </span><span
+            class="s5">7</span><span class="s1">);</span>
+<a name="l215"><span class="ln">215  </span></a>            <span class="s1">*aip = f * k;</span>
+<a name="l216"><span class="ln">216  </span></a>
+<a name="l217"><span class="ln">217  </span></a>            <span class="s2">if </span><span
+            class="s1">(x &gt; </span><span class="s5">8.3203353</span><span class="s1">) { </span><span class="s0">/* zeta &gt; 16 */</span>
+<a name="l218"><span class="ln">218  </span></a>                <span
+            class="s1">f = z * polevl(z, detail::airy_BN16, </span><span class="s5">4</span><span class="s1">) / p1evl(z, detail::airy_BD16, </span><span
+            class="s5">5</span><span class="s1">);</span>
+<a name="l219"><span class="ln">219  </span></a>                <span class="s1">k = detail::SQRT1OPI * g;</span>
+<a name="l220"><span class="ln">220  </span></a>                <span class="s1">*bi = k * (</span><span
+            class="s5">1.0 </span><span class="s1">+ f) / t;</span>
+<a name="l221"><span class="ln">221  </span></a>                <span
+            class="s1">f = z * polevl(z, detail::airy_BPPN, </span><span class="s5">4</span><span class="s1">) / p1evl(z, detail::airy_BPPD, </span><span
+            class="s5">5</span><span class="s1">);</span>
+<a name="l222"><span class="ln">222  </span></a>                <span class="s1">*bip = k * t * (</span><span
+            class="s5">1.0 </span><span class="s1">+ f);</span>
+<a name="l223"><span class="ln">223  </span></a>                <span class="s2">return </span><span class="s1">(</span><span
+            class="s5">0</span><span class="s1">);</span>
+<a name="l224"><span class="ln">224  </span></a>            <span class="s1">}</span>
+<a name="l225"><span class="ln">225  </span></a>        <span class="s1">}</span>
+<a name="l226"><span class="ln">226  </span></a>
+<a name="l227"><span class="ln">227  </span></a>        <span class="s1">f = </span><span class="s5">1.0</span><span
+            class="s1">;</span>
+<a name="l228"><span class="ln">228  </span></a>        <span class="s1">g = x;</span>
+<a name="l229"><span class="ln">229  </span></a>        <span class="s1">t = </span><span class="s5">1.0</span><span
+            class="s1">;</span>
+<a name="l230"><span class="ln">230  </span></a>        <span class="s1">uf = </span><span class="s5">1.0</span><span
+            class="s1">;</span>
+<a name="l231"><span class="ln">231  </span></a>        <span class="s1">ug = x;</span>
+<a name="l232"><span class="ln">232  </span></a>        <span class="s1">k = </span><span class="s5">1.0</span><span
+            class="s1">;</span>
+<a name="l233"><span class="ln">233  </span></a>        <span class="s1">z = x * x * x;</span>
+<a name="l234"><span class="ln">234  </span></a>        <span class="s2">while </span><span class="s1">(t &gt; detail::MACHEP) {</span>
+<a name="l235"><span class="ln">235  </span></a>            <span class="s1">uf *= z;</span>
+<a name="l236"><span class="ln">236  </span></a>            <span class="s1">k += </span><span
+            class="s5">1.0</span><span class="s1">;</span>
+<a name="l237"><span class="ln">237  </span></a>            <span class="s1">uf /= k;</span>
+<a name="l238"><span class="ln">238  </span></a>            <span class="s1">ug *= z;</span>
+<a name="l239"><span class="ln">239  </span></a>            <span class="s1">k += </span><span
+            class="s5">1.0</span><span class="s1">;</span>
+<a name="l240"><span class="ln">240  </span></a>            <span class="s1">ug /= k;</span>
+<a name="l241"><span class="ln">241  </span></a>            <span class="s1">uf /= k;</span>
+<a name="l242"><span class="ln">242  </span></a>            <span class="s1">f += uf;</span>
+<a name="l243"><span class="ln">243  </span></a>            <span class="s1">k += </span><span
+            class="s5">1.0</span><span class="s1">;</span>
+<a name="l244"><span class="ln">244  </span></a>            <span class="s1">ug /= k;</span>
+<a name="l245"><span class="ln">245  </span></a>            <span class="s1">g += ug;</span>
+<a name="l246"><span class="ln">246  </span></a>            <span class="s1">t = std::abs(uf / f);</span>
+<a name="l247"><span class="ln">247  </span></a>        <span class="s1">}</span>
+<a name="l248"><span class="ln">248  </span></a>        <span class="s1">uf = detail::airy_c1 * f;</span>
+<a name="l249"><span class="ln">249  </span></a>        <span class="s1">ug = detail::airy_c2 * g;</span>
+<a name="l250"><span class="ln">250  </span></a>        <span class="s2">if </span><span
+            class="s1">((domflg &amp; </span><span class="s5">1</span><span class="s1">) == </span><span
+            class="s5">0</span><span class="s1">) {</span>
+<a name="l251"><span class="ln">251  </span></a>            <span class="s1">*ai = uf - ug;</span>
+<a name="l252"><span class="ln">252  </span></a>        <span class="s1">}</span>
+<a name="l253"><span class="ln">253  </span></a>        <span class="s2">if </span><span
+            class="s1">((domflg &amp; </span><span class="s5">2</span><span class="s1">) == </span><span
+            class="s5">0</span><span class="s1">) {</span>
+<a name="l254"><span class="ln">254  </span></a>            <span class="s1">*bi = detail::SQRT3 * (uf + ug);</span>
+<a name="l255"><span class="ln">255  </span></a>        <span class="s1">}</span>
+<a name="l256"><span class="ln">256  </span></a>
+<a name="l257"><span class="ln">257  </span></a>        <span class="s0">/* the deriviative of ai */</span>
+<a name="l258"><span class="ln">258  </span></a>        <span class="s1">k = </span><span class="s5">4.0</span><span
+            class="s1">;</span>
+<a name="l259"><span class="ln">259  </span></a>        <span class="s1">uf = x * x / </span><span class="s5">2.0</span><span
+            class="s1">;</span>
+<a name="l260"><span class="ln">260  </span></a>        <span class="s1">ug = z / </span><span
+            class="s5">3.0</span><span class="s1">;</span>
+<a name="l261"><span class="ln">261  </span></a>        <span class="s1">f = uf;</span>
+<a name="l262"><span class="ln">262  </span></a>        <span class="s1">g = </span><span class="s5">1.0 </span><span
+            class="s1">+ ug;</span>
+<a name="l263"><span class="ln">263  </span></a>        <span class="s1">uf /= </span><span class="s5">3.0</span><span
+            class="s1">;</span>
+<a name="l264"><span class="ln">264  </span></a>        <span class="s1">t = </span><span class="s5">1.0</span><span
+            class="s1">;</span>
+<a name="l265"><span class="ln">265  </span></a>
+<a name="l266"><span class="ln">266  </span></a>        <span class="s2">while </span><span class="s1">(t &gt; detail::MACHEP) {</span>
+<a name="l267"><span class="ln">267  </span></a>            <span class="s1">uf *= z;</span>
+<a name="l268"><span class="ln">268  </span></a>            <span class="s1">ug /= k;</span>
+<a name="l269"><span class="ln">269  </span></a>            <span class="s1">k += </span><span
+            class="s5">1.0</span><span class="s1">;</span>
+<a name="l270"><span class="ln">270  </span></a>            <span class="s1">ug *= z;</span>
+<a name="l271"><span class="ln">271  </span></a>            <span class="s1">uf /= k;</span>
+<a name="l272"><span class="ln">272  </span></a>            <span class="s1">f += uf;</span>
+<a name="l273"><span class="ln">273  </span></a>            <span class="s1">k += </span><span
+            class="s5">1.0</span><span class="s1">;</span>
+<a name="l274"><span class="ln">274  </span></a>            <span class="s1">ug /= k;</span>
+<a name="l275"><span class="ln">275  </span></a>            <span class="s1">uf /= k;</span>
+<a name="l276"><span class="ln">276  </span></a>            <span class="s1">g += ug;</span>
+<a name="l277"><span class="ln">277  </span></a>            <span class="s1">k += </span><span
+            class="s5">1.0</span><span class="s1">;</span>
+<a name="l278"><span class="ln">278  </span></a>            <span class="s1">t = std::abs(ug / g);</span>
+<a name="l279"><span class="ln">279  </span></a>        <span class="s1">}</span>
+<a name="l280"><span class="ln">280  </span></a>
+<a name="l281"><span class="ln">281  </span></a>        <span class="s1">uf = detail::airy_c1 * f;</span>
+<a name="l282"><span class="ln">282  </span></a>        <span class="s1">ug = detail::airy_c2 * g;</span>
+<a name="l283"><span class="ln">283  </span></a>        <span class="s2">if </span><span
+            class="s1">((domflg &amp; </span><span class="s5">4</span><span class="s1">) == </span><span
+            class="s5">0</span><span class="s1">) {</span>
+<a name="l284"><span class="ln">284  </span></a>            <span class="s1">*aip = uf - ug;</span>
+<a name="l285"><span class="ln">285  </span></a>        <span class="s1">}</span>
+<a name="l286"><span class="ln">286  </span></a>        <span class="s2">if </span><span
+            class="s1">((domflg &amp; </span><span class="s5">8</span><span class="s1">) == </span><span
+            class="s5">0</span><span class="s1">) {</span>
+<a name="l287"><span class="ln">287  </span></a>            <span class="s1">*bip = detail::SQRT3 * (uf + ug);</span>
+<a name="l288"><span class="ln">288  </span></a>        <span class="s1">};</span>
+<a name="l289"><span class="ln">289  </span></a>        <span class="s2">return </span><span class="s1">(</span><span
+            class="s5">0</span><span class="s1">);</span>
+<a name="l290"><span class="ln">290  </span></a>    <span class="s1">}</span>
+<a name="l291"><span class="ln">291  </span></a>
+<a name="l292"><span class="ln">292  </span></a>    <span class="s4">inline </span><span class="s2">int </span><span
+            class="s1">airy(</span><span class="s2">float </span><span class="s1">xf, </span><span
+            class="s2">float </span><span class="s1">*aif, </span><span class="s2">float </span><span
+            class="s1">*aipf, </span><span class="s2">float </span><span class="s1">*bif, </span><span
+            class="s2">float </span><span class="s1">*bipf) {</span>
+<a name="l293"><span class="ln">293  </span></a>        <span class="s2">double </span><span class="s1">ai;</span>
+<a name="l294"><span class="ln">294  </span></a>        <span class="s2">double </span><span class="s1">aip;</span>
+<a name="l295"><span class="ln">295  </span></a>        <span class="s2">double </span><span class="s1">bi;</span>
+<a name="l296"><span class="ln">296  </span></a>        <span class="s2">double </span><span class="s1">bip;</span>
+<a name="l297"><span class="ln">297  </span></a>        <span class="s2">int </span><span class="s1">res = cephes::airy(xf, &amp;ai, &amp;aip, &amp;bi, &amp;bip);</span>
+<a name="l298"><span class="ln">298  </span></a>
+<a name="l299"><span class="ln">299  </span></a>        <span class="s1">*aif = ai;</span>
+<a name="l300"><span class="ln">300  </span></a>        <span class="s1">*aipf = aip;</span>
+<a name="l301"><span class="ln">301  </span></a>        <span class="s1">*bif = bi;</span>
+<a name="l302"><span class="ln">302  </span></a>        <span class="s1">*bipf = bip;</span>
+<a name="l303"><span class="ln">303  </span></a>        <span class="s2">return </span><span class="s1">res;</span>
+<a name="l304"><span class="ln">304  </span></a>    <span class="s1">}</span>
+<a name="l305"><span class="ln">305  </span></a>
+<a name="l306"><span class="ln">306  </span></a><span class="s1">} </span><span class="s0">// namespace cephes</span>
+<a name="l307"><span class="ln">307  </span></a><span class="s1">} </span><span class="s0">// namespace xsf</span>
+<a name="l308"><span class="ln">308  </span></a></pre>
+</body>
+</html>

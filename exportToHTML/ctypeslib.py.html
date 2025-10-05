@@ -1,0 +1,625 @@
+<html>
+<head>
+<title>ctypeslib.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+ctypeslib.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>============================ 
+<a name="l3"><span class="ln">3    </span></a>``ctypes`` Utility Functions 
+<a name="l4"><span class="ln">4    </span></a>============================ 
+<a name="l5"><span class="ln">5    </span></a> 
+<a name="l6"><span class="ln">6    </span></a>See Also 
+<a name="l7"><span class="ln">7    </span></a>-------- 
+<a name="l8"><span class="ln">8    </span></a>load_library : Load a C library. 
+<a name="l9"><span class="ln">9    </span></a>ndpointer : Array restype/argtype with verification. 
+<a name="l10"><span class="ln">10   </span></a>as_ctypes : Create a ctypes array from an ndarray. 
+<a name="l11"><span class="ln">11   </span></a>as_array : Create an ndarray from a ctypes array. 
+<a name="l12"><span class="ln">12   </span></a> 
+<a name="l13"><span class="ln">13   </span></a>References 
+<a name="l14"><span class="ln">14   </span></a>---------- 
+<a name="l15"><span class="ln">15   </span></a>.. [1] &quot;SciPy Cookbook: ctypes&quot;, https://scipy-cookbook.readthedocs.io/items/Ctypes.html 
+<a name="l16"><span class="ln">16   </span></a> 
+<a name="l17"><span class="ln">17   </span></a>Examples 
+<a name="l18"><span class="ln">18   </span></a>-------- 
+<a name="l19"><span class="ln">19   </span></a>Load the C library: 
+<a name="l20"><span class="ln">20   </span></a> 
+<a name="l21"><span class="ln">21   </span></a>&gt;&gt;&gt; _lib = np.ctypeslib.load_library('libmystuff', '.')     #doctest: +SKIP 
+<a name="l22"><span class="ln">22   </span></a> 
+<a name="l23"><span class="ln">23   </span></a>Our result type, an ndarray that must be of type double, be 1-dimensional 
+<a name="l24"><span class="ln">24   </span></a>and is C-contiguous in memory: 
+<a name="l25"><span class="ln">25   </span></a> 
+<a name="l26"><span class="ln">26   </span></a>&gt;&gt;&gt; array_1d_double = np.ctypeslib.ndpointer( 
+<a name="l27"><span class="ln">27   </span></a>...                          dtype=np.double, 
+<a name="l28"><span class="ln">28   </span></a>...                          ndim=1, flags='CONTIGUOUS')    #doctest: +SKIP 
+<a name="l29"><span class="ln">29   </span></a> 
+<a name="l30"><span class="ln">30   </span></a>Our C-function typically takes an array and updates its values 
+<a name="l31"><span class="ln">31   </span></a>in-place.  For example:: 
+<a name="l32"><span class="ln">32   </span></a> 
+<a name="l33"><span class="ln">33   </span></a>    void foo_func(double* x, int length) 
+<a name="l34"><span class="ln">34   </span></a>    { 
+<a name="l35"><span class="ln">35   </span></a>        int i; 
+<a name="l36"><span class="ln">36   </span></a>        for (i = 0; i &lt; length; i++) { 
+<a name="l37"><span class="ln">37   </span></a>            x[i] = i*i; 
+<a name="l38"><span class="ln">38   </span></a>        } 
+<a name="l39"><span class="ln">39   </span></a>    } 
+<a name="l40"><span class="ln">40   </span></a> 
+<a name="l41"><span class="ln">41   </span></a>We wrap it using: 
+<a name="l42"><span class="ln">42   </span></a> 
+<a name="l43"><span class="ln">43   </span></a>&gt;&gt;&gt; _lib.foo_func.restype = None                      #doctest: +SKIP 
+<a name="l44"><span class="ln">44   </span></a>&gt;&gt;&gt; _lib.foo_func.argtypes = [array_1d_double, c_int] #doctest: +SKIP 
+<a name="l45"><span class="ln">45   </span></a> 
+<a name="l46"><span class="ln">46   </span></a>Then, we're ready to call ``foo_func``: 
+<a name="l47"><span class="ln">47   </span></a> 
+<a name="l48"><span class="ln">48   </span></a>&gt;&gt;&gt; out = np.empty(15, dtype=np.double) 
+<a name="l49"><span class="ln">49   </span></a>&gt;&gt;&gt; _lib.foo_func(out, len(out))                #doctest: +SKIP 
+<a name="l50"><span class="ln">50   </span></a> 
+<a name="l51"><span class="ln">51   </span></a>&quot;&quot;&quot;</span>
+<a name="l52"><span class="ln">52   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'load_library'</span><span class="s3">, </span><span class="s4">'ndpointer'</span><span class="s3">, </span><span class="s4">'c_intp'</span><span class="s3">, </span><span class="s4">'as_ctypes'</span><span class="s3">, </span><span class="s4">'as_array'</span><span class="s3">,</span>
+<a name="l53"><span class="ln">53   </span></a>           <span class="s4">'as_ctypes_type'</span><span class="s3">]</span>
+<a name="l54"><span class="ln">54   </span></a>
+<a name="l55"><span class="ln">55   </span></a><span class="s2">import </span><span class="s1">os</span>
+<a name="l56"><span class="ln">56   </span></a><span class="s2">import </span><span class="s1">numpy </span><span class="s2">as </span><span class="s1">np</span>
+<a name="l57"><span class="ln">57   </span></a><span class="s2">from </span><span class="s1">numpy</span><span class="s3">.</span><span class="s1">_core</span><span class="s3">.</span><span class="s1">multiarray </span><span class="s2">import </span><span class="s1">_flagdict</span><span class="s3">, </span><span class="s1">flagsobj</span>
+<a name="l58"><span class="ln">58   </span></a>
+<a name="l59"><span class="ln">59   </span></a><span class="s2">try:</span>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s2">import </span><span class="s1">ctypes</span>
+<a name="l61"><span class="ln">61   </span></a><span class="s2">except </span><span class="s1">ImportError</span><span class="s2">:</span>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s1">ctypes </span><span class="s2">= None</span>
+<a name="l63"><span class="ln">63   </span></a>
+<a name="l64"><span class="ln">64   </span></a><span class="s2">if </span><span class="s1">ctypes </span><span class="s2">is None:</span>
+<a name="l65"><span class="ln">65   </span></a>    <span class="s2">def </span><span class="s1">_dummy</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwds</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l67"><span class="ln">67   </span></a>        Dummy object that raises an ImportError if ctypes is not available. 
+<a name="l68"><span class="ln">68   </span></a> 
+<a name="l69"><span class="ln">69   </span></a>        Raises 
+<a name="l70"><span class="ln">70   </span></a>        ------ 
+<a name="l71"><span class="ln">71   </span></a>        ImportError 
+<a name="l72"><span class="ln">72   </span></a>            If ctypes is not available. 
+<a name="l73"><span class="ln">73   </span></a> 
+<a name="l74"><span class="ln">74   </span></a>        &quot;&quot;&quot;</span>
+<a name="l75"><span class="ln">75   </span></a>        <span class="s2">raise </span><span class="s1">ImportError</span><span class="s3">(</span><span class="s4">&quot;ctypes is not available.&quot;</span><span class="s3">)</span>
+<a name="l76"><span class="ln">76   </span></a>    <span class="s1">load_library </span><span class="s2">= </span><span class="s1">_dummy</span>
+<a name="l77"><span class="ln">77   </span></a>    <span class="s1">as_ctypes </span><span class="s2">= </span><span class="s1">_dummy</span>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s1">as_array </span><span class="s2">= </span><span class="s1">_dummy</span>
+<a name="l79"><span class="ln">79   </span></a>    <span class="s2">from </span><span class="s1">numpy </span><span class="s2">import </span><span class="s1">intp </span><span class="s2">as </span><span class="s1">c_intp</span>
+<a name="l80"><span class="ln">80   </span></a>    <span class="s1">_ndptr_base </span><span class="s2">= </span><span class="s1">object</span>
+<a name="l81"><span class="ln">81   </span></a><span class="s2">else:</span>
+<a name="l82"><span class="ln">82   </span></a>    <span class="s2">import </span><span class="s1">numpy</span><span class="s3">.</span><span class="s1">_core</span><span class="s3">.</span><span class="s1">_internal </span><span class="s2">as </span><span class="s1">nic</span>
+<a name="l83"><span class="ln">83   </span></a>    <span class="s1">c_intp </span><span class="s2">= </span><span class="s1">nic</span><span class="s3">.</span><span class="s1">_getintp_ctype</span><span class="s3">()</span>
+<a name="l84"><span class="ln">84   </span></a>    <span class="s2">del </span><span class="s1">nic</span>
+<a name="l85"><span class="ln">85   </span></a>    <span class="s1">_ndptr_base </span><span class="s2">= </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">c_void_p</span>
+<a name="l86"><span class="ln">86   </span></a>
+<a name="l87"><span class="ln">87   </span></a>    <span class="s0"># Adapted from Albert Strasheim</span>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s2">def </span><span class="s1">load_library</span><span class="s3">(</span><span class="s1">libname</span><span class="s3">, </span><span class="s1">loader_path</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l89"><span class="ln">89   </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l90"><span class="ln">90   </span></a>        It is possible to load a library using 
+<a name="l91"><span class="ln">91   </span></a> 
+<a name="l92"><span class="ln">92   </span></a>        &gt;&gt;&gt; lib = ctypes.cdll[&lt;full_path_name&gt;] # doctest: +SKIP 
+<a name="l93"><span class="ln">93   </span></a> 
+<a name="l94"><span class="ln">94   </span></a>        But there are cross-platform considerations, such as library file extensions, 
+<a name="l95"><span class="ln">95   </span></a>        plus the fact Windows will just load the first library it finds with that name. 
+<a name="l96"><span class="ln">96   </span></a>        NumPy supplies the load_library function as a convenience. 
+<a name="l97"><span class="ln">97   </span></a> 
+<a name="l98"><span class="ln">98   </span></a>        .. versionchanged:: 1.20.0 
+<a name="l99"><span class="ln">99   </span></a>            Allow libname and loader_path to take any 
+<a name="l100"><span class="ln">100  </span></a>            :term:`python:path-like object`. 
+<a name="l101"><span class="ln">101  </span></a> 
+<a name="l102"><span class="ln">102  </span></a>        Parameters 
+<a name="l103"><span class="ln">103  </span></a>        ---------- 
+<a name="l104"><span class="ln">104  </span></a>        libname : path-like 
+<a name="l105"><span class="ln">105  </span></a>            Name of the library, which can have 'lib' as a prefix, 
+<a name="l106"><span class="ln">106  </span></a>            but without an extension. 
+<a name="l107"><span class="ln">107  </span></a>        loader_path : path-like 
+<a name="l108"><span class="ln">108  </span></a>            Where the library can be found. 
+<a name="l109"><span class="ln">109  </span></a> 
+<a name="l110"><span class="ln">110  </span></a>        Returns 
+<a name="l111"><span class="ln">111  </span></a>        ------- 
+<a name="l112"><span class="ln">112  </span></a>        ctypes.cdll[libpath] : library object 
+<a name="l113"><span class="ln">113  </span></a>           A ctypes library object 
+<a name="l114"><span class="ln">114  </span></a> 
+<a name="l115"><span class="ln">115  </span></a>        Raises 
+<a name="l116"><span class="ln">116  </span></a>        ------ 
+<a name="l117"><span class="ln">117  </span></a>        OSError 
+<a name="l118"><span class="ln">118  </span></a>            If there is no library with the expected extension, or the 
+<a name="l119"><span class="ln">119  </span></a>            library is defective and cannot be loaded. 
+<a name="l120"><span class="ln">120  </span></a>        &quot;&quot;&quot;</span>
+<a name="l121"><span class="ln">121  </span></a>        <span class="s0"># Convert path-like objects into strings</span>
+<a name="l122"><span class="ln">122  </span></a>        <span class="s1">libname </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">fsdecode</span><span class="s3">(</span><span class="s1">libname</span><span class="s3">)</span>
+<a name="l123"><span class="ln">123  </span></a>        <span class="s1">loader_path </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">fsdecode</span><span class="s3">(</span><span class="s1">loader_path</span><span class="s3">)</span>
+<a name="l124"><span class="ln">124  </span></a>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s1">ext </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">splitext</span><span class="s3">(</span><span class="s1">libname</span><span class="s3">)[</span><span class="s5">1</span><span class="s3">]</span>
+<a name="l126"><span class="ln">126  </span></a>        <span class="s2">if not </span><span class="s1">ext</span><span class="s2">:</span>
+<a name="l127"><span class="ln">127  </span></a>            <span class="s2">import </span><span class="s1">sys</span>
+<a name="l128"><span class="ln">128  </span></a>            <span class="s2">import </span><span class="s1">sysconfig</span>
+<a name="l129"><span class="ln">129  </span></a>            <span class="s0"># Try to load library with platform-specific name, otherwise</span>
+<a name="l130"><span class="ln">130  </span></a>            <span class="s0"># default to libname.[so|dll|dylib].  Sometimes, these files are</span>
+<a name="l131"><span class="ln">131  </span></a>            <span class="s0"># built erroneously on non-linux platforms.</span>
+<a name="l132"><span class="ln">132  </span></a>            <span class="s1">base_ext </span><span class="s2">= </span><span class="s4">&quot;.so&quot;</span>
+<a name="l133"><span class="ln">133  </span></a>            <span class="s2">if </span><span class="s1">sys</span><span class="s3">.</span><span class="s1">platform</span><span class="s3">.</span><span class="s1">startswith</span><span class="s3">(</span><span class="s4">&quot;darwin&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l134"><span class="ln">134  </span></a>                <span class="s1">base_ext </span><span class="s2">= </span><span class="s4">&quot;.dylib&quot;</span>
+<a name="l135"><span class="ln">135  </span></a>            <span class="s2">elif </span><span class="s1">sys</span><span class="s3">.</span><span class="s1">platform</span><span class="s3">.</span><span class="s1">startswith</span><span class="s3">(</span><span class="s4">&quot;win&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l136"><span class="ln">136  </span></a>                <span class="s1">base_ext </span><span class="s2">= </span><span class="s4">&quot;.dll&quot;</span>
+<a name="l137"><span class="ln">137  </span></a>            <span class="s1">libname_ext </span><span class="s2">= </span><span class="s3">[</span><span class="s1">libname </span><span class="s2">+ </span><span class="s1">base_ext</span><span class="s3">]</span>
+<a name="l138"><span class="ln">138  </span></a>            <span class="s1">so_ext </span><span class="s2">= </span><span class="s1">sysconfig</span><span class="s3">.</span><span class="s1">get_config_var</span><span class="s3">(</span><span class="s4">&quot;EXT_SUFFIX&quot;</span><span class="s3">)</span>
+<a name="l139"><span class="ln">139  </span></a>            <span class="s2">if not </span><span class="s1">so_ext </span><span class="s2">== </span><span class="s1">base_ext</span><span class="s2">:</span>
+<a name="l140"><span class="ln">140  </span></a>                <span class="s1">libname_ext</span><span class="s3">.</span><span class="s1">insert</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s1">libname </span><span class="s2">+ </span><span class="s1">so_ext</span><span class="s3">)</span>
+<a name="l141"><span class="ln">141  </span></a>        <span class="s2">else:</span>
+<a name="l142"><span class="ln">142  </span></a>            <span class="s1">libname_ext </span><span class="s2">= </span><span class="s3">[</span><span class="s1">libname</span><span class="s3">]</span>
+<a name="l143"><span class="ln">143  </span></a>
+<a name="l144"><span class="ln">144  </span></a>        <span class="s1">loader_path </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">abspath</span><span class="s3">(</span><span class="s1">loader_path</span><span class="s3">)</span>
+<a name="l145"><span class="ln">145  </span></a>        <span class="s2">if not </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">isdir</span><span class="s3">(</span><span class="s1">loader_path</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l146"><span class="ln">146  </span></a>            <span class="s1">libdir </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">dirname</span><span class="s3">(</span><span class="s1">loader_path</span><span class="s3">)</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s2">else:</span>
+<a name="l148"><span class="ln">148  </span></a>            <span class="s1">libdir </span><span class="s2">= </span><span class="s1">loader_path</span>
+<a name="l149"><span class="ln">149  </span></a>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s2">for </span><span class="s1">ln </span><span class="s2">in </span><span class="s1">libname_ext</span><span class="s2">:</span>
+<a name="l151"><span class="ln">151  </span></a>            <span class="s1">libpath </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">libdir</span><span class="s3">, </span><span class="s1">ln</span><span class="s3">)</span>
+<a name="l152"><span class="ln">152  </span></a>            <span class="s2">if </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">exists</span><span class="s3">(</span><span class="s1">libpath</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l153"><span class="ln">153  </span></a>                <span class="s2">try:</span>
+<a name="l154"><span class="ln">154  </span></a>                    <span class="s2">return </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">cdll</span><span class="s3">[</span><span class="s1">libpath</span><span class="s3">]</span>
+<a name="l155"><span class="ln">155  </span></a>                <span class="s2">except </span><span class="s1">OSError</span><span class="s2">:</span>
+<a name="l156"><span class="ln">156  </span></a>                    <span class="s0">## defective lib file</span>
+<a name="l157"><span class="ln">157  </span></a>                    <span class="s2">raise</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s0">## if no successful return in the libname_ext loop:</span>
+<a name="l159"><span class="ln">159  </span></a>        <span class="s2">raise </span><span class="s1">OSError</span><span class="s3">(</span><span class="s4">&quot;no file with expected extension&quot;</span><span class="s3">)</span>
+<a name="l160"><span class="ln">160  </span></a>
+<a name="l161"><span class="ln">161  </span></a>
+<a name="l162"><span class="ln">162  </span></a><span class="s2">def </span><span class="s1">_num_fromflags</span><span class="s3">(</span><span class="s1">flaglist</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l163"><span class="ln">163  </span></a>    <span class="s1">num </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l164"><span class="ln">164  </span></a>    <span class="s2">for </span><span class="s1">val </span><span class="s2">in </span><span class="s1">flaglist</span><span class="s2">:</span>
+<a name="l165"><span class="ln">165  </span></a>        <span class="s1">num </span><span class="s2">+= </span><span class="s1">_flagdict</span><span class="s3">[</span><span class="s1">val</span><span class="s3">]</span>
+<a name="l166"><span class="ln">166  </span></a>    <span class="s2">return </span><span class="s1">num</span>
+<a name="l167"><span class="ln">167  </span></a>
+<a name="l168"><span class="ln">168  </span></a><span class="s1">_flagnames </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'C_CONTIGUOUS'</span><span class="s3">, </span><span class="s4">'F_CONTIGUOUS'</span><span class="s3">, </span><span class="s4">'ALIGNED'</span><span class="s3">, </span><span class="s4">'WRITEABLE'</span><span class="s3">,</span>
+<a name="l169"><span class="ln">169  </span></a>              <span class="s4">'OWNDATA'</span><span class="s3">, </span><span class="s4">'WRITEBACKIFCOPY'</span><span class="s3">]</span>
+<a name="l170"><span class="ln">170  </span></a><span class="s2">def </span><span class="s1">_flags_fromnum</span><span class="s3">(</span><span class="s1">num</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l171"><span class="ln">171  </span></a>    <span class="s1">res </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l172"><span class="ln">172  </span></a>    <span class="s2">for </span><span class="s1">key </span><span class="s2">in </span><span class="s1">_flagnames</span><span class="s2">:</span>
+<a name="l173"><span class="ln">173  </span></a>        <span class="s1">value </span><span class="s2">= </span><span class="s1">_flagdict</span><span class="s3">[</span><span class="s1">key</span><span class="s3">]</span>
+<a name="l174"><span class="ln">174  </span></a>        <span class="s2">if </span><span class="s3">(</span><span class="s1">num </span><span class="s2">&amp; </span><span class="s1">value</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l175"><span class="ln">175  </span></a>            <span class="s1">res</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">key</span><span class="s3">)</span>
+<a name="l176"><span class="ln">176  </span></a>    <span class="s2">return </span><span class="s1">res</span>
+<a name="l177"><span class="ln">177  </span></a>
+<a name="l178"><span class="ln">178  </span></a>
+<a name="l179"><span class="ln">179  </span></a><span class="s2">class </span><span class="s1">_ndptr</span><span class="s3">(</span><span class="s1">_ndptr_base</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l180"><span class="ln">180  </span></a>    <span class="s2">@</span><span class="s1">classmethod</span>
+<a name="l181"><span class="ln">181  </span></a>    <span class="s2">def </span><span class="s1">from_param</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s1">obj</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l182"><span class="ln">182  </span></a>        <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">, </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ndarray</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l183"><span class="ln">183  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;argument must be an ndarray&quot;</span><span class="s3">)</span>
+<a name="l184"><span class="ln">184  </span></a>        <span class="s2">if </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_dtype_ </span><span class="s2">is not None </span><span class="s1">\</span>
+<a name="l185"><span class="ln">185  </span></a>               <span class="s2">and </span><span class="s1">obj</span><span class="s3">.</span><span class="s1">dtype </span><span class="s2">!= </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_dtype_</span><span class="s2">:</span>
+<a name="l186"><span class="ln">186  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;array must have data type %s&quot; </span><span class="s2">% </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_dtype_</span><span class="s3">)</span>
+<a name="l187"><span class="ln">187  </span></a>        <span class="s2">if </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_ndim_ </span><span class="s2">is not None </span><span class="s1">\</span>
+<a name="l188"><span class="ln">188  </span></a>               <span class="s2">and </span><span class="s1">obj</span><span class="s3">.</span><span class="s1">ndim </span><span class="s2">!= </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_ndim_</span><span class="s2">:</span>
+<a name="l189"><span class="ln">189  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;array must have %d dimension(s)&quot; </span><span class="s2">% </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_ndim_</span><span class="s3">)</span>
+<a name="l190"><span class="ln">190  </span></a>        <span class="s2">if </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_shape_ </span><span class="s2">is not None </span><span class="s1">\</span>
+<a name="l191"><span class="ln">191  </span></a>               <span class="s2">and </span><span class="s1">obj</span><span class="s3">.</span><span class="s1">shape </span><span class="s2">!= </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_shape_</span><span class="s2">:</span>
+<a name="l192"><span class="ln">192  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;array must have shape %s&quot; </span><span class="s2">% </span><span class="s1">str</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_shape_</span><span class="s3">))</span>
+<a name="l193"><span class="ln">193  </span></a>        <span class="s2">if </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_flags_ </span><span class="s2">is not None </span><span class="s1">\</span>
+<a name="l194"><span class="ln">194  </span></a>               <span class="s2">and </span><span class="s3">((</span><span class="s1">obj</span><span class="s3">.</span><span class="s1">flags</span><span class="s3">.</span><span class="s1">num </span><span class="s2">&amp; </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_flags_</span><span class="s3">) </span><span class="s2">!= </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_flags_</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l195"><span class="ln">195  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;array must have flags %s&quot; </span><span class="s2">%</span>
+<a name="l196"><span class="ln">196  </span></a>                    <span class="s1">_flags_fromnum</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">.</span><span class="s1">_flags_</span><span class="s3">))</span>
+<a name="l197"><span class="ln">197  </span></a>        <span class="s2">return </span><span class="s1">obj</span><span class="s3">.</span><span class="s1">ctypes</span>
+<a name="l198"><span class="ln">198  </span></a>
+<a name="l199"><span class="ln">199  </span></a>
+<a name="l200"><span class="ln">200  </span></a><span class="s2">class </span><span class="s1">_concrete_ndptr</span><span class="s3">(</span><span class="s1">_ndptr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l201"><span class="ln">201  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l202"><span class="ln">202  </span></a>    Like _ndptr, but with `_shape_` and `_dtype_` specified. 
+<a name="l203"><span class="ln">203  </span></a> 
+<a name="l204"><span class="ln">204  </span></a>    Notably, this means the pointer has enough information to reconstruct 
+<a name="l205"><span class="ln">205  </span></a>    the array, which is not generally true. 
+<a name="l206"><span class="ln">206  </span></a>    &quot;&quot;&quot;</span>
+<a name="l207"><span class="ln">207  </span></a>    <span class="s2">def </span><span class="s1">_check_retval_</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l208"><span class="ln">208  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l209"><span class="ln">209  </span></a>        This method is called when this class is used as the .restype 
+<a name="l210"><span class="ln">210  </span></a>        attribute for a shared-library function, to automatically wrap the 
+<a name="l211"><span class="ln">211  </span></a>        pointer into an array. 
+<a name="l212"><span class="ln">212  </span></a>        &quot;&quot;&quot;</span>
+<a name="l213"><span class="ln">213  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">contents</span>
+<a name="l214"><span class="ln">214  </span></a>
+<a name="l215"><span class="ln">215  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l216"><span class="ln">216  </span></a>    <span class="s2">def </span><span class="s1">contents</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l217"><span class="ln">217  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l218"><span class="ln">218  </span></a>        Get an ndarray viewing the data pointed to by this pointer. 
+<a name="l219"><span class="ln">219  </span></a> 
+<a name="l220"><span class="ln">220  </span></a>        This mirrors the `contents` attribute of a normal ctypes pointer 
+<a name="l221"><span class="ln">221  </span></a>        &quot;&quot;&quot;</span>
+<a name="l222"><span class="ln">222  </span></a>        <span class="s1">full_dtype </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">((</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_dtype_</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_shape_</span><span class="s3">))</span>
+<a name="l223"><span class="ln">223  </span></a>        <span class="s1">full_ctype </span><span class="s2">= </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">c_char </span><span class="s2">* </span><span class="s1">full_dtype</span><span class="s3">.</span><span class="s1">itemsize</span>
+<a name="l224"><span class="ln">224  </span></a>        <span class="s1">buffer </span><span class="s2">= </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">cast</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">POINTER</span><span class="s3">(</span><span class="s1">full_ctype</span><span class="s3">)).</span><span class="s1">contents</span>
+<a name="l225"><span class="ln">225  </span></a>        <span class="s2">return </span><span class="s1">np</span><span class="s3">.</span><span class="s1">frombuffer</span><span class="s3">(</span><span class="s1">buffer</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">full_dtype</span><span class="s3">).</span><span class="s1">squeeze</span><span class="s3">(</span><span class="s1">axis</span><span class="s2">=</span><span class="s5">0</span><span class="s3">)</span>
+<a name="l226"><span class="ln">226  </span></a>
+<a name="l227"><span class="ln">227  </span></a>
+<a name="l228"><span class="ln">228  </span></a><span class="s0"># Factory for an array-checking class with from_param defined for</span>
+<a name="l229"><span class="ln">229  </span></a><span class="s0">#  use with ctypes argtypes mechanism</span>
+<a name="l230"><span class="ln">230  </span></a><span class="s1">_pointer_type_cache </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l231"><span class="ln">231  </span></a><span class="s2">def </span><span class="s1">ndpointer</span><span class="s3">(</span><span class="s1">dtype</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">ndim</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">shape</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">flags</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l232"><span class="ln">232  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l233"><span class="ln">233  </span></a>    Array-checking restype/argtypes. 
+<a name="l234"><span class="ln">234  </span></a> 
+<a name="l235"><span class="ln">235  </span></a>    An ndpointer instance is used to describe an ndarray in restypes 
+<a name="l236"><span class="ln">236  </span></a>    and argtypes specifications.  This approach is more flexible than 
+<a name="l237"><span class="ln">237  </span></a>    using, for example, ``POINTER(c_double)``, since several restrictions 
+<a name="l238"><span class="ln">238  </span></a>    can be specified, which are verified upon calling the ctypes function. 
+<a name="l239"><span class="ln">239  </span></a>    These include data type, number of dimensions, shape and flags.  If a 
+<a name="l240"><span class="ln">240  </span></a>    given array does not satisfy the specified restrictions, 
+<a name="l241"><span class="ln">241  </span></a>    a ``TypeError`` is raised. 
+<a name="l242"><span class="ln">242  </span></a> 
+<a name="l243"><span class="ln">243  </span></a>    Parameters 
+<a name="l244"><span class="ln">244  </span></a>    ---------- 
+<a name="l245"><span class="ln">245  </span></a>    dtype : data-type, optional 
+<a name="l246"><span class="ln">246  </span></a>        Array data-type. 
+<a name="l247"><span class="ln">247  </span></a>    ndim : int, optional 
+<a name="l248"><span class="ln">248  </span></a>        Number of array dimensions. 
+<a name="l249"><span class="ln">249  </span></a>    shape : tuple of ints, optional 
+<a name="l250"><span class="ln">250  </span></a>        Array shape. 
+<a name="l251"><span class="ln">251  </span></a>    flags : str or tuple of str 
+<a name="l252"><span class="ln">252  </span></a>        Array flags; may be one or more of: 
+<a name="l253"><span class="ln">253  </span></a> 
+<a name="l254"><span class="ln">254  </span></a>        - C_CONTIGUOUS / C / CONTIGUOUS 
+<a name="l255"><span class="ln">255  </span></a>        - F_CONTIGUOUS / F / FORTRAN 
+<a name="l256"><span class="ln">256  </span></a>        - OWNDATA / O 
+<a name="l257"><span class="ln">257  </span></a>        - WRITEABLE / W 
+<a name="l258"><span class="ln">258  </span></a>        - ALIGNED / A 
+<a name="l259"><span class="ln">259  </span></a>        - WRITEBACKIFCOPY / X 
+<a name="l260"><span class="ln">260  </span></a> 
+<a name="l261"><span class="ln">261  </span></a>    Returns 
+<a name="l262"><span class="ln">262  </span></a>    ------- 
+<a name="l263"><span class="ln">263  </span></a>    klass : ndpointer type object 
+<a name="l264"><span class="ln">264  </span></a>        A type object, which is an ``_ndtpr`` instance containing 
+<a name="l265"><span class="ln">265  </span></a>        dtype, ndim, shape and flags information. 
+<a name="l266"><span class="ln">266  </span></a> 
+<a name="l267"><span class="ln">267  </span></a>    Raises 
+<a name="l268"><span class="ln">268  </span></a>    ------ 
+<a name="l269"><span class="ln">269  </span></a>    TypeError 
+<a name="l270"><span class="ln">270  </span></a>        If a given array does not satisfy the specified restrictions. 
+<a name="l271"><span class="ln">271  </span></a> 
+<a name="l272"><span class="ln">272  </span></a>    Examples 
+<a name="l273"><span class="ln">273  </span></a>    -------- 
+<a name="l274"><span class="ln">274  </span></a>    &gt;&gt;&gt; clib.somefunc.argtypes = [np.ctypeslib.ndpointer(dtype=np.float64, 
+<a name="l275"><span class="ln">275  </span></a>    ...                                                  ndim=1, 
+<a name="l276"><span class="ln">276  </span></a>    ...                                                  flags='C_CONTIGUOUS')] 
+<a name="l277"><span class="ln">277  </span></a>    ... #doctest: +SKIP 
+<a name="l278"><span class="ln">278  </span></a>    &gt;&gt;&gt; clib.somefunc(np.array([1, 2, 3], dtype=np.float64)) 
+<a name="l279"><span class="ln">279  </span></a>    ... #doctest: +SKIP 
+<a name="l280"><span class="ln">280  </span></a> 
+<a name="l281"><span class="ln">281  </span></a>    &quot;&quot;&quot;</span>
+<a name="l282"><span class="ln">282  </span></a>
+<a name="l283"><span class="ln">283  </span></a>    <span class="s0"># normalize dtype to dtype | None</span>
+<a name="l284"><span class="ln">284  </span></a>    <span class="s2">if </span><span class="s1">dtype </span><span class="s2">is not None:</span>
+<a name="l285"><span class="ln">285  </span></a>        <span class="s1">dtype </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l286"><span class="ln">286  </span></a>
+<a name="l287"><span class="ln">287  </span></a>    <span class="s0"># normalize flags to int | None</span>
+<a name="l288"><span class="ln">288  </span></a>    <span class="s1">num </span><span class="s2">= None</span>
+<a name="l289"><span class="ln">289  </span></a>    <span class="s2">if </span><span class="s1">flags </span><span class="s2">is not None:</span>
+<a name="l290"><span class="ln">290  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">flags</span><span class="s3">, </span><span class="s1">str</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l291"><span class="ln">291  </span></a>            <span class="s1">flags </span><span class="s2">= </span><span class="s1">flags</span><span class="s3">.</span><span class="s1">split</span><span class="s3">(</span><span class="s4">','</span><span class="s3">)</span>
+<a name="l292"><span class="ln">292  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">flags</span><span class="s3">, (</span><span class="s1">int</span><span class="s3">, </span><span class="s1">np</span><span class="s3">.</span><span class="s1">integer</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l293"><span class="ln">293  </span></a>            <span class="s1">num </span><span class="s2">= </span><span class="s1">flags</span>
+<a name="l294"><span class="ln">294  </span></a>            <span class="s1">flags </span><span class="s2">= </span><span class="s1">_flags_fromnum</span><span class="s3">(</span><span class="s1">num</span><span class="s3">)</span>
+<a name="l295"><span class="ln">295  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">flags</span><span class="s3">, </span><span class="s1">flagsobj</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l296"><span class="ln">296  </span></a>            <span class="s1">num </span><span class="s2">= </span><span class="s1">flags</span><span class="s3">.</span><span class="s1">num</span>
+<a name="l297"><span class="ln">297  </span></a>            <span class="s1">flags </span><span class="s2">= </span><span class="s1">_flags_fromnum</span><span class="s3">(</span><span class="s1">num</span><span class="s3">)</span>
+<a name="l298"><span class="ln">298  </span></a>        <span class="s2">if </span><span class="s1">num </span><span class="s2">is None:</span>
+<a name="l299"><span class="ln">299  </span></a>            <span class="s2">try:</span>
+<a name="l300"><span class="ln">300  </span></a>                <span class="s1">flags </span><span class="s2">= </span><span class="s3">[</span><span class="s1">x</span><span class="s3">.</span><span class="s1">strip</span><span class="s3">().</span><span class="s1">upper</span><span class="s3">() </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">flags</span><span class="s3">]</span>
+<a name="l301"><span class="ln">301  </span></a>            <span class="s2">except </span><span class="s1">Exception </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l302"><span class="ln">302  </span></a>                <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;invalid flags specification&quot;</span><span class="s3">) </span><span class="s2">from </span><span class="s1">e</span>
+<a name="l303"><span class="ln">303  </span></a>            <span class="s1">num </span><span class="s2">= </span><span class="s1">_num_fromflags</span><span class="s3">(</span><span class="s1">flags</span><span class="s3">)</span>
+<a name="l304"><span class="ln">304  </span></a>
+<a name="l305"><span class="ln">305  </span></a>    <span class="s0"># normalize shape to tuple | None</span>
+<a name="l306"><span class="ln">306  </span></a>    <span class="s2">if </span><span class="s1">shape </span><span class="s2">is not None:</span>
+<a name="l307"><span class="ln">307  </span></a>        <span class="s2">try:</span>
+<a name="l308"><span class="ln">308  </span></a>            <span class="s1">shape </span><span class="s2">= </span><span class="s1">tuple</span><span class="s3">(</span><span class="s1">shape</span><span class="s3">)</span>
+<a name="l309"><span class="ln">309  </span></a>        <span class="s2">except </span><span class="s1">TypeError</span><span class="s2">:</span>
+<a name="l310"><span class="ln">310  </span></a>            <span class="s0"># single integer -&gt; 1-tuple</span>
+<a name="l311"><span class="ln">311  </span></a>            <span class="s1">shape </span><span class="s2">= </span><span class="s3">(</span><span class="s1">shape</span><span class="s3">,)</span>
+<a name="l312"><span class="ln">312  </span></a>
+<a name="l313"><span class="ln">313  </span></a>    <span class="s1">cache_key </span><span class="s2">= </span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">ndim</span><span class="s3">, </span><span class="s1">shape</span><span class="s3">, </span><span class="s1">num</span><span class="s3">)</span>
+<a name="l314"><span class="ln">314  </span></a>
+<a name="l315"><span class="ln">315  </span></a>    <span class="s2">try:</span>
+<a name="l316"><span class="ln">316  </span></a>        <span class="s2">return </span><span class="s1">_pointer_type_cache</span><span class="s3">[</span><span class="s1">cache_key</span><span class="s3">]</span>
+<a name="l317"><span class="ln">317  </span></a>    <span class="s2">except </span><span class="s1">KeyError</span><span class="s2">:</span>
+<a name="l318"><span class="ln">318  </span></a>        <span class="s2">pass</span>
+<a name="l319"><span class="ln">319  </span></a>
+<a name="l320"><span class="ln">320  </span></a>    <span class="s0"># produce a name for the new type</span>
+<a name="l321"><span class="ln">321  </span></a>    <span class="s2">if </span><span class="s1">dtype </span><span class="s2">is None:</span>
+<a name="l322"><span class="ln">322  </span></a>        <span class="s1">name </span><span class="s2">= </span><span class="s4">'any'</span>
+<a name="l323"><span class="ln">323  </span></a>    <span class="s2">elif </span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">names </span><span class="s2">is not None:</span>
+<a name="l324"><span class="ln">324  </span></a>        <span class="s1">name </span><span class="s2">= </span><span class="s1">str</span><span class="s3">(</span><span class="s1">id</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">))</span>
+<a name="l325"><span class="ln">325  </span></a>    <span class="s2">else:</span>
+<a name="l326"><span class="ln">326  </span></a>        <span class="s1">name </span><span class="s2">= </span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">str</span>
+<a name="l327"><span class="ln">327  </span></a>    <span class="s2">if </span><span class="s1">ndim </span><span class="s2">is not None:</span>
+<a name="l328"><span class="ln">328  </span></a>        <span class="s1">name </span><span class="s2">+= </span><span class="s4">&quot;_%dd&quot; </span><span class="s2">% </span><span class="s1">ndim</span>
+<a name="l329"><span class="ln">329  </span></a>    <span class="s2">if </span><span class="s1">shape </span><span class="s2">is not None:</span>
+<a name="l330"><span class="ln">330  </span></a>        <span class="s1">name </span><span class="s2">+= </span><span class="s4">&quot;_&quot;</span><span class="s2">+</span><span class="s4">&quot;x&quot;</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">str</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">shape</span><span class="s3">)</span>
+<a name="l331"><span class="ln">331  </span></a>    <span class="s2">if </span><span class="s1">flags </span><span class="s2">is not None:</span>
+<a name="l332"><span class="ln">332  </span></a>        <span class="s1">name </span><span class="s2">+= </span><span class="s4">&quot;_&quot;</span><span class="s2">+</span><span class="s4">&quot;_&quot;</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">flags</span><span class="s3">)</span>
+<a name="l333"><span class="ln">333  </span></a>
+<a name="l334"><span class="ln">334  </span></a>    <span class="s2">if </span><span class="s1">dtype </span><span class="s2">is not None and </span><span class="s1">shape </span><span class="s2">is not None:</span>
+<a name="l335"><span class="ln">335  </span></a>        <span class="s1">base </span><span class="s2">= </span><span class="s1">_concrete_ndptr</span>
+<a name="l336"><span class="ln">336  </span></a>    <span class="s2">else:</span>
+<a name="l337"><span class="ln">337  </span></a>        <span class="s1">base </span><span class="s2">= </span><span class="s1">_ndptr</span>
+<a name="l338"><span class="ln">338  </span></a>
+<a name="l339"><span class="ln">339  </span></a>    <span class="s1">klass </span><span class="s2">= </span><span class="s1">type</span><span class="s3">(</span><span class="s4">&quot;ndpointer_%s&quot;</span><span class="s2">%</span><span class="s1">name</span><span class="s3">, (</span><span class="s1">base</span><span class="s3">,),</span>
+<a name="l340"><span class="ln">340  </span></a>                 <span class="s3">{</span><span class="s4">&quot;_dtype_&quot;</span><span class="s2">: </span><span class="s1">dtype</span><span class="s3">,</span>
+<a name="l341"><span class="ln">341  </span></a>                  <span class="s4">&quot;_shape_&quot; </span><span class="s2">: </span><span class="s1">shape</span><span class="s3">,</span>
+<a name="l342"><span class="ln">342  </span></a>                  <span class="s4">&quot;_ndim_&quot; </span><span class="s2">: </span><span class="s1">ndim</span><span class="s3">,</span>
+<a name="l343"><span class="ln">343  </span></a>                  <span class="s4">&quot;_flags_&quot; </span><span class="s2">: </span><span class="s1">num</span><span class="s3">})</span>
+<a name="l344"><span class="ln">344  </span></a>    <span class="s1">_pointer_type_cache</span><span class="s3">[</span><span class="s1">cache_key</span><span class="s3">] </span><span class="s2">= </span><span class="s1">klass</span>
+<a name="l345"><span class="ln">345  </span></a>    <span class="s2">return </span><span class="s1">klass</span>
+<a name="l346"><span class="ln">346  </span></a>
+<a name="l347"><span class="ln">347  </span></a>
+<a name="l348"><span class="ln">348  </span></a><span class="s2">if </span><span class="s1">ctypes </span><span class="s2">is not None:</span>
+<a name="l349"><span class="ln">349  </span></a>    <span class="s2">def </span><span class="s1">_ctype_ndarray</span><span class="s3">(</span><span class="s1">element_type</span><span class="s3">, </span><span class="s1">shape</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l350"><span class="ln">350  </span></a>        <span class="s0">&quot;&quot;&quot; Create an ndarray of the given element type and shape &quot;&quot;&quot;</span>
+<a name="l351"><span class="ln">351  </span></a>        <span class="s2">for </span><span class="s1">dim </span><span class="s2">in </span><span class="s1">shape</span><span class="s3">[</span><span class="s2">::-</span><span class="s5">1</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l352"><span class="ln">352  </span></a>            <span class="s1">element_type </span><span class="s2">= </span><span class="s1">dim </span><span class="s2">* </span><span class="s1">element_type</span>
+<a name="l353"><span class="ln">353  </span></a>            <span class="s0"># prevent the type name include np.ctypeslib</span>
+<a name="l354"><span class="ln">354  </span></a>            <span class="s1">element_type</span><span class="s3">.</span><span class="s1">__module__ </span><span class="s2">= None</span>
+<a name="l355"><span class="ln">355  </span></a>        <span class="s2">return </span><span class="s1">element_type</span>
+<a name="l356"><span class="ln">356  </span></a>
+<a name="l357"><span class="ln">357  </span></a>
+<a name="l358"><span class="ln">358  </span></a>    <span class="s2">def </span><span class="s1">_get_scalar_type_map</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l359"><span class="ln">359  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l360"><span class="ln">360  </span></a>        Return a dictionary mapping native endian scalar dtype to ctypes types 
+<a name="l361"><span class="ln">361  </span></a>        &quot;&quot;&quot;</span>
+<a name="l362"><span class="ln">362  </span></a>        <span class="s1">ct </span><span class="s2">= </span><span class="s1">ctypes</span>
+<a name="l363"><span class="ln">363  </span></a>        <span class="s1">simple_types </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l364"><span class="ln">364  </span></a>            <span class="s1">ct</span><span class="s3">.</span><span class="s1">c_byte</span><span class="s3">, </span><span class="s1">ct</span><span class="s3">.</span><span class="s1">c_short</span><span class="s3">, </span><span class="s1">ct</span><span class="s3">.</span><span class="s1">c_int</span><span class="s3">, </span><span class="s1">ct</span><span class="s3">.</span><span class="s1">c_long</span><span class="s3">, </span><span class="s1">ct</span><span class="s3">.</span><span class="s1">c_longlong</span><span class="s3">,</span>
+<a name="l365"><span class="ln">365  </span></a>            <span class="s1">ct</span><span class="s3">.</span><span class="s1">c_ubyte</span><span class="s3">, </span><span class="s1">ct</span><span class="s3">.</span><span class="s1">c_ushort</span><span class="s3">, </span><span class="s1">ct</span><span class="s3">.</span><span class="s1">c_uint</span><span class="s3">, </span><span class="s1">ct</span><span class="s3">.</span><span class="s1">c_ulong</span><span class="s3">, </span><span class="s1">ct</span><span class="s3">.</span><span class="s1">c_ulonglong</span><span class="s3">,</span>
+<a name="l366"><span class="ln">366  </span></a>            <span class="s1">ct</span><span class="s3">.</span><span class="s1">c_float</span><span class="s3">, </span><span class="s1">ct</span><span class="s3">.</span><span class="s1">c_double</span><span class="s3">,</span>
+<a name="l367"><span class="ln">367  </span></a>            <span class="s1">ct</span><span class="s3">.</span><span class="s1">c_bool</span><span class="s3">,</span>
+<a name="l368"><span class="ln">368  </span></a>        <span class="s3">]</span>
+<a name="l369"><span class="ln">369  </span></a>        <span class="s2">return </span><span class="s3">{</span><span class="s1">np</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">ctype</span><span class="s3">)</span><span class="s2">: </span><span class="s1">ctype </span><span class="s2">for </span><span class="s1">ctype </span><span class="s2">in </span><span class="s1">simple_types</span><span class="s3">}</span>
+<a name="l370"><span class="ln">370  </span></a>
+<a name="l371"><span class="ln">371  </span></a>
+<a name="l372"><span class="ln">372  </span></a>    <span class="s1">_scalar_type_map </span><span class="s2">= </span><span class="s1">_get_scalar_type_map</span><span class="s3">()</span>
+<a name="l373"><span class="ln">373  </span></a>
+<a name="l374"><span class="ln">374  </span></a>
+<a name="l375"><span class="ln">375  </span></a>    <span class="s2">def </span><span class="s1">_ctype_from_dtype_scalar</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l376"><span class="ln">376  </span></a>        <span class="s0"># swapping twice ensure that `=` is promoted to &lt;, &gt;, or |</span>
+<a name="l377"><span class="ln">377  </span></a>        <span class="s1">dtype_with_endian </span><span class="s2">= </span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">newbyteorder</span><span class="s3">(</span><span class="s4">'S'</span><span class="s3">).</span><span class="s1">newbyteorder</span><span class="s3">(</span><span class="s4">'S'</span><span class="s3">)</span>
+<a name="l378"><span class="ln">378  </span></a>        <span class="s1">dtype_native </span><span class="s2">= </span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">newbyteorder</span><span class="s3">(</span><span class="s4">'='</span><span class="s3">)</span>
+<a name="l379"><span class="ln">379  </span></a>        <span class="s2">try:</span>
+<a name="l380"><span class="ln">380  </span></a>            <span class="s1">ctype </span><span class="s2">= </span><span class="s1">_scalar_type_map</span><span class="s3">[</span><span class="s1">dtype_native</span><span class="s3">]</span>
+<a name="l381"><span class="ln">381  </span></a>        <span class="s2">except </span><span class="s1">KeyError </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l382"><span class="ln">382  </span></a>            <span class="s2">raise </span><span class="s1">NotImplementedError</span><span class="s3">(</span>
+<a name="l383"><span class="ln">383  </span></a>                <span class="s4">&quot;Converting {!r} to a ctypes type&quot;</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l384"><span class="ln">384  </span></a>            <span class="s3">) </span><span class="s2">from None</span>
+<a name="l385"><span class="ln">385  </span></a>
+<a name="l386"><span class="ln">386  </span></a>        <span class="s2">if </span><span class="s1">dtype_with_endian</span><span class="s3">.</span><span class="s1">byteorder </span><span class="s2">== </span><span class="s4">'&gt;'</span><span class="s2">:</span>
+<a name="l387"><span class="ln">387  </span></a>            <span class="s1">ctype </span><span class="s2">= </span><span class="s1">ctype</span><span class="s3">.</span><span class="s1">__ctype_be__</span>
+<a name="l388"><span class="ln">388  </span></a>        <span class="s2">elif </span><span class="s1">dtype_with_endian</span><span class="s3">.</span><span class="s1">byteorder </span><span class="s2">== </span><span class="s4">'&lt;'</span><span class="s2">:</span>
+<a name="l389"><span class="ln">389  </span></a>            <span class="s1">ctype </span><span class="s2">= </span><span class="s1">ctype</span><span class="s3">.</span><span class="s1">__ctype_le__</span>
+<a name="l390"><span class="ln">390  </span></a>
+<a name="l391"><span class="ln">391  </span></a>        <span class="s2">return </span><span class="s1">ctype</span>
+<a name="l392"><span class="ln">392  </span></a>
+<a name="l393"><span class="ln">393  </span></a>
+<a name="l394"><span class="ln">394  </span></a>    <span class="s2">def </span><span class="s1">_ctype_from_dtype_subarray</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l395"><span class="ln">395  </span></a>        <span class="s1">element_dtype</span><span class="s3">, </span><span class="s1">shape </span><span class="s2">= </span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">subdtype</span>
+<a name="l396"><span class="ln">396  </span></a>        <span class="s1">ctype </span><span class="s2">= </span><span class="s1">_ctype_from_dtype</span><span class="s3">(</span><span class="s1">element_dtype</span><span class="s3">)</span>
+<a name="l397"><span class="ln">397  </span></a>        <span class="s2">return </span><span class="s1">_ctype_ndarray</span><span class="s3">(</span><span class="s1">ctype</span><span class="s3">, </span><span class="s1">shape</span><span class="s3">)</span>
+<a name="l398"><span class="ln">398  </span></a>
+<a name="l399"><span class="ln">399  </span></a>
+<a name="l400"><span class="ln">400  </span></a>    <span class="s2">def </span><span class="s1">_ctype_from_dtype_structured</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l401"><span class="ln">401  </span></a>        <span class="s0"># extract offsets of each field</span>
+<a name="l402"><span class="ln">402  </span></a>        <span class="s1">field_data </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l403"><span class="ln">403  </span></a>        <span class="s2">for </span><span class="s1">name </span><span class="s2">in </span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">names</span><span class="s2">:</span>
+<a name="l404"><span class="ln">404  </span></a>            <span class="s1">field_dtype</span><span class="s3">, </span><span class="s1">offset </span><span class="s2">= </span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">fields</span><span class="s3">[</span><span class="s1">name</span><span class="s3">][</span><span class="s2">:</span><span class="s5">2</span><span class="s3">]</span>
+<a name="l405"><span class="ln">405  </span></a>            <span class="s1">field_data</span><span class="s3">.</span><span class="s1">append</span><span class="s3">((</span><span class="s1">offset</span><span class="s3">, </span><span class="s1">name</span><span class="s3">, </span><span class="s1">_ctype_from_dtype</span><span class="s3">(</span><span class="s1">field_dtype</span><span class="s3">)))</span>
+<a name="l406"><span class="ln">406  </span></a>
+<a name="l407"><span class="ln">407  </span></a>        <span class="s0"># ctypes doesn't care about field order</span>
+<a name="l408"><span class="ln">408  </span></a>        <span class="s1">field_data </span><span class="s2">= </span><span class="s1">sorted</span><span class="s3">(</span><span class="s1">field_data</span><span class="s3">, </span><span class="s1">key</span><span class="s2">=lambda </span><span class="s1">f</span><span class="s2">: </span><span class="s1">f</span><span class="s3">[</span><span class="s5">0</span><span class="s3">])</span>
+<a name="l409"><span class="ln">409  </span></a>
+<a name="l410"><span class="ln">410  </span></a>        <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">field_data</span><span class="s3">) </span><span class="s2">&gt; </span><span class="s5">1 </span><span class="s2">and </span><span class="s1">all</span><span class="s3">(</span><span class="s1">offset </span><span class="s2">== </span><span class="s5">0 </span><span class="s2">for </span><span class="s1">offset</span><span class="s3">, </span><span class="s1">name</span><span class="s3">, </span><span class="s1">ctype </span><span class="s2">in </span><span class="s1">field_data</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l411"><span class="ln">411  </span></a>            <span class="s0"># union, if multiple fields all at address 0</span>
+<a name="l412"><span class="ln">412  </span></a>            <span class="s1">size </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l413"><span class="ln">413  </span></a>            <span class="s1">_fields_ </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l414"><span class="ln">414  </span></a>            <span class="s2">for </span><span class="s1">offset</span><span class="s3">, </span><span class="s1">name</span><span class="s3">, </span><span class="s1">ctype </span><span class="s2">in </span><span class="s1">field_data</span><span class="s2">:</span>
+<a name="l415"><span class="ln">415  </span></a>                <span class="s1">_fields_</span><span class="s3">.</span><span class="s1">append</span><span class="s3">((</span><span class="s1">name</span><span class="s3">, </span><span class="s1">ctype</span><span class="s3">))</span>
+<a name="l416"><span class="ln">416  </span></a>                <span class="s1">size </span><span class="s2">= </span><span class="s1">max</span><span class="s3">(</span><span class="s1">size</span><span class="s3">, </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">sizeof</span><span class="s3">(</span><span class="s1">ctype</span><span class="s3">))</span>
+<a name="l417"><span class="ln">417  </span></a>
+<a name="l418"><span class="ln">418  </span></a>            <span class="s0"># pad to the right size</span>
+<a name="l419"><span class="ln">419  </span></a>            <span class="s2">if </span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">itemsize </span><span class="s2">!= </span><span class="s1">size</span><span class="s2">:</span>
+<a name="l420"><span class="ln">420  </span></a>                <span class="s1">_fields_</span><span class="s3">.</span><span class="s1">append</span><span class="s3">((</span><span class="s4">''</span><span class="s3">, </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">c_char </span><span class="s2">* </span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">itemsize</span><span class="s3">))</span>
+<a name="l421"><span class="ln">421  </span></a>
+<a name="l422"><span class="ln">422  </span></a>            <span class="s0"># we inserted manual padding, so always `_pack_`</span>
+<a name="l423"><span class="ln">423  </span></a>            <span class="s2">return </span><span class="s1">type</span><span class="s3">(</span><span class="s4">'union'</span><span class="s3">, (</span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">Union</span><span class="s3">,), </span><span class="s1">dict</span><span class="s3">(</span>
+<a name="l424"><span class="ln">424  </span></a>                <span class="s1">_fields_</span><span class="s2">=</span><span class="s1">_fields_</span><span class="s3">,</span>
+<a name="l425"><span class="ln">425  </span></a>                <span class="s1">_pack_</span><span class="s2">=</span><span class="s5">1</span><span class="s3">,</span>
+<a name="l426"><span class="ln">426  </span></a>                <span class="s1">__module__</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l427"><span class="ln">427  </span></a>            <span class="s3">))</span>
+<a name="l428"><span class="ln">428  </span></a>        <span class="s2">else:</span>
+<a name="l429"><span class="ln">429  </span></a>            <span class="s1">last_offset </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l430"><span class="ln">430  </span></a>            <span class="s1">_fields_ </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l431"><span class="ln">431  </span></a>            <span class="s2">for </span><span class="s1">offset</span><span class="s3">, </span><span class="s1">name</span><span class="s3">, </span><span class="s1">ctype </span><span class="s2">in </span><span class="s1">field_data</span><span class="s2">:</span>
+<a name="l432"><span class="ln">432  </span></a>                <span class="s1">padding </span><span class="s2">= </span><span class="s1">offset </span><span class="s2">- </span><span class="s1">last_offset</span>
+<a name="l433"><span class="ln">433  </span></a>                <span class="s2">if </span><span class="s1">padding </span><span class="s2">&lt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l434"><span class="ln">434  </span></a>                    <span class="s2">raise </span><span class="s1">NotImplementedError</span><span class="s3">(</span><span class="s4">&quot;Overlapping fields&quot;</span><span class="s3">)</span>
+<a name="l435"><span class="ln">435  </span></a>                <span class="s2">if </span><span class="s1">padding </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l436"><span class="ln">436  </span></a>                    <span class="s1">_fields_</span><span class="s3">.</span><span class="s1">append</span><span class="s3">((</span><span class="s4">''</span><span class="s3">, </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">c_char </span><span class="s2">* </span><span class="s1">padding</span><span class="s3">))</span>
+<a name="l437"><span class="ln">437  </span></a>
+<a name="l438"><span class="ln">438  </span></a>                <span class="s1">_fields_</span><span class="s3">.</span><span class="s1">append</span><span class="s3">((</span><span class="s1">name</span><span class="s3">, </span><span class="s1">ctype</span><span class="s3">))</span>
+<a name="l439"><span class="ln">439  </span></a>                <span class="s1">last_offset </span><span class="s2">= </span><span class="s1">offset </span><span class="s2">+ </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">sizeof</span><span class="s3">(</span><span class="s1">ctype</span><span class="s3">)</span>
+<a name="l440"><span class="ln">440  </span></a>
+<a name="l441"><span class="ln">441  </span></a>
+<a name="l442"><span class="ln">442  </span></a>            <span class="s1">padding </span><span class="s2">= </span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">itemsize </span><span class="s2">- </span><span class="s1">last_offset</span>
+<a name="l443"><span class="ln">443  </span></a>            <span class="s2">if </span><span class="s1">padding </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l444"><span class="ln">444  </span></a>                <span class="s1">_fields_</span><span class="s3">.</span><span class="s1">append</span><span class="s3">((</span><span class="s4">''</span><span class="s3">, </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">c_char </span><span class="s2">* </span><span class="s1">padding</span><span class="s3">))</span>
+<a name="l445"><span class="ln">445  </span></a>
+<a name="l446"><span class="ln">446  </span></a>            <span class="s0"># we inserted manual padding, so always `_pack_`</span>
+<a name="l447"><span class="ln">447  </span></a>            <span class="s2">return </span><span class="s1">type</span><span class="s3">(</span><span class="s4">'struct'</span><span class="s3">, (</span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">Structure</span><span class="s3">,), </span><span class="s1">dict</span><span class="s3">(</span>
+<a name="l448"><span class="ln">448  </span></a>                <span class="s1">_fields_</span><span class="s2">=</span><span class="s1">_fields_</span><span class="s3">,</span>
+<a name="l449"><span class="ln">449  </span></a>                <span class="s1">_pack_</span><span class="s2">=</span><span class="s5">1</span><span class="s3">,</span>
+<a name="l450"><span class="ln">450  </span></a>                <span class="s1">__module__</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l451"><span class="ln">451  </span></a>            <span class="s3">))</span>
+<a name="l452"><span class="ln">452  </span></a>
+<a name="l453"><span class="ln">453  </span></a>
+<a name="l454"><span class="ln">454  </span></a>    <span class="s2">def </span><span class="s1">_ctype_from_dtype</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l455"><span class="ln">455  </span></a>        <span class="s2">if </span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">fields </span><span class="s2">is not None:</span>
+<a name="l456"><span class="ln">456  </span></a>            <span class="s2">return </span><span class="s1">_ctype_from_dtype_structured</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l457"><span class="ln">457  </span></a>        <span class="s2">elif </span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">subdtype </span><span class="s2">is not None:</span>
+<a name="l458"><span class="ln">458  </span></a>            <span class="s2">return </span><span class="s1">_ctype_from_dtype_subarray</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l459"><span class="ln">459  </span></a>        <span class="s2">else:</span>
+<a name="l460"><span class="ln">460  </span></a>            <span class="s2">return </span><span class="s1">_ctype_from_dtype_scalar</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l461"><span class="ln">461  </span></a>
+<a name="l462"><span class="ln">462  </span></a>
+<a name="l463"><span class="ln">463  </span></a>    <span class="s2">def </span><span class="s1">as_ctypes_type</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l464"><span class="ln">464  </span></a>        <span class="s0">r&quot;&quot;&quot; 
+<a name="l465"><span class="ln">465  </span></a>        Convert a dtype into a ctypes type. 
+<a name="l466"><span class="ln">466  </span></a> 
+<a name="l467"><span class="ln">467  </span></a>        Parameters 
+<a name="l468"><span class="ln">468  </span></a>        ---------- 
+<a name="l469"><span class="ln">469  </span></a>        dtype : dtype 
+<a name="l470"><span class="ln">470  </span></a>            The dtype to convert 
+<a name="l471"><span class="ln">471  </span></a> 
+<a name="l472"><span class="ln">472  </span></a>        Returns 
+<a name="l473"><span class="ln">473  </span></a>        ------- 
+<a name="l474"><span class="ln">474  </span></a>        ctype 
+<a name="l475"><span class="ln">475  </span></a>            A ctype scalar, union, array, or struct 
+<a name="l476"><span class="ln">476  </span></a> 
+<a name="l477"><span class="ln">477  </span></a>        Raises 
+<a name="l478"><span class="ln">478  </span></a>        ------ 
+<a name="l479"><span class="ln">479  </span></a>        NotImplementedError 
+<a name="l480"><span class="ln">480  </span></a>            If the conversion is not possible 
+<a name="l481"><span class="ln">481  </span></a> 
+<a name="l482"><span class="ln">482  </span></a>        Notes 
+<a name="l483"><span class="ln">483  </span></a>        ----- 
+<a name="l484"><span class="ln">484  </span></a>        This function does not losslessly round-trip in either direction. 
+<a name="l485"><span class="ln">485  </span></a> 
+<a name="l486"><span class="ln">486  </span></a>        ``np.dtype(as_ctypes_type(dt))`` will: 
+<a name="l487"><span class="ln">487  </span></a> 
+<a name="l488"><span class="ln">488  </span></a>        - insert padding fields 
+<a name="l489"><span class="ln">489  </span></a>        - reorder fields to be sorted by offset 
+<a name="l490"><span class="ln">490  </span></a>        - discard field titles 
+<a name="l491"><span class="ln">491  </span></a> 
+<a name="l492"><span class="ln">492  </span></a>        ``as_ctypes_type(np.dtype(ctype))`` will: 
+<a name="l493"><span class="ln">493  </span></a> 
+<a name="l494"><span class="ln">494  </span></a>        - discard the class names of `ctypes.Structure`\ s and 
+<a name="l495"><span class="ln">495  </span></a>          `ctypes.Union`\ s 
+<a name="l496"><span class="ln">496  </span></a>        - convert single-element `ctypes.Union`\ s into single-element 
+<a name="l497"><span class="ln">497  </span></a>          `ctypes.Structure`\ s 
+<a name="l498"><span class="ln">498  </span></a>        - insert padding fields 
+<a name="l499"><span class="ln">499  </span></a> 
+<a name="l500"><span class="ln">500  </span></a>        Examples 
+<a name="l501"><span class="ln">501  </span></a>        -------- 
+<a name="l502"><span class="ln">502  </span></a>        Converting a simple dtype: 
+<a name="l503"><span class="ln">503  </span></a> 
+<a name="l504"><span class="ln">504  </span></a>        &gt;&gt;&gt; dt = np.dtype('int8') 
+<a name="l505"><span class="ln">505  </span></a>        &gt;&gt;&gt; ctype = np.ctypeslib.as_ctypes_type(dt) 
+<a name="l506"><span class="ln">506  </span></a>        &gt;&gt;&gt; ctype 
+<a name="l507"><span class="ln">507  </span></a>        &lt;class 'ctypes.c_byte'&gt; 
+<a name="l508"><span class="ln">508  </span></a> 
+<a name="l509"><span class="ln">509  </span></a>        Converting a structured dtype: 
+<a name="l510"><span class="ln">510  </span></a> 
+<a name="l511"><span class="ln">511  </span></a>        &gt;&gt;&gt; dt = np.dtype([('x', 'i4'), ('y', 'f4')]) 
+<a name="l512"><span class="ln">512  </span></a>        &gt;&gt;&gt; ctype = np.ctypeslib.as_ctypes_type(dt) 
+<a name="l513"><span class="ln">513  </span></a>        &gt;&gt;&gt; ctype 
+<a name="l514"><span class="ln">514  </span></a>        &lt;class 'struct'&gt; 
+<a name="l515"><span class="ln">515  </span></a> 
+<a name="l516"><span class="ln">516  </span></a>        &quot;&quot;&quot;</span>
+<a name="l517"><span class="ln">517  </span></a>        <span class="s2">return </span><span class="s1">_ctype_from_dtype</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">))</span>
+<a name="l518"><span class="ln">518  </span></a>
+<a name="l519"><span class="ln">519  </span></a>
+<a name="l520"><span class="ln">520  </span></a>    <span class="s2">def </span><span class="s1">as_array</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">, </span><span class="s1">shape</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l521"><span class="ln">521  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l522"><span class="ln">522  </span></a>        Create a numpy array from a ctypes array or POINTER. 
+<a name="l523"><span class="ln">523  </span></a> 
+<a name="l524"><span class="ln">524  </span></a>        The numpy array shares the memory with the ctypes object. 
+<a name="l525"><span class="ln">525  </span></a> 
+<a name="l526"><span class="ln">526  </span></a>        The shape parameter must be given if converting from a ctypes POINTER. 
+<a name="l527"><span class="ln">527  </span></a>        The shape parameter is ignored if converting from a ctypes array 
+<a name="l528"><span class="ln">528  </span></a> 
+<a name="l529"><span class="ln">529  </span></a>        Examples 
+<a name="l530"><span class="ln">530  </span></a>        -------- 
+<a name="l531"><span class="ln">531  </span></a>        Converting a ctypes integer array: 
+<a name="l532"><span class="ln">532  </span></a> 
+<a name="l533"><span class="ln">533  </span></a>        &gt;&gt;&gt; import ctypes 
+<a name="l534"><span class="ln">534  </span></a>        &gt;&gt;&gt; ctypes_array = (ctypes.c_int * 5)(0, 1, 2, 3, 4) 
+<a name="l535"><span class="ln">535  </span></a>        &gt;&gt;&gt; np_array = np.ctypeslib.as_array(ctypes_array) 
+<a name="l536"><span class="ln">536  </span></a>        &gt;&gt;&gt; np_array 
+<a name="l537"><span class="ln">537  </span></a>        array([0, 1, 2, 3, 4], dtype=int32) 
+<a name="l538"><span class="ln">538  </span></a> 
+<a name="l539"><span class="ln">539  </span></a>        Converting a ctypes POINTER: 
+<a name="l540"><span class="ln">540  </span></a> 
+<a name="l541"><span class="ln">541  </span></a>        &gt;&gt;&gt; import ctypes 
+<a name="l542"><span class="ln">542  </span></a>        &gt;&gt;&gt; buffer = (ctypes.c_int * 5)(0, 1, 2, 3, 4) 
+<a name="l543"><span class="ln">543  </span></a>        &gt;&gt;&gt; pointer = ctypes.cast(buffer, ctypes.POINTER(ctypes.c_int)) 
+<a name="l544"><span class="ln">544  </span></a>        &gt;&gt;&gt; np_array = np.ctypeslib.as_array(pointer, (5,)) 
+<a name="l545"><span class="ln">545  </span></a>        &gt;&gt;&gt; np_array 
+<a name="l546"><span class="ln">546  </span></a>        array([0, 1, 2, 3, 4], dtype=int32) 
+<a name="l547"><span class="ln">547  </span></a> 
+<a name="l548"><span class="ln">548  </span></a>        &quot;&quot;&quot;</span>
+<a name="l549"><span class="ln">549  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">, </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">_Pointer</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l550"><span class="ln">550  </span></a>            <span class="s0"># convert pointers to an array of the desired shape</span>
+<a name="l551"><span class="ln">551  </span></a>            <span class="s2">if </span><span class="s1">shape </span><span class="s2">is None:</span>
+<a name="l552"><span class="ln">552  </span></a>                <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span>
+<a name="l553"><span class="ln">553  </span></a>                    <span class="s4">'as_array() requires a shape argument when called on a '</span>
+<a name="l554"><span class="ln">554  </span></a>                    <span class="s4">'pointer'</span><span class="s3">)</span>
+<a name="l555"><span class="ln">555  </span></a>            <span class="s1">p_arr_type </span><span class="s2">= </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">POINTER</span><span class="s3">(</span><span class="s1">_ctype_ndarray</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">.</span><span class="s1">_type_</span><span class="s3">, </span><span class="s1">shape</span><span class="s3">))</span>
+<a name="l556"><span class="ln">556  </span></a>            <span class="s1">obj </span><span class="s2">= </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">cast</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">, </span><span class="s1">p_arr_type</span><span class="s3">).</span><span class="s1">contents</span>
+<a name="l557"><span class="ln">557  </span></a>
+<a name="l558"><span class="ln">558  </span></a>        <span class="s2">return </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">)</span>
+<a name="l559"><span class="ln">559  </span></a>
+<a name="l560"><span class="ln">560  </span></a>
+<a name="l561"><span class="ln">561  </span></a>    <span class="s2">def </span><span class="s1">as_ctypes</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l562"><span class="ln">562  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l563"><span class="ln">563  </span></a>        Create and return a ctypes object from a numpy array.  Actually 
+<a name="l564"><span class="ln">564  </span></a>        anything that exposes the __array_interface__ is accepted. 
+<a name="l565"><span class="ln">565  </span></a> 
+<a name="l566"><span class="ln">566  </span></a>        Examples 
+<a name="l567"><span class="ln">567  </span></a>        -------- 
+<a name="l568"><span class="ln">568  </span></a>        Create ctypes object from inferred int ``np.array``: 
+<a name="l569"><span class="ln">569  </span></a> 
+<a name="l570"><span class="ln">570  </span></a>        &gt;&gt;&gt; inferred_int_array = np.array([1, 2, 3]) 
+<a name="l571"><span class="ln">571  </span></a>        &gt;&gt;&gt; c_int_array = np.ctypeslib.as_ctypes(inferred_int_array) 
+<a name="l572"><span class="ln">572  </span></a>        &gt;&gt;&gt; type(c_int_array) 
+<a name="l573"><span class="ln">573  </span></a>        &lt;class 'c_long_Array_3'&gt; 
+<a name="l574"><span class="ln">574  </span></a>        &gt;&gt;&gt; c_int_array[:] 
+<a name="l575"><span class="ln">575  </span></a>        [1, 2, 3] 
+<a name="l576"><span class="ln">576  </span></a> 
+<a name="l577"><span class="ln">577  </span></a>        Create ctypes object from explicit 8 bit unsigned int ``np.array`` : 
+<a name="l578"><span class="ln">578  </span></a> 
+<a name="l579"><span class="ln">579  </span></a>        &gt;&gt;&gt; exp_int_array = np.array([1, 2, 3], dtype=np.uint8) 
+<a name="l580"><span class="ln">580  </span></a>        &gt;&gt;&gt; c_int_array = np.ctypeslib.as_ctypes(exp_int_array) 
+<a name="l581"><span class="ln">581  </span></a>        &gt;&gt;&gt; type(c_int_array) 
+<a name="l582"><span class="ln">582  </span></a>        &lt;class 'c_ubyte_Array_3'&gt; 
+<a name="l583"><span class="ln">583  </span></a>        &gt;&gt;&gt; c_int_array[:] 
+<a name="l584"><span class="ln">584  </span></a>        [1, 2, 3] 
+<a name="l585"><span class="ln">585  </span></a> 
+<a name="l586"><span class="ln">586  </span></a>        &quot;&quot;&quot;</span>
+<a name="l587"><span class="ln">587  </span></a>        <span class="s1">ai </span><span class="s2">= </span><span class="s1">obj</span><span class="s3">.</span><span class="s1">__array_interface__</span>
+<a name="l588"><span class="ln">588  </span></a>        <span class="s2">if </span><span class="s1">ai</span><span class="s3">[</span><span class="s4">&quot;strides&quot;</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l589"><span class="ln">589  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;strided arrays not supported&quot;</span><span class="s3">)</span>
+<a name="l590"><span class="ln">590  </span></a>        <span class="s2">if </span><span class="s1">ai</span><span class="s3">[</span><span class="s4">&quot;version&quot;</span><span class="s3">] </span><span class="s2">!= </span><span class="s5">3</span><span class="s2">:</span>
+<a name="l591"><span class="ln">591  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;only __array_interface__ version 3 supported&quot;</span><span class="s3">)</span>
+<a name="l592"><span class="ln">592  </span></a>        <span class="s1">addr</span><span class="s3">, </span><span class="s1">readonly </span><span class="s2">= </span><span class="s1">ai</span><span class="s3">[</span><span class="s4">&quot;data&quot;</span><span class="s3">]</span>
+<a name="l593"><span class="ln">593  </span></a>        <span class="s2">if </span><span class="s1">readonly</span><span class="s2">:</span>
+<a name="l594"><span class="ln">594  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;readonly arrays unsupported&quot;</span><span class="s3">)</span>
+<a name="l595"><span class="ln">595  </span></a>
+<a name="l596"><span class="ln">596  </span></a>        <span class="s0"># can't use `_dtype((ai[&quot;typestr&quot;], ai[&quot;shape&quot;]))` here, as it overflows</span>
+<a name="l597"><span class="ln">597  </span></a>        <span class="s0"># dtype.itemsize (gh-14214)</span>
+<a name="l598"><span class="ln">598  </span></a>        <span class="s1">ctype_scalar </span><span class="s2">= </span><span class="s1">as_ctypes_type</span><span class="s3">(</span><span class="s1">ai</span><span class="s3">[</span><span class="s4">&quot;typestr&quot;</span><span class="s3">])</span>
+<a name="l599"><span class="ln">599  </span></a>        <span class="s1">result_type </span><span class="s2">= </span><span class="s1">_ctype_ndarray</span><span class="s3">(</span><span class="s1">ctype_scalar</span><span class="s3">, </span><span class="s1">ai</span><span class="s3">[</span><span class="s4">&quot;shape&quot;</span><span class="s3">])</span>
+<a name="l600"><span class="ln">600  </span></a>        <span class="s1">result </span><span class="s2">= </span><span class="s1">result_type</span><span class="s3">.</span><span class="s1">from_address</span><span class="s3">(</span><span class="s1">addr</span><span class="s3">)</span>
+<a name="l601"><span class="ln">601  </span></a>        <span class="s1">result</span><span class="s3">.</span><span class="s1">__keep </span><span class="s2">= </span><span class="s1">obj</span>
+<a name="l602"><span class="ln">602  </span></a>        <span class="s2">return </span><span class="s1">result</span>
+<a name="l603"><span class="ln">603  </span></a></pre>
+</body>
+</html>

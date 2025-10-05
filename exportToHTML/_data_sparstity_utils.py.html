@@ -1,0 +1,67 @@
+<html>
+<head>
+<title>_data_sparstity_utils.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_data_sparstity_utils.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: allow-untyped-defs</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s2">import </span><span class="s1">logging</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">ao</span><span class="s3">.</span><span class="s1">pruning</span><span class="s3">.</span><span class="s1">_experimental</span><span class="s3">.</span><span class="s1">data_sparsifier</span><span class="s3">.</span><span class="s1">base_data_sparsifier </span><span class="s2">import </span><span class="s3">(</span>
+<a name="l5"><span class="ln">5    </span></a>    <span class="s1">SUPPORTED_TYPES</span><span class="s3">,</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s3">)</span>
+<a name="l7"><span class="ln">7    </span></a>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">logger</span><span class="s2">: </span><span class="s1">logging</span><span class="s3">.</span><span class="s1">Logger </span><span class="s2">= </span><span class="s1">logging</span><span class="s3">.</span><span class="s1">getLogger</span><span class="s3">(</span><span class="s1">__name__</span><span class="s3">)</span>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">def </span><span class="s1">_attach_model_to_data_sparsifier</span><span class="s3">(</span><span class="s1">module</span><span class="s3">, </span><span class="s1">data_sparsifier</span><span class="s3">, </span><span class="s1">config</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l13"><span class="ln">13   </span></a>    <span class="s0">&quot;&quot;&quot;Attaches a data sparsifier to all the layers of the module. 
+<a name="l14"><span class="ln">14   </span></a>    Essentially, loop over all the weight parameters in the module and 
+<a name="l15"><span class="ln">15   </span></a>    attach it to the data sparsifier. 
+<a name="l16"><span class="ln">16   </span></a>    Note:: 
+<a name="l17"><span class="ln">17   </span></a>        The '.' in the layer names are replaced with '_' (refer to _get_valid_name() below) 
+<a name="l18"><span class="ln">18   </span></a>        before attaching to the sparsifier. This is because, the data 
+<a name="l19"><span class="ln">19   </span></a>        sparsifier uses a dummy model inside to store the weight parameters. 
+<a name="l20"><span class="ln">20   </span></a>    &quot;&quot;&quot;</span>
+<a name="l21"><span class="ln">21   </span></a>    <span class="s2">if </span><span class="s1">config </span><span class="s2">is None:</span>
+<a name="l22"><span class="ln">22   </span></a>        <span class="s1">config </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s2">for </span><span class="s1">name</span><span class="s3">, </span><span class="s1">parameter </span><span class="s2">in </span><span class="s1">module</span><span class="s3">.</span><span class="s1">named_parameters</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l24"><span class="ln">24   </span></a>        <span class="s2">if </span><span class="s1">type</span><span class="s3">(</span><span class="s1">parameter</span><span class="s3">) </span><span class="s2">in </span><span class="s1">SUPPORTED_TYPES</span><span class="s2">:</span>
+<a name="l25"><span class="ln">25   </span></a>            <span class="s1">valid_name </span><span class="s2">= </span><span class="s1">_get_valid_name</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)</span>
+<a name="l26"><span class="ln">26   </span></a>            <span class="s0"># will be defaulted to default configs</span>
+<a name="l27"><span class="ln">27   </span></a>            <span class="s1">data_sparsifier</span><span class="s3">.</span><span class="s1">add_data</span><span class="s3">(</span>
+<a name="l28"><span class="ln">28   </span></a>                <span class="s1">name</span><span class="s2">=</span><span class="s1">valid_name</span><span class="s3">, </span><span class="s1">data</span><span class="s2">=</span><span class="s1">parameter</span><span class="s3">, </span><span class="s2">**</span><span class="s1">config</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">valid_name</span><span class="s3">, {})</span>
+<a name="l29"><span class="ln">29   </span></a>            <span class="s3">)</span>
+<a name="l30"><span class="ln">30   </span></a>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a><span class="s2">def </span><span class="s1">_get_valid_name</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l33"><span class="ln">33   </span></a>    <span class="s2">return </span><span class="s1">name</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s4">&quot;.&quot;</span><span class="s3">, </span><span class="s4">&quot;_&quot;</span><span class="s3">)  </span><span class="s0"># . is not allowed as a name</span>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a><span class="s2">def </span><span class="s1">_log_sparsified_level</span><span class="s3">(</span><span class="s1">model</span><span class="s3">, </span><span class="s1">data_sparsifier</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s0"># Show the level of sparsity AFTER step:</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s2">for </span><span class="s1">name</span><span class="s3">, </span><span class="s1">parameter </span><span class="s2">in </span><span class="s1">model</span><span class="s3">.</span><span class="s1">named_parameters</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l39"><span class="ln">39   </span></a>        <span class="s2">if </span><span class="s1">type</span><span class="s3">(</span><span class="s1">parameter</span><span class="s3">) </span><span class="s2">not in </span><span class="s1">SUPPORTED_TYPES</span><span class="s2">:</span>
+<a name="l40"><span class="ln">40   </span></a>            <span class="s2">continue</span>
+<a name="l41"><span class="ln">41   </span></a>        <span class="s1">valid_name </span><span class="s2">= </span><span class="s1">_get_valid_name</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)</span>
+<a name="l42"><span class="ln">42   </span></a>        <span class="s1">mask </span><span class="s2">= </span><span class="s1">data_sparsifier</span><span class="s3">.</span><span class="s1">get_mask</span><span class="s3">(</span><span class="s1">name</span><span class="s2">=</span><span class="s1">valid_name</span><span class="s3">)</span>
+<a name="l43"><span class="ln">43   </span></a>        <span class="s1">sparsity_level </span><span class="s2">= </span><span class="s5">1.0 </span><span class="s2">- </span><span class="s1">mask</span><span class="s3">.</span><span class="s1">float</span><span class="s3">().</span><span class="s1">mean</span><span class="s3">()</span>
+<a name="l44"><span class="ln">44   </span></a>        <span class="s1">logger</span><span class="s3">.</span><span class="s1">info</span><span class="s3">(</span><span class="s4">&quot;Sparsity in layer %s = % .2%&quot;</span><span class="s3">, </span><span class="s1">name</span><span class="s3">, </span><span class="s1">sparsity_level</span><span class="s3">)</span>
+<a name="l45"><span class="ln">45   </span></a></pre>
+</body>
+</html>

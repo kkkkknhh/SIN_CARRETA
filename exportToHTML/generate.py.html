@@ -1,0 +1,1180 @@
+<html>
+<head>
+<title>generate.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #0086b3;}
+.s5 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+generate.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>Generating and counting primes. 
+<a name="l3"><span class="ln">3    </span></a> 
+<a name="l4"><span class="ln">4    </span></a>&quot;&quot;&quot;</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s2">from </span><span class="s1">bisect </span><span class="s2">import </span><span class="s1">bisect</span><span class="s3">, </span><span class="s1">bisect_left</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">from </span><span class="s1">itertools </span><span class="s2">import </span><span class="s1">count</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0"># Using arrays for sieving instead of lists greatly reduces</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s0"># memory consumption</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">from </span><span class="s1">array </span><span class="s2">import </span><span class="s1">array </span><span class="s2">as </span><span class="s1">_array</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">random </span><span class="s2">import </span><span class="s1">randint</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">external</span><span class="s3">.</span><span class="s1">gmpy </span><span class="s2">import </span><span class="s1">sqrt</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">primetest </span><span class="s2">import </span><span class="s1">isprime</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities</span><span class="s3">.</span><span class="s1">decorator </span><span class="s2">import </span><span class="s1">deprecated</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities</span><span class="s3">.</span><span class="s1">misc </span><span class="s2">import </span><span class="s1">as_int</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">def </span><span class="s1">_as_int_ceiling</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l20"><span class="ln">20   </span></a>    <span class="s0">&quot;&quot;&quot; Wrapping ceiling in as_int will raise an error if there was a problem 
+<a name="l21"><span class="ln">21   </span></a>        determining whether the expression was exactly an integer or not.&quot;&quot;&quot;</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">functions</span><span class="s3">.</span><span class="s1">elementary</span><span class="s3">.</span><span class="s1">integers </span><span class="s2">import </span><span class="s1">ceiling</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s2">return </span><span class="s1">as_int</span><span class="s3">(</span><span class="s1">ceiling</span><span class="s3">(</span><span class="s1">a</span><span class="s3">))</span>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a>
+<a name="l26"><span class="ln">26   </span></a><span class="s2">class </span><span class="s1">Sieve</span><span class="s2">:</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s0">&quot;&quot;&quot;A list of prime numbers, implemented as a dynamically 
+<a name="l28"><span class="ln">28   </span></a>    growing sieve of Eratosthenes. When a lookup is requested involving 
+<a name="l29"><span class="ln">29   </span></a>    an odd number that has not been sieved, the sieve is automatically 
+<a name="l30"><span class="ln">30   </span></a>    extended up to that number. Implementation details limit the number of 
+<a name="l31"><span class="ln">31   </span></a>    primes to ``2^32-1``. 
+<a name="l32"><span class="ln">32   </span></a> 
+<a name="l33"><span class="ln">33   </span></a>    Examples 
+<a name="l34"><span class="ln">34   </span></a>    ======== 
+<a name="l35"><span class="ln">35   </span></a> 
+<a name="l36"><span class="ln">36   </span></a>    &gt;&gt;&gt; from sympy import sieve 
+<a name="l37"><span class="ln">37   </span></a>    &gt;&gt;&gt; sieve._reset() # this line for doctest only 
+<a name="l38"><span class="ln">38   </span></a>    &gt;&gt;&gt; 25 in sieve 
+<a name="l39"><span class="ln">39   </span></a>    False 
+<a name="l40"><span class="ln">40   </span></a>    &gt;&gt;&gt; sieve._list 
+<a name="l41"><span class="ln">41   </span></a>    array('L', [2, 3, 5, 7, 11, 13, 17, 19, 23]) 
+<a name="l42"><span class="ln">42   </span></a>    &quot;&quot;&quot;</span>
+<a name="l43"><span class="ln">43   </span></a>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s0"># data shared (and updated) by all Sieve instances</span>
+<a name="l45"><span class="ln">45   </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">sieve_interval</span><span class="s2">=</span><span class="s4">1_000_000</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l46"><span class="ln">46   </span></a>        <span class="s0">&quot;&quot;&quot; Initial parameters for the Sieve class. 
+<a name="l47"><span class="ln">47   </span></a> 
+<a name="l48"><span class="ln">48   </span></a>        Parameters 
+<a name="l49"><span class="ln">49   </span></a>        ========== 
+<a name="l50"><span class="ln">50   </span></a> 
+<a name="l51"><span class="ln">51   </span></a>        sieve_interval (int): Amount of memory to be used 
+<a name="l52"><span class="ln">52   </span></a> 
+<a name="l53"><span class="ln">53   </span></a>        Raises 
+<a name="l54"><span class="ln">54   </span></a>        ====== 
+<a name="l55"><span class="ln">55   </span></a> 
+<a name="l56"><span class="ln">56   </span></a>        ValueError 
+<a name="l57"><span class="ln">57   </span></a>            If ``sieve_interval`` is not positive. 
+<a name="l58"><span class="ln">58   </span></a> 
+<a name="l59"><span class="ln">59   </span></a>        &quot;&quot;&quot;</span>
+<a name="l60"><span class="ln">60   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_n </span><span class="s2">= </span><span class="s4">6</span>
+<a name="l61"><span class="ln">61   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_list </span><span class="s2">= </span><span class="s1">_array</span><span class="s3">(</span><span class="s5">'L'</span><span class="s3">, [</span><span class="s4">2</span><span class="s3">, </span><span class="s4">3</span><span class="s3">, </span><span class="s4">5</span><span class="s3">, </span><span class="s4">7</span><span class="s3">, </span><span class="s4">11</span><span class="s3">, </span><span class="s4">13</span><span class="s3">]) </span><span class="s0"># primes</span>
+<a name="l62"><span class="ln">62   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist </span><span class="s2">= </span><span class="s1">_array</span><span class="s3">(</span><span class="s5">'L'</span><span class="s3">, [</span><span class="s4">0</span><span class="s3">, </span><span class="s4">1</span><span class="s3">, </span><span class="s4">1</span><span class="s3">, </span><span class="s4">2</span><span class="s3">, </span><span class="s4">2</span><span class="s3">, </span><span class="s4">4</span><span class="s3">]) </span><span class="s0"># totient</span>
+<a name="l63"><span class="ln">63   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist </span><span class="s2">= </span><span class="s1">_array</span><span class="s3">(</span><span class="s5">'i'</span><span class="s3">, [</span><span class="s4">0</span><span class="s3">, </span><span class="s4">1</span><span class="s3">, </span><span class="s2">-</span><span class="s4">1</span><span class="s3">, </span><span class="s2">-</span><span class="s4">1</span><span class="s3">, </span><span class="s4">0</span><span class="s3">, </span><span class="s2">-</span><span class="s4">1</span><span class="s3">]) </span><span class="s0"># mobius</span>
+<a name="l64"><span class="ln">64   </span></a>        <span class="s2">if </span><span class="s1">sieve_interval </span><span class="s2">&lt;= </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l65"><span class="ln">65   </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s5">&quot;sieve_interval should be a positive integer&quot;</span><span class="s3">)</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">sieve_interval </span><span class="s2">= </span><span class="s1">sieve_interval</span>
+<a name="l67"><span class="ln">67   </span></a>        <span class="s2">assert </span><span class="s1">all</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">i</span><span class="s3">) </span><span class="s2">== </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_n </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">))</span>
+<a name="l68"><span class="ln">68   </span></a>
+<a name="l69"><span class="ln">69   </span></a>    <span class="s2">def </span><span class="s1">__repr__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l70"><span class="ln">70   </span></a>        <span class="s2">return </span><span class="s3">(</span><span class="s5">&quot;&lt;%s sieve (%i): %i, %i, %i, ... %i, %i\n&quot;</span>
+<a name="l71"><span class="ln">71   </span></a>             <span class="s5">&quot;%s sieve (%i): %i, %i, %i, ... %i, %i\n&quot;</span>
+<a name="l72"><span class="ln">72   </span></a>             <span class="s5">&quot;%s sieve (%i): %i, %i, %i, ... %i, %i&gt;&quot;</span><span class="s3">) </span><span class="s2">% </span><span class="s3">(</span>
+<a name="l73"><span class="ln">73   </span></a>             <span class="s5">'prime'</span><span class="s3">, </span><span class="s1">len</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">),</span>
+<a name="l74"><span class="ln">74   </span></a>                 <span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s4">0</span><span class="s3">], </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s4">1</span><span class="s3">], </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s4">2</span><span class="s3">],</span>
+<a name="l75"><span class="ln">75   </span></a>                 <span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s2">-</span><span class="s4">2</span><span class="s3">], </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">],</span>
+<a name="l76"><span class="ln">76   </span></a>             <span class="s5">'totient'</span><span class="s3">, </span><span class="s1">len</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">),</span>
+<a name="l77"><span class="ln">77   </span></a>                 <span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s4">0</span><span class="s3">], </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s4">1</span><span class="s3">],</span>
+<a name="l78"><span class="ln">78   </span></a>                 <span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s4">2</span><span class="s3">], </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s2">-</span><span class="s4">2</span><span class="s3">], </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">],</span>
+<a name="l79"><span class="ln">79   </span></a>             <span class="s5">'mobius'</span><span class="s3">, </span><span class="s1">len</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">),</span>
+<a name="l80"><span class="ln">80   </span></a>                 <span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">[</span><span class="s4">0</span><span class="s3">], </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">[</span><span class="s4">1</span><span class="s3">],</span>
+<a name="l81"><span class="ln">81   </span></a>                 <span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">[</span><span class="s4">2</span><span class="s3">], </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">[</span><span class="s2">-</span><span class="s4">2</span><span class="s3">], </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">])</span>
+<a name="l82"><span class="ln">82   </span></a>
+<a name="l83"><span class="ln">83   </span></a>    <span class="s2">def </span><span class="s1">_reset</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">prime</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">totient</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">mobius</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l84"><span class="ln">84   </span></a>        <span class="s0">&quot;&quot;&quot;Reset all caches (default). To reset one or more set the 
+<a name="l85"><span class="ln">85   </span></a>            desired keyword to True.&quot;&quot;&quot;</span>
+<a name="l86"><span class="ln">86   </span></a>        <span class="s2">if </span><span class="s1">all</span><span class="s3">(</span><span class="s1">i </span><span class="s2">is None for </span><span class="s1">i </span><span class="s2">in </span><span class="s3">(</span><span class="s1">prime</span><span class="s3">, </span><span class="s1">totient</span><span class="s3">, </span><span class="s1">mobius</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l87"><span class="ln">87   </span></a>            <span class="s1">prime </span><span class="s2">= </span><span class="s1">totient </span><span class="s2">= </span><span class="s1">mobius </span><span class="s2">= True</span>
+<a name="l88"><span class="ln">88   </span></a>        <span class="s2">if </span><span class="s1">prime</span><span class="s2">:</span>
+<a name="l89"><span class="ln">89   </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_list </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s2">:</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_n</span><span class="s3">]</span>
+<a name="l90"><span class="ln">90   </span></a>        <span class="s2">if </span><span class="s1">totient</span><span class="s2">:</span>
+<a name="l91"><span class="ln">91   </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s2">:</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_n</span><span class="s3">]</span>
+<a name="l92"><span class="ln">92   </span></a>        <span class="s2">if </span><span class="s1">mobius</span><span class="s2">:</span>
+<a name="l93"><span class="ln">93   </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">[</span><span class="s2">:</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_n</span><span class="s3">]</span>
+<a name="l94"><span class="ln">94   </span></a>
+<a name="l95"><span class="ln">95   </span></a>    <span class="s2">def </span><span class="s1">extend</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l96"><span class="ln">96   </span></a>        <span class="s0">&quot;&quot;&quot;Grow the sieve to cover all primes &lt;= n. 
+<a name="l97"><span class="ln">97   </span></a> 
+<a name="l98"><span class="ln">98   </span></a>        Examples 
+<a name="l99"><span class="ln">99   </span></a>        ======== 
+<a name="l100"><span class="ln">100  </span></a> 
+<a name="l101"><span class="ln">101  </span></a>        &gt;&gt;&gt; from sympy import sieve 
+<a name="l102"><span class="ln">102  </span></a>        &gt;&gt;&gt; sieve._reset() # this line for doctest only 
+<a name="l103"><span class="ln">103  </span></a>        &gt;&gt;&gt; sieve.extend(30) 
+<a name="l104"><span class="ln">104  </span></a>        &gt;&gt;&gt; sieve[10] == 29 
+<a name="l105"><span class="ln">105  </span></a>        True 
+<a name="l106"><span class="ln">106  </span></a>        &quot;&quot;&quot;</span>
+<a name="l107"><span class="ln">107  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">int</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l108"><span class="ln">108  </span></a>        <span class="s0"># `num` is even at any point in the function.</span>
+<a name="l109"><span class="ln">109  </span></a>        <span class="s0"># This satisfies the condition required by `self._primerange`.</span>
+<a name="l110"><span class="ln">110  </span></a>        <span class="s1">num </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">] </span><span class="s2">+ </span><span class="s4">1</span>
+<a name="l111"><span class="ln">111  </span></a>        <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s1">num</span><span class="s2">:</span>
+<a name="l112"><span class="ln">112  </span></a>            <span class="s2">return</span>
+<a name="l113"><span class="ln">113  </span></a>        <span class="s1">num2 </span><span class="s2">= </span><span class="s1">num</span><span class="s2">**</span><span class="s4">2</span>
+<a name="l114"><span class="ln">114  </span></a>        <span class="s2">while </span><span class="s1">num2 </span><span class="s2">&lt;= </span><span class="s1">n</span><span class="s2">:</span>
+<a name="l115"><span class="ln">115  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_list </span><span class="s2">+= </span><span class="s1">_array</span><span class="s3">(</span><span class="s5">'L'</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_primerange</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">num2</span><span class="s3">))</span>
+<a name="l116"><span class="ln">116  </span></a>            <span class="s1">num</span><span class="s3">, </span><span class="s1">num2 </span><span class="s2">= </span><span class="s1">num2</span><span class="s3">, </span><span class="s1">num2</span><span class="s2">**</span><span class="s4">2</span>
+<a name="l117"><span class="ln">117  </span></a>        <span class="s0"># Merge the sieves</span>
+<a name="l118"><span class="ln">118  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_list </span><span class="s2">+= </span><span class="s1">_array</span><span class="s3">(</span><span class="s5">'L'</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_primerange</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">n </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">))</span>
+<a name="l119"><span class="ln">119  </span></a>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s2">def </span><span class="s1">_primerange</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l121"><span class="ln">121  </span></a>        <span class="s0">&quot;&quot;&quot; Generate all prime numbers in the range (a, b). 
+<a name="l122"><span class="ln">122  </span></a> 
+<a name="l123"><span class="ln">123  </span></a>        Parameters 
+<a name="l124"><span class="ln">124  </span></a>        ========== 
+<a name="l125"><span class="ln">125  </span></a> 
+<a name="l126"><span class="ln">126  </span></a>        a, b : positive integers assuming the following conditions 
+<a name="l127"><span class="ln">127  </span></a>                * a is an even number 
+<a name="l128"><span class="ln">128  </span></a>                * 2 &lt; self._list[-1] &lt; a &lt; b &lt; nextprime(self._list[-1])**2 
+<a name="l129"><span class="ln">129  </span></a> 
+<a name="l130"><span class="ln">130  </span></a>        Yields 
+<a name="l131"><span class="ln">131  </span></a>        ====== 
+<a name="l132"><span class="ln">132  </span></a> 
+<a name="l133"><span class="ln">133  </span></a>        p (int): prime numbers such that ``a &lt; p &lt; b`` 
+<a name="l134"><span class="ln">134  </span></a> 
+<a name="l135"><span class="ln">135  </span></a>        Examples 
+<a name="l136"><span class="ln">136  </span></a>        ======== 
+<a name="l137"><span class="ln">137  </span></a> 
+<a name="l138"><span class="ln">138  </span></a>        &gt;&gt;&gt; from sympy.ntheory.generate import Sieve 
+<a name="l139"><span class="ln">139  </span></a>        &gt;&gt;&gt; s = Sieve() 
+<a name="l140"><span class="ln">140  </span></a>        &gt;&gt;&gt; s._list[-1] 
+<a name="l141"><span class="ln">141  </span></a>        13 
+<a name="l142"><span class="ln">142  </span></a>        &gt;&gt;&gt; list(s._primerange(18, 31)) 
+<a name="l143"><span class="ln">143  </span></a>        [19, 23, 29] 
+<a name="l144"><span class="ln">144  </span></a> 
+<a name="l145"><span class="ln">145  </span></a>        &quot;&quot;&quot;</span>
+<a name="l146"><span class="ln">146  </span></a>        <span class="s2">if </span><span class="s1">b </span><span class="s2">% </span><span class="s4">2</span><span class="s2">:</span>
+<a name="l147"><span class="ln">147  </span></a>            <span class="s1">b </span><span class="s2">-= </span><span class="s4">1</span>
+<a name="l148"><span class="ln">148  </span></a>        <span class="s2">while </span><span class="s1">a </span><span class="s2">&lt; </span><span class="s1">b</span><span class="s2">:</span>
+<a name="l149"><span class="ln">149  </span></a>            <span class="s1">block_size </span><span class="s2">= </span><span class="s1">min</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">sieve_interval</span><span class="s3">, (</span><span class="s1">b </span><span class="s2">- </span><span class="s1">a</span><span class="s3">) </span><span class="s2">// </span><span class="s4">2</span><span class="s3">)</span>
+<a name="l150"><span class="ln">150  </span></a>            <span class="s0"># Create the list such that block[x] iff (a + 2x + 1) is prime.</span>
+<a name="l151"><span class="ln">151  </span></a>            <span class="s0"># Note that even numbers are not considered here.</span>
+<a name="l152"><span class="ln">152  </span></a>            <span class="s1">block </span><span class="s2">= </span><span class="s3">[</span><span class="s2">True</span><span class="s3">] </span><span class="s2">* </span><span class="s1">block_size</span>
+<a name="l153"><span class="ln">153  </span></a>            <span class="s2">for </span><span class="s1">p </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s4">1</span><span class="s2">:</span><span class="s1">bisect</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">, </span><span class="s1">sqrt</span><span class="s3">(</span><span class="s1">a </span><span class="s2">+ </span><span class="s4">2 </span><span class="s2">* </span><span class="s1">block_size </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">))]</span><span class="s2">:</span>
+<a name="l154"><span class="ln">154  </span></a>                <span class="s2">for </span><span class="s1">t </span><span class="s2">in </span><span class="s1">range</span><span class="s3">((</span><span class="s2">-</span><span class="s3">(</span><span class="s1">a </span><span class="s2">+ </span><span class="s4">1 </span><span class="s2">+ </span><span class="s1">p</span><span class="s3">) </span><span class="s2">// </span><span class="s4">2</span><span class="s3">) </span><span class="s2">% </span><span class="s1">p</span><span class="s3">, </span><span class="s1">block_size</span><span class="s3">, </span><span class="s1">p</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l155"><span class="ln">155  </span></a>                    <span class="s1">block</span><span class="s3">[</span><span class="s1">t</span><span class="s3">] </span><span class="s2">= False</span>
+<a name="l156"><span class="ln">156  </span></a>            <span class="s2">for </span><span class="s1">idx</span><span class="s3">, </span><span class="s1">p </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">block</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l157"><span class="ln">157  </span></a>                <span class="s2">if </span><span class="s1">p</span><span class="s2">:</span>
+<a name="l158"><span class="ln">158  </span></a>                    <span class="s2">yield </span><span class="s1">a </span><span class="s2">+ </span><span class="s4">2 </span><span class="s2">* </span><span class="s1">idx </span><span class="s2">+ </span><span class="s4">1</span>
+<a name="l159"><span class="ln">159  </span></a>            <span class="s1">a </span><span class="s2">+= </span><span class="s4">2 </span><span class="s2">* </span><span class="s1">block_size</span>
+<a name="l160"><span class="ln">160  </span></a>
+<a name="l161"><span class="ln">161  </span></a>    <span class="s2">def </span><span class="s1">extend_to_no</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">i</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l162"><span class="ln">162  </span></a>        <span class="s0">&quot;&quot;&quot;Extend to include the ith prime number. 
+<a name="l163"><span class="ln">163  </span></a> 
+<a name="l164"><span class="ln">164  </span></a>        Parameters 
+<a name="l165"><span class="ln">165  </span></a>        ========== 
+<a name="l166"><span class="ln">166  </span></a> 
+<a name="l167"><span class="ln">167  </span></a>        i : integer 
+<a name="l168"><span class="ln">168  </span></a> 
+<a name="l169"><span class="ln">169  </span></a>        Examples 
+<a name="l170"><span class="ln">170  </span></a>        ======== 
+<a name="l171"><span class="ln">171  </span></a> 
+<a name="l172"><span class="ln">172  </span></a>        &gt;&gt;&gt; from sympy import sieve 
+<a name="l173"><span class="ln">173  </span></a>        &gt;&gt;&gt; sieve._reset() # this line for doctest only 
+<a name="l174"><span class="ln">174  </span></a>        &gt;&gt;&gt; sieve.extend_to_no(9) 
+<a name="l175"><span class="ln">175  </span></a>        &gt;&gt;&gt; sieve._list 
+<a name="l176"><span class="ln">176  </span></a>        array('L', [2, 3, 5, 7, 11, 13, 17, 19, 23]) 
+<a name="l177"><span class="ln">177  </span></a> 
+<a name="l178"><span class="ln">178  </span></a>        Notes 
+<a name="l179"><span class="ln">179  </span></a>        ===== 
+<a name="l180"><span class="ln">180  </span></a> 
+<a name="l181"><span class="ln">181  </span></a>        The list is extended by 50% if it is too short, so it is 
+<a name="l182"><span class="ln">182  </span></a>        likely that it will be longer than requested. 
+<a name="l183"><span class="ln">183  </span></a>        &quot;&quot;&quot;</span>
+<a name="l184"><span class="ln">184  </span></a>        <span class="s1">i </span><span class="s2">= </span><span class="s1">as_int</span><span class="s3">(</span><span class="s1">i</span><span class="s3">)</span>
+<a name="l185"><span class="ln">185  </span></a>        <span class="s2">while </span><span class="s1">len</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">) </span><span class="s2">&lt; </span><span class="s1">i</span><span class="s2">:</span>
+<a name="l186"><span class="ln">186  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">extend</span><span class="s3">(</span><span class="s1">int</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">] </span><span class="s2">* </span><span class="s4">1.5</span><span class="s3">))</span>
+<a name="l187"><span class="ln">187  </span></a>
+<a name="l188"><span class="ln">188  </span></a>    <span class="s2">def </span><span class="s1">primerange</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l189"><span class="ln">189  </span></a>        <span class="s0">&quot;&quot;&quot;Generate all prime numbers in the range [2, a) or [a, b). 
+<a name="l190"><span class="ln">190  </span></a> 
+<a name="l191"><span class="ln">191  </span></a>        Examples 
+<a name="l192"><span class="ln">192  </span></a>        ======== 
+<a name="l193"><span class="ln">193  </span></a> 
+<a name="l194"><span class="ln">194  </span></a>        &gt;&gt;&gt; from sympy import sieve, prime 
+<a name="l195"><span class="ln">195  </span></a> 
+<a name="l196"><span class="ln">196  </span></a>        All primes less than 19: 
+<a name="l197"><span class="ln">197  </span></a> 
+<a name="l198"><span class="ln">198  </span></a>        &gt;&gt;&gt; print([i for i in sieve.primerange(19)]) 
+<a name="l199"><span class="ln">199  </span></a>        [2, 3, 5, 7, 11, 13, 17] 
+<a name="l200"><span class="ln">200  </span></a> 
+<a name="l201"><span class="ln">201  </span></a>        All primes greater than or equal to 7 and less than 19: 
+<a name="l202"><span class="ln">202  </span></a> 
+<a name="l203"><span class="ln">203  </span></a>        &gt;&gt;&gt; print([i for i in sieve.primerange(7, 19)]) 
+<a name="l204"><span class="ln">204  </span></a>        [7, 11, 13, 17] 
+<a name="l205"><span class="ln">205  </span></a> 
+<a name="l206"><span class="ln">206  </span></a>        All primes through the 10th prime 
+<a name="l207"><span class="ln">207  </span></a> 
+<a name="l208"><span class="ln">208  </span></a>        &gt;&gt;&gt; list(sieve.primerange(prime(10) + 1)) 
+<a name="l209"><span class="ln">209  </span></a>        [2, 3, 5, 7, 11, 13, 17, 19, 23, 29] 
+<a name="l210"><span class="ln">210  </span></a> 
+<a name="l211"><span class="ln">211  </span></a>        &quot;&quot;&quot;</span>
+<a name="l212"><span class="ln">212  </span></a>        <span class="s2">if </span><span class="s1">b </span><span class="s2">is None:</span>
+<a name="l213"><span class="ln">213  </span></a>            <span class="s1">b </span><span class="s2">= </span><span class="s1">_as_int_ceiling</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)</span>
+<a name="l214"><span class="ln">214  </span></a>            <span class="s1">a </span><span class="s2">= </span><span class="s4">2</span>
+<a name="l215"><span class="ln">215  </span></a>        <span class="s2">else:</span>
+<a name="l216"><span class="ln">216  </span></a>            <span class="s1">a </span><span class="s2">= </span><span class="s1">max</span><span class="s3">(</span><span class="s4">2</span><span class="s3">, </span><span class="s1">_as_int_ceiling</span><span class="s3">(</span><span class="s1">a</span><span class="s3">))</span>
+<a name="l217"><span class="ln">217  </span></a>            <span class="s1">b </span><span class="s2">= </span><span class="s1">_as_int_ceiling</span><span class="s3">(</span><span class="s1">b</span><span class="s3">)</span>
+<a name="l218"><span class="ln">218  </span></a>        <span class="s2">if </span><span class="s1">a </span><span class="s2">&gt;= </span><span class="s1">b</span><span class="s2">:</span>
+<a name="l219"><span class="ln">219  </span></a>            <span class="s2">return</span>
+<a name="l220"><span class="ln">220  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">extend</span><span class="s3">(</span><span class="s1">b</span><span class="s3">)</span>
+<a name="l221"><span class="ln">221  </span></a>        <span class="s2">yield from </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s1">bisect_left</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">, </span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l222"><span class="ln">222  </span></a>                              <span class="s1">bisect_left</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)]</span>
+<a name="l223"><span class="ln">223  </span></a>
+<a name="l224"><span class="ln">224  </span></a>    <span class="s2">def </span><span class="s1">totientrange</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l225"><span class="ln">225  </span></a>        <span class="s0">&quot;&quot;&quot;Generate all totient numbers for the range [a, b). 
+<a name="l226"><span class="ln">226  </span></a> 
+<a name="l227"><span class="ln">227  </span></a>        Examples 
+<a name="l228"><span class="ln">228  </span></a>        ======== 
+<a name="l229"><span class="ln">229  </span></a> 
+<a name="l230"><span class="ln">230  </span></a>        &gt;&gt;&gt; from sympy import sieve 
+<a name="l231"><span class="ln">231  </span></a>        &gt;&gt;&gt; print([i for i in sieve.totientrange(7, 18)]) 
+<a name="l232"><span class="ln">232  </span></a>        [6, 4, 6, 4, 10, 4, 12, 6, 8, 8, 16] 
+<a name="l233"><span class="ln">233  </span></a>        &quot;&quot;&quot;</span>
+<a name="l234"><span class="ln">234  </span></a>        <span class="s1">a </span><span class="s2">= </span><span class="s1">max</span><span class="s3">(</span><span class="s4">1</span><span class="s3">, </span><span class="s1">_as_int_ceiling</span><span class="s3">(</span><span class="s1">a</span><span class="s3">))</span>
+<a name="l235"><span class="ln">235  </span></a>        <span class="s1">b </span><span class="s2">= </span><span class="s1">_as_int_ceiling</span><span class="s3">(</span><span class="s1">b</span><span class="s3">)</span>
+<a name="l236"><span class="ln">236  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">)</span>
+<a name="l237"><span class="ln">237  </span></a>        <span class="s2">if </span><span class="s1">a </span><span class="s2">&gt;= </span><span class="s1">b</span><span class="s2">:</span>
+<a name="l238"><span class="ln">238  </span></a>            <span class="s2">return</span>
+<a name="l239"><span class="ln">239  </span></a>        <span class="s2">elif </span><span class="s1">b </span><span class="s2">&lt;= </span><span class="s1">n</span><span class="s2">:</span>
+<a name="l240"><span class="ln">240  </span></a>            <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l241"><span class="ln">241  </span></a>                <span class="s2">yield </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+<a name="l242"><span class="ln">242  </span></a>        <span class="s2">else:</span>
+<a name="l243"><span class="ln">243  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist </span><span class="s2">+= </span><span class="s1">_array</span><span class="s3">(</span><span class="s5">'L'</span><span class="s3">, </span><span class="s1">range</span><span class="s3">(</span><span class="s1">n</span><span class="s3">, </span><span class="s1">b</span><span class="s3">))</span>
+<a name="l244"><span class="ln">244  </span></a>            <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s4">1</span><span class="s3">, </span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l245"><span class="ln">245  </span></a>                <span class="s1">ti </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+<a name="l246"><span class="ln">246  </span></a>                <span class="s2">if </span><span class="s1">ti </span><span class="s2">== </span><span class="s1">i </span><span class="s2">- </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l247"><span class="ln">247  </span></a>                    <span class="s1">startindex </span><span class="s2">= </span><span class="s3">(</span><span class="s1">n </span><span class="s2">+ </span><span class="s1">i </span><span class="s2">- </span><span class="s4">1</span><span class="s3">) </span><span class="s2">// </span><span class="s1">i </span><span class="s2">* </span><span class="s1">i</span>
+<a name="l248"><span class="ln">248  </span></a>                    <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">startindex</span><span class="s3">, </span><span class="s1">b</span><span class="s3">, </span><span class="s1">i</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l249"><span class="ln">249  </span></a>                        <span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s1">j</span><span class="s3">] </span><span class="s2">-= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s1">j</span><span class="s3">] </span><span class="s2">// </span><span class="s1">i</span>
+<a name="l250"><span class="ln">250  </span></a>                <span class="s2">if </span><span class="s1">i </span><span class="s2">&gt;= </span><span class="s1">a</span><span class="s2">:</span>
+<a name="l251"><span class="ln">251  </span></a>                    <span class="s2">yield </span><span class="s1">ti</span>
+<a name="l252"><span class="ln">252  </span></a>
+<a name="l253"><span class="ln">253  </span></a>            <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">n</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l254"><span class="ln">254  </span></a>                <span class="s1">ti </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+<a name="l255"><span class="ln">255  </span></a>                <span class="s2">if </span><span class="s1">ti </span><span class="s2">== </span><span class="s1">i</span><span class="s2">:</span>
+<a name="l256"><span class="ln">256  </span></a>                    <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s1">b</span><span class="s3">, </span><span class="s1">i</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l257"><span class="ln">257  </span></a>                        <span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s1">j</span><span class="s3">] </span><span class="s2">-= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s1">j</span><span class="s3">] </span><span class="s2">// </span><span class="s1">i</span>
+<a name="l258"><span class="ln">258  </span></a>                <span class="s2">if </span><span class="s1">i </span><span class="s2">&gt;= </span><span class="s1">a</span><span class="s2">:</span>
+<a name="l259"><span class="ln">259  </span></a>                    <span class="s2">yield </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tlist</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+<a name="l260"><span class="ln">260  </span></a>
+<a name="l261"><span class="ln">261  </span></a>    <span class="s2">def </span><span class="s1">mobiusrange</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l262"><span class="ln">262  </span></a>        <span class="s0">&quot;&quot;&quot;Generate all mobius numbers for the range [a, b). 
+<a name="l263"><span class="ln">263  </span></a> 
+<a name="l264"><span class="ln">264  </span></a>        Parameters 
+<a name="l265"><span class="ln">265  </span></a>        ========== 
+<a name="l266"><span class="ln">266  </span></a> 
+<a name="l267"><span class="ln">267  </span></a>        a : integer 
+<a name="l268"><span class="ln">268  </span></a>            First number in range 
+<a name="l269"><span class="ln">269  </span></a> 
+<a name="l270"><span class="ln">270  </span></a>        b : integer 
+<a name="l271"><span class="ln">271  </span></a>            First number outside of range 
+<a name="l272"><span class="ln">272  </span></a> 
+<a name="l273"><span class="ln">273  </span></a>        Examples 
+<a name="l274"><span class="ln">274  </span></a>        ======== 
+<a name="l275"><span class="ln">275  </span></a> 
+<a name="l276"><span class="ln">276  </span></a>        &gt;&gt;&gt; from sympy import sieve 
+<a name="l277"><span class="ln">277  </span></a>        &gt;&gt;&gt; print([i for i in sieve.mobiusrange(7, 18)]) 
+<a name="l278"><span class="ln">278  </span></a>        [-1, 0, 0, 1, -1, 0, -1, 1, 1, 0, -1] 
+<a name="l279"><span class="ln">279  </span></a>        &quot;&quot;&quot;</span>
+<a name="l280"><span class="ln">280  </span></a>        <span class="s1">a </span><span class="s2">= </span><span class="s1">max</span><span class="s3">(</span><span class="s4">1</span><span class="s3">, </span><span class="s1">_as_int_ceiling</span><span class="s3">(</span><span class="s1">a</span><span class="s3">))</span>
+<a name="l281"><span class="ln">281  </span></a>        <span class="s1">b </span><span class="s2">= </span><span class="s1">_as_int_ceiling</span><span class="s3">(</span><span class="s1">b</span><span class="s3">)</span>
+<a name="l282"><span class="ln">282  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">)</span>
+<a name="l283"><span class="ln">283  </span></a>        <span class="s2">if </span><span class="s1">a </span><span class="s2">&gt;= </span><span class="s1">b</span><span class="s2">:</span>
+<a name="l284"><span class="ln">284  </span></a>            <span class="s2">return</span>
+<a name="l285"><span class="ln">285  </span></a>        <span class="s2">elif </span><span class="s1">b </span><span class="s2">&lt;= </span><span class="s1">n</span><span class="s2">:</span>
+<a name="l286"><span class="ln">286  </span></a>            <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l287"><span class="ln">287  </span></a>                <span class="s2">yield </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+<a name="l288"><span class="ln">288  </span></a>        <span class="s2">else:</span>
+<a name="l289"><span class="ln">289  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist </span><span class="s2">+= </span><span class="s1">_array</span><span class="s3">(</span><span class="s5">'i'</span><span class="s3">, [</span><span class="s4">0</span><span class="s3">]</span><span class="s2">*</span><span class="s3">(</span><span class="s1">b </span><span class="s2">- </span><span class="s1">n</span><span class="s3">))</span>
+<a name="l290"><span class="ln">290  </span></a>            <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s4">1</span><span class="s3">, </span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l291"><span class="ln">291  </span></a>                <span class="s1">mi </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+<a name="l292"><span class="ln">292  </span></a>                <span class="s1">startindex </span><span class="s2">= </span><span class="s3">(</span><span class="s1">n </span><span class="s2">+ </span><span class="s1">i </span><span class="s2">- </span><span class="s4">1</span><span class="s3">) </span><span class="s2">// </span><span class="s1">i </span><span class="s2">* </span><span class="s1">i</span>
+<a name="l293"><span class="ln">293  </span></a>                <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">startindex</span><span class="s3">, </span><span class="s1">b</span><span class="s3">, </span><span class="s1">i</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l294"><span class="ln">294  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">[</span><span class="s1">j</span><span class="s3">] </span><span class="s2">-= </span><span class="s1">mi</span>
+<a name="l295"><span class="ln">295  </span></a>                <span class="s2">if </span><span class="s1">i </span><span class="s2">&gt;= </span><span class="s1">a</span><span class="s2">:</span>
+<a name="l296"><span class="ln">296  </span></a>                    <span class="s2">yield </span><span class="s1">mi</span>
+<a name="l297"><span class="ln">297  </span></a>
+<a name="l298"><span class="ln">298  </span></a>            <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">n</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l299"><span class="ln">299  </span></a>                <span class="s1">mi </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+<a name="l300"><span class="ln">300  </span></a>                <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s4">2 </span><span class="s2">* </span><span class="s1">i</span><span class="s3">, </span><span class="s1">b</span><span class="s3">, </span><span class="s1">i</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l301"><span class="ln">301  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">_mlist</span><span class="s3">[</span><span class="s1">j</span><span class="s3">] </span><span class="s2">-= </span><span class="s1">mi</span>
+<a name="l302"><span class="ln">302  </span></a>                <span class="s2">if </span><span class="s1">i </span><span class="s2">&gt;= </span><span class="s1">a</span><span class="s2">:</span>
+<a name="l303"><span class="ln">303  </span></a>                    <span class="s2">yield </span><span class="s1">mi</span>
+<a name="l304"><span class="ln">304  </span></a>
+<a name="l305"><span class="ln">305  </span></a>    <span class="s2">def </span><span class="s1">search</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l306"><span class="ln">306  </span></a>        <span class="s0">&quot;&quot;&quot;Return the indices i, j of the primes that bound n. 
+<a name="l307"><span class="ln">307  </span></a> 
+<a name="l308"><span class="ln">308  </span></a>        If n is prime then i == j. 
+<a name="l309"><span class="ln">309  </span></a> 
+<a name="l310"><span class="ln">310  </span></a>        Although n can be an expression, if ceiling cannot convert 
+<a name="l311"><span class="ln">311  </span></a>        it to an integer then an n error will be raised. 
+<a name="l312"><span class="ln">312  </span></a> 
+<a name="l313"><span class="ln">313  </span></a>        Examples 
+<a name="l314"><span class="ln">314  </span></a>        ======== 
+<a name="l315"><span class="ln">315  </span></a> 
+<a name="l316"><span class="ln">316  </span></a>        &gt;&gt;&gt; from sympy import sieve 
+<a name="l317"><span class="ln">317  </span></a>        &gt;&gt;&gt; sieve.search(25) 
+<a name="l318"><span class="ln">318  </span></a>        (9, 10) 
+<a name="l319"><span class="ln">319  </span></a>        &gt;&gt;&gt; sieve.search(23) 
+<a name="l320"><span class="ln">320  </span></a>        (9, 9) 
+<a name="l321"><span class="ln">321  </span></a>        &quot;&quot;&quot;</span>
+<a name="l322"><span class="ln">322  </span></a>        <span class="s1">test </span><span class="s2">= </span><span class="s1">_as_int_ceiling</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l323"><span class="ln">323  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">as_int</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l324"><span class="ln">324  </span></a>        <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s4">2</span><span class="s2">:</span>
+<a name="l325"><span class="ln">325  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s5">&quot;n should be &gt;= 2 but got: %s&quot; </span><span class="s2">% </span><span class="s1">n</span><span class="s3">)</span>
+<a name="l326"><span class="ln">326  </span></a>        <span class="s2">if </span><span class="s1">n </span><span class="s2">&gt; </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l327"><span class="ln">327  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">extend</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l328"><span class="ln">328  </span></a>        <span class="s1">b </span><span class="s2">= </span><span class="s1">bisect</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">, </span><span class="s1">n</span><span class="s3">)</span>
+<a name="l329"><span class="ln">329  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s1">b </span><span class="s2">- </span><span class="s4">1</span><span class="s3">] </span><span class="s2">== </span><span class="s1">test</span><span class="s2">:</span>
+<a name="l330"><span class="ln">330  </span></a>            <span class="s2">return </span><span class="s1">b</span><span class="s3">, </span><span class="s1">b</span>
+<a name="l331"><span class="ln">331  </span></a>        <span class="s2">else:</span>
+<a name="l332"><span class="ln">332  </span></a>            <span class="s2">return </span><span class="s1">b</span><span class="s3">, </span><span class="s1">b </span><span class="s2">+ </span><span class="s4">1</span>
+<a name="l333"><span class="ln">333  </span></a>
+<a name="l334"><span class="ln">334  </span></a>    <span class="s2">def </span><span class="s1">__contains__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l335"><span class="ln">335  </span></a>        <span class="s2">try:</span>
+<a name="l336"><span class="ln">336  </span></a>            <span class="s1">n </span><span class="s2">= </span><span class="s1">as_int</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l337"><span class="ln">337  </span></a>            <span class="s2">assert </span><span class="s1">n </span><span class="s2">&gt;= </span><span class="s4">2</span>
+<a name="l338"><span class="ln">338  </span></a>        <span class="s2">except </span><span class="s3">(</span><span class="s1">ValueError</span><span class="s3">, </span><span class="s1">AssertionError</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l339"><span class="ln">339  </span></a>            <span class="s2">return False</span>
+<a name="l340"><span class="ln">340  </span></a>        <span class="s2">if </span><span class="s1">n </span><span class="s2">% </span><span class="s4">2 </span><span class="s2">== </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l341"><span class="ln">341  </span></a>            <span class="s2">return </span><span class="s1">n </span><span class="s2">== </span><span class="s4">2</span>
+<a name="l342"><span class="ln">342  </span></a>        <span class="s1">a</span><span class="s3">, </span><span class="s1">b </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">search</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l343"><span class="ln">343  </span></a>        <span class="s2">return </span><span class="s1">a </span><span class="s2">== </span><span class="s1">b</span>
+<a name="l344"><span class="ln">344  </span></a>
+<a name="l345"><span class="ln">345  </span></a>    <span class="s2">def </span><span class="s1">__iter__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l346"><span class="ln">346  </span></a>        <span class="s2">for </span><span class="s1">n </span><span class="s2">in </span><span class="s1">count</span><span class="s3">(</span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l347"><span class="ln">347  </span></a>            <span class="s2">yield </span><span class="s1">self</span><span class="s3">[</span><span class="s1">n</span><span class="s3">]</span>
+<a name="l348"><span class="ln">348  </span></a>
+<a name="l349"><span class="ln">349  </span></a>    <span class="s2">def </span><span class="s1">__getitem__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l350"><span class="ln">350  </span></a>        <span class="s0">&quot;&quot;&quot;Return the nth prime number&quot;&quot;&quot;</span>
+<a name="l351"><span class="ln">351  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">n</span><span class="s3">, </span><span class="s1">slice</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l352"><span class="ln">352  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">extend_to_no</span><span class="s3">(</span><span class="s1">n</span><span class="s3">.</span><span class="s1">stop</span><span class="s3">)</span>
+<a name="l353"><span class="ln">353  </span></a>            <span class="s1">start </span><span class="s2">= </span><span class="s1">n</span><span class="s3">.</span><span class="s1">start </span><span class="s2">if </span><span class="s1">n</span><span class="s3">.</span><span class="s1">start </span><span class="s2">is not None else </span><span class="s4">0</span>
+<a name="l354"><span class="ln">354  </span></a>            <span class="s2">if </span><span class="s1">start </span><span class="s2">&lt; </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l355"><span class="ln">355  </span></a>                <span class="s0"># sieve[:5] would be empty (starting at -1), let's</span>
+<a name="l356"><span class="ln">356  </span></a>                <span class="s0"># just be explicit and raise.</span>
+<a name="l357"><span class="ln">357  </span></a>                <span class="s2">raise </span><span class="s1">IndexError</span><span class="s3">(</span><span class="s5">&quot;Sieve indices start at 1.&quot;</span><span class="s3">)</span>
+<a name="l358"><span class="ln">358  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s1">start </span><span class="s2">- </span><span class="s4">1</span><span class="s2">:</span><span class="s1">n</span><span class="s3">.</span><span class="s1">stop </span><span class="s2">- </span><span class="s4">1</span><span class="s2">:</span><span class="s1">n</span><span class="s3">.</span><span class="s1">step</span><span class="s3">]</span>
+<a name="l359"><span class="ln">359  </span></a>        <span class="s2">else:</span>
+<a name="l360"><span class="ln">360  </span></a>            <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l361"><span class="ln">361  </span></a>                <span class="s0"># offset is one, so forbid explicit access to sieve[0]</span>
+<a name="l362"><span class="ln">362  </span></a>                <span class="s0"># (would surprisingly return the last one).</span>
+<a name="l363"><span class="ln">363  </span></a>                <span class="s2">raise </span><span class="s1">IndexError</span><span class="s3">(</span><span class="s5">&quot;Sieve indices start at 1.&quot;</span><span class="s3">)</span>
+<a name="l364"><span class="ln">364  </span></a>            <span class="s1">n </span><span class="s2">= </span><span class="s1">as_int</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l365"><span class="ln">365  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">extend_to_no</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l366"><span class="ln">366  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s1">n </span><span class="s2">- </span><span class="s4">1</span><span class="s3">]</span>
+<a name="l367"><span class="ln">367  </span></a>
+<a name="l368"><span class="ln">368  </span></a><span class="s0"># Generate a global object for repeated use in trial division etc</span>
+<a name="l369"><span class="ln">369  </span></a><span class="s1">sieve </span><span class="s2">= </span><span class="s1">Sieve</span><span class="s3">()</span>
+<a name="l370"><span class="ln">370  </span></a>
+<a name="l371"><span class="ln">371  </span></a><span class="s2">def </span><span class="s1">prime</span><span class="s3">(</span><span class="s1">nth</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l372"><span class="ln">372  </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l373"><span class="ln">373  </span></a>    Return the nth prime number, where primes are indexed starting from 1: 
+<a name="l374"><span class="ln">374  </span></a>    prime(1) = 2, prime(2) = 3, etc. 
+<a name="l375"><span class="ln">375  </span></a> 
+<a name="l376"><span class="ln">376  </span></a>    Parameters 
+<a name="l377"><span class="ln">377  </span></a>    ========== 
+<a name="l378"><span class="ln">378  </span></a> 
+<a name="l379"><span class="ln">379  </span></a>    nth : int 
+<a name="l380"><span class="ln">380  </span></a>        The position of the prime number to return (must be a positive integer). 
+<a name="l381"><span class="ln">381  </span></a> 
+<a name="l382"><span class="ln">382  </span></a>    Returns 
+<a name="l383"><span class="ln">383  </span></a>    ======= 
+<a name="l384"><span class="ln">384  </span></a> 
+<a name="l385"><span class="ln">385  </span></a>    int 
+<a name="l386"><span class="ln">386  </span></a>        The nth prime number. 
+<a name="l387"><span class="ln">387  </span></a> 
+<a name="l388"><span class="ln">388  </span></a>    Examples 
+<a name="l389"><span class="ln">389  </span></a>    ======== 
+<a name="l390"><span class="ln">390  </span></a> 
+<a name="l391"><span class="ln">391  </span></a>    &gt;&gt;&gt; from sympy import prime 
+<a name="l392"><span class="ln">392  </span></a>    &gt;&gt;&gt; prime(10) 
+<a name="l393"><span class="ln">393  </span></a>    29 
+<a name="l394"><span class="ln">394  </span></a>    &gt;&gt;&gt; prime(1) 
+<a name="l395"><span class="ln">395  </span></a>    2 
+<a name="l396"><span class="ln">396  </span></a>    &gt;&gt;&gt; prime(100000) 
+<a name="l397"><span class="ln">397  </span></a>    1299709 
+<a name="l398"><span class="ln">398  </span></a> 
+<a name="l399"><span class="ln">399  </span></a>    See Also 
+<a name="l400"><span class="ln">400  </span></a>    ======== 
+<a name="l401"><span class="ln">401  </span></a> 
+<a name="l402"><span class="ln">402  </span></a>    sympy.ntheory.primetest.isprime : Test if a number is prime. 
+<a name="l403"><span class="ln">403  </span></a>    primerange : Generate all primes in a given range. 
+<a name="l404"><span class="ln">404  </span></a>    primepi : Return the number of primes less than or equal to a given number. 
+<a name="l405"><span class="ln">405  </span></a> 
+<a name="l406"><span class="ln">406  </span></a>    References 
+<a name="l407"><span class="ln">407  </span></a>    ========== 
+<a name="l408"><span class="ln">408  </span></a> 
+<a name="l409"><span class="ln">409  </span></a>    .. [1] https://en.wikipedia.org/wiki/Prime_number_theorem 
+<a name="l410"><span class="ln">410  </span></a>    .. [2] https://en.wikipedia.org/wiki/Logarithmic_integral_function 
+<a name="l411"><span class="ln">411  </span></a>    .. [3] https://en.wikipedia.org/wiki/Skewes%27_number 
+<a name="l412"><span class="ln">412  </span></a>    &quot;&quot;&quot;</span>
+<a name="l413"><span class="ln">413  </span></a>    <span class="s1">n </span><span class="s2">= </span><span class="s1">as_int</span><span class="s3">(</span><span class="s1">nth</span><span class="s3">)</span>
+<a name="l414"><span class="ln">414  </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l415"><span class="ln">415  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s5">&quot;nth must be a positive integer; prime(1) == 2&quot;</span><span class="s3">)</span>
+<a name="l416"><span class="ln">416  </span></a>
+<a name="l417"><span class="ln">417  </span></a>    <span class="s0"># Check if n is within the sieve range</span>
+<a name="l418"><span class="ln">418  </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt;= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l419"><span class="ln">419  </span></a>        <span class="s2">return </span><span class="s1">sieve</span><span class="s3">[</span><span class="s1">n</span><span class="s3">]</span>
+<a name="l420"><span class="ln">420  </span></a>
+<a name="l421"><span class="ln">421  </span></a>    <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">functions</span><span class="s3">.</span><span class="s1">elementary</span><span class="s3">.</span><span class="s1">exponential </span><span class="s2">import </span><span class="s1">log</span>
+<a name="l422"><span class="ln">422  </span></a>    <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">functions</span><span class="s3">.</span><span class="s1">special</span><span class="s3">.</span><span class="s1">error_functions </span><span class="s2">import </span><span class="s1">li</span>
+<a name="l423"><span class="ln">423  </span></a>
+<a name="l424"><span class="ln">424  </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s4">1000</span><span class="s2">:</span>
+<a name="l425"><span class="ln">425  </span></a>        <span class="s0"># Extend sieve up to 8*n as this is empirically sufficient</span>
+<a name="l426"><span class="ln">426  </span></a>        <span class="s1">sieve</span><span class="s3">.</span><span class="s1">extend</span><span class="s3">(</span><span class="s4">8 </span><span class="s2">* </span><span class="s1">n</span><span class="s3">)</span>
+<a name="l427"><span class="ln">427  </span></a>        <span class="s2">return </span><span class="s1">sieve</span><span class="s3">[</span><span class="s1">n</span><span class="s3">]</span>
+<a name="l428"><span class="ln">428  </span></a>
+<a name="l429"><span class="ln">429  </span></a>    <span class="s1">a </span><span class="s2">= </span><span class="s4">2</span>
+<a name="l430"><span class="ln">430  </span></a>    <span class="s0"># Estimate an upper bound for the nth prime using the prime number theorem</span>
+<a name="l431"><span class="ln">431  </span></a>    <span class="s1">b </span><span class="s2">= </span><span class="s1">int</span><span class="s3">(</span><span class="s1">n </span><span class="s2">* </span><span class="s3">(</span><span class="s1">log</span><span class="s3">(</span><span class="s1">n</span><span class="s3">).</span><span class="s1">evalf</span><span class="s3">() </span><span class="s2">+ </span><span class="s1">log</span><span class="s3">(</span><span class="s1">log</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)).</span><span class="s1">evalf</span><span class="s3">()))</span>
+<a name="l432"><span class="ln">432  </span></a>
+<a name="l433"><span class="ln">433  </span></a>    <span class="s0"># Binary search for the least m such that li(m) &gt; n</span>
+<a name="l434"><span class="ln">434  </span></a>    <span class="s2">while </span><span class="s1">a </span><span class="s2">&lt; </span><span class="s1">b</span><span class="s2">:</span>
+<a name="l435"><span class="ln">435  </span></a>        <span class="s1">mid </span><span class="s2">= </span><span class="s3">(</span><span class="s1">a </span><span class="s2">+ </span><span class="s1">b</span><span class="s3">) </span><span class="s2">&gt;&gt; </span><span class="s4">1</span>
+<a name="l436"><span class="ln">436  </span></a>        <span class="s2">if </span><span class="s1">li</span><span class="s3">(</span><span class="s1">mid</span><span class="s3">).</span><span class="s1">evalf</span><span class="s3">() </span><span class="s2">&gt; </span><span class="s1">n</span><span class="s2">:</span>
+<a name="l437"><span class="ln">437  </span></a>            <span class="s1">b </span><span class="s2">= </span><span class="s1">mid</span>
+<a name="l438"><span class="ln">438  </span></a>        <span class="s2">else:</span>
+<a name="l439"><span class="ln">439  </span></a>            <span class="s1">a </span><span class="s2">= </span><span class="s1">mid </span><span class="s2">+ </span><span class="s4">1</span>
+<a name="l440"><span class="ln">440  </span></a>
+<a name="l441"><span class="ln">441  </span></a>    <span class="s2">return </span><span class="s1">nextprime</span><span class="s3">(</span><span class="s1">a </span><span class="s2">- </span><span class="s4">1</span><span class="s3">, </span><span class="s1">n </span><span class="s2">- </span><span class="s1">_primepi</span><span class="s3">(</span><span class="s1">a </span><span class="s2">- </span><span class="s4">1</span><span class="s3">))</span>
+<a name="l442"><span class="ln">442  </span></a>
+<a name="l443"><span class="ln">443  </span></a>
+<a name="l444"><span class="ln">444  </span></a><span class="s2">@</span><span class="s1">deprecated</span><span class="s3">(</span><span class="s5">&quot;&quot;&quot;\ 
+<a name="l445"><span class="ln">445  </span></a>The `sympy.ntheory.generate.primepi` has been moved to `sympy.functions.combinatorial.numbers.primepi`.&quot;&quot;&quot;</span><span class="s3">,</span>
+<a name="l446"><span class="ln">446  </span></a><span class="s1">deprecated_since_version</span><span class="s2">=</span><span class="s5">&quot;1.13&quot;</span><span class="s3">,</span>
+<a name="l447"><span class="ln">447  </span></a><span class="s1">active_deprecations_target</span><span class="s2">=</span><span class="s5">'deprecated-ntheory-symbolic-functions'</span><span class="s3">)</span>
+<a name="l448"><span class="ln">448  </span></a><span class="s2">def </span><span class="s1">primepi</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l449"><span class="ln">449  </span></a>    <span class="s0">r&quot;&quot;&quot; Represents the prime counting function pi(n) = the number 
+<a name="l450"><span class="ln">450  </span></a>        of prime numbers less than or equal to n. 
+<a name="l451"><span class="ln">451  </span></a> 
+<a name="l452"><span class="ln">452  </span></a>        .. deprecated:: 1.13 
+<a name="l453"><span class="ln">453  </span></a> 
+<a name="l454"><span class="ln">454  </span></a>            The ``primepi`` function is deprecated. Use :class:`sympy.functions.combinatorial.numbers.primepi` 
+<a name="l455"><span class="ln">455  </span></a>            instead. See its documentation for more information. See 
+<a name="l456"><span class="ln">456  </span></a>            :ref:`deprecated-ntheory-symbolic-functions` for details. 
+<a name="l457"><span class="ln">457  </span></a> 
+<a name="l458"><span class="ln">458  </span></a>        Algorithm Description: 
+<a name="l459"><span class="ln">459  </span></a> 
+<a name="l460"><span class="ln">460  </span></a>        In sieve method, we remove all multiples of prime p 
+<a name="l461"><span class="ln">461  </span></a>        except p itself. 
+<a name="l462"><span class="ln">462  </span></a> 
+<a name="l463"><span class="ln">463  </span></a>        Let phi(i,j) be the number of integers 2 &lt;= k &lt;= i 
+<a name="l464"><span class="ln">464  </span></a>        which remain after sieving from primes less than 
+<a name="l465"><span class="ln">465  </span></a>        or equal to j. 
+<a name="l466"><span class="ln">466  </span></a>        Clearly, pi(n) = phi(n, sqrt(n)) 
+<a name="l467"><span class="ln">467  </span></a> 
+<a name="l468"><span class="ln">468  </span></a>        If j is not a prime, 
+<a name="l469"><span class="ln">469  </span></a>        phi(i,j) = phi(i, j - 1) 
+<a name="l470"><span class="ln">470  </span></a> 
+<a name="l471"><span class="ln">471  </span></a>        if j is a prime, 
+<a name="l472"><span class="ln">472  </span></a>        We remove all numbers(except j) whose 
+<a name="l473"><span class="ln">473  </span></a>        smallest prime factor is j. 
+<a name="l474"><span class="ln">474  </span></a> 
+<a name="l475"><span class="ln">475  </span></a>        Let $x= j \times a$ be such a number, where $2 \le a \le i / j$ 
+<a name="l476"><span class="ln">476  </span></a>        Now, after sieving from primes $\le j - 1$, 
+<a name="l477"><span class="ln">477  </span></a>        a must remain 
+<a name="l478"><span class="ln">478  </span></a>        (because x, and hence a has no prime factor $\le j - 1$) 
+<a name="l479"><span class="ln">479  </span></a>        Clearly, there are phi(i / j, j - 1) such a 
+<a name="l480"><span class="ln">480  </span></a>        which remain on sieving from primes $\le j - 1$ 
+<a name="l481"><span class="ln">481  </span></a> 
+<a name="l482"><span class="ln">482  </span></a>        Now, if a is a prime less than equal to j - 1, 
+<a name="l483"><span class="ln">483  </span></a>        $x= j \times a$ has smallest prime factor = a, and 
+<a name="l484"><span class="ln">484  </span></a>        has already been removed(by sieving from a). 
+<a name="l485"><span class="ln">485  </span></a>        So, we do not need to remove it again. 
+<a name="l486"><span class="ln">486  </span></a>        (Note: there will be pi(j - 1) such x) 
+<a name="l487"><span class="ln">487  </span></a> 
+<a name="l488"><span class="ln">488  </span></a>        Thus, number of x, that will be removed are: 
+<a name="l489"><span class="ln">489  </span></a>        phi(i / j, j - 1) - phi(j - 1, j - 1) 
+<a name="l490"><span class="ln">490  </span></a>        (Note that pi(j - 1) = phi(j - 1, j - 1)) 
+<a name="l491"><span class="ln">491  </span></a> 
+<a name="l492"><span class="ln">492  </span></a>        $\Rightarrow$ phi(i,j) = phi(i, j - 1) - phi(i / j, j - 1) + phi(j - 1, j - 1) 
+<a name="l493"><span class="ln">493  </span></a> 
+<a name="l494"><span class="ln">494  </span></a>        So,following recursion is used and implemented as dp: 
+<a name="l495"><span class="ln">495  </span></a> 
+<a name="l496"><span class="ln">496  </span></a>        phi(a, b) = phi(a, b - 1), if b is not a prime 
+<a name="l497"><span class="ln">497  </span></a>        phi(a, b) = phi(a, b-1)-phi(a / b, b-1) + phi(b-1, b-1), if b is prime 
+<a name="l498"><span class="ln">498  </span></a> 
+<a name="l499"><span class="ln">499  </span></a>        Clearly a is always of the form floor(n / k), 
+<a name="l500"><span class="ln">500  </span></a>        which can take at most $2\sqrt{n}$ values. 
+<a name="l501"><span class="ln">501  </span></a>        Two arrays arr1,arr2 are maintained 
+<a name="l502"><span class="ln">502  </span></a>        arr1[i] = phi(i, j), 
+<a name="l503"><span class="ln">503  </span></a>        arr2[i] = phi(n // i, j) 
+<a name="l504"><span class="ln">504  </span></a> 
+<a name="l505"><span class="ln">505  </span></a>        Finally the answer is arr2[1] 
+<a name="l506"><span class="ln">506  </span></a> 
+<a name="l507"><span class="ln">507  </span></a>        Examples 
+<a name="l508"><span class="ln">508  </span></a>        ======== 
+<a name="l509"><span class="ln">509  </span></a> 
+<a name="l510"><span class="ln">510  </span></a>        &gt;&gt;&gt; from sympy import primepi, prime, prevprime, isprime 
+<a name="l511"><span class="ln">511  </span></a>        &gt;&gt;&gt; primepi(25) 
+<a name="l512"><span class="ln">512  </span></a>        9 
+<a name="l513"><span class="ln">513  </span></a> 
+<a name="l514"><span class="ln">514  </span></a>        So there are 9 primes less than or equal to 25. Is 25 prime? 
+<a name="l515"><span class="ln">515  </span></a> 
+<a name="l516"><span class="ln">516  </span></a>        &gt;&gt;&gt; isprime(25) 
+<a name="l517"><span class="ln">517  </span></a>        False 
+<a name="l518"><span class="ln">518  </span></a> 
+<a name="l519"><span class="ln">519  </span></a>        It is not. So the first prime less than 25 must be the 
+<a name="l520"><span class="ln">520  </span></a>        9th prime: 
+<a name="l521"><span class="ln">521  </span></a> 
+<a name="l522"><span class="ln">522  </span></a>        &gt;&gt;&gt; prevprime(25) == prime(9) 
+<a name="l523"><span class="ln">523  </span></a>        True 
+<a name="l524"><span class="ln">524  </span></a> 
+<a name="l525"><span class="ln">525  </span></a>        See Also 
+<a name="l526"><span class="ln">526  </span></a>        ======== 
+<a name="l527"><span class="ln">527  </span></a> 
+<a name="l528"><span class="ln">528  </span></a>        sympy.ntheory.primetest.isprime : Test if n is prime 
+<a name="l529"><span class="ln">529  </span></a>        primerange : Generate all primes in a given range 
+<a name="l530"><span class="ln">530  </span></a>        prime : Return the nth prime 
+<a name="l531"><span class="ln">531  </span></a>    &quot;&quot;&quot;</span>
+<a name="l532"><span class="ln">532  </span></a>    <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">functions</span><span class="s3">.</span><span class="s1">combinatorial</span><span class="s3">.</span><span class="s1">numbers </span><span class="s2">import </span><span class="s1">primepi </span><span class="s2">as </span><span class="s1">func_primepi</span>
+<a name="l533"><span class="ln">533  </span></a>    <span class="s2">return </span><span class="s1">func_primepi</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l534"><span class="ln">534  </span></a>
+<a name="l535"><span class="ln">535  </span></a>
+<a name="l536"><span class="ln">536  </span></a><span class="s2">def </span><span class="s1">_primepi</span><span class="s3">(</span><span class="s1">n</span><span class="s2">:</span><span class="s1">int</span><span class="s3">) </span><span class="s1">-&gt; int</span><span class="s2">:</span>
+<a name="l537"><span class="ln">537  </span></a>    <span class="s0">r&quot;&quot;&quot; Represents the prime counting function pi(n) = the number 
+<a name="l538"><span class="ln">538  </span></a>    of prime numbers less than or equal to n. 
+<a name="l539"><span class="ln">539  </span></a> 
+<a name="l540"><span class="ln">540  </span></a>    Explanation 
+<a name="l541"><span class="ln">541  </span></a>    =========== 
+<a name="l542"><span class="ln">542  </span></a> 
+<a name="l543"><span class="ln">543  </span></a>    In sieve method, we remove all multiples of prime p 
+<a name="l544"><span class="ln">544  </span></a>    except p itself. 
+<a name="l545"><span class="ln">545  </span></a> 
+<a name="l546"><span class="ln">546  </span></a>    Let phi(i,j) be the number of integers 2 &lt;= k &lt;= i 
+<a name="l547"><span class="ln">547  </span></a>    which remain after sieving from primes less than 
+<a name="l548"><span class="ln">548  </span></a>    or equal to j. 
+<a name="l549"><span class="ln">549  </span></a>    Clearly, pi(n) = phi(n, sqrt(n)) 
+<a name="l550"><span class="ln">550  </span></a> 
+<a name="l551"><span class="ln">551  </span></a>    If j is not a prime, 
+<a name="l552"><span class="ln">552  </span></a>    phi(i,j) = phi(i, j - 1) 
+<a name="l553"><span class="ln">553  </span></a> 
+<a name="l554"><span class="ln">554  </span></a>    if j is a prime, 
+<a name="l555"><span class="ln">555  </span></a>    We remove all numbers(except j) whose 
+<a name="l556"><span class="ln">556  </span></a>    smallest prime factor is j. 
+<a name="l557"><span class="ln">557  </span></a> 
+<a name="l558"><span class="ln">558  </span></a>    Let $x= j \times a$ be such a number, where $2 \le a \le i / j$ 
+<a name="l559"><span class="ln">559  </span></a>    Now, after sieving from primes $\le j - 1$, 
+<a name="l560"><span class="ln">560  </span></a>    a must remain 
+<a name="l561"><span class="ln">561  </span></a>    (because x, and hence a has no prime factor $\le j - 1$) 
+<a name="l562"><span class="ln">562  </span></a>    Clearly, there are phi(i / j, j - 1) such a 
+<a name="l563"><span class="ln">563  </span></a>    which remain on sieving from primes $\le j - 1$ 
+<a name="l564"><span class="ln">564  </span></a> 
+<a name="l565"><span class="ln">565  </span></a>    Now, if a is a prime less than equal to j - 1, 
+<a name="l566"><span class="ln">566  </span></a>    $x= j \times a$ has smallest prime factor = a, and 
+<a name="l567"><span class="ln">567  </span></a>    has already been removed(by sieving from a). 
+<a name="l568"><span class="ln">568  </span></a>    So, we do not need to remove it again. 
+<a name="l569"><span class="ln">569  </span></a>    (Note: there will be pi(j - 1) such x) 
+<a name="l570"><span class="ln">570  </span></a> 
+<a name="l571"><span class="ln">571  </span></a>    Thus, number of x, that will be removed are: 
+<a name="l572"><span class="ln">572  </span></a>    phi(i / j, j - 1) - phi(j - 1, j - 1) 
+<a name="l573"><span class="ln">573  </span></a>    (Note that pi(j - 1) = phi(j - 1, j - 1)) 
+<a name="l574"><span class="ln">574  </span></a> 
+<a name="l575"><span class="ln">575  </span></a>    $\Rightarrow$ phi(i,j) = phi(i, j - 1) - phi(i / j, j - 1) + phi(j - 1, j - 1) 
+<a name="l576"><span class="ln">576  </span></a> 
+<a name="l577"><span class="ln">577  </span></a>    So,following recursion is used and implemented as dp: 
+<a name="l578"><span class="ln">578  </span></a> 
+<a name="l579"><span class="ln">579  </span></a>    phi(a, b) = phi(a, b - 1), if b is not a prime 
+<a name="l580"><span class="ln">580  </span></a>    phi(a, b) = phi(a, b-1)-phi(a / b, b-1) + phi(b-1, b-1), if b is prime 
+<a name="l581"><span class="ln">581  </span></a> 
+<a name="l582"><span class="ln">582  </span></a>    Clearly a is always of the form floor(n / k), 
+<a name="l583"><span class="ln">583  </span></a>    which can take at most $2\sqrt{n}$ values. 
+<a name="l584"><span class="ln">584  </span></a>    Two arrays arr1,arr2 are maintained 
+<a name="l585"><span class="ln">585  </span></a>    arr1[i] = phi(i, j), 
+<a name="l586"><span class="ln">586  </span></a>    arr2[i] = phi(n // i, j) 
+<a name="l587"><span class="ln">587  </span></a> 
+<a name="l588"><span class="ln">588  </span></a>    Finally the answer is arr2[1] 
+<a name="l589"><span class="ln">589  </span></a> 
+<a name="l590"><span class="ln">590  </span></a>    Parameters 
+<a name="l591"><span class="ln">591  </span></a>    ========== 
+<a name="l592"><span class="ln">592  </span></a> 
+<a name="l593"><span class="ln">593  </span></a>    n : int 
+<a name="l594"><span class="ln">594  </span></a> 
+<a name="l595"><span class="ln">595  </span></a>    &quot;&quot;&quot;</span>
+<a name="l596"><span class="ln">596  </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s4">2</span><span class="s2">:</span>
+<a name="l597"><span class="ln">597  </span></a>        <span class="s2">return </span><span class="s4">0</span>
+<a name="l598"><span class="ln">598  </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt;= </span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l599"><span class="ln">599  </span></a>        <span class="s2">return </span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">search</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)[</span><span class="s4">0</span><span class="s3">]</span>
+<a name="l600"><span class="ln">600  </span></a>    <span class="s1">lim </span><span class="s2">= </span><span class="s1">sqrt</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l601"><span class="ln">601  </span></a>    <span class="s1">arr1 </span><span class="s2">= </span><span class="s3">[(</span><span class="s1">i </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">) </span><span class="s2">&gt;&gt; </span><span class="s4">1 </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">lim </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">)]</span>
+<a name="l602"><span class="ln">602  </span></a>    <span class="s1">arr2 </span><span class="s2">= </span><span class="s3">[</span><span class="s4">0</span><span class="s3">] </span><span class="s2">+ </span><span class="s3">[(</span><span class="s1">n</span><span class="s2">//</span><span class="s1">i </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">) </span><span class="s2">&gt;&gt; </span><span class="s4">1 </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s4">1</span><span class="s3">, </span><span class="s1">lim </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">)]</span>
+<a name="l603"><span class="ln">603  </span></a>    <span class="s1">skip </span><span class="s2">= </span><span class="s3">[</span><span class="s2">False</span><span class="s3">] </span><span class="s2">* </span><span class="s3">(</span><span class="s1">lim </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">)</span>
+<a name="l604"><span class="ln">604  </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s4">3</span><span class="s3">, </span><span class="s1">lim </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">, </span><span class="s4">2</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l605"><span class="ln">605  </span></a>        <span class="s0"># Presently, arr1[k]=phi(k,i - 1),</span>
+<a name="l606"><span class="ln">606  </span></a>        <span class="s0"># arr2[k] = phi(n // k,i - 1) # not all k's do this</span>
+<a name="l607"><span class="ln">607  </span></a>        <span class="s2">if </span><span class="s1">skip</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l608"><span class="ln">608  </span></a>            <span class="s0"># skip if i is a composite number</span>
+<a name="l609"><span class="ln">609  </span></a>            <span class="s2">continue</span>
+<a name="l610"><span class="ln">610  </span></a>        <span class="s1">p </span><span class="s2">= </span><span class="s1">arr1</span><span class="s3">[</span><span class="s1">i </span><span class="s2">- </span><span class="s4">1</span><span class="s3">]</span>
+<a name="l611"><span class="ln">611  </span></a>        <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s1">lim </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">, </span><span class="s1">i</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l612"><span class="ln">612  </span></a>            <span class="s1">skip</span><span class="s3">[</span><span class="s1">j</span><span class="s3">] </span><span class="s2">= True</span>
+<a name="l613"><span class="ln">613  </span></a>        <span class="s0"># update arr2</span>
+<a name="l614"><span class="ln">614  </span></a>        <span class="s0"># phi(n/j, i) = phi(n/j, i-1) - phi(n/(i*j), i-1) + phi(i-1, i-1)</span>
+<a name="l615"><span class="ln">615  </span></a>        <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s4">1</span><span class="s3">, </span><span class="s1">min</span><span class="s3">(</span><span class="s1">n </span><span class="s2">// </span><span class="s3">(</span><span class="s1">i </span><span class="s2">* </span><span class="s1">i</span><span class="s3">), </span><span class="s1">lim</span><span class="s3">) </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">, </span><span class="s4">2</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l616"><span class="ln">616  </span></a>            <span class="s0"># No need for arr2[j] in j such that skip[j] is True to</span>
+<a name="l617"><span class="ln">617  </span></a>            <span class="s0"># compute the final required arr2[1].</span>
+<a name="l618"><span class="ln">618  </span></a>            <span class="s2">if </span><span class="s1">skip</span><span class="s3">[</span><span class="s1">j</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l619"><span class="ln">619  </span></a>                <span class="s2">continue</span>
+<a name="l620"><span class="ln">620  </span></a>            <span class="s1">st </span><span class="s2">= </span><span class="s1">i </span><span class="s2">* </span><span class="s1">j</span>
+<a name="l621"><span class="ln">621  </span></a>            <span class="s2">if </span><span class="s1">st </span><span class="s2">&lt;= </span><span class="s1">lim</span><span class="s2">:</span>
+<a name="l622"><span class="ln">622  </span></a>                <span class="s1">arr2</span><span class="s3">[</span><span class="s1">j</span><span class="s3">] </span><span class="s2">-= </span><span class="s1">arr2</span><span class="s3">[</span><span class="s1">st</span><span class="s3">] </span><span class="s2">- </span><span class="s1">p</span>
+<a name="l623"><span class="ln">623  </span></a>            <span class="s2">else:</span>
+<a name="l624"><span class="ln">624  </span></a>                <span class="s1">arr2</span><span class="s3">[</span><span class="s1">j</span><span class="s3">] </span><span class="s2">-= </span><span class="s1">arr1</span><span class="s3">[</span><span class="s1">n </span><span class="s2">// </span><span class="s1">st</span><span class="s3">] </span><span class="s2">- </span><span class="s1">p</span>
+<a name="l625"><span class="ln">625  </span></a>        <span class="s0"># update arr1</span>
+<a name="l626"><span class="ln">626  </span></a>        <span class="s0"># phi(j, i) = phi(j, i-1) - phi(j/i, i-1) + phi(i-1, i-1)</span>
+<a name="l627"><span class="ln">627  </span></a>        <span class="s0"># where the range below i**2 is fixed and</span>
+<a name="l628"><span class="ln">628  </span></a>        <span class="s0"># does not need to be calculated.</span>
+<a name="l629"><span class="ln">629  </span></a>        <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">lim</span><span class="s3">, </span><span class="s1">min</span><span class="s3">(</span><span class="s1">lim</span><span class="s3">, </span><span class="s1">i</span><span class="s2">*</span><span class="s1">i </span><span class="s2">- </span><span class="s4">1</span><span class="s3">), </span><span class="s2">-</span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l630"><span class="ln">630  </span></a>            <span class="s1">arr1</span><span class="s3">[</span><span class="s1">j</span><span class="s3">] </span><span class="s2">-= </span><span class="s1">arr1</span><span class="s3">[</span><span class="s1">j </span><span class="s2">// </span><span class="s1">i</span><span class="s3">] </span><span class="s2">- </span><span class="s1">p</span>
+<a name="l631"><span class="ln">631  </span></a>    <span class="s2">return </span><span class="s1">arr2</span><span class="s3">[</span><span class="s4">1</span><span class="s3">]</span>
+<a name="l632"><span class="ln">632  </span></a>
+<a name="l633"><span class="ln">633  </span></a>
+<a name="l634"><span class="ln">634  </span></a><span class="s2">def </span><span class="s1">nextprime</span><span class="s3">(</span><span class="s1">n</span><span class="s3">, </span><span class="s1">ith</span><span class="s2">=</span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l635"><span class="ln">635  </span></a>    <span class="s0">&quot;&quot;&quot; Return the ith prime greater than n. 
+<a name="l636"><span class="ln">636  </span></a> 
+<a name="l637"><span class="ln">637  </span></a>        Parameters 
+<a name="l638"><span class="ln">638  </span></a>        ========== 
+<a name="l639"><span class="ln">639  </span></a> 
+<a name="l640"><span class="ln">640  </span></a>        n : integer 
+<a name="l641"><span class="ln">641  </span></a>        ith : positive integer 
+<a name="l642"><span class="ln">642  </span></a> 
+<a name="l643"><span class="ln">643  </span></a>        Returns 
+<a name="l644"><span class="ln">644  </span></a>        ======= 
+<a name="l645"><span class="ln">645  </span></a> 
+<a name="l646"><span class="ln">646  </span></a>        int : Return the ith prime greater than n 
+<a name="l647"><span class="ln">647  </span></a> 
+<a name="l648"><span class="ln">648  </span></a>        Raises 
+<a name="l649"><span class="ln">649  </span></a>        ====== 
+<a name="l650"><span class="ln">650  </span></a> 
+<a name="l651"><span class="ln">651  </span></a>        ValueError 
+<a name="l652"><span class="ln">652  </span></a>            If ``ith &lt;= 0``. 
+<a name="l653"><span class="ln">653  </span></a>            If ``n`` or ``ith`` is not an integer. 
+<a name="l654"><span class="ln">654  </span></a> 
+<a name="l655"><span class="ln">655  </span></a>        Notes 
+<a name="l656"><span class="ln">656  </span></a>        ===== 
+<a name="l657"><span class="ln">657  </span></a> 
+<a name="l658"><span class="ln">658  </span></a>        Potential primes are located at 6*j +/- 1. This 
+<a name="l659"><span class="ln">659  </span></a>        property is used during searching. 
+<a name="l660"><span class="ln">660  </span></a> 
+<a name="l661"><span class="ln">661  </span></a>        &gt;&gt;&gt; from sympy import nextprime 
+<a name="l662"><span class="ln">662  </span></a>        &gt;&gt;&gt; [(i, nextprime(i)) for i in range(10, 15)] 
+<a name="l663"><span class="ln">663  </span></a>        [(10, 11), (11, 13), (12, 13), (13, 17), (14, 17)] 
+<a name="l664"><span class="ln">664  </span></a>        &gt;&gt;&gt; nextprime(2, ith=2) # the 2nd prime after 2 
+<a name="l665"><span class="ln">665  </span></a>        5 
+<a name="l666"><span class="ln">666  </span></a> 
+<a name="l667"><span class="ln">667  </span></a>        See Also 
+<a name="l668"><span class="ln">668  </span></a>        ======== 
+<a name="l669"><span class="ln">669  </span></a> 
+<a name="l670"><span class="ln">670  </span></a>        prevprime : Return the largest prime smaller than n 
+<a name="l671"><span class="ln">671  </span></a>        primerange : Generate all primes in a given range 
+<a name="l672"><span class="ln">672  </span></a> 
+<a name="l673"><span class="ln">673  </span></a>    &quot;&quot;&quot;</span>
+<a name="l674"><span class="ln">674  </span></a>    <span class="s1">n </span><span class="s2">= </span><span class="s1">int</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l675"><span class="ln">675  </span></a>    <span class="s1">i </span><span class="s2">= </span><span class="s1">as_int</span><span class="s3">(</span><span class="s1">ith</span><span class="s3">)</span>
+<a name="l676"><span class="ln">676  </span></a>    <span class="s2">if </span><span class="s1">i </span><span class="s2">&lt;= </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l677"><span class="ln">677  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s5">&quot;ith should be positive&quot;</span><span class="s3">)</span>
+<a name="l678"><span class="ln">678  </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s4">2</span><span class="s2">:</span>
+<a name="l679"><span class="ln">679  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s4">2</span>
+<a name="l680"><span class="ln">680  </span></a>        <span class="s1">i </span><span class="s2">-= </span><span class="s4">1</span>
+<a name="l681"><span class="ln">681  </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt;= </span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s2">-</span><span class="s4">2</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l682"><span class="ln">682  </span></a>        <span class="s1">l</span><span class="s3">, </span><span class="s1">_ </span><span class="s2">= </span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">search</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l683"><span class="ln">683  </span></a>        <span class="s2">if </span><span class="s1">l </span><span class="s2">+ </span><span class="s1">i </span><span class="s2">- </span><span class="s4">1 </span><span class="s2">&lt; </span><span class="s1">len</span><span class="s3">(</span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l684"><span class="ln">684  </span></a>            <span class="s2">return </span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s1">l </span><span class="s2">+ </span><span class="s1">i </span><span class="s2">- </span><span class="s4">1</span><span class="s3">]</span>
+<a name="l685"><span class="ln">685  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">]</span>
+<a name="l686"><span class="ln">686  </span></a>        <span class="s1">i </span><span class="s2">+= </span><span class="s1">l </span><span class="s2">- </span><span class="s1">len</span><span class="s3">(</span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">)</span>
+<a name="l687"><span class="ln">687  </span></a>    <span class="s1">nn </span><span class="s2">= </span><span class="s4">6</span><span class="s2">*</span><span class="s3">(</span><span class="s1">n</span><span class="s2">//</span><span class="s4">6</span><span class="s3">)</span>
+<a name="l688"><span class="ln">688  </span></a>    <span class="s2">if </span><span class="s1">nn </span><span class="s2">== </span><span class="s1">n</span><span class="s2">:</span>
+<a name="l689"><span class="ln">689  </span></a>        <span class="s1">n </span><span class="s2">+= </span><span class="s4">1</span>
+<a name="l690"><span class="ln">690  </span></a>        <span class="s2">if </span><span class="s1">isprime</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l691"><span class="ln">691  </span></a>            <span class="s1">i </span><span class="s2">-= </span><span class="s4">1</span>
+<a name="l692"><span class="ln">692  </span></a>            <span class="s2">if not </span><span class="s1">i</span><span class="s2">:</span>
+<a name="l693"><span class="ln">693  </span></a>                <span class="s2">return </span><span class="s1">n</span>
+<a name="l694"><span class="ln">694  </span></a>        <span class="s1">n </span><span class="s2">+= </span><span class="s4">4</span>
+<a name="l695"><span class="ln">695  </span></a>    <span class="s2">elif </span><span class="s1">n </span><span class="s2">- </span><span class="s1">nn </span><span class="s2">== </span><span class="s4">5</span><span class="s2">:</span>
+<a name="l696"><span class="ln">696  </span></a>        <span class="s1">n </span><span class="s2">+= </span><span class="s4">2</span>
+<a name="l697"><span class="ln">697  </span></a>        <span class="s2">if </span><span class="s1">isprime</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l698"><span class="ln">698  </span></a>            <span class="s1">i </span><span class="s2">-= </span><span class="s4">1</span>
+<a name="l699"><span class="ln">699  </span></a>            <span class="s2">if not </span><span class="s1">i</span><span class="s2">:</span>
+<a name="l700"><span class="ln">700  </span></a>                <span class="s2">return </span><span class="s1">n</span>
+<a name="l701"><span class="ln">701  </span></a>        <span class="s1">n </span><span class="s2">+= </span><span class="s4">4</span>
+<a name="l702"><span class="ln">702  </span></a>    <span class="s2">else:</span>
+<a name="l703"><span class="ln">703  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">nn </span><span class="s2">+ </span><span class="s4">5</span>
+<a name="l704"><span class="ln">704  </span></a>    <span class="s2">while </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l705"><span class="ln">705  </span></a>        <span class="s2">if </span><span class="s1">isprime</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l706"><span class="ln">706  </span></a>            <span class="s1">i </span><span class="s2">-= </span><span class="s4">1</span>
+<a name="l707"><span class="ln">707  </span></a>            <span class="s2">if not </span><span class="s1">i</span><span class="s2">:</span>
+<a name="l708"><span class="ln">708  </span></a>                <span class="s2">return </span><span class="s1">n</span>
+<a name="l709"><span class="ln">709  </span></a>        <span class="s1">n </span><span class="s2">+= </span><span class="s4">2</span>
+<a name="l710"><span class="ln">710  </span></a>        <span class="s2">if </span><span class="s1">isprime</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l711"><span class="ln">711  </span></a>            <span class="s1">i </span><span class="s2">-= </span><span class="s4">1</span>
+<a name="l712"><span class="ln">712  </span></a>            <span class="s2">if not </span><span class="s1">i</span><span class="s2">:</span>
+<a name="l713"><span class="ln">713  </span></a>                <span class="s2">return </span><span class="s1">n</span>
+<a name="l714"><span class="ln">714  </span></a>        <span class="s1">n </span><span class="s2">+= </span><span class="s4">4</span>
+<a name="l715"><span class="ln">715  </span></a>
+<a name="l716"><span class="ln">716  </span></a>
+<a name="l717"><span class="ln">717  </span></a><span class="s2">def </span><span class="s1">prevprime</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l718"><span class="ln">718  </span></a>    <span class="s0">&quot;&quot;&quot; Return the largest prime smaller than n. 
+<a name="l719"><span class="ln">719  </span></a> 
+<a name="l720"><span class="ln">720  </span></a>        Notes 
+<a name="l721"><span class="ln">721  </span></a>        ===== 
+<a name="l722"><span class="ln">722  </span></a> 
+<a name="l723"><span class="ln">723  </span></a>        Potential primes are located at 6*j +/- 1. This 
+<a name="l724"><span class="ln">724  </span></a>        property is used during searching. 
+<a name="l725"><span class="ln">725  </span></a> 
+<a name="l726"><span class="ln">726  </span></a>        &gt;&gt;&gt; from sympy import prevprime 
+<a name="l727"><span class="ln">727  </span></a>        &gt;&gt;&gt; [(i, prevprime(i)) for i in range(10, 15)] 
+<a name="l728"><span class="ln">728  </span></a>        [(10, 7), (11, 7), (12, 11), (13, 11), (14, 13)] 
+<a name="l729"><span class="ln">729  </span></a> 
+<a name="l730"><span class="ln">730  </span></a>        See Also 
+<a name="l731"><span class="ln">731  </span></a>        ======== 
+<a name="l732"><span class="ln">732  </span></a> 
+<a name="l733"><span class="ln">733  </span></a>        nextprime : Return the ith prime greater than n 
+<a name="l734"><span class="ln">734  </span></a>        primerange : Generates all primes in a given range 
+<a name="l735"><span class="ln">735  </span></a>    &quot;&quot;&quot;</span>
+<a name="l736"><span class="ln">736  </span></a>    <span class="s1">n </span><span class="s2">= </span><span class="s1">_as_int_ceiling</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l737"><span class="ln">737  </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s4">3</span><span class="s2">:</span>
+<a name="l738"><span class="ln">738  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s5">&quot;no preceding primes&quot;</span><span class="s3">)</span>
+<a name="l739"><span class="ln">739  </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s4">8</span><span class="s2">:</span>
+<a name="l740"><span class="ln">740  </span></a>        <span class="s2">return </span><span class="s3">{</span><span class="s4">3</span><span class="s2">: </span><span class="s4">2</span><span class="s3">, </span><span class="s4">4</span><span class="s2">: </span><span class="s4">3</span><span class="s3">, </span><span class="s4">5</span><span class="s2">: </span><span class="s4">3</span><span class="s3">, </span><span class="s4">6</span><span class="s2">: </span><span class="s4">5</span><span class="s3">, </span><span class="s4">7</span><span class="s2">: </span><span class="s4">5</span><span class="s3">}[</span><span class="s1">n</span><span class="s3">]</span>
+<a name="l741"><span class="ln">741  </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt;= </span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l742"><span class="ln">742  </span></a>        <span class="s1">l</span><span class="s3">, </span><span class="s1">u </span><span class="s2">= </span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">search</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l743"><span class="ln">743  </span></a>        <span class="s2">if </span><span class="s1">l </span><span class="s2">== </span><span class="s1">u</span><span class="s2">:</span>
+<a name="l744"><span class="ln">744  </span></a>            <span class="s2">return </span><span class="s1">sieve</span><span class="s3">[</span><span class="s1">l</span><span class="s2">-</span><span class="s4">1</span><span class="s3">]</span>
+<a name="l745"><span class="ln">745  </span></a>        <span class="s2">else:</span>
+<a name="l746"><span class="ln">746  </span></a>            <span class="s2">return </span><span class="s1">sieve</span><span class="s3">[</span><span class="s1">l</span><span class="s3">]</span>
+<a name="l747"><span class="ln">747  </span></a>    <span class="s1">nn </span><span class="s2">= </span><span class="s4">6</span><span class="s2">*</span><span class="s3">(</span><span class="s1">n</span><span class="s2">//</span><span class="s4">6</span><span class="s3">)</span>
+<a name="l748"><span class="ln">748  </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">- </span><span class="s1">nn </span><span class="s2">&lt;= </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l749"><span class="ln">749  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">nn </span><span class="s2">- </span><span class="s4">1</span>
+<a name="l750"><span class="ln">750  </span></a>        <span class="s2">if </span><span class="s1">isprime</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l751"><span class="ln">751  </span></a>            <span class="s2">return </span><span class="s1">n</span>
+<a name="l752"><span class="ln">752  </span></a>        <span class="s1">n </span><span class="s2">-= </span><span class="s4">4</span>
+<a name="l753"><span class="ln">753  </span></a>    <span class="s2">else:</span>
+<a name="l754"><span class="ln">754  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">nn </span><span class="s2">+ </span><span class="s4">1</span>
+<a name="l755"><span class="ln">755  </span></a>    <span class="s2">while </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l756"><span class="ln">756  </span></a>        <span class="s2">if </span><span class="s1">isprime</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l757"><span class="ln">757  </span></a>            <span class="s2">return </span><span class="s1">n</span>
+<a name="l758"><span class="ln">758  </span></a>        <span class="s1">n </span><span class="s2">-= </span><span class="s4">2</span>
+<a name="l759"><span class="ln">759  </span></a>        <span class="s2">if </span><span class="s1">isprime</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l760"><span class="ln">760  </span></a>            <span class="s2">return </span><span class="s1">n</span>
+<a name="l761"><span class="ln">761  </span></a>        <span class="s1">n </span><span class="s2">-= </span><span class="s4">4</span>
+<a name="l762"><span class="ln">762  </span></a>
+<a name="l763"><span class="ln">763  </span></a>
+<a name="l764"><span class="ln">764  </span></a><span class="s2">def </span><span class="s1">primerange</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l765"><span class="ln">765  </span></a>    <span class="s0">&quot;&quot;&quot; Generate a list of all prime numbers in the range [2, a), 
+<a name="l766"><span class="ln">766  </span></a>        or [a, b). 
+<a name="l767"><span class="ln">767  </span></a> 
+<a name="l768"><span class="ln">768  </span></a>        If the range exists in the default sieve, the values will 
+<a name="l769"><span class="ln">769  </span></a>        be returned from there; otherwise values will be returned 
+<a name="l770"><span class="ln">770  </span></a>        but will not modify the sieve. 
+<a name="l771"><span class="ln">771  </span></a> 
+<a name="l772"><span class="ln">772  </span></a>        Examples 
+<a name="l773"><span class="ln">773  </span></a>        ======== 
+<a name="l774"><span class="ln">774  </span></a> 
+<a name="l775"><span class="ln">775  </span></a>        &gt;&gt;&gt; from sympy import primerange, prime 
+<a name="l776"><span class="ln">776  </span></a> 
+<a name="l777"><span class="ln">777  </span></a>        All primes less than 19: 
+<a name="l778"><span class="ln">778  </span></a> 
+<a name="l779"><span class="ln">779  </span></a>        &gt;&gt;&gt; list(primerange(19)) 
+<a name="l780"><span class="ln">780  </span></a>        [2, 3, 5, 7, 11, 13, 17] 
+<a name="l781"><span class="ln">781  </span></a> 
+<a name="l782"><span class="ln">782  </span></a>        All primes greater than or equal to 7 and less than 19: 
+<a name="l783"><span class="ln">783  </span></a> 
+<a name="l784"><span class="ln">784  </span></a>        &gt;&gt;&gt; list(primerange(7, 19)) 
+<a name="l785"><span class="ln">785  </span></a>        [7, 11, 13, 17] 
+<a name="l786"><span class="ln">786  </span></a> 
+<a name="l787"><span class="ln">787  </span></a>        All primes through the 10th prime 
+<a name="l788"><span class="ln">788  </span></a> 
+<a name="l789"><span class="ln">789  </span></a>        &gt;&gt;&gt; list(primerange(prime(10) + 1)) 
+<a name="l790"><span class="ln">790  </span></a>        [2, 3, 5, 7, 11, 13, 17, 19, 23, 29] 
+<a name="l791"><span class="ln">791  </span></a> 
+<a name="l792"><span class="ln">792  </span></a>        The Sieve method, primerange, is generally faster but it will 
+<a name="l793"><span class="ln">793  </span></a>        occupy more memory as the sieve stores values. The default 
+<a name="l794"><span class="ln">794  </span></a>        instance of Sieve, named sieve, can be used: 
+<a name="l795"><span class="ln">795  </span></a> 
+<a name="l796"><span class="ln">796  </span></a>        &gt;&gt;&gt; from sympy import sieve 
+<a name="l797"><span class="ln">797  </span></a>        &gt;&gt;&gt; list(sieve.primerange(1, 30)) 
+<a name="l798"><span class="ln">798  </span></a>        [2, 3, 5, 7, 11, 13, 17, 19, 23, 29] 
+<a name="l799"><span class="ln">799  </span></a> 
+<a name="l800"><span class="ln">800  </span></a>        Notes 
+<a name="l801"><span class="ln">801  </span></a>        ===== 
+<a name="l802"><span class="ln">802  </span></a> 
+<a name="l803"><span class="ln">803  </span></a>        Some famous conjectures about the occurrence of primes in a given 
+<a name="l804"><span class="ln">804  </span></a>        range are [1]: 
+<a name="l805"><span class="ln">805  </span></a> 
+<a name="l806"><span class="ln">806  </span></a>        - Twin primes: though often not, the following will give 2 primes 
+<a name="l807"><span class="ln">807  </span></a>                    an infinite number of times: 
+<a name="l808"><span class="ln">808  </span></a>                        primerange(6*n - 1, 6*n + 2) 
+<a name="l809"><span class="ln">809  </span></a>        - Legendre's: the following always yields at least one prime 
+<a name="l810"><span class="ln">810  </span></a>                        primerange(n**2, (n+1)**2+1) 
+<a name="l811"><span class="ln">811  </span></a>        - Bertrand's (proven): there is always a prime in the range 
+<a name="l812"><span class="ln">812  </span></a>                        primerange(n, 2*n) 
+<a name="l813"><span class="ln">813  </span></a>        - Brocard's: there are at least four primes in the range 
+<a name="l814"><span class="ln">814  </span></a>                        primerange(prime(n)**2, prime(n+1)**2) 
+<a name="l815"><span class="ln">815  </span></a> 
+<a name="l816"><span class="ln">816  </span></a>        The average gap between primes is log(n) [2]; the gap between 
+<a name="l817"><span class="ln">817  </span></a>        primes can be arbitrarily large since sequences of composite 
+<a name="l818"><span class="ln">818  </span></a>        numbers are arbitrarily large, e.g. the numbers in the sequence 
+<a name="l819"><span class="ln">819  </span></a>        n! + 2, n! + 3 ... n! + n are all composite. 
+<a name="l820"><span class="ln">820  </span></a> 
+<a name="l821"><span class="ln">821  </span></a>        See Also 
+<a name="l822"><span class="ln">822  </span></a>        ======== 
+<a name="l823"><span class="ln">823  </span></a> 
+<a name="l824"><span class="ln">824  </span></a>        prime : Return the nth prime 
+<a name="l825"><span class="ln">825  </span></a>        nextprime : Return the ith prime greater than n 
+<a name="l826"><span class="ln">826  </span></a>        prevprime : Return the largest prime smaller than n 
+<a name="l827"><span class="ln">827  </span></a>        randprime : Returns a random prime in a given range 
+<a name="l828"><span class="ln">828  </span></a>        primorial : Returns the product of primes based on condition 
+<a name="l829"><span class="ln">829  </span></a>        Sieve.primerange : return range from already computed primes 
+<a name="l830"><span class="ln">830  </span></a>                           or extend the sieve to contain the requested 
+<a name="l831"><span class="ln">831  </span></a>                           range. 
+<a name="l832"><span class="ln">832  </span></a> 
+<a name="l833"><span class="ln">833  </span></a>        References 
+<a name="l834"><span class="ln">834  </span></a>        ========== 
+<a name="l835"><span class="ln">835  </span></a> 
+<a name="l836"><span class="ln">836  </span></a>        .. [1] https://en.wikipedia.org/wiki/Prime_number 
+<a name="l837"><span class="ln">837  </span></a>        .. [2] https://primes.utm.edu/notes/gaps.html 
+<a name="l838"><span class="ln">838  </span></a>    &quot;&quot;&quot;</span>
+<a name="l839"><span class="ln">839  </span></a>    <span class="s2">if </span><span class="s1">b </span><span class="s2">is None:</span>
+<a name="l840"><span class="ln">840  </span></a>        <span class="s1">a</span><span class="s3">, </span><span class="s1">b </span><span class="s2">= </span><span class="s4">2</span><span class="s3">, </span><span class="s1">a</span>
+<a name="l841"><span class="ln">841  </span></a>    <span class="s2">if </span><span class="s1">a </span><span class="s2">&gt;= </span><span class="s1">b</span><span class="s2">:</span>
+<a name="l842"><span class="ln">842  </span></a>        <span class="s2">return</span>
+<a name="l843"><span class="ln">843  </span></a>    <span class="s0"># If we already have the range, return it.</span>
+<a name="l844"><span class="ln">844  </span></a>    <span class="s1">largest_known_prime </span><span class="s2">= </span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">]</span>
+<a name="l845"><span class="ln">845  </span></a>    <span class="s2">if </span><span class="s1">b </span><span class="s2">&lt;= </span><span class="s1">largest_known_prime</span><span class="s2">:</span>
+<a name="l846"><span class="ln">846  </span></a>        <span class="s2">yield from </span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">primerange</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span>
+<a name="l847"><span class="ln">847  </span></a>        <span class="s2">return</span>
+<a name="l848"><span class="ln">848  </span></a>    <span class="s0"># If we know some of it, return it.</span>
+<a name="l849"><span class="ln">849  </span></a>    <span class="s2">if </span><span class="s1">a </span><span class="s2">&lt;= </span><span class="s1">largest_known_prime</span><span class="s2">:</span>
+<a name="l850"><span class="ln">850  </span></a>        <span class="s2">yield from </span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s1">bisect_left</span><span class="s3">(</span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">, </span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span><span class="s3">]</span>
+<a name="l851"><span class="ln">851  </span></a>        <span class="s1">a </span><span class="s2">= </span><span class="s1">largest_known_prime </span><span class="s2">+ </span><span class="s4">1</span>
+<a name="l852"><span class="ln">852  </span></a>    <span class="s2">elif </span><span class="s1">a </span><span class="s2">% </span><span class="s4">2</span><span class="s2">:</span>
+<a name="l853"><span class="ln">853  </span></a>        <span class="s1">a </span><span class="s2">-= </span><span class="s4">1</span>
+<a name="l854"><span class="ln">854  </span></a>    <span class="s1">tail </span><span class="s2">= </span><span class="s1">min</span><span class="s3">(</span><span class="s1">b</span><span class="s3">, (</span><span class="s1">largest_known_prime</span><span class="s3">)</span><span class="s2">**</span><span class="s4">2</span><span class="s3">)</span>
+<a name="l855"><span class="ln">855  </span></a>    <span class="s2">if </span><span class="s1">a </span><span class="s2">&lt; </span><span class="s1">tail</span><span class="s2">:</span>
+<a name="l856"><span class="ln">856  </span></a>        <span class="s2">yield from </span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">_primerange</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">tail</span><span class="s3">)</span>
+<a name="l857"><span class="ln">857  </span></a>        <span class="s1">a </span><span class="s2">= </span><span class="s1">tail</span>
+<a name="l858"><span class="ln">858  </span></a>    <span class="s2">if </span><span class="s1">b </span><span class="s2">&lt;= </span><span class="s1">a</span><span class="s2">:</span>
+<a name="l859"><span class="ln">859  </span></a>        <span class="s2">return</span>
+<a name="l860"><span class="ln">860  </span></a>    <span class="s0"># otherwise compute, without storing, the desired range.</span>
+<a name="l861"><span class="ln">861  </span></a>    <span class="s2">while </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l862"><span class="ln">862  </span></a>        <span class="s1">a </span><span class="s2">= </span><span class="s1">nextprime</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)</span>
+<a name="l863"><span class="ln">863  </span></a>        <span class="s2">if </span><span class="s1">a </span><span class="s2">&lt; </span><span class="s1">b</span><span class="s2">:</span>
+<a name="l864"><span class="ln">864  </span></a>            <span class="s2">yield </span><span class="s1">a</span>
+<a name="l865"><span class="ln">865  </span></a>        <span class="s2">else:</span>
+<a name="l866"><span class="ln">866  </span></a>            <span class="s2">return</span>
+<a name="l867"><span class="ln">867  </span></a>
+<a name="l868"><span class="ln">868  </span></a>
+<a name="l869"><span class="ln">869  </span></a><span class="s2">def </span><span class="s1">randprime</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l870"><span class="ln">870  </span></a>    <span class="s0">&quot;&quot;&quot; Return a random prime number in the range [a, b). 
+<a name="l871"><span class="ln">871  </span></a> 
+<a name="l872"><span class="ln">872  </span></a>        Bertrand's postulate assures that 
+<a name="l873"><span class="ln">873  </span></a>        randprime(a, 2*a) will always succeed for a &gt; 1. 
+<a name="l874"><span class="ln">874  </span></a> 
+<a name="l875"><span class="ln">875  </span></a>        Note that due to implementation difficulties, 
+<a name="l876"><span class="ln">876  </span></a>        the prime numbers chosen are not uniformly random. 
+<a name="l877"><span class="ln">877  </span></a>        For example, there are two primes in the range [112, 128), 
+<a name="l878"><span class="ln">878  </span></a>        ``113`` and ``127``, but ``randprime(112, 128)`` returns ``127`` 
+<a name="l879"><span class="ln">879  </span></a>        with a probability of 15/17. 
+<a name="l880"><span class="ln">880  </span></a> 
+<a name="l881"><span class="ln">881  </span></a>        Examples 
+<a name="l882"><span class="ln">882  </span></a>        ======== 
+<a name="l883"><span class="ln">883  </span></a> 
+<a name="l884"><span class="ln">884  </span></a>        &gt;&gt;&gt; from sympy import randprime, isprime 
+<a name="l885"><span class="ln">885  </span></a>        &gt;&gt;&gt; randprime(1, 30) #doctest: +SKIP 
+<a name="l886"><span class="ln">886  </span></a>        13 
+<a name="l887"><span class="ln">887  </span></a>        &gt;&gt;&gt; isprime(randprime(1, 30)) 
+<a name="l888"><span class="ln">888  </span></a>        True 
+<a name="l889"><span class="ln">889  </span></a> 
+<a name="l890"><span class="ln">890  </span></a>        See Also 
+<a name="l891"><span class="ln">891  </span></a>        ======== 
+<a name="l892"><span class="ln">892  </span></a> 
+<a name="l893"><span class="ln">893  </span></a>        primerange : Generate all primes in a given range 
+<a name="l894"><span class="ln">894  </span></a> 
+<a name="l895"><span class="ln">895  </span></a>        References 
+<a name="l896"><span class="ln">896  </span></a>        ========== 
+<a name="l897"><span class="ln">897  </span></a> 
+<a name="l898"><span class="ln">898  </span></a>        .. [1] https://en.wikipedia.org/wiki/Bertrand's_postulate 
+<a name="l899"><span class="ln">899  </span></a> 
+<a name="l900"><span class="ln">900  </span></a>    &quot;&quot;&quot;</span>
+<a name="l901"><span class="ln">901  </span></a>    <span class="s2">if </span><span class="s1">a </span><span class="s2">&gt;= </span><span class="s1">b</span><span class="s2">:</span>
+<a name="l902"><span class="ln">902  </span></a>        <span class="s2">return</span>
+<a name="l903"><span class="ln">903  </span></a>    <span class="s1">a</span><span class="s3">, </span><span class="s1">b </span><span class="s2">= </span><span class="s1">map</span><span class="s3">(</span><span class="s1">int</span><span class="s3">, (</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">))</span>
+<a name="l904"><span class="ln">904  </span></a>    <span class="s1">n </span><span class="s2">= </span><span class="s1">randint</span><span class="s3">(</span><span class="s1">a </span><span class="s2">- </span><span class="s4">1</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span>
+<a name="l905"><span class="ln">905  </span></a>    <span class="s1">p </span><span class="s2">= </span><span class="s1">nextprime</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l906"><span class="ln">906  </span></a>    <span class="s2">if </span><span class="s1">p </span><span class="s2">&gt;= </span><span class="s1">b</span><span class="s2">:</span>
+<a name="l907"><span class="ln">907  </span></a>        <span class="s1">p </span><span class="s2">= </span><span class="s1">prevprime</span><span class="s3">(</span><span class="s1">b</span><span class="s3">)</span>
+<a name="l908"><span class="ln">908  </span></a>    <span class="s2">if </span><span class="s1">p </span><span class="s2">&lt; </span><span class="s1">a</span><span class="s2">:</span>
+<a name="l909"><span class="ln">909  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s5">&quot;no primes exist in the specified range&quot;</span><span class="s3">)</span>
+<a name="l910"><span class="ln">910  </span></a>    <span class="s2">return </span><span class="s1">p</span>
+<a name="l911"><span class="ln">911  </span></a>
+<a name="l912"><span class="ln">912  </span></a>
+<a name="l913"><span class="ln">913  </span></a><span class="s2">def </span><span class="s1">primorial</span><span class="s3">(</span><span class="s1">n</span><span class="s3">, </span><span class="s1">nth</span><span class="s2">=True</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l914"><span class="ln">914  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l915"><span class="ln">915  </span></a>    Returns the product of the first n primes (default) or 
+<a name="l916"><span class="ln">916  </span></a>    the primes less than or equal to n (when ``nth=False``). 
+<a name="l917"><span class="ln">917  </span></a> 
+<a name="l918"><span class="ln">918  </span></a>    Examples 
+<a name="l919"><span class="ln">919  </span></a>    ======== 
+<a name="l920"><span class="ln">920  </span></a> 
+<a name="l921"><span class="ln">921  </span></a>    &gt;&gt;&gt; from sympy.ntheory.generate import primorial, primerange 
+<a name="l922"><span class="ln">922  </span></a>    &gt;&gt;&gt; from sympy import factorint, Mul, primefactors, sqrt 
+<a name="l923"><span class="ln">923  </span></a>    &gt;&gt;&gt; primorial(4) # the first 4 primes are 2, 3, 5, 7 
+<a name="l924"><span class="ln">924  </span></a>    210 
+<a name="l925"><span class="ln">925  </span></a>    &gt;&gt;&gt; primorial(4, nth=False) # primes &lt;= 4 are 2 and 3 
+<a name="l926"><span class="ln">926  </span></a>    6 
+<a name="l927"><span class="ln">927  </span></a>    &gt;&gt;&gt; primorial(1) 
+<a name="l928"><span class="ln">928  </span></a>    2 
+<a name="l929"><span class="ln">929  </span></a>    &gt;&gt;&gt; primorial(1, nth=False) 
+<a name="l930"><span class="ln">930  </span></a>    1 
+<a name="l931"><span class="ln">931  </span></a>    &gt;&gt;&gt; primorial(sqrt(101), nth=False) 
+<a name="l932"><span class="ln">932  </span></a>    210 
+<a name="l933"><span class="ln">933  </span></a> 
+<a name="l934"><span class="ln">934  </span></a>    One can argue that the primes are infinite since if you take 
+<a name="l935"><span class="ln">935  </span></a>    a set of primes and multiply them together (e.g. the primorial) and 
+<a name="l936"><span class="ln">936  </span></a>    then add or subtract 1, the result cannot be divided by any of the 
+<a name="l937"><span class="ln">937  </span></a>    original factors, hence either 1 or more new primes must divide this 
+<a name="l938"><span class="ln">938  </span></a>    product of primes. 
+<a name="l939"><span class="ln">939  </span></a> 
+<a name="l940"><span class="ln">940  </span></a>    In this case, the number itself is a new prime: 
+<a name="l941"><span class="ln">941  </span></a> 
+<a name="l942"><span class="ln">942  </span></a>    &gt;&gt;&gt; factorint(primorial(4) + 1) 
+<a name="l943"><span class="ln">943  </span></a>    {211: 1} 
+<a name="l944"><span class="ln">944  </span></a> 
+<a name="l945"><span class="ln">945  </span></a>    In this case two new primes are the factors: 
+<a name="l946"><span class="ln">946  </span></a> 
+<a name="l947"><span class="ln">947  </span></a>    &gt;&gt;&gt; factorint(primorial(4) - 1) 
+<a name="l948"><span class="ln">948  </span></a>    {11: 1, 19: 1} 
+<a name="l949"><span class="ln">949  </span></a> 
+<a name="l950"><span class="ln">950  </span></a>    Here, some primes smaller and larger than the primes multiplied together 
+<a name="l951"><span class="ln">951  </span></a>    are obtained: 
+<a name="l952"><span class="ln">952  </span></a> 
+<a name="l953"><span class="ln">953  </span></a>    &gt;&gt;&gt; p = list(primerange(10, 20)) 
+<a name="l954"><span class="ln">954  </span></a>    &gt;&gt;&gt; sorted(set(primefactors(Mul(*p) + 1)).difference(set(p))) 
+<a name="l955"><span class="ln">955  </span></a>    [2, 5, 31, 149] 
+<a name="l956"><span class="ln">956  </span></a> 
+<a name="l957"><span class="ln">957  </span></a>    See Also 
+<a name="l958"><span class="ln">958  </span></a>    ======== 
+<a name="l959"><span class="ln">959  </span></a> 
+<a name="l960"><span class="ln">960  </span></a>    primerange : Generate all primes in a given range 
+<a name="l961"><span class="ln">961  </span></a> 
+<a name="l962"><span class="ln">962  </span></a>    &quot;&quot;&quot;</span>
+<a name="l963"><span class="ln">963  </span></a>    <span class="s2">if </span><span class="s1">nth</span><span class="s2">:</span>
+<a name="l964"><span class="ln">964  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">as_int</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l965"><span class="ln">965  </span></a>    <span class="s2">else:</span>
+<a name="l966"><span class="ln">966  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">int</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l967"><span class="ln">967  </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l968"><span class="ln">968  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s5">&quot;primorial argument must be &gt;= 1&quot;</span><span class="s3">)</span>
+<a name="l969"><span class="ln">969  </span></a>    <span class="s1">p </span><span class="s2">= </span><span class="s4">1</span>
+<a name="l970"><span class="ln">970  </span></a>    <span class="s2">if </span><span class="s1">nth</span><span class="s2">:</span>
+<a name="l971"><span class="ln">971  </span></a>        <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s4">1</span><span class="s3">, </span><span class="s1">n </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l972"><span class="ln">972  </span></a>            <span class="s1">p </span><span class="s2">*= </span><span class="s1">prime</span><span class="s3">(</span><span class="s1">i</span><span class="s3">)</span>
+<a name="l973"><span class="ln">973  </span></a>    <span class="s2">else:</span>
+<a name="l974"><span class="ln">974  </span></a>        <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">primerange</span><span class="s3">(</span><span class="s4">2</span><span class="s3">, </span><span class="s1">n </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l975"><span class="ln">975  </span></a>            <span class="s1">p </span><span class="s2">*= </span><span class="s1">i</span>
+<a name="l976"><span class="ln">976  </span></a>    <span class="s2">return </span><span class="s1">p</span>
+<a name="l977"><span class="ln">977  </span></a>
+<a name="l978"><span class="ln">978  </span></a>
+<a name="l979"><span class="ln">979  </span></a><span class="s2">def </span><span class="s1">cycle_length</span><span class="s3">(</span><span class="s1">f</span><span class="s3">, </span><span class="s1">x0</span><span class="s3">, </span><span class="s1">nmax</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">values</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l980"><span class="ln">980  </span></a>    <span class="s0">&quot;&quot;&quot;For a given iterated sequence, return a generator that gives 
+<a name="l981"><span class="ln">981  </span></a>    the length of the iterated cycle (lambda) and the length of terms 
+<a name="l982"><span class="ln">982  </span></a>    before the cycle begins (mu); if ``values`` is True then the 
+<a name="l983"><span class="ln">983  </span></a>    terms of the sequence will be returned instead. The sequence is 
+<a name="l984"><span class="ln">984  </span></a>    started with value ``x0``. 
+<a name="l985"><span class="ln">985  </span></a> 
+<a name="l986"><span class="ln">986  </span></a>    Note: more than the first lambda + mu terms may be returned and this 
+<a name="l987"><span class="ln">987  </span></a>    is the cost of cycle detection with Brent's method; there are, however, 
+<a name="l988"><span class="ln">988  </span></a>    generally less terms calculated than would have been calculated if the 
+<a name="l989"><span class="ln">989  </span></a>    proper ending point were determined, e.g. by using Floyd's method. 
+<a name="l990"><span class="ln">990  </span></a> 
+<a name="l991"><span class="ln">991  </span></a>    &gt;&gt;&gt; from sympy.ntheory.generate import cycle_length 
+<a name="l992"><span class="ln">992  </span></a> 
+<a name="l993"><span class="ln">993  </span></a>    This will yield successive values of i &lt;-- func(i): 
+<a name="l994"><span class="ln">994  </span></a> 
+<a name="l995"><span class="ln">995  </span></a>        &gt;&gt;&gt; def gen(func, i): 
+<a name="l996"><span class="ln">996  </span></a>        ...     while 1: 
+<a name="l997"><span class="ln">997  </span></a>        ...         yield i 
+<a name="l998"><span class="ln">998  </span></a>        ...         i = func(i) 
+<a name="l999"><span class="ln">999  </span></a>        ... 
+<a name="l1000"><span class="ln">1000 </span></a> 
+<a name="l1001"><span class="ln">1001 </span></a>    A function is defined: 
+<a name="l1002"><span class="ln">1002 </span></a> 
+<a name="l1003"><span class="ln">1003 </span></a>        &gt;&gt;&gt; func = lambda i: (i**2 + 1) % 51 
+<a name="l1004"><span class="ln">1004 </span></a> 
+<a name="l1005"><span class="ln">1005 </span></a>    and given a seed of 4 and the mu and lambda terms calculated: 
+<a name="l1006"><span class="ln">1006 </span></a> 
+<a name="l1007"><span class="ln">1007 </span></a>        &gt;&gt;&gt; next(cycle_length(func, 4)) 
+<a name="l1008"><span class="ln">1008 </span></a>        (6, 3) 
+<a name="l1009"><span class="ln">1009 </span></a> 
+<a name="l1010"><span class="ln">1010 </span></a>    We can see what is meant by looking at the output: 
+<a name="l1011"><span class="ln">1011 </span></a> 
+<a name="l1012"><span class="ln">1012 </span></a>        &gt;&gt;&gt; iter = cycle_length(func, 4, values=True) 
+<a name="l1013"><span class="ln">1013 </span></a>        &gt;&gt;&gt; list(iter) 
+<a name="l1014"><span class="ln">1014 </span></a>        [4, 17, 35, 2, 5, 26, 14, 44, 50, 2, 5, 26, 14] 
+<a name="l1015"><span class="ln">1015 </span></a> 
+<a name="l1016"><span class="ln">1016 </span></a>    There are 6 repeating values after the first 3. 
+<a name="l1017"><span class="ln">1017 </span></a> 
+<a name="l1018"><span class="ln">1018 </span></a>    If a sequence is suspected of being longer than you might wish, ``nmax`` 
+<a name="l1019"><span class="ln">1019 </span></a>    can be used to exit early (and mu will be returned as None): 
+<a name="l1020"><span class="ln">1020 </span></a> 
+<a name="l1021"><span class="ln">1021 </span></a>        &gt;&gt;&gt; next(cycle_length(func, 4, nmax = 4)) 
+<a name="l1022"><span class="ln">1022 </span></a>        (4, None) 
+<a name="l1023"><span class="ln">1023 </span></a>        &gt;&gt;&gt; list(cycle_length(func, 4, nmax = 4, values=True)) 
+<a name="l1024"><span class="ln">1024 </span></a>        [4, 17, 35, 2] 
+<a name="l1025"><span class="ln">1025 </span></a> 
+<a name="l1026"><span class="ln">1026 </span></a>    Code modified from: 
+<a name="l1027"><span class="ln">1027 </span></a>        https://en.wikipedia.org/wiki/Cycle_detection. 
+<a name="l1028"><span class="ln">1028 </span></a>    &quot;&quot;&quot;</span>
+<a name="l1029"><span class="ln">1029 </span></a>
+<a name="l1030"><span class="ln">1030 </span></a>    <span class="s1">nmax </span><span class="s2">= </span><span class="s1">int</span><span class="s3">(</span><span class="s1">nmax </span><span class="s2">or </span><span class="s4">0</span><span class="s3">)</span>
+<a name="l1031"><span class="ln">1031 </span></a>
+<a name="l1032"><span class="ln">1032 </span></a>    <span class="s0"># main phase: search successive powers of two</span>
+<a name="l1033"><span class="ln">1033 </span></a>    <span class="s1">power </span><span class="s2">= </span><span class="s1">lam </span><span class="s2">= </span><span class="s4">1</span>
+<a name="l1034"><span class="ln">1034 </span></a>    <span class="s1">tortoise</span><span class="s3">, </span><span class="s1">hare </span><span class="s2">= </span><span class="s1">x0</span><span class="s3">, </span><span class="s1">f</span><span class="s3">(</span><span class="s1">x0</span><span class="s3">)  </span><span class="s0"># f(x0) is the element/node next to x0.</span>
+<a name="l1035"><span class="ln">1035 </span></a>    <span class="s1">i </span><span class="s2">= </span><span class="s4">1</span>
+<a name="l1036"><span class="ln">1036 </span></a>    <span class="s2">if </span><span class="s1">values</span><span class="s2">:</span>
+<a name="l1037"><span class="ln">1037 </span></a>        <span class="s2">yield </span><span class="s1">tortoise</span>
+<a name="l1038"><span class="ln">1038 </span></a>    <span class="s2">while </span><span class="s1">tortoise </span><span class="s2">!= </span><span class="s1">hare </span><span class="s2">and </span><span class="s3">(</span><span class="s2">not </span><span class="s1">nmax </span><span class="s2">or </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">nmax</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1039"><span class="ln">1039 </span></a>        <span class="s1">i </span><span class="s2">+= </span><span class="s4">1</span>
+<a name="l1040"><span class="ln">1040 </span></a>        <span class="s2">if </span><span class="s1">power </span><span class="s2">== </span><span class="s1">lam</span><span class="s2">:   </span><span class="s0"># time to start a new power of two?</span>
+<a name="l1041"><span class="ln">1041 </span></a>            <span class="s1">tortoise </span><span class="s2">= </span><span class="s1">hare</span>
+<a name="l1042"><span class="ln">1042 </span></a>            <span class="s1">power </span><span class="s2">*= </span><span class="s4">2</span>
+<a name="l1043"><span class="ln">1043 </span></a>            <span class="s1">lam </span><span class="s2">= </span><span class="s4">0</span>
+<a name="l1044"><span class="ln">1044 </span></a>        <span class="s2">if </span><span class="s1">values</span><span class="s2">:</span>
+<a name="l1045"><span class="ln">1045 </span></a>            <span class="s2">yield </span><span class="s1">hare</span>
+<a name="l1046"><span class="ln">1046 </span></a>        <span class="s1">hare </span><span class="s2">= </span><span class="s1">f</span><span class="s3">(</span><span class="s1">hare</span><span class="s3">)</span>
+<a name="l1047"><span class="ln">1047 </span></a>        <span class="s1">lam </span><span class="s2">+= </span><span class="s4">1</span>
+<a name="l1048"><span class="ln">1048 </span></a>    <span class="s2">if </span><span class="s1">nmax </span><span class="s2">and </span><span class="s1">i </span><span class="s2">== </span><span class="s1">nmax</span><span class="s2">:</span>
+<a name="l1049"><span class="ln">1049 </span></a>        <span class="s2">if </span><span class="s1">values</span><span class="s2">:</span>
+<a name="l1050"><span class="ln">1050 </span></a>            <span class="s2">return</span>
+<a name="l1051"><span class="ln">1051 </span></a>        <span class="s2">else:</span>
+<a name="l1052"><span class="ln">1052 </span></a>            <span class="s2">yield </span><span class="s1">nmax</span><span class="s3">, </span><span class="s2">None</span>
+<a name="l1053"><span class="ln">1053 </span></a>            <span class="s2">return</span>
+<a name="l1054"><span class="ln">1054 </span></a>    <span class="s2">if not </span><span class="s1">values</span><span class="s2">:</span>
+<a name="l1055"><span class="ln">1055 </span></a>        <span class="s0"># Find the position of the first repetition of length lambda</span>
+<a name="l1056"><span class="ln">1056 </span></a>        <span class="s1">mu </span><span class="s2">= </span><span class="s4">0</span>
+<a name="l1057"><span class="ln">1057 </span></a>        <span class="s1">tortoise </span><span class="s2">= </span><span class="s1">hare </span><span class="s2">= </span><span class="s1">x0</span>
+<a name="l1058"><span class="ln">1058 </span></a>        <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">lam</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1059"><span class="ln">1059 </span></a>            <span class="s1">hare </span><span class="s2">= </span><span class="s1">f</span><span class="s3">(</span><span class="s1">hare</span><span class="s3">)</span>
+<a name="l1060"><span class="ln">1060 </span></a>        <span class="s2">while </span><span class="s1">tortoise </span><span class="s2">!= </span><span class="s1">hare</span><span class="s2">:</span>
+<a name="l1061"><span class="ln">1061 </span></a>            <span class="s1">tortoise </span><span class="s2">= </span><span class="s1">f</span><span class="s3">(</span><span class="s1">tortoise</span><span class="s3">)</span>
+<a name="l1062"><span class="ln">1062 </span></a>            <span class="s1">hare </span><span class="s2">= </span><span class="s1">f</span><span class="s3">(</span><span class="s1">hare</span><span class="s3">)</span>
+<a name="l1063"><span class="ln">1063 </span></a>            <span class="s1">mu </span><span class="s2">+= </span><span class="s4">1</span>
+<a name="l1064"><span class="ln">1064 </span></a>        <span class="s2">yield </span><span class="s1">lam</span><span class="s3">, </span><span class="s1">mu</span>
+<a name="l1065"><span class="ln">1065 </span></a>
+<a name="l1066"><span class="ln">1066 </span></a>
+<a name="l1067"><span class="ln">1067 </span></a><span class="s2">def </span><span class="s1">composite</span><span class="s3">(</span><span class="s1">nth</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1068"><span class="ln">1068 </span></a>    <span class="s0">&quot;&quot;&quot; Return the nth composite number, with the composite numbers indexed as 
+<a name="l1069"><span class="ln">1069 </span></a>        composite(1) = 4, composite(2) = 6, etc.... 
+<a name="l1070"><span class="ln">1070 </span></a> 
+<a name="l1071"><span class="ln">1071 </span></a>        Examples 
+<a name="l1072"><span class="ln">1072 </span></a>        ======== 
+<a name="l1073"><span class="ln">1073 </span></a> 
+<a name="l1074"><span class="ln">1074 </span></a>        &gt;&gt;&gt; from sympy import composite 
+<a name="l1075"><span class="ln">1075 </span></a>        &gt;&gt;&gt; composite(36) 
+<a name="l1076"><span class="ln">1076 </span></a>        52 
+<a name="l1077"><span class="ln">1077 </span></a>        &gt;&gt;&gt; composite(1) 
+<a name="l1078"><span class="ln">1078 </span></a>        4 
+<a name="l1079"><span class="ln">1079 </span></a>        &gt;&gt;&gt; composite(17737) 
+<a name="l1080"><span class="ln">1080 </span></a>        20000 
+<a name="l1081"><span class="ln">1081 </span></a> 
+<a name="l1082"><span class="ln">1082 </span></a>        See Also 
+<a name="l1083"><span class="ln">1083 </span></a>        ======== 
+<a name="l1084"><span class="ln">1084 </span></a> 
+<a name="l1085"><span class="ln">1085 </span></a>        sympy.ntheory.primetest.isprime : Test if n is prime 
+<a name="l1086"><span class="ln">1086 </span></a>        primerange : Generate all primes in a given range 
+<a name="l1087"><span class="ln">1087 </span></a>        primepi : Return the number of primes less than or equal to n 
+<a name="l1088"><span class="ln">1088 </span></a>        prime : Return the nth prime 
+<a name="l1089"><span class="ln">1089 </span></a>        compositepi : Return the number of positive composite numbers less than or equal to n 
+<a name="l1090"><span class="ln">1090 </span></a>    &quot;&quot;&quot;</span>
+<a name="l1091"><span class="ln">1091 </span></a>    <span class="s1">n </span><span class="s2">= </span><span class="s1">as_int</span><span class="s3">(</span><span class="s1">nth</span><span class="s3">)</span>
+<a name="l1092"><span class="ln">1092 </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l1093"><span class="ln">1093 </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s5">&quot;nth must be a positive integer; composite(1) == 4&quot;</span><span class="s3">)</span>
+<a name="l1094"><span class="ln">1094 </span></a>    <span class="s1">composite_arr </span><span class="s2">= </span><span class="s3">[</span><span class="s4">4</span><span class="s3">, </span><span class="s4">6</span><span class="s3">, </span><span class="s4">8</span><span class="s3">, </span><span class="s4">9</span><span class="s3">, </span><span class="s4">10</span><span class="s3">, </span><span class="s4">12</span><span class="s3">, </span><span class="s4">14</span><span class="s3">, </span><span class="s4">15</span><span class="s3">, </span><span class="s4">16</span><span class="s3">, </span><span class="s4">18</span><span class="s3">]</span>
+<a name="l1095"><span class="ln">1095 </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt;= </span><span class="s4">10</span><span class="s2">:</span>
+<a name="l1096"><span class="ln">1096 </span></a>        <span class="s2">return </span><span class="s1">composite_arr</span><span class="s3">[</span><span class="s1">n </span><span class="s2">- </span><span class="s4">1</span><span class="s3">]</span>
+<a name="l1097"><span class="ln">1097 </span></a>
+<a name="l1098"><span class="ln">1098 </span></a>    <span class="s1">a</span><span class="s3">, </span><span class="s1">b </span><span class="s2">= </span><span class="s4">4</span><span class="s3">, </span><span class="s1">sieve</span><span class="s3">.</span><span class="s1">_list</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">]</span>
+<a name="l1099"><span class="ln">1099 </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt;= </span><span class="s1">b </span><span class="s2">- </span><span class="s1">_primepi</span><span class="s3">(</span><span class="s1">b</span><span class="s3">) </span><span class="s2">- </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l1100"><span class="ln">1100 </span></a>        <span class="s2">while </span><span class="s1">a </span><span class="s2">&lt; </span><span class="s1">b </span><span class="s2">- </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l1101"><span class="ln">1101 </span></a>            <span class="s1">mid </span><span class="s2">= </span><span class="s3">(</span><span class="s1">a </span><span class="s2">+ </span><span class="s1">b</span><span class="s3">) </span><span class="s2">&gt;&gt; </span><span class="s4">1</span>
+<a name="l1102"><span class="ln">1102 </span></a>            <span class="s2">if </span><span class="s1">mid </span><span class="s2">- </span><span class="s1">_primepi</span><span class="s3">(</span><span class="s1">mid</span><span class="s3">) </span><span class="s2">- </span><span class="s4">1 </span><span class="s2">&gt; </span><span class="s1">n</span><span class="s2">:</span>
+<a name="l1103"><span class="ln">1103 </span></a>                <span class="s1">b </span><span class="s2">= </span><span class="s1">mid</span>
+<a name="l1104"><span class="ln">1104 </span></a>            <span class="s2">else:</span>
+<a name="l1105"><span class="ln">1105 </span></a>                <span class="s1">a </span><span class="s2">= </span><span class="s1">mid</span>
+<a name="l1106"><span class="ln">1106 </span></a>        <span class="s2">if </span><span class="s1">isprime</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1107"><span class="ln">1107 </span></a>            <span class="s1">a </span><span class="s2">-= </span><span class="s4">1</span>
+<a name="l1108"><span class="ln">1108 </span></a>        <span class="s2">return </span><span class="s1">a</span>
+<a name="l1109"><span class="ln">1109 </span></a>
+<a name="l1110"><span class="ln">1110 </span></a>    <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">functions</span><span class="s3">.</span><span class="s1">elementary</span><span class="s3">.</span><span class="s1">exponential </span><span class="s2">import </span><span class="s1">log</span>
+<a name="l1111"><span class="ln">1111 </span></a>    <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">functions</span><span class="s3">.</span><span class="s1">special</span><span class="s3">.</span><span class="s1">error_functions </span><span class="s2">import </span><span class="s1">li</span>
+<a name="l1112"><span class="ln">1112 </span></a>    <span class="s1">a </span><span class="s2">= </span><span class="s4">4 </span><span class="s0"># Lower bound for binary search</span>
+<a name="l1113"><span class="ln">1113 </span></a>    <span class="s1">b </span><span class="s2">= </span><span class="s1">int</span><span class="s3">(</span><span class="s1">n</span><span class="s2">*</span><span class="s3">(</span><span class="s1">log</span><span class="s3">(</span><span class="s1">n</span><span class="s3">) </span><span class="s2">+ </span><span class="s1">log</span><span class="s3">(</span><span class="s1">log</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)))) </span><span class="s0"># Upper bound for the search.</span>
+<a name="l1114"><span class="ln">1114 </span></a>
+<a name="l1115"><span class="ln">1115 </span></a>    <span class="s2">while </span><span class="s1">a </span><span class="s2">&lt; </span><span class="s1">b</span><span class="s2">:</span>
+<a name="l1116"><span class="ln">1116 </span></a>        <span class="s1">mid </span><span class="s2">= </span><span class="s3">(</span><span class="s1">a </span><span class="s2">+ </span><span class="s1">b</span><span class="s3">) </span><span class="s2">&gt;&gt; </span><span class="s4">1</span>
+<a name="l1117"><span class="ln">1117 </span></a>        <span class="s2">if </span><span class="s1">mid </span><span class="s2">- </span><span class="s1">li</span><span class="s3">(</span><span class="s1">mid</span><span class="s3">) </span><span class="s2">- </span><span class="s4">1 </span><span class="s2">&gt; </span><span class="s1">n</span><span class="s2">:</span>
+<a name="l1118"><span class="ln">1118 </span></a>            <span class="s1">b </span><span class="s2">= </span><span class="s1">mid</span>
+<a name="l1119"><span class="ln">1119 </span></a>        <span class="s2">else:</span>
+<a name="l1120"><span class="ln">1120 </span></a>            <span class="s1">a </span><span class="s2">= </span><span class="s1">mid </span><span class="s2">+ </span><span class="s4">1</span>
+<a name="l1121"><span class="ln">1121 </span></a>
+<a name="l1122"><span class="ln">1122 </span></a>    <span class="s1">n_composites </span><span class="s2">= </span><span class="s1">a </span><span class="s2">- </span><span class="s1">_primepi</span><span class="s3">(</span><span class="s1">a</span><span class="s3">) </span><span class="s2">- </span><span class="s4">1</span>
+<a name="l1123"><span class="ln">1123 </span></a>    <span class="s2">while </span><span class="s1">n_composites </span><span class="s2">&gt; </span><span class="s1">n</span><span class="s2">:</span>
+<a name="l1124"><span class="ln">1124 </span></a>        <span class="s2">if not </span><span class="s1">isprime</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1125"><span class="ln">1125 </span></a>            <span class="s1">n_composites </span><span class="s2">-= </span><span class="s4">1</span>
+<a name="l1126"><span class="ln">1126 </span></a>        <span class="s1">a </span><span class="s2">-= </span><span class="s4">1</span>
+<a name="l1127"><span class="ln">1127 </span></a>    <span class="s2">if </span><span class="s1">isprime</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1128"><span class="ln">1128 </span></a>        <span class="s1">a </span><span class="s2">-= </span><span class="s4">1</span>
+<a name="l1129"><span class="ln">1129 </span></a>    <span class="s2">return </span><span class="s1">a</span>
+<a name="l1130"><span class="ln">1130 </span></a>
+<a name="l1131"><span class="ln">1131 </span></a>
+<a name="l1132"><span class="ln">1132 </span></a><span class="s2">def </span><span class="s1">compositepi</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1133"><span class="ln">1133 </span></a>    <span class="s0">&quot;&quot;&quot; Return the number of positive composite numbers less than or equal to n. 
+<a name="l1134"><span class="ln">1134 </span></a>        The first positive composite is 4, i.e. compositepi(4) = 1. 
+<a name="l1135"><span class="ln">1135 </span></a> 
+<a name="l1136"><span class="ln">1136 </span></a>        Examples 
+<a name="l1137"><span class="ln">1137 </span></a>        ======== 
+<a name="l1138"><span class="ln">1138 </span></a> 
+<a name="l1139"><span class="ln">1139 </span></a>        &gt;&gt;&gt; from sympy import compositepi 
+<a name="l1140"><span class="ln">1140 </span></a>        &gt;&gt;&gt; compositepi(25) 
+<a name="l1141"><span class="ln">1141 </span></a>        15 
+<a name="l1142"><span class="ln">1142 </span></a>        &gt;&gt;&gt; compositepi(1000) 
+<a name="l1143"><span class="ln">1143 </span></a>        831 
+<a name="l1144"><span class="ln">1144 </span></a> 
+<a name="l1145"><span class="ln">1145 </span></a>        See Also 
+<a name="l1146"><span class="ln">1146 </span></a>        ======== 
+<a name="l1147"><span class="ln">1147 </span></a> 
+<a name="l1148"><span class="ln">1148 </span></a>        sympy.ntheory.primetest.isprime : Test if n is prime 
+<a name="l1149"><span class="ln">1149 </span></a>        primerange : Generate all primes in a given range 
+<a name="l1150"><span class="ln">1150 </span></a>        prime : Return the nth prime 
+<a name="l1151"><span class="ln">1151 </span></a>        primepi : Return the number of primes less than or equal to n 
+<a name="l1152"><span class="ln">1152 </span></a>        composite : Return the nth composite number 
+<a name="l1153"><span class="ln">1153 </span></a>    &quot;&quot;&quot;</span>
+<a name="l1154"><span class="ln">1154 </span></a>    <span class="s1">n </span><span class="s2">= </span><span class="s1">int</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l1155"><span class="ln">1155 </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s4">4</span><span class="s2">:</span>
+<a name="l1156"><span class="ln">1156 </span></a>        <span class="s2">return </span><span class="s4">0</span>
+<a name="l1157"><span class="ln">1157 </span></a>    <span class="s2">return </span><span class="s1">n </span><span class="s2">- </span><span class="s1">_primepi</span><span class="s3">(</span><span class="s1">n</span><span class="s3">) </span><span class="s2">- </span><span class="s4">1</span>
+<a name="l1158"><span class="ln">1158 </span></a></pre>
+</body>
+</html>

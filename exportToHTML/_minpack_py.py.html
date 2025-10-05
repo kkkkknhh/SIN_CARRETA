@@ -1,0 +1,1194 @@
+<html>
+<head>
+<title>_minpack_py.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #969896;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_minpack_py.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">import </span><span class="s1">warnings</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s2">. </span><span class="s0">import </span><span class="s1">_minpack</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">import </span><span class="s1">numpy </span><span class="s0">as </span><span class="s1">np</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">from </span><span class="s1">numpy </span><span class="s0">import </span><span class="s2">(</span><span class="s1">atleast_1d</span><span class="s2">, </span><span class="s1">triu</span><span class="s2">, </span><span class="s1">shape</span><span class="s2">, </span><span class="s1">transpose</span><span class="s2">, </span><span class="s1">zeros</span><span class="s2">, </span><span class="s1">prod</span><span class="s2">, </span><span class="s1">greater</span><span class="s2">,</span>
+<a name="l6"><span class="ln">6    </span></a>                   <span class="s1">asarray</span><span class="s2">, </span><span class="s1">inf</span><span class="s2">,</span>
+<a name="l7"><span class="ln">7    </span></a>                   <span class="s1">finfo</span><span class="s2">, </span><span class="s1">inexact</span><span class="s2">, </span><span class="s1">issubdtype</span><span class="s2">, </span><span class="s1">dtype</span><span class="s2">)</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">from </span><span class="s1">scipy </span><span class="s0">import </span><span class="s1">linalg</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">linalg </span><span class="s0">import </span><span class="s1">svd</span><span class="s2">, </span><span class="s1">cholesky</span><span class="s2">, </span><span class="s1">solve_triangular</span><span class="s2">, </span><span class="s1">LinAlgError</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">_lib</span><span class="s2">.</span><span class="s1">_util </span><span class="s0">import </span><span class="s1">_asarray_validated</span><span class="s2">, </span><span class="s1">_lazywhere</span><span class="s2">, </span><span class="s1">_contains_nan</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">_lib</span><span class="s2">.</span><span class="s1">_util </span><span class="s0">import </span><span class="s1">getfullargspec_no_self </span><span class="s0">as </span><span class="s1">_getfullargspec</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">_optimize </span><span class="s0">import </span><span class="s1">OptimizeResult</span><span class="s2">, </span><span class="s1">_check_unknown_options</span><span class="s2">, </span><span class="s1">OptimizeWarning</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">_lsq </span><span class="s0">import </span><span class="s1">least_squares</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s3"># from ._lsq.common import make_strictly_feasible</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">_lsq</span><span class="s2">.</span><span class="s1">least_squares </span><span class="s0">import </span><span class="s1">prepare_bounds</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s0">from </span><span class="s1">scipy</span><span class="s2">.</span><span class="s1">optimize</span><span class="s2">.</span><span class="s1">_minimize </span><span class="s0">import </span><span class="s1">Bounds</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span><span class="s4">'fsolve'</span><span class="s2">, </span><span class="s4">'leastsq'</span><span class="s2">, </span><span class="s4">'fixed_point'</span><span class="s2">, </span><span class="s4">'curve_fit'</span><span class="s2">]</span>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s0">def </span><span class="s1">_check_func</span><span class="s2">(</span><span class="s1">checker</span><span class="s2">, </span><span class="s1">argname</span><span class="s2">, </span><span class="s1">thefunc</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s1">numinputs</span><span class="s2">,</span>
+<a name="l22"><span class="ln">22   </span></a>                <span class="s1">output_shape</span><span class="s0">=None</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s1">res </span><span class="s0">= </span><span class="s1">atleast_1d</span><span class="s2">(</span><span class="s1">thefunc</span><span class="s2">(</span><span class="s0">*</span><span class="s2">((</span><span class="s1">x0</span><span class="s2">[</span><span class="s0">:</span><span class="s1">numinputs</span><span class="s2">],) </span><span class="s0">+ </span><span class="s1">args</span><span class="s2">)))</span>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s0">if </span><span class="s2">(</span><span class="s1">output_shape </span><span class="s0">is not None</span><span class="s2">) </span><span class="s0">and </span><span class="s2">(</span><span class="s1">shape</span><span class="s2">(</span><span class="s1">res</span><span class="s2">) </span><span class="s0">!= </span><span class="s1">output_shape</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l25"><span class="ln">25   </span></a>        <span class="s0">if </span><span class="s2">(</span><span class="s1">output_shape</span><span class="s2">[</span><span class="s5">0</span><span class="s2">] </span><span class="s0">!= </span><span class="s5">1</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l26"><span class="ln">26   </span></a>            <span class="s0">if </span><span class="s1">len</span><span class="s2">(</span><span class="s1">output_shape</span><span class="s2">) </span><span class="s0">&gt; </span><span class="s5">1</span><span class="s0">:</span>
+<a name="l27"><span class="ln">27   </span></a>                <span class="s0">if </span><span class="s1">output_shape</span><span class="s2">[</span><span class="s5">1</span><span class="s2">] </span><span class="s0">== </span><span class="s5">1</span><span class="s0">:</span>
+<a name="l28"><span class="ln">28   </span></a>                    <span class="s0">return </span><span class="s1">shape</span><span class="s2">(</span><span class="s1">res</span><span class="s2">)</span>
+<a name="l29"><span class="ln">29   </span></a>            <span class="s1">msg </span><span class="s0">= </span><span class="s4">f&quot;{</span><span class="s1">checker</span><span class="s4">}: there is a mismatch between the input and output &quot; </span><span class="s1">\</span>
+<a name="l30"><span class="ln">30   </span></a>                  <span class="s4">f&quot;shape of the '{</span><span class="s1">argname</span><span class="s4">}' argument&quot;</span>
+<a name="l31"><span class="ln">31   </span></a>            <span class="s1">func_name </span><span class="s0">= </span><span class="s1">getattr</span><span class="s2">(</span><span class="s1">thefunc</span><span class="s2">, </span><span class="s4">'__name__'</span><span class="s2">, </span><span class="s0">None</span><span class="s2">)</span>
+<a name="l32"><span class="ln">32   </span></a>            <span class="s0">if </span><span class="s1">func_name</span><span class="s0">:</span>
+<a name="l33"><span class="ln">33   </span></a>                <span class="s1">msg </span><span class="s0">+= </span><span class="s4">f&quot; '{</span><span class="s1">func_name</span><span class="s4">}'.&quot;</span>
+<a name="l34"><span class="ln">34   </span></a>            <span class="s0">else:</span>
+<a name="l35"><span class="ln">35   </span></a>                <span class="s1">msg </span><span class="s0">+= </span><span class="s4">&quot;.&quot;</span>
+<a name="l36"><span class="ln">36   </span></a>            <span class="s1">msg </span><span class="s0">+= </span><span class="s4">f'Shape should be {</span><span class="s1">output_shape</span><span class="s4">} but it is {</span><span class="s1">shape</span><span class="s2">(</span><span class="s1">res</span><span class="s2">)</span><span class="s4">}.'</span>
+<a name="l37"><span class="ln">37   </span></a>            <span class="s0">raise </span><span class="s1">TypeError</span><span class="s2">(</span><span class="s1">msg</span><span class="s2">)</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s0">if </span><span class="s1">issubdtype</span><span class="s2">(</span><span class="s1">res</span><span class="s2">.</span><span class="s1">dtype</span><span class="s2">, </span><span class="s1">inexact</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l39"><span class="ln">39   </span></a>        <span class="s1">dt </span><span class="s0">= </span><span class="s1">res</span><span class="s2">.</span><span class="s1">dtype</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s0">else:</span>
+<a name="l41"><span class="ln">41   </span></a>        <span class="s1">dt </span><span class="s0">= </span><span class="s1">dtype</span><span class="s2">(</span><span class="s1">float</span><span class="s2">)</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s0">return </span><span class="s1">shape</span><span class="s2">(</span><span class="s1">res</span><span class="s2">), </span><span class="s1">dt</span>
+<a name="l43"><span class="ln">43   </span></a>
+<a name="l44"><span class="ln">44   </span></a>
+<a name="l45"><span class="ln">45   </span></a><span class="s0">def </span><span class="s1">fsolve</span><span class="s2">(</span><span class="s1">func</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s0">=</span><span class="s2">(), </span><span class="s1">fprime</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">full_output</span><span class="s0">=</span><span class="s5">0</span><span class="s2">,</span>
+<a name="l46"><span class="ln">46   </span></a>           <span class="s1">col_deriv</span><span class="s0">=</span><span class="s5">0</span><span class="s2">, </span><span class="s1">xtol</span><span class="s0">=</span><span class="s5">1.49012e-8</span><span class="s2">, </span><span class="s1">maxfev</span><span class="s0">=</span><span class="s5">0</span><span class="s2">, </span><span class="s1">band</span><span class="s0">=None</span><span class="s2">,</span>
+<a name="l47"><span class="ln">47   </span></a>           <span class="s1">epsfcn</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">factor</span><span class="s0">=</span><span class="s5">100</span><span class="s2">, </span><span class="s1">diag</span><span class="s0">=None</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l48"><span class="ln">48   </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l49"><span class="ln">49   </span></a>    Find the roots of a function. 
+<a name="l50"><span class="ln">50   </span></a> 
+<a name="l51"><span class="ln">51   </span></a>    Return the roots of the (non-linear) equations defined by 
+<a name="l52"><span class="ln">52   </span></a>    ``func(x) = 0`` given a starting estimate. 
+<a name="l53"><span class="ln">53   </span></a> 
+<a name="l54"><span class="ln">54   </span></a>    Parameters 
+<a name="l55"><span class="ln">55   </span></a>    ---------- 
+<a name="l56"><span class="ln">56   </span></a>    func : callable ``f(x, *args)`` 
+<a name="l57"><span class="ln">57   </span></a>        A function that takes at least one (possibly vector) argument, 
+<a name="l58"><span class="ln">58   </span></a>        and returns a value of the same length. 
+<a name="l59"><span class="ln">59   </span></a>    x0 : ndarray 
+<a name="l60"><span class="ln">60   </span></a>        The starting estimate for the roots of ``func(x) = 0``. 
+<a name="l61"><span class="ln">61   </span></a>    args : tuple, optional 
+<a name="l62"><span class="ln">62   </span></a>        Any extra arguments to `func`. 
+<a name="l63"><span class="ln">63   </span></a>    fprime : callable ``f(x, *args)``, optional 
+<a name="l64"><span class="ln">64   </span></a>        A function to compute the Jacobian of `func` with derivatives 
+<a name="l65"><span class="ln">65   </span></a>        across the rows. By default, the Jacobian will be estimated. 
+<a name="l66"><span class="ln">66   </span></a>    full_output : bool, optional 
+<a name="l67"><span class="ln">67   </span></a>        If True, return optional outputs. 
+<a name="l68"><span class="ln">68   </span></a>    col_deriv : bool, optional 
+<a name="l69"><span class="ln">69   </span></a>        Specify whether the Jacobian function computes derivatives down 
+<a name="l70"><span class="ln">70   </span></a>        the columns (faster, because there is no transpose operation). 
+<a name="l71"><span class="ln">71   </span></a>    xtol : float, optional 
+<a name="l72"><span class="ln">72   </span></a>        The calculation will terminate if the relative error between two 
+<a name="l73"><span class="ln">73   </span></a>        consecutive iterates is at most `xtol`. 
+<a name="l74"><span class="ln">74   </span></a>    maxfev : int, optional 
+<a name="l75"><span class="ln">75   </span></a>        The maximum number of calls to the function. If zero, then 
+<a name="l76"><span class="ln">76   </span></a>        ``100*(N+1)`` is the maximum where N is the number of elements 
+<a name="l77"><span class="ln">77   </span></a>        in `x0`. 
+<a name="l78"><span class="ln">78   </span></a>    band : tuple, optional 
+<a name="l79"><span class="ln">79   </span></a>        If set to a two-sequence containing the number of sub- and 
+<a name="l80"><span class="ln">80   </span></a>        super-diagonals within the band of the Jacobi matrix, the 
+<a name="l81"><span class="ln">81   </span></a>        Jacobi matrix is considered banded (only for ``fprime=None``). 
+<a name="l82"><span class="ln">82   </span></a>    epsfcn : float, optional 
+<a name="l83"><span class="ln">83   </span></a>        A suitable step length for the forward-difference 
+<a name="l84"><span class="ln">84   </span></a>        approximation of the Jacobian (for ``fprime=None``). If 
+<a name="l85"><span class="ln">85   </span></a>        `epsfcn` is less than the machine precision, it is assumed 
+<a name="l86"><span class="ln">86   </span></a>        that the relative errors in the functions are of the order of 
+<a name="l87"><span class="ln">87   </span></a>        the machine precision. 
+<a name="l88"><span class="ln">88   </span></a>    factor : float, optional 
+<a name="l89"><span class="ln">89   </span></a>        A parameter determining the initial step bound 
+<a name="l90"><span class="ln">90   </span></a>        (``factor * || diag * x||``). Should be in the interval 
+<a name="l91"><span class="ln">91   </span></a>        ``(0.1, 100)``. 
+<a name="l92"><span class="ln">92   </span></a>    diag : sequence, optional 
+<a name="l93"><span class="ln">93   </span></a>        N positive entries that serve as a scale factors for the 
+<a name="l94"><span class="ln">94   </span></a>        variables. 
+<a name="l95"><span class="ln">95   </span></a> 
+<a name="l96"><span class="ln">96   </span></a>    Returns 
+<a name="l97"><span class="ln">97   </span></a>    ------- 
+<a name="l98"><span class="ln">98   </span></a>    x : ndarray 
+<a name="l99"><span class="ln">99   </span></a>        The solution (or the result of the last iteration for 
+<a name="l100"><span class="ln">100  </span></a>        an unsuccessful call). 
+<a name="l101"><span class="ln">101  </span></a>    infodict : dict 
+<a name="l102"><span class="ln">102  </span></a>        A dictionary of optional outputs with the keys: 
+<a name="l103"><span class="ln">103  </span></a> 
+<a name="l104"><span class="ln">104  </span></a>        ``nfev`` 
+<a name="l105"><span class="ln">105  </span></a>            number of function calls 
+<a name="l106"><span class="ln">106  </span></a>        ``njev`` 
+<a name="l107"><span class="ln">107  </span></a>            number of Jacobian calls 
+<a name="l108"><span class="ln">108  </span></a>        ``fvec`` 
+<a name="l109"><span class="ln">109  </span></a>            function evaluated at the output 
+<a name="l110"><span class="ln">110  </span></a>        ``fjac`` 
+<a name="l111"><span class="ln">111  </span></a>            the orthogonal matrix, q, produced by the QR 
+<a name="l112"><span class="ln">112  </span></a>            factorization of the final approximate Jacobian 
+<a name="l113"><span class="ln">113  </span></a>            matrix, stored column wise 
+<a name="l114"><span class="ln">114  </span></a>        ``r`` 
+<a name="l115"><span class="ln">115  </span></a>            upper triangular matrix produced by QR factorization 
+<a name="l116"><span class="ln">116  </span></a>            of the same matrix 
+<a name="l117"><span class="ln">117  </span></a>        ``qtf`` 
+<a name="l118"><span class="ln">118  </span></a>            the vector ``(transpose(q) * fvec)`` 
+<a name="l119"><span class="ln">119  </span></a> 
+<a name="l120"><span class="ln">120  </span></a>    ier : int 
+<a name="l121"><span class="ln">121  </span></a>        An integer flag.  Set to 1 if a solution was found, otherwise refer 
+<a name="l122"><span class="ln">122  </span></a>        to `mesg` for more information. 
+<a name="l123"><span class="ln">123  </span></a>    mesg : str 
+<a name="l124"><span class="ln">124  </span></a>        If no solution is found, `mesg` details the cause of failure. 
+<a name="l125"><span class="ln">125  </span></a> 
+<a name="l126"><span class="ln">126  </span></a>    See Also 
+<a name="l127"><span class="ln">127  </span></a>    -------- 
+<a name="l128"><span class="ln">128  </span></a>    root : Interface to root finding algorithms for multivariate 
+<a name="l129"><span class="ln">129  </span></a>           functions. See the ``method='hybr'`` in particular. 
+<a name="l130"><span class="ln">130  </span></a> 
+<a name="l131"><span class="ln">131  </span></a>    Notes 
+<a name="l132"><span class="ln">132  </span></a>    ----- 
+<a name="l133"><span class="ln">133  </span></a>    ``fsolve`` is a wrapper around MINPACK's hybrd and hybrj algorithms. 
+<a name="l134"><span class="ln">134  </span></a> 
+<a name="l135"><span class="ln">135  </span></a>    Examples 
+<a name="l136"><span class="ln">136  </span></a>    -------- 
+<a name="l137"><span class="ln">137  </span></a>    Find a solution to the system of equations: 
+<a name="l138"><span class="ln">138  </span></a>    ``x0*cos(x1) = 4,  x1*x0 - x1 = 5``. 
+<a name="l139"><span class="ln">139  </span></a> 
+<a name="l140"><span class="ln">140  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l141"><span class="ln">141  </span></a>    &gt;&gt;&gt; from scipy.optimize import fsolve 
+<a name="l142"><span class="ln">142  </span></a>    &gt;&gt;&gt; def func(x): 
+<a name="l143"><span class="ln">143  </span></a>    ...     return [x[0] * np.cos(x[1]) - 4, 
+<a name="l144"><span class="ln">144  </span></a>    ...             x[1] * x[0] - x[1] - 5] 
+<a name="l145"><span class="ln">145  </span></a>    &gt;&gt;&gt; root = fsolve(func, [1, 1]) 
+<a name="l146"><span class="ln">146  </span></a>    &gt;&gt;&gt; root 
+<a name="l147"><span class="ln">147  </span></a>    array([6.50409711, 0.90841421]) 
+<a name="l148"><span class="ln">148  </span></a>    &gt;&gt;&gt; np.isclose(func(root), [0.0, 0.0])  # func(root) should be almost 0.0. 
+<a name="l149"><span class="ln">149  </span></a>    array([ True,  True]) 
+<a name="l150"><span class="ln">150  </span></a> 
+<a name="l151"><span class="ln">151  </span></a>    &quot;&quot;&quot;</span>
+<a name="l152"><span class="ln">152  </span></a>    <span class="s0">def </span><span class="s1">_wrapped_func</span><span class="s2">(</span><span class="s0">*</span><span class="s1">fargs</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l153"><span class="ln">153  </span></a>        <span class="s3">&quot;&quot;&quot; 
+<a name="l154"><span class="ln">154  </span></a>        Wrapped `func` to track the number of times 
+<a name="l155"><span class="ln">155  </span></a>        the function has been called. 
+<a name="l156"><span class="ln">156  </span></a>        &quot;&quot;&quot;</span>
+<a name="l157"><span class="ln">157  </span></a>        <span class="s1">_wrapped_func</span><span class="s2">.</span><span class="s1">nfev </span><span class="s0">+= </span><span class="s5">1</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s0">return </span><span class="s1">func</span><span class="s2">(</span><span class="s0">*</span><span class="s1">fargs</span><span class="s2">)</span>
+<a name="l159"><span class="ln">159  </span></a>
+<a name="l160"><span class="ln">160  </span></a>    <span class="s1">_wrapped_func</span><span class="s2">.</span><span class="s1">nfev </span><span class="s0">= </span><span class="s5">0</span>
+<a name="l161"><span class="ln">161  </span></a>
+<a name="l162"><span class="ln">162  </span></a>    <span class="s1">options </span><span class="s0">= </span><span class="s2">{</span><span class="s4">'col_deriv'</span><span class="s0">: </span><span class="s1">col_deriv</span><span class="s2">,</span>
+<a name="l163"><span class="ln">163  </span></a>               <span class="s4">'xtol'</span><span class="s0">: </span><span class="s1">xtol</span><span class="s2">,</span>
+<a name="l164"><span class="ln">164  </span></a>               <span class="s4">'maxfev'</span><span class="s0">: </span><span class="s1">maxfev</span><span class="s2">,</span>
+<a name="l165"><span class="ln">165  </span></a>               <span class="s4">'band'</span><span class="s0">: </span><span class="s1">band</span><span class="s2">,</span>
+<a name="l166"><span class="ln">166  </span></a>               <span class="s4">'eps'</span><span class="s0">: </span><span class="s1">epsfcn</span><span class="s2">,</span>
+<a name="l167"><span class="ln">167  </span></a>               <span class="s4">'factor'</span><span class="s0">: </span><span class="s1">factor</span><span class="s2">,</span>
+<a name="l168"><span class="ln">168  </span></a>               <span class="s4">'diag'</span><span class="s0">: </span><span class="s1">diag</span><span class="s2">}</span>
+<a name="l169"><span class="ln">169  </span></a>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s1">res </span><span class="s0">= </span><span class="s1">_root_hybr</span><span class="s2">(</span><span class="s1">_wrapped_func</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s1">jac</span><span class="s0">=</span><span class="s1">fprime</span><span class="s2">, </span><span class="s0">**</span><span class="s1">options</span><span class="s2">)</span>
+<a name="l171"><span class="ln">171  </span></a>    <span class="s1">res</span><span class="s2">.</span><span class="s1">nfev </span><span class="s0">= </span><span class="s1">_wrapped_func</span><span class="s2">.</span><span class="s1">nfev</span>
+<a name="l172"><span class="ln">172  </span></a>
+<a name="l173"><span class="ln">173  </span></a>    <span class="s0">if </span><span class="s1">full_output</span><span class="s0">:</span>
+<a name="l174"><span class="ln">174  </span></a>        <span class="s1">x </span><span class="s0">= </span><span class="s1">res</span><span class="s2">[</span><span class="s4">'x'</span><span class="s2">]</span>
+<a name="l175"><span class="ln">175  </span></a>        <span class="s1">info </span><span class="s0">= </span><span class="s2">{</span><span class="s1">k</span><span class="s0">: </span><span class="s1">res</span><span class="s2">.</span><span class="s1">get</span><span class="s2">(</span><span class="s1">k</span><span class="s2">)</span>
+<a name="l176"><span class="ln">176  </span></a>                    <span class="s0">for </span><span class="s1">k </span><span class="s0">in </span><span class="s2">(</span><span class="s4">'nfev'</span><span class="s2">, </span><span class="s4">'njev'</span><span class="s2">, </span><span class="s4">'fjac'</span><span class="s2">, </span><span class="s4">'r'</span><span class="s2">, </span><span class="s4">'qtf'</span><span class="s2">) </span><span class="s0">if </span><span class="s1">k </span><span class="s0">in </span><span class="s1">res</span><span class="s2">}</span>
+<a name="l177"><span class="ln">177  </span></a>        <span class="s1">info</span><span class="s2">[</span><span class="s4">'fvec'</span><span class="s2">] </span><span class="s0">= </span><span class="s1">res</span><span class="s2">[</span><span class="s4">'fun'</span><span class="s2">]</span>
+<a name="l178"><span class="ln">178  </span></a>        <span class="s0">return </span><span class="s1">x</span><span class="s2">, </span><span class="s1">info</span><span class="s2">, </span><span class="s1">res</span><span class="s2">[</span><span class="s4">'status'</span><span class="s2">], </span><span class="s1">res</span><span class="s2">[</span><span class="s4">'message'</span><span class="s2">]</span>
+<a name="l179"><span class="ln">179  </span></a>    <span class="s0">else:</span>
+<a name="l180"><span class="ln">180  </span></a>        <span class="s1">status </span><span class="s0">= </span><span class="s1">res</span><span class="s2">[</span><span class="s4">'status'</span><span class="s2">]</span>
+<a name="l181"><span class="ln">181  </span></a>        <span class="s1">msg </span><span class="s0">= </span><span class="s1">res</span><span class="s2">[</span><span class="s4">'message'</span><span class="s2">]</span>
+<a name="l182"><span class="ln">182  </span></a>        <span class="s0">if </span><span class="s1">status </span><span class="s0">== </span><span class="s5">0</span><span class="s0">:</span>
+<a name="l183"><span class="ln">183  </span></a>            <span class="s0">raise </span><span class="s1">TypeError</span><span class="s2">(</span><span class="s1">msg</span><span class="s2">)</span>
+<a name="l184"><span class="ln">184  </span></a>        <span class="s0">elif </span><span class="s1">status </span><span class="s0">== </span><span class="s5">1</span><span class="s0">:</span>
+<a name="l185"><span class="ln">185  </span></a>            <span class="s0">pass</span>
+<a name="l186"><span class="ln">186  </span></a>        <span class="s0">elif </span><span class="s1">status </span><span class="s0">in </span><span class="s2">[</span><span class="s5">2</span><span class="s2">, </span><span class="s5">3</span><span class="s2">, </span><span class="s5">4</span><span class="s2">, </span><span class="s5">5</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l187"><span class="ln">187  </span></a>            <span class="s1">warnings</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s1">msg</span><span class="s2">, </span><span class="s1">RuntimeWarning</span><span class="s2">, </span><span class="s1">stacklevel</span><span class="s0">=</span><span class="s5">2</span><span class="s2">)</span>
+<a name="l188"><span class="ln">188  </span></a>        <span class="s0">else:</span>
+<a name="l189"><span class="ln">189  </span></a>            <span class="s0">raise </span><span class="s1">TypeError</span><span class="s2">(</span><span class="s1">msg</span><span class="s2">)</span>
+<a name="l190"><span class="ln">190  </span></a>        <span class="s0">return </span><span class="s1">res</span><span class="s2">[</span><span class="s4">'x'</span><span class="s2">]</span>
+<a name="l191"><span class="ln">191  </span></a>
+<a name="l192"><span class="ln">192  </span></a>
+<a name="l193"><span class="ln">193  </span></a><span class="s0">def </span><span class="s1">_root_hybr</span><span class="s2">(</span><span class="s1">func</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s0">=</span><span class="s2">(), </span><span class="s1">jac</span><span class="s0">=None</span><span class="s2">,</span>
+<a name="l194"><span class="ln">194  </span></a>               <span class="s1">col_deriv</span><span class="s0">=</span><span class="s5">0</span><span class="s2">, </span><span class="s1">xtol</span><span class="s0">=</span><span class="s5">1.49012e-08</span><span class="s2">, </span><span class="s1">maxfev</span><span class="s0">=</span><span class="s5">0</span><span class="s2">, </span><span class="s1">band</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">eps</span><span class="s0">=None</span><span class="s2">,</span>
+<a name="l195"><span class="ln">195  </span></a>               <span class="s1">factor</span><span class="s0">=</span><span class="s5">100</span><span class="s2">, </span><span class="s1">diag</span><span class="s0">=None</span><span class="s2">, </span><span class="s0">**</span><span class="s1">unknown_options</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l196"><span class="ln">196  </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l197"><span class="ln">197  </span></a>    Find the roots of a multivariate function using MINPACK's hybrd and 
+<a name="l198"><span class="ln">198  </span></a>    hybrj routines (modified Powell method). 
+<a name="l199"><span class="ln">199  </span></a> 
+<a name="l200"><span class="ln">200  </span></a>    Options 
+<a name="l201"><span class="ln">201  </span></a>    ------- 
+<a name="l202"><span class="ln">202  </span></a>    col_deriv : bool 
+<a name="l203"><span class="ln">203  </span></a>        Specify whether the Jacobian function computes derivatives down 
+<a name="l204"><span class="ln">204  </span></a>        the columns (faster, because there is no transpose operation). 
+<a name="l205"><span class="ln">205  </span></a>    xtol : float 
+<a name="l206"><span class="ln">206  </span></a>        The calculation will terminate if the relative error between two 
+<a name="l207"><span class="ln">207  </span></a>        consecutive iterates is at most `xtol`. 
+<a name="l208"><span class="ln">208  </span></a>    maxfev : int 
+<a name="l209"><span class="ln">209  </span></a>        The maximum number of calls to the function. If zero, then 
+<a name="l210"><span class="ln">210  </span></a>        ``100*(N+1)`` is the maximum where N is the number of elements 
+<a name="l211"><span class="ln">211  </span></a>        in `x0`. 
+<a name="l212"><span class="ln">212  </span></a>    band : tuple 
+<a name="l213"><span class="ln">213  </span></a>        If set to a two-sequence containing the number of sub- and 
+<a name="l214"><span class="ln">214  </span></a>        super-diagonals within the band of the Jacobi matrix, the 
+<a name="l215"><span class="ln">215  </span></a>        Jacobi matrix is considered banded (only for ``jac=None``). 
+<a name="l216"><span class="ln">216  </span></a>    eps : float 
+<a name="l217"><span class="ln">217  </span></a>        A suitable step length for the forward-difference 
+<a name="l218"><span class="ln">218  </span></a>        approximation of the Jacobian (for ``jac=None``). If 
+<a name="l219"><span class="ln">219  </span></a>        `eps` is less than the machine precision, it is assumed 
+<a name="l220"><span class="ln">220  </span></a>        that the relative errors in the functions are of the order of 
+<a name="l221"><span class="ln">221  </span></a>        the machine precision. 
+<a name="l222"><span class="ln">222  </span></a>    factor : float 
+<a name="l223"><span class="ln">223  </span></a>        A parameter determining the initial step bound 
+<a name="l224"><span class="ln">224  </span></a>        (``factor * || diag * x||``). Should be in the interval 
+<a name="l225"><span class="ln">225  </span></a>        ``(0.1, 100)``. 
+<a name="l226"><span class="ln">226  </span></a>    diag : sequence 
+<a name="l227"><span class="ln">227  </span></a>        N positive entries that serve as a scale factors for the 
+<a name="l228"><span class="ln">228  </span></a>        variables. 
+<a name="l229"><span class="ln">229  </span></a> 
+<a name="l230"><span class="ln">230  </span></a>    &quot;&quot;&quot;</span>
+<a name="l231"><span class="ln">231  </span></a>    <span class="s1">_check_unknown_options</span><span class="s2">(</span><span class="s1">unknown_options</span><span class="s2">)</span>
+<a name="l232"><span class="ln">232  </span></a>    <span class="s1">epsfcn </span><span class="s0">= </span><span class="s1">eps</span>
+<a name="l233"><span class="ln">233  </span></a>
+<a name="l234"><span class="ln">234  </span></a>    <span class="s1">x0 </span><span class="s0">= </span><span class="s1">asarray</span><span class="s2">(</span><span class="s1">x0</span><span class="s2">).</span><span class="s1">flatten</span><span class="s2">()</span>
+<a name="l235"><span class="ln">235  </span></a>    <span class="s1">n </span><span class="s0">= </span><span class="s1">len</span><span class="s2">(</span><span class="s1">x0</span><span class="s2">)</span>
+<a name="l236"><span class="ln">236  </span></a>    <span class="s0">if not </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">args</span><span class="s2">, </span><span class="s1">tuple</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l237"><span class="ln">237  </span></a>        <span class="s1">args </span><span class="s0">= </span><span class="s2">(</span><span class="s1">args</span><span class="s2">,)</span>
+<a name="l238"><span class="ln">238  </span></a>    <span class="s1">shape</span><span class="s2">, </span><span class="s1">dtype </span><span class="s0">= </span><span class="s1">_check_func</span><span class="s2">(</span><span class="s4">'fsolve'</span><span class="s2">, </span><span class="s4">'func'</span><span class="s2">, </span><span class="s1">func</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, (</span><span class="s1">n</span><span class="s2">,))</span>
+<a name="l239"><span class="ln">239  </span></a>    <span class="s0">if </span><span class="s1">epsfcn </span><span class="s0">is None:</span>
+<a name="l240"><span class="ln">240  </span></a>        <span class="s1">epsfcn </span><span class="s0">= </span><span class="s1">finfo</span><span class="s2">(</span><span class="s1">dtype</span><span class="s2">).</span><span class="s1">eps</span>
+<a name="l241"><span class="ln">241  </span></a>    <span class="s1">Dfun </span><span class="s0">= </span><span class="s1">jac</span>
+<a name="l242"><span class="ln">242  </span></a>    <span class="s0">if </span><span class="s1">Dfun </span><span class="s0">is None:</span>
+<a name="l243"><span class="ln">243  </span></a>        <span class="s0">if </span><span class="s1">band </span><span class="s0">is None:</span>
+<a name="l244"><span class="ln">244  </span></a>            <span class="s1">ml</span><span class="s2">, </span><span class="s1">mu </span><span class="s0">= -</span><span class="s5">10</span><span class="s2">, </span><span class="s0">-</span><span class="s5">10</span>
+<a name="l245"><span class="ln">245  </span></a>        <span class="s0">else:</span>
+<a name="l246"><span class="ln">246  </span></a>            <span class="s1">ml</span><span class="s2">, </span><span class="s1">mu </span><span class="s0">= </span><span class="s1">band</span><span class="s2">[</span><span class="s0">:</span><span class="s5">2</span><span class="s2">]</span>
+<a name="l247"><span class="ln">247  </span></a>        <span class="s0">if </span><span class="s1">maxfev </span><span class="s0">== </span><span class="s5">0</span><span class="s0">:</span>
+<a name="l248"><span class="ln">248  </span></a>            <span class="s1">maxfev </span><span class="s0">= </span><span class="s5">200 </span><span class="s0">* </span><span class="s2">(</span><span class="s1">n </span><span class="s0">+ </span><span class="s5">1</span><span class="s2">)</span>
+<a name="l249"><span class="ln">249  </span></a>        <span class="s1">retval </span><span class="s0">= </span><span class="s1">_minpack</span><span class="s2">.</span><span class="s1">_hybrd</span><span class="s2">(</span><span class="s1">func</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s5">1</span><span class="s2">, </span><span class="s1">xtol</span><span class="s2">, </span><span class="s1">maxfev</span><span class="s2">,</span>
+<a name="l250"><span class="ln">250  </span></a>                                 <span class="s1">ml</span><span class="s2">, </span><span class="s1">mu</span><span class="s2">, </span><span class="s1">epsfcn</span><span class="s2">, </span><span class="s1">factor</span><span class="s2">, </span><span class="s1">diag</span><span class="s2">)</span>
+<a name="l251"><span class="ln">251  </span></a>    <span class="s0">else:</span>
+<a name="l252"><span class="ln">252  </span></a>        <span class="s1">_check_func</span><span class="s2">(</span><span class="s4">'fsolve'</span><span class="s2">, </span><span class="s4">'fprime'</span><span class="s2">, </span><span class="s1">Dfun</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, (</span><span class="s1">n</span><span class="s2">, </span><span class="s1">n</span><span class="s2">))</span>
+<a name="l253"><span class="ln">253  </span></a>        <span class="s0">if </span><span class="s2">(</span><span class="s1">maxfev </span><span class="s0">== </span><span class="s5">0</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l254"><span class="ln">254  </span></a>            <span class="s1">maxfev </span><span class="s0">= </span><span class="s5">100 </span><span class="s0">* </span><span class="s2">(</span><span class="s1">n </span><span class="s0">+ </span><span class="s5">1</span><span class="s2">)</span>
+<a name="l255"><span class="ln">255  </span></a>        <span class="s1">retval </span><span class="s0">= </span><span class="s1">_minpack</span><span class="s2">.</span><span class="s1">_hybrj</span><span class="s2">(</span><span class="s1">func</span><span class="s2">, </span><span class="s1">Dfun</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s5">1</span><span class="s2">,</span>
+<a name="l256"><span class="ln">256  </span></a>                                 <span class="s1">col_deriv</span><span class="s2">, </span><span class="s1">xtol</span><span class="s2">, </span><span class="s1">maxfev</span><span class="s2">, </span><span class="s1">factor</span><span class="s2">, </span><span class="s1">diag</span><span class="s2">)</span>
+<a name="l257"><span class="ln">257  </span></a>
+<a name="l258"><span class="ln">258  </span></a>    <span class="s1">x</span><span class="s2">, </span><span class="s1">status </span><span class="s0">= </span><span class="s1">retval</span><span class="s2">[</span><span class="s5">0</span><span class="s2">], </span><span class="s1">retval</span><span class="s2">[</span><span class="s0">-</span><span class="s5">1</span><span class="s2">]</span>
+<a name="l259"><span class="ln">259  </span></a>
+<a name="l260"><span class="ln">260  </span></a>    <span class="s1">errors </span><span class="s0">= </span><span class="s2">{</span><span class="s5">0</span><span class="s0">: </span><span class="s4">&quot;Improper input parameters were entered.&quot;</span><span class="s2">,</span>
+<a name="l261"><span class="ln">261  </span></a>              <span class="s5">1</span><span class="s0">: </span><span class="s4">&quot;The solution converged.&quot;</span><span class="s2">,</span>
+<a name="l262"><span class="ln">262  </span></a>              <span class="s5">2</span><span class="s0">: </span><span class="s4">&quot;The number of calls to function has &quot;</span>
+<a name="l263"><span class="ln">263  </span></a>                  <span class="s4">&quot;reached maxfev = %d.&quot; </span><span class="s0">% </span><span class="s1">maxfev</span><span class="s2">,</span>
+<a name="l264"><span class="ln">264  </span></a>              <span class="s5">3</span><span class="s0">: </span><span class="s4">f&quot;xtol={</span><span class="s1">xtol</span><span class="s4">:f} is too small, no further improvement &quot;</span>
+<a name="l265"><span class="ln">265  </span></a>                  <span class="s4">&quot;in the approximate\n solution is possible.&quot;</span><span class="s2">,</span>
+<a name="l266"><span class="ln">266  </span></a>              <span class="s5">4</span><span class="s0">: </span><span class="s4">&quot;The iteration is not making good progress, as measured &quot;</span>
+<a name="l267"><span class="ln">267  </span></a>                  <span class="s4">&quot;by the \n improvement from the last five &quot;</span>
+<a name="l268"><span class="ln">268  </span></a>                  <span class="s4">&quot;Jacobian evaluations.&quot;</span><span class="s2">,</span>
+<a name="l269"><span class="ln">269  </span></a>              <span class="s5">5</span><span class="s0">: </span><span class="s4">&quot;The iteration is not making good progress, &quot;</span>
+<a name="l270"><span class="ln">270  </span></a>                  <span class="s4">&quot;as measured by the \n improvement from the last &quot;</span>
+<a name="l271"><span class="ln">271  </span></a>                  <span class="s4">&quot;ten iterations.&quot;</span><span class="s2">,</span>
+<a name="l272"><span class="ln">272  </span></a>              <span class="s4">'unknown'</span><span class="s0">: </span><span class="s4">&quot;An error occurred.&quot;</span><span class="s2">}</span>
+<a name="l273"><span class="ln">273  </span></a>
+<a name="l274"><span class="ln">274  </span></a>    <span class="s1">info </span><span class="s0">= </span><span class="s1">retval</span><span class="s2">[</span><span class="s5">1</span><span class="s2">]</span>
+<a name="l275"><span class="ln">275  </span></a>    <span class="s1">info</span><span class="s2">[</span><span class="s4">'fun'</span><span class="s2">] </span><span class="s0">= </span><span class="s1">info</span><span class="s2">.</span><span class="s1">pop</span><span class="s2">(</span><span class="s4">'fvec'</span><span class="s2">)</span>
+<a name="l276"><span class="ln">276  </span></a>    <span class="s1">sol </span><span class="s0">= </span><span class="s1">OptimizeResult</span><span class="s2">(</span><span class="s1">x</span><span class="s0">=</span><span class="s1">x</span><span class="s2">, </span><span class="s1">success</span><span class="s0">=</span><span class="s2">(</span><span class="s1">status </span><span class="s0">== </span><span class="s5">1</span><span class="s2">), </span><span class="s1">status</span><span class="s0">=</span><span class="s1">status</span><span class="s2">,</span>
+<a name="l277"><span class="ln">277  </span></a>                         <span class="s1">method</span><span class="s0">=</span><span class="s4">&quot;hybr&quot;</span><span class="s2">)</span>
+<a name="l278"><span class="ln">278  </span></a>    <span class="s1">sol</span><span class="s2">.</span><span class="s1">update</span><span class="s2">(</span><span class="s1">info</span><span class="s2">)</span>
+<a name="l279"><span class="ln">279  </span></a>    <span class="s0">try:</span>
+<a name="l280"><span class="ln">280  </span></a>        <span class="s1">sol</span><span class="s2">[</span><span class="s4">'message'</span><span class="s2">] </span><span class="s0">= </span><span class="s1">errors</span><span class="s2">[</span><span class="s1">status</span><span class="s2">]</span>
+<a name="l281"><span class="ln">281  </span></a>    <span class="s0">except </span><span class="s1">KeyError</span><span class="s0">:</span>
+<a name="l282"><span class="ln">282  </span></a>        <span class="s1">sol</span><span class="s2">[</span><span class="s4">'message'</span><span class="s2">] </span><span class="s0">= </span><span class="s1">errors</span><span class="s2">[</span><span class="s4">'unknown'</span><span class="s2">]</span>
+<a name="l283"><span class="ln">283  </span></a>
+<a name="l284"><span class="ln">284  </span></a>    <span class="s0">return </span><span class="s1">sol</span>
+<a name="l285"><span class="ln">285  </span></a>
+<a name="l286"><span class="ln">286  </span></a>
+<a name="l287"><span class="ln">287  </span></a><span class="s1">LEASTSQ_SUCCESS </span><span class="s0">= </span><span class="s2">[</span><span class="s5">1</span><span class="s2">, </span><span class="s5">2</span><span class="s2">, </span><span class="s5">3</span><span class="s2">, </span><span class="s5">4</span><span class="s2">]</span>
+<a name="l288"><span class="ln">288  </span></a><span class="s1">LEASTSQ_FAILURE </span><span class="s0">= </span><span class="s2">[</span><span class="s5">5</span><span class="s2">, </span><span class="s5">6</span><span class="s2">, </span><span class="s5">7</span><span class="s2">, </span><span class="s5">8</span><span class="s2">]</span>
+<a name="l289"><span class="ln">289  </span></a>
+<a name="l290"><span class="ln">290  </span></a>
+<a name="l291"><span class="ln">291  </span></a><span class="s0">def </span><span class="s1">leastsq</span><span class="s2">(</span><span class="s1">func</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s0">=</span><span class="s2">(), </span><span class="s1">Dfun</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">full_output</span><span class="s0">=False</span><span class="s2">,</span>
+<a name="l292"><span class="ln">292  </span></a>            <span class="s1">col_deriv</span><span class="s0">=False</span><span class="s2">, </span><span class="s1">ftol</span><span class="s0">=</span><span class="s5">1.49012e-8</span><span class="s2">, </span><span class="s1">xtol</span><span class="s0">=</span><span class="s5">1.49012e-8</span><span class="s2">,</span>
+<a name="l293"><span class="ln">293  </span></a>            <span class="s1">gtol</span><span class="s0">=</span><span class="s5">0.0</span><span class="s2">, </span><span class="s1">maxfev</span><span class="s0">=</span><span class="s5">0</span><span class="s2">, </span><span class="s1">epsfcn</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">factor</span><span class="s0">=</span><span class="s5">100</span><span class="s2">, </span><span class="s1">diag</span><span class="s0">=None</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l294"><span class="ln">294  </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l295"><span class="ln">295  </span></a>    Minimize the sum of squares of a set of equations. 
+<a name="l296"><span class="ln">296  </span></a> 
+<a name="l297"><span class="ln">297  </span></a>    :: 
+<a name="l298"><span class="ln">298  </span></a> 
+<a name="l299"><span class="ln">299  </span></a>        x = arg min(sum(func(y)**2,axis=0)) 
+<a name="l300"><span class="ln">300  </span></a>                 y 
+<a name="l301"><span class="ln">301  </span></a> 
+<a name="l302"><span class="ln">302  </span></a>    Parameters 
+<a name="l303"><span class="ln">303  </span></a>    ---------- 
+<a name="l304"><span class="ln">304  </span></a>    func : callable 
+<a name="l305"><span class="ln">305  </span></a>        Should take at least one (possibly length ``N`` vector) argument and 
+<a name="l306"><span class="ln">306  </span></a>        returns ``M`` floating point numbers. It must not return NaNs or 
+<a name="l307"><span class="ln">307  </span></a>        fitting might fail. ``M`` must be greater than or equal to ``N``. 
+<a name="l308"><span class="ln">308  </span></a>    x0 : ndarray 
+<a name="l309"><span class="ln">309  </span></a>        The starting estimate for the minimization. 
+<a name="l310"><span class="ln">310  </span></a>    args : tuple, optional 
+<a name="l311"><span class="ln">311  </span></a>        Any extra arguments to func are placed in this tuple. 
+<a name="l312"><span class="ln">312  </span></a>    Dfun : callable, optional 
+<a name="l313"><span class="ln">313  </span></a>        A function or method to compute the Jacobian of func with derivatives 
+<a name="l314"><span class="ln">314  </span></a>        across the rows. If this is None, the Jacobian will be estimated. 
+<a name="l315"><span class="ln">315  </span></a>    full_output : bool, optional 
+<a name="l316"><span class="ln">316  </span></a>        If ``True``, return all optional outputs (not just `x` and `ier`). 
+<a name="l317"><span class="ln">317  </span></a>    col_deriv : bool, optional 
+<a name="l318"><span class="ln">318  </span></a>        If ``True``, specify that the Jacobian function computes derivatives 
+<a name="l319"><span class="ln">319  </span></a>        down the columns (faster, because there is no transpose operation). 
+<a name="l320"><span class="ln">320  </span></a>    ftol : float, optional 
+<a name="l321"><span class="ln">321  </span></a>        Relative error desired in the sum of squares. 
+<a name="l322"><span class="ln">322  </span></a>    xtol : float, optional 
+<a name="l323"><span class="ln">323  </span></a>        Relative error desired in the approximate solution. 
+<a name="l324"><span class="ln">324  </span></a>    gtol : float, optional 
+<a name="l325"><span class="ln">325  </span></a>        Orthogonality desired between the function vector and the columns of 
+<a name="l326"><span class="ln">326  </span></a>        the Jacobian. 
+<a name="l327"><span class="ln">327  </span></a>    maxfev : int, optional 
+<a name="l328"><span class="ln">328  </span></a>        The maximum number of calls to the function. If `Dfun` is provided, 
+<a name="l329"><span class="ln">329  </span></a>        then the default `maxfev` is 100*(N+1) where N is the number of elements 
+<a name="l330"><span class="ln">330  </span></a>        in x0, otherwise the default `maxfev` is 200*(N+1). 
+<a name="l331"><span class="ln">331  </span></a>    epsfcn : float, optional 
+<a name="l332"><span class="ln">332  </span></a>        A variable used in determining a suitable step length for the forward- 
+<a name="l333"><span class="ln">333  </span></a>        difference approximation of the Jacobian (for Dfun=None). 
+<a name="l334"><span class="ln">334  </span></a>        Normally the actual step length will be sqrt(epsfcn)*x 
+<a name="l335"><span class="ln">335  </span></a>        If epsfcn is less than the machine precision, it is assumed that the 
+<a name="l336"><span class="ln">336  </span></a>        relative errors are of the order of the machine precision. 
+<a name="l337"><span class="ln">337  </span></a>    factor : float, optional 
+<a name="l338"><span class="ln">338  </span></a>        A parameter determining the initial step bound 
+<a name="l339"><span class="ln">339  </span></a>        (``factor * || diag * x||``). Should be in interval ``(0.1, 100)``. 
+<a name="l340"><span class="ln">340  </span></a>    diag : sequence, optional 
+<a name="l341"><span class="ln">341  </span></a>        N positive entries that serve as a scale factors for the variables. 
+<a name="l342"><span class="ln">342  </span></a> 
+<a name="l343"><span class="ln">343  </span></a>    Returns 
+<a name="l344"><span class="ln">344  </span></a>    ------- 
+<a name="l345"><span class="ln">345  </span></a>    x : ndarray 
+<a name="l346"><span class="ln">346  </span></a>        The solution (or the result of the last iteration for an unsuccessful 
+<a name="l347"><span class="ln">347  </span></a>        call). 
+<a name="l348"><span class="ln">348  </span></a>    cov_x : ndarray 
+<a name="l349"><span class="ln">349  </span></a>        The inverse of the Hessian. `fjac` and `ipvt` are used to construct an 
+<a name="l350"><span class="ln">350  </span></a>        estimate of the Hessian. A value of None indicates a singular matrix, 
+<a name="l351"><span class="ln">351  </span></a>        which means the curvature in parameters `x` is numerically flat. To 
+<a name="l352"><span class="ln">352  </span></a>        obtain the covariance matrix of the parameters `x`, `cov_x` must be 
+<a name="l353"><span class="ln">353  </span></a>        multiplied by the variance of the residuals -- see curve_fit. Only 
+<a name="l354"><span class="ln">354  </span></a>        returned if `full_output` is ``True``. 
+<a name="l355"><span class="ln">355  </span></a>    infodict : dict 
+<a name="l356"><span class="ln">356  </span></a>        a dictionary of optional outputs with the keys: 
+<a name="l357"><span class="ln">357  </span></a> 
+<a name="l358"><span class="ln">358  </span></a>        ``nfev`` 
+<a name="l359"><span class="ln">359  </span></a>            The number of function calls 
+<a name="l360"><span class="ln">360  </span></a>        ``fvec`` 
+<a name="l361"><span class="ln">361  </span></a>            The function evaluated at the output 
+<a name="l362"><span class="ln">362  </span></a>        ``fjac`` 
+<a name="l363"><span class="ln">363  </span></a>            A permutation of the R matrix of a QR 
+<a name="l364"><span class="ln">364  </span></a>            factorization of the final approximate 
+<a name="l365"><span class="ln">365  </span></a>            Jacobian matrix, stored column wise. 
+<a name="l366"><span class="ln">366  </span></a>            Together with ipvt, the covariance of the 
+<a name="l367"><span class="ln">367  </span></a>            estimate can be approximated. 
+<a name="l368"><span class="ln">368  </span></a>        ``ipvt`` 
+<a name="l369"><span class="ln">369  </span></a>            An integer array of length N which defines 
+<a name="l370"><span class="ln">370  </span></a>            a permutation matrix, p, such that 
+<a name="l371"><span class="ln">371  </span></a>            fjac*p = q*r, where r is upper triangular 
+<a name="l372"><span class="ln">372  </span></a>            with diagonal elements of nonincreasing 
+<a name="l373"><span class="ln">373  </span></a>            magnitude. Column j of p is column ipvt(j) 
+<a name="l374"><span class="ln">374  </span></a>            of the identity matrix. 
+<a name="l375"><span class="ln">375  </span></a>        ``qtf`` 
+<a name="l376"><span class="ln">376  </span></a>            The vector (transpose(q) * fvec). 
+<a name="l377"><span class="ln">377  </span></a> 
+<a name="l378"><span class="ln">378  </span></a>        Only returned if `full_output` is ``True``. 
+<a name="l379"><span class="ln">379  </span></a>    mesg : str 
+<a name="l380"><span class="ln">380  </span></a>        A string message giving information about the cause of failure. 
+<a name="l381"><span class="ln">381  </span></a>        Only returned if `full_output` is ``True``. 
+<a name="l382"><span class="ln">382  </span></a>    ier : int 
+<a name="l383"><span class="ln">383  </span></a>        An integer flag. If it is equal to 1, 2, 3 or 4, the solution was 
+<a name="l384"><span class="ln">384  </span></a>        found. Otherwise, the solution was not found. In either case, the 
+<a name="l385"><span class="ln">385  </span></a>        optional output variable 'mesg' gives more information. 
+<a name="l386"><span class="ln">386  </span></a> 
+<a name="l387"><span class="ln">387  </span></a>    See Also 
+<a name="l388"><span class="ln">388  </span></a>    -------- 
+<a name="l389"><span class="ln">389  </span></a>    least_squares : Newer interface to solve nonlinear least-squares problems 
+<a name="l390"><span class="ln">390  </span></a>        with bounds on the variables. See ``method='lm'`` in particular. 
+<a name="l391"><span class="ln">391  </span></a> 
+<a name="l392"><span class="ln">392  </span></a>    Notes 
+<a name="l393"><span class="ln">393  </span></a>    ----- 
+<a name="l394"><span class="ln">394  </span></a>    &quot;leastsq&quot; is a wrapper around MINPACK's lmdif and lmder algorithms. 
+<a name="l395"><span class="ln">395  </span></a> 
+<a name="l396"><span class="ln">396  </span></a>    cov_x is a Jacobian approximation to the Hessian of the least squares 
+<a name="l397"><span class="ln">397  </span></a>    objective function. 
+<a name="l398"><span class="ln">398  </span></a>    This approximation assumes that the objective function is based on the 
+<a name="l399"><span class="ln">399  </span></a>    difference between some observed target data (ydata) and a (non-linear) 
+<a name="l400"><span class="ln">400  </span></a>    function of the parameters `f(xdata, params)` :: 
+<a name="l401"><span class="ln">401  </span></a> 
+<a name="l402"><span class="ln">402  </span></a>           func(params) = ydata - f(xdata, params) 
+<a name="l403"><span class="ln">403  </span></a> 
+<a name="l404"><span class="ln">404  </span></a>    so that the objective function is :: 
+<a name="l405"><span class="ln">405  </span></a> 
+<a name="l406"><span class="ln">406  </span></a>           min   sum((ydata - f(xdata, params))**2, axis=0) 
+<a name="l407"><span class="ln">407  </span></a>         params 
+<a name="l408"><span class="ln">408  </span></a> 
+<a name="l409"><span class="ln">409  </span></a>    The solution, `x`, is always a 1-D array, regardless of the shape of `x0`, 
+<a name="l410"><span class="ln">410  </span></a>    or whether `x0` is a scalar. 
+<a name="l411"><span class="ln">411  </span></a> 
+<a name="l412"><span class="ln">412  </span></a>    Examples 
+<a name="l413"><span class="ln">413  </span></a>    -------- 
+<a name="l414"><span class="ln">414  </span></a>    &gt;&gt;&gt; from scipy.optimize import leastsq 
+<a name="l415"><span class="ln">415  </span></a>    &gt;&gt;&gt; def func(x): 
+<a name="l416"><span class="ln">416  </span></a>    ...     return 2*(x-3)**2+1 
+<a name="l417"><span class="ln">417  </span></a>    &gt;&gt;&gt; leastsq(func, 0) 
+<a name="l418"><span class="ln">418  </span></a>    (array([2.99999999]), 1) 
+<a name="l419"><span class="ln">419  </span></a> 
+<a name="l420"><span class="ln">420  </span></a>    &quot;&quot;&quot;</span>
+<a name="l421"><span class="ln">421  </span></a>    <span class="s1">x0 </span><span class="s0">= </span><span class="s1">asarray</span><span class="s2">(</span><span class="s1">x0</span><span class="s2">).</span><span class="s1">flatten</span><span class="s2">()</span>
+<a name="l422"><span class="ln">422  </span></a>    <span class="s1">n </span><span class="s0">= </span><span class="s1">len</span><span class="s2">(</span><span class="s1">x0</span><span class="s2">)</span>
+<a name="l423"><span class="ln">423  </span></a>    <span class="s0">if not </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">args</span><span class="s2">, </span><span class="s1">tuple</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l424"><span class="ln">424  </span></a>        <span class="s1">args </span><span class="s0">= </span><span class="s2">(</span><span class="s1">args</span><span class="s2">,)</span>
+<a name="l425"><span class="ln">425  </span></a>    <span class="s1">shape</span><span class="s2">, </span><span class="s1">dtype </span><span class="s0">= </span><span class="s1">_check_func</span><span class="s2">(</span><span class="s4">'leastsq'</span><span class="s2">, </span><span class="s4">'func'</span><span class="s2">, </span><span class="s1">func</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s1">n</span><span class="s2">)</span>
+<a name="l426"><span class="ln">426  </span></a>    <span class="s1">m </span><span class="s0">= </span><span class="s1">shape</span><span class="s2">[</span><span class="s5">0</span><span class="s2">]</span>
+<a name="l427"><span class="ln">427  </span></a>
+<a name="l428"><span class="ln">428  </span></a>    <span class="s0">if </span><span class="s1">n </span><span class="s0">&gt; </span><span class="s1">m</span><span class="s0">:</span>
+<a name="l429"><span class="ln">429  </span></a>        <span class="s0">raise </span><span class="s1">TypeError</span><span class="s2">(</span><span class="s4">f&quot;Improper input: func input vector length N={</span><span class="s1">n</span><span class="s4">} must&quot;</span>
+<a name="l430"><span class="ln">430  </span></a>                        <span class="s4">f&quot; not exceed func output vector length M={</span><span class="s1">m</span><span class="s4">}&quot;</span><span class="s2">)</span>
+<a name="l431"><span class="ln">431  </span></a>
+<a name="l432"><span class="ln">432  </span></a>    <span class="s0">if </span><span class="s1">epsfcn </span><span class="s0">is None:</span>
+<a name="l433"><span class="ln">433  </span></a>        <span class="s1">epsfcn </span><span class="s0">= </span><span class="s1">finfo</span><span class="s2">(</span><span class="s1">dtype</span><span class="s2">).</span><span class="s1">eps</span>
+<a name="l434"><span class="ln">434  </span></a>
+<a name="l435"><span class="ln">435  </span></a>    <span class="s0">if </span><span class="s1">Dfun </span><span class="s0">is None:</span>
+<a name="l436"><span class="ln">436  </span></a>        <span class="s0">if </span><span class="s1">maxfev </span><span class="s0">== </span><span class="s5">0</span><span class="s0">:</span>
+<a name="l437"><span class="ln">437  </span></a>            <span class="s1">maxfev </span><span class="s0">= </span><span class="s5">200</span><span class="s0">*</span><span class="s2">(</span><span class="s1">n </span><span class="s0">+ </span><span class="s5">1</span><span class="s2">)</span>
+<a name="l438"><span class="ln">438  </span></a>        <span class="s1">retval </span><span class="s0">= </span><span class="s1">_minpack</span><span class="s2">.</span><span class="s1">_lmdif</span><span class="s2">(</span><span class="s1">func</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s1">full_output</span><span class="s2">, </span><span class="s1">ftol</span><span class="s2">, </span><span class="s1">xtol</span><span class="s2">,</span>
+<a name="l439"><span class="ln">439  </span></a>                                 <span class="s1">gtol</span><span class="s2">, </span><span class="s1">maxfev</span><span class="s2">, </span><span class="s1">epsfcn</span><span class="s2">, </span><span class="s1">factor</span><span class="s2">, </span><span class="s1">diag</span><span class="s2">)</span>
+<a name="l440"><span class="ln">440  </span></a>    <span class="s0">else:</span>
+<a name="l441"><span class="ln">441  </span></a>        <span class="s0">if </span><span class="s1">col_deriv</span><span class="s0">:</span>
+<a name="l442"><span class="ln">442  </span></a>            <span class="s1">_check_func</span><span class="s2">(</span><span class="s4">'leastsq'</span><span class="s2">, </span><span class="s4">'Dfun'</span><span class="s2">, </span><span class="s1">Dfun</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, (</span><span class="s1">n</span><span class="s2">, </span><span class="s1">m</span><span class="s2">))</span>
+<a name="l443"><span class="ln">443  </span></a>        <span class="s0">else:</span>
+<a name="l444"><span class="ln">444  </span></a>            <span class="s1">_check_func</span><span class="s2">(</span><span class="s4">'leastsq'</span><span class="s2">, </span><span class="s4">'Dfun'</span><span class="s2">, </span><span class="s1">Dfun</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, (</span><span class="s1">m</span><span class="s2">, </span><span class="s1">n</span><span class="s2">))</span>
+<a name="l445"><span class="ln">445  </span></a>        <span class="s0">if </span><span class="s1">maxfev </span><span class="s0">== </span><span class="s5">0</span><span class="s0">:</span>
+<a name="l446"><span class="ln">446  </span></a>            <span class="s1">maxfev </span><span class="s0">= </span><span class="s5">100 </span><span class="s0">* </span><span class="s2">(</span><span class="s1">n </span><span class="s0">+ </span><span class="s5">1</span><span class="s2">)</span>
+<a name="l447"><span class="ln">447  </span></a>        <span class="s1">retval </span><span class="s0">= </span><span class="s1">_minpack</span><span class="s2">.</span><span class="s1">_lmder</span><span class="s2">(</span><span class="s1">func</span><span class="s2">, </span><span class="s1">Dfun</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s1">full_output</span><span class="s2">,</span>
+<a name="l448"><span class="ln">448  </span></a>                                 <span class="s1">col_deriv</span><span class="s2">, </span><span class="s1">ftol</span><span class="s2">, </span><span class="s1">xtol</span><span class="s2">, </span><span class="s1">gtol</span><span class="s2">, </span><span class="s1">maxfev</span><span class="s2">,</span>
+<a name="l449"><span class="ln">449  </span></a>                                 <span class="s1">factor</span><span class="s2">, </span><span class="s1">diag</span><span class="s2">)</span>
+<a name="l450"><span class="ln">450  </span></a>
+<a name="l451"><span class="ln">451  </span></a>    <span class="s1">errors </span><span class="s0">= </span><span class="s2">{</span><span class="s5">0</span><span class="s0">: </span><span class="s2">[</span><span class="s4">&quot;Improper input parameters.&quot;</span><span class="s2">, </span><span class="s1">TypeError</span><span class="s2">],</span>
+<a name="l452"><span class="ln">452  </span></a>              <span class="s5">1</span><span class="s0">: </span><span class="s2">[</span><span class="s4">&quot;Both actual and predicted relative reductions &quot;</span>
+<a name="l453"><span class="ln">453  </span></a>                  <span class="s4">f&quot;in the sum of squares\n  are at most {</span><span class="s1">ftol</span><span class="s4">:f}&quot;</span><span class="s2">, </span><span class="s0">None</span><span class="s2">],</span>
+<a name="l454"><span class="ln">454  </span></a>              <span class="s5">2</span><span class="s0">: </span><span class="s2">[</span><span class="s4">&quot;The relative error between two consecutive &quot;</span>
+<a name="l455"><span class="ln">455  </span></a>                  <span class="s4">f&quot;iterates is at most {</span><span class="s1">xtol</span><span class="s4">:f}&quot;</span><span class="s2">, </span><span class="s0">None</span><span class="s2">],</span>
+<a name="l456"><span class="ln">456  </span></a>              <span class="s5">3</span><span class="s0">: </span><span class="s2">[</span><span class="s4">&quot;Both actual and predicted relative reductions in &quot;</span>
+<a name="l457"><span class="ln">457  </span></a>                  <span class="s4">f&quot;the sum of squares\n  are at most {</span><span class="s1">ftol</span><span class="s4">:f} and the &quot;</span>
+<a name="l458"><span class="ln">458  </span></a>                  <span class="s4">&quot;relative error between two consecutive &quot;</span>
+<a name="l459"><span class="ln">459  </span></a>                  <span class="s4">f&quot;iterates is at \n  most {</span><span class="s1">xtol</span><span class="s4">:f}&quot;</span><span class="s2">, </span><span class="s0">None</span><span class="s2">],</span>
+<a name="l460"><span class="ln">460  </span></a>              <span class="s5">4</span><span class="s0">: </span><span class="s2">[</span><span class="s4">&quot;The cosine of the angle between func(x) and any &quot;</span>
+<a name="l461"><span class="ln">461  </span></a>                  <span class="s4">f&quot;column of the\n  Jacobian is at most {</span><span class="s1">gtol</span><span class="s4">:f} in &quot;</span>
+<a name="l462"><span class="ln">462  </span></a>                  <span class="s4">&quot;absolute value&quot;</span><span class="s2">, </span><span class="s0">None</span><span class="s2">],</span>
+<a name="l463"><span class="ln">463  </span></a>              <span class="s5">5</span><span class="s0">: </span><span class="s2">[</span><span class="s4">&quot;Number of calls to function has reached &quot;</span>
+<a name="l464"><span class="ln">464  </span></a>                  <span class="s4">&quot;maxfev = %d.&quot; </span><span class="s0">% </span><span class="s1">maxfev</span><span class="s2">, </span><span class="s1">ValueError</span><span class="s2">],</span>
+<a name="l465"><span class="ln">465  </span></a>              <span class="s5">6</span><span class="s0">: </span><span class="s2">[</span><span class="s4">f&quot;ftol={</span><span class="s1">ftol</span><span class="s4">:f} is too small, no further reduction &quot;</span>
+<a name="l466"><span class="ln">466  </span></a>                  <span class="s4">&quot;in the sum of squares\n  is possible.&quot;</span><span class="s2">,</span>
+<a name="l467"><span class="ln">467  </span></a>                  <span class="s1">ValueError</span><span class="s2">],</span>
+<a name="l468"><span class="ln">468  </span></a>              <span class="s5">7</span><span class="s0">: </span><span class="s2">[</span><span class="s4">f&quot;xtol={</span><span class="s1">xtol</span><span class="s4">:f} is too small, no further improvement in &quot;</span>
+<a name="l469"><span class="ln">469  </span></a>                  <span class="s4">&quot;the approximate\n  solution is possible.&quot;</span><span class="s2">,</span>
+<a name="l470"><span class="ln">470  </span></a>                  <span class="s1">ValueError</span><span class="s2">],</span>
+<a name="l471"><span class="ln">471  </span></a>              <span class="s5">8</span><span class="s0">: </span><span class="s2">[</span><span class="s4">f&quot;gtol={</span><span class="s1">gtol</span><span class="s4">:f} is too small, func(x) is orthogonal to the &quot;</span>
+<a name="l472"><span class="ln">472  </span></a>                  <span class="s4">&quot;columns of\n  the Jacobian to machine precision.&quot;</span><span class="s2">, </span><span class="s1">ValueError</span><span class="s2">]}</span>
+<a name="l473"><span class="ln">473  </span></a>
+<a name="l474"><span class="ln">474  </span></a>    <span class="s3"># The FORTRAN return value (possible return values are &gt;= 0 and &lt;= 8)</span>
+<a name="l475"><span class="ln">475  </span></a>    <span class="s1">info </span><span class="s0">= </span><span class="s1">retval</span><span class="s2">[</span><span class="s0">-</span><span class="s5">1</span><span class="s2">]</span>
+<a name="l476"><span class="ln">476  </span></a>
+<a name="l477"><span class="ln">477  </span></a>    <span class="s0">if </span><span class="s1">full_output</span><span class="s0">:</span>
+<a name="l478"><span class="ln">478  </span></a>        <span class="s1">cov_x </span><span class="s0">= None</span>
+<a name="l479"><span class="ln">479  </span></a>        <span class="s0">if </span><span class="s1">info </span><span class="s0">in </span><span class="s1">LEASTSQ_SUCCESS</span><span class="s0">:</span>
+<a name="l480"><span class="ln">480  </span></a>            <span class="s3"># This was</span>
+<a name="l481"><span class="ln">481  </span></a>            <span class="s3"># perm = take(eye(n), retval[1]['ipvt'] - 1, 0)</span>
+<a name="l482"><span class="ln">482  </span></a>            <span class="s3"># r = triu(transpose(retval[1]['fjac'])[:n, :])</span>
+<a name="l483"><span class="ln">483  </span></a>            <span class="s3"># R = dot(r, perm)</span>
+<a name="l484"><span class="ln">484  </span></a>            <span class="s3"># cov_x = inv(dot(transpose(R), R))</span>
+<a name="l485"><span class="ln">485  </span></a>            <span class="s3"># but the explicit dot product was not necessary and sometimes</span>
+<a name="l486"><span class="ln">486  </span></a>            <span class="s3"># the result was not symmetric positive definite. See gh-4555.</span>
+<a name="l487"><span class="ln">487  </span></a>            <span class="s1">perm </span><span class="s0">= </span><span class="s1">retval</span><span class="s2">[</span><span class="s5">1</span><span class="s2">][</span><span class="s4">'ipvt'</span><span class="s2">]</span>
+<a name="l488"><span class="ln">488  </span></a>            <span class="s1">n </span><span class="s0">= </span><span class="s1">len</span><span class="s2">(</span><span class="s1">perm</span><span class="s2">)</span>
+<a name="l489"><span class="ln">489  </span></a>            <span class="s1">r </span><span class="s0">= </span><span class="s1">triu</span><span class="s2">(</span><span class="s1">transpose</span><span class="s2">(</span><span class="s1">retval</span><span class="s2">[</span><span class="s5">1</span><span class="s2">][</span><span class="s4">'fjac'</span><span class="s2">])[</span><span class="s0">:</span><span class="s1">n</span><span class="s2">, </span><span class="s0">:</span><span class="s2">])</span>
+<a name="l490"><span class="ln">490  </span></a>            <span class="s1">inv_triu </span><span class="s0">= </span><span class="s1">linalg</span><span class="s2">.</span><span class="s1">get_lapack_funcs</span><span class="s2">(</span><span class="s4">'trtri'</span><span class="s2">, (</span><span class="s1">r</span><span class="s2">,))</span>
+<a name="l491"><span class="ln">491  </span></a>            <span class="s0">try:</span>
+<a name="l492"><span class="ln">492  </span></a>                <span class="s3"># inverse of permuted matrix is a permutation of matrix inverse</span>
+<a name="l493"><span class="ln">493  </span></a>                <span class="s1">invR</span><span class="s2">, </span><span class="s1">trtri_info </span><span class="s0">= </span><span class="s1">inv_triu</span><span class="s2">(</span><span class="s1">r</span><span class="s2">)  </span><span class="s3"># default: upper, non-unit diag</span>
+<a name="l494"><span class="ln">494  </span></a>                <span class="s0">if </span><span class="s1">trtri_info </span><span class="s0">!= </span><span class="s5">0</span><span class="s0">:  </span><span class="s3"># explicit comparison for readability</span>
+<a name="l495"><span class="ln">495  </span></a>                    <span class="s0">raise </span><span class="s1">LinAlgError</span><span class="s2">(</span><span class="s4">f'trtri returned info {</span><span class="s1">trtri_info</span><span class="s4">}'</span><span class="s2">)</span>
+<a name="l496"><span class="ln">496  </span></a>                <span class="s1">invR</span><span class="s2">[</span><span class="s1">perm</span><span class="s2">] </span><span class="s0">= </span><span class="s1">invR</span><span class="s2">.</span><span class="s1">copy</span><span class="s2">()</span>
+<a name="l497"><span class="ln">497  </span></a>                <span class="s1">cov_x </span><span class="s0">= </span><span class="s1">invR </span><span class="s0">@ </span><span class="s1">invR</span><span class="s2">.</span><span class="s1">T</span>
+<a name="l498"><span class="ln">498  </span></a>            <span class="s0">except </span><span class="s2">(</span><span class="s1">LinAlgError</span><span class="s2">, </span><span class="s1">ValueError</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l499"><span class="ln">499  </span></a>                <span class="s0">pass</span>
+<a name="l500"><span class="ln">500  </span></a>        <span class="s0">return </span><span class="s2">(</span><span class="s1">retval</span><span class="s2">[</span><span class="s5">0</span><span class="s2">], </span><span class="s1">cov_x</span><span class="s2">) </span><span class="s0">+ </span><span class="s1">retval</span><span class="s2">[</span><span class="s5">1</span><span class="s0">:-</span><span class="s5">1</span><span class="s2">] </span><span class="s0">+ </span><span class="s2">(</span><span class="s1">errors</span><span class="s2">[</span><span class="s1">info</span><span class="s2">][</span><span class="s5">0</span><span class="s2">], </span><span class="s1">info</span><span class="s2">)</span>
+<a name="l501"><span class="ln">501  </span></a>    <span class="s0">else:</span>
+<a name="l502"><span class="ln">502  </span></a>        <span class="s0">if </span><span class="s1">info </span><span class="s0">in </span><span class="s1">LEASTSQ_FAILURE</span><span class="s0">:</span>
+<a name="l503"><span class="ln">503  </span></a>            <span class="s1">warnings</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s1">errors</span><span class="s2">[</span><span class="s1">info</span><span class="s2">][</span><span class="s5">0</span><span class="s2">], </span><span class="s1">RuntimeWarning</span><span class="s2">, </span><span class="s1">stacklevel</span><span class="s0">=</span><span class="s5">2</span><span class="s2">)</span>
+<a name="l504"><span class="ln">504  </span></a>        <span class="s0">elif </span><span class="s1">info </span><span class="s0">== </span><span class="s5">0</span><span class="s0">:</span>
+<a name="l505"><span class="ln">505  </span></a>            <span class="s0">raise </span><span class="s1">errors</span><span class="s2">[</span><span class="s1">info</span><span class="s2">][</span><span class="s5">1</span><span class="s2">](</span><span class="s1">errors</span><span class="s2">[</span><span class="s1">info</span><span class="s2">][</span><span class="s5">0</span><span class="s2">])</span>
+<a name="l506"><span class="ln">506  </span></a>        <span class="s0">return </span><span class="s1">retval</span><span class="s2">[</span><span class="s5">0</span><span class="s2">], </span><span class="s1">info</span>
+<a name="l507"><span class="ln">507  </span></a>
+<a name="l508"><span class="ln">508  </span></a>
+<a name="l509"><span class="ln">509  </span></a><span class="s0">def </span><span class="s1">_lightweight_memoizer</span><span class="s2">(</span><span class="s1">f</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l510"><span class="ln">510  </span></a>    <span class="s3"># very shallow memoization to address gh-13670: only remember the first set</span>
+<a name="l511"><span class="ln">511  </span></a>    <span class="s3"># of parameters and corresponding function value, and only attempt to use</span>
+<a name="l512"><span class="ln">512  </span></a>    <span class="s3"># them twice (the number of times the function is evaluated at x0).</span>
+<a name="l513"><span class="ln">513  </span></a>    <span class="s0">def </span><span class="s1">_memoized_func</span><span class="s2">(</span><span class="s1">params</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l514"><span class="ln">514  </span></a>        <span class="s0">if </span><span class="s1">_memoized_func</span><span class="s2">.</span><span class="s1">skip_lookup</span><span class="s0">:</span>
+<a name="l515"><span class="ln">515  </span></a>            <span class="s0">return </span><span class="s1">f</span><span class="s2">(</span><span class="s1">params</span><span class="s2">)</span>
+<a name="l516"><span class="ln">516  </span></a>
+<a name="l517"><span class="ln">517  </span></a>        <span class="s0">if </span><span class="s1">np</span><span class="s2">.</span><span class="s1">all</span><span class="s2">(</span><span class="s1">_memoized_func</span><span class="s2">.</span><span class="s1">last_params </span><span class="s0">== </span><span class="s1">params</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l518"><span class="ln">518  </span></a>            <span class="s0">return </span><span class="s1">_memoized_func</span><span class="s2">.</span><span class="s1">last_val</span>
+<a name="l519"><span class="ln">519  </span></a>        <span class="s0">elif </span><span class="s1">_memoized_func</span><span class="s2">.</span><span class="s1">last_params </span><span class="s0">is not None:</span>
+<a name="l520"><span class="ln">520  </span></a>            <span class="s1">_memoized_func</span><span class="s2">.</span><span class="s1">skip_lookup </span><span class="s0">= True</span>
+<a name="l521"><span class="ln">521  </span></a>
+<a name="l522"><span class="ln">522  </span></a>        <span class="s1">val </span><span class="s0">= </span><span class="s1">f</span><span class="s2">(</span><span class="s1">params</span><span class="s2">)</span>
+<a name="l523"><span class="ln">523  </span></a>
+<a name="l524"><span class="ln">524  </span></a>        <span class="s0">if </span><span class="s1">_memoized_func</span><span class="s2">.</span><span class="s1">last_params </span><span class="s0">is None:</span>
+<a name="l525"><span class="ln">525  </span></a>            <span class="s1">_memoized_func</span><span class="s2">.</span><span class="s1">last_params </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">copy</span><span class="s2">(</span><span class="s1">params</span><span class="s2">)</span>
+<a name="l526"><span class="ln">526  </span></a>            <span class="s1">_memoized_func</span><span class="s2">.</span><span class="s1">last_val </span><span class="s0">= </span><span class="s1">val</span>
+<a name="l527"><span class="ln">527  </span></a>
+<a name="l528"><span class="ln">528  </span></a>        <span class="s0">return </span><span class="s1">val</span>
+<a name="l529"><span class="ln">529  </span></a>
+<a name="l530"><span class="ln">530  </span></a>    <span class="s1">_memoized_func</span><span class="s2">.</span><span class="s1">last_params </span><span class="s0">= None</span>
+<a name="l531"><span class="ln">531  </span></a>    <span class="s1">_memoized_func</span><span class="s2">.</span><span class="s1">last_val </span><span class="s0">= None</span>
+<a name="l532"><span class="ln">532  </span></a>    <span class="s1">_memoized_func</span><span class="s2">.</span><span class="s1">skip_lookup </span><span class="s0">= False</span>
+<a name="l533"><span class="ln">533  </span></a>    <span class="s0">return </span><span class="s1">_memoized_func</span>
+<a name="l534"><span class="ln">534  </span></a>
+<a name="l535"><span class="ln">535  </span></a>
+<a name="l536"><span class="ln">536  </span></a><span class="s0">def </span><span class="s1">_wrap_func</span><span class="s2">(</span><span class="s1">func</span><span class="s2">, </span><span class="s1">xdata</span><span class="s2">, </span><span class="s1">ydata</span><span class="s2">, </span><span class="s1">transform</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l537"><span class="ln">537  </span></a>    <span class="s0">if </span><span class="s1">transform </span><span class="s0">is None:</span>
+<a name="l538"><span class="ln">538  </span></a>        <span class="s0">def </span><span class="s1">func_wrapped</span><span class="s2">(</span><span class="s1">params</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l539"><span class="ln">539  </span></a>            <span class="s0">return </span><span class="s1">func</span><span class="s2">(</span><span class="s1">xdata</span><span class="s2">, </span><span class="s0">*</span><span class="s1">params</span><span class="s2">) </span><span class="s0">- </span><span class="s1">ydata</span>
+<a name="l540"><span class="ln">540  </span></a>    <span class="s0">elif </span><span class="s1">transform</span><span class="s2">.</span><span class="s1">size </span><span class="s0">== </span><span class="s5">1 </span><span class="s0">or </span><span class="s1">transform</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">== </span><span class="s5">1</span><span class="s0">:</span>
+<a name="l541"><span class="ln">541  </span></a>        <span class="s0">def </span><span class="s1">func_wrapped</span><span class="s2">(</span><span class="s1">params</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l542"><span class="ln">542  </span></a>            <span class="s0">return </span><span class="s1">transform </span><span class="s0">* </span><span class="s2">(</span><span class="s1">func</span><span class="s2">(</span><span class="s1">xdata</span><span class="s2">, </span><span class="s0">*</span><span class="s1">params</span><span class="s2">) </span><span class="s0">- </span><span class="s1">ydata</span><span class="s2">)</span>
+<a name="l543"><span class="ln">543  </span></a>    <span class="s0">else:</span>
+<a name="l544"><span class="ln">544  </span></a>        <span class="s3"># Chisq = (y - yd)^T C^{-1} (y-yd)</span>
+<a name="l545"><span class="ln">545  </span></a>        <span class="s3"># transform = L such that C = L L^T</span>
+<a name="l546"><span class="ln">546  </span></a>        <span class="s3"># C^{-1} = L^{-T} L^{-1}</span>
+<a name="l547"><span class="ln">547  </span></a>        <span class="s3"># Chisq = (y - yd)^T L^{-T} L^{-1} (y-yd)</span>
+<a name="l548"><span class="ln">548  </span></a>        <span class="s3"># Define (y-yd)' = L^{-1} (y-yd)</span>
+<a name="l549"><span class="ln">549  </span></a>        <span class="s3"># by solving</span>
+<a name="l550"><span class="ln">550  </span></a>        <span class="s3"># L (y-yd)' = (y-yd)</span>
+<a name="l551"><span class="ln">551  </span></a>        <span class="s3"># and minimize (y-yd)'^T (y-yd)'</span>
+<a name="l552"><span class="ln">552  </span></a>        <span class="s0">def </span><span class="s1">func_wrapped</span><span class="s2">(</span><span class="s1">params</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l553"><span class="ln">553  </span></a>            <span class="s0">return </span><span class="s1">solve_triangular</span><span class="s2">(</span><span class="s1">transform</span><span class="s2">, </span><span class="s1">func</span><span class="s2">(</span><span class="s1">xdata</span><span class="s2">, </span><span class="s0">*</span><span class="s1">params</span><span class="s2">) </span><span class="s0">- </span><span class="s1">ydata</span><span class="s2">, </span><span class="s1">lower</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l554"><span class="ln">554  </span></a>    <span class="s0">return </span><span class="s1">func_wrapped</span>
+<a name="l555"><span class="ln">555  </span></a>
+<a name="l556"><span class="ln">556  </span></a>
+<a name="l557"><span class="ln">557  </span></a><span class="s0">def </span><span class="s1">_wrap_jac</span><span class="s2">(</span><span class="s1">jac</span><span class="s2">, </span><span class="s1">xdata</span><span class="s2">, </span><span class="s1">transform</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l558"><span class="ln">558  </span></a>    <span class="s0">if </span><span class="s1">transform </span><span class="s0">is None:</span>
+<a name="l559"><span class="ln">559  </span></a>        <span class="s0">def </span><span class="s1">jac_wrapped</span><span class="s2">(</span><span class="s1">params</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l560"><span class="ln">560  </span></a>            <span class="s0">return </span><span class="s1">jac</span><span class="s2">(</span><span class="s1">xdata</span><span class="s2">, </span><span class="s0">*</span><span class="s1">params</span><span class="s2">)</span>
+<a name="l561"><span class="ln">561  </span></a>    <span class="s0">elif </span><span class="s1">transform</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">== </span><span class="s5">1</span><span class="s0">:</span>
+<a name="l562"><span class="ln">562  </span></a>        <span class="s0">def </span><span class="s1">jac_wrapped</span><span class="s2">(</span><span class="s1">params</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l563"><span class="ln">563  </span></a>            <span class="s0">return </span><span class="s1">transform</span><span class="s2">[</span><span class="s0">:</span><span class="s2">, </span><span class="s1">np</span><span class="s2">.</span><span class="s1">newaxis</span><span class="s2">] </span><span class="s0">* </span><span class="s1">np</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">(</span><span class="s1">jac</span><span class="s2">(</span><span class="s1">xdata</span><span class="s2">, </span><span class="s0">*</span><span class="s1">params</span><span class="s2">))</span>
+<a name="l564"><span class="ln">564  </span></a>    <span class="s0">else:</span>
+<a name="l565"><span class="ln">565  </span></a>        <span class="s0">def </span><span class="s1">jac_wrapped</span><span class="s2">(</span><span class="s1">params</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l566"><span class="ln">566  </span></a>            <span class="s0">return </span><span class="s1">solve_triangular</span><span class="s2">(</span><span class="s1">transform</span><span class="s2">,</span>
+<a name="l567"><span class="ln">567  </span></a>                                    <span class="s1">np</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">(</span><span class="s1">jac</span><span class="s2">(</span><span class="s1">xdata</span><span class="s2">, </span><span class="s0">*</span><span class="s1">params</span><span class="s2">)),</span>
+<a name="l568"><span class="ln">568  </span></a>                                    <span class="s1">lower</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l569"><span class="ln">569  </span></a>    <span class="s0">return </span><span class="s1">jac_wrapped</span>
+<a name="l570"><span class="ln">570  </span></a>
+<a name="l571"><span class="ln">571  </span></a>
+<a name="l572"><span class="ln">572  </span></a><span class="s0">def </span><span class="s1">_initialize_feasible</span><span class="s2">(</span><span class="s1">lb</span><span class="s2">, </span><span class="s1">ub</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l573"><span class="ln">573  </span></a>    <span class="s1">p0 </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ones_like</span><span class="s2">(</span><span class="s1">lb</span><span class="s2">)</span>
+<a name="l574"><span class="ln">574  </span></a>    <span class="s1">lb_finite </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">isfinite</span><span class="s2">(</span><span class="s1">lb</span><span class="s2">)</span>
+<a name="l575"><span class="ln">575  </span></a>    <span class="s1">ub_finite </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">isfinite</span><span class="s2">(</span><span class="s1">ub</span><span class="s2">)</span>
+<a name="l576"><span class="ln">576  </span></a>
+<a name="l577"><span class="ln">577  </span></a>    <span class="s1">mask </span><span class="s0">= </span><span class="s1">lb_finite </span><span class="s0">&amp; </span><span class="s1">ub_finite</span>
+<a name="l578"><span class="ln">578  </span></a>    <span class="s1">p0</span><span class="s2">[</span><span class="s1">mask</span><span class="s2">] </span><span class="s0">= </span><span class="s5">0.5 </span><span class="s0">* </span><span class="s2">(</span><span class="s1">lb</span><span class="s2">[</span><span class="s1">mask</span><span class="s2">] </span><span class="s0">+ </span><span class="s1">ub</span><span class="s2">[</span><span class="s1">mask</span><span class="s2">])</span>
+<a name="l579"><span class="ln">579  </span></a>
+<a name="l580"><span class="ln">580  </span></a>    <span class="s1">mask </span><span class="s0">= </span><span class="s1">lb_finite </span><span class="s0">&amp; ~</span><span class="s1">ub_finite</span>
+<a name="l581"><span class="ln">581  </span></a>    <span class="s1">p0</span><span class="s2">[</span><span class="s1">mask</span><span class="s2">] </span><span class="s0">= </span><span class="s1">lb</span><span class="s2">[</span><span class="s1">mask</span><span class="s2">] </span><span class="s0">+ </span><span class="s5">1</span>
+<a name="l582"><span class="ln">582  </span></a>
+<a name="l583"><span class="ln">583  </span></a>    <span class="s1">mask </span><span class="s0">= ~</span><span class="s1">lb_finite </span><span class="s0">&amp; </span><span class="s1">ub_finite</span>
+<a name="l584"><span class="ln">584  </span></a>    <span class="s1">p0</span><span class="s2">[</span><span class="s1">mask</span><span class="s2">] </span><span class="s0">= </span><span class="s1">ub</span><span class="s2">[</span><span class="s1">mask</span><span class="s2">] </span><span class="s0">- </span><span class="s5">1</span>
+<a name="l585"><span class="ln">585  </span></a>
+<a name="l586"><span class="ln">586  </span></a>    <span class="s0">return </span><span class="s1">p0</span>
+<a name="l587"><span class="ln">587  </span></a>
+<a name="l588"><span class="ln">588  </span></a>
+<a name="l589"><span class="ln">589  </span></a><span class="s0">def </span><span class="s1">curve_fit</span><span class="s2">(</span><span class="s1">f</span><span class="s2">, </span><span class="s1">xdata</span><span class="s2">, </span><span class="s1">ydata</span><span class="s2">, </span><span class="s1">p0</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">sigma</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">absolute_sigma</span><span class="s0">=False</span><span class="s2">,</span>
+<a name="l590"><span class="ln">590  </span></a>              <span class="s1">check_finite</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">bounds</span><span class="s0">=</span><span class="s2">(</span><span class="s0">-</span><span class="s1">np</span><span class="s2">.</span><span class="s1">inf</span><span class="s2">, </span><span class="s1">np</span><span class="s2">.</span><span class="s1">inf</span><span class="s2">), </span><span class="s1">method</span><span class="s0">=None</span><span class="s2">,</span>
+<a name="l591"><span class="ln">591  </span></a>              <span class="s1">jac</span><span class="s0">=None</span><span class="s2">, </span><span class="s0">*</span><span class="s2">, </span><span class="s1">full_output</span><span class="s0">=False</span><span class="s2">, </span><span class="s1">nan_policy</span><span class="s0">=None</span><span class="s2">,</span>
+<a name="l592"><span class="ln">592  </span></a>              <span class="s0">**</span><span class="s1">kwargs</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l593"><span class="ln">593  </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l594"><span class="ln">594  </span></a>    Use non-linear least squares to fit a function, f, to data. 
+<a name="l595"><span class="ln">595  </span></a> 
+<a name="l596"><span class="ln">596  </span></a>    Assumes ``ydata = f(xdata, *params) + eps``. 
+<a name="l597"><span class="ln">597  </span></a> 
+<a name="l598"><span class="ln">598  </span></a>    Parameters 
+<a name="l599"><span class="ln">599  </span></a>    ---------- 
+<a name="l600"><span class="ln">600  </span></a>    f : callable 
+<a name="l601"><span class="ln">601  </span></a>        The model function, f(x, ...). It must take the independent 
+<a name="l602"><span class="ln">602  </span></a>        variable as the first argument and the parameters to fit as 
+<a name="l603"><span class="ln">603  </span></a>        separate remaining arguments. 
+<a name="l604"><span class="ln">604  </span></a>    xdata : array_like 
+<a name="l605"><span class="ln">605  </span></a>        The independent variable where the data is measured. 
+<a name="l606"><span class="ln">606  </span></a>        Should usually be an M-length sequence or an (k,M)-shaped array for 
+<a name="l607"><span class="ln">607  </span></a>        functions with k predictors, and each element should be float 
+<a name="l608"><span class="ln">608  </span></a>        convertible if it is an array like object. 
+<a name="l609"><span class="ln">609  </span></a>    ydata : array_like 
+<a name="l610"><span class="ln">610  </span></a>        The dependent data, a length M array - nominally ``f(xdata, ...)``. 
+<a name="l611"><span class="ln">611  </span></a>    p0 : array_like, optional 
+<a name="l612"><span class="ln">612  </span></a>        Initial guess for the parameters (length N). If None, then the 
+<a name="l613"><span class="ln">613  </span></a>        initial values will all be 1 (if the number of parameters for the 
+<a name="l614"><span class="ln">614  </span></a>        function can be determined using introspection, otherwise a 
+<a name="l615"><span class="ln">615  </span></a>        ValueError is raised). 
+<a name="l616"><span class="ln">616  </span></a>    sigma : None or scalar or M-length sequence or MxM array, optional 
+<a name="l617"><span class="ln">617  </span></a>        Determines the uncertainty in `ydata`. If we define residuals as 
+<a name="l618"><span class="ln">618  </span></a>        ``r = ydata - f(xdata, *popt)``, then the interpretation of `sigma` 
+<a name="l619"><span class="ln">619  </span></a>        depends on its number of dimensions: 
+<a name="l620"><span class="ln">620  </span></a> 
+<a name="l621"><span class="ln">621  </span></a>        - A scalar or 1-D `sigma` should contain values of standard deviations of 
+<a name="l622"><span class="ln">622  </span></a>          errors in `ydata`. In this case, the optimized function is 
+<a name="l623"><span class="ln">623  </span></a>          ``chisq = sum((r / sigma) ** 2)``. 
+<a name="l624"><span class="ln">624  </span></a> 
+<a name="l625"><span class="ln">625  </span></a>        - A 2-D `sigma` should contain the covariance matrix of 
+<a name="l626"><span class="ln">626  </span></a>          errors in `ydata`. In this case, the optimized function is 
+<a name="l627"><span class="ln">627  </span></a>          ``chisq = r.T @ inv(sigma) @ r``. 
+<a name="l628"><span class="ln">628  </span></a> 
+<a name="l629"><span class="ln">629  </span></a>          .. versionadded:: 0.19 
+<a name="l630"><span class="ln">630  </span></a> 
+<a name="l631"><span class="ln">631  </span></a>        None (default) is equivalent of 1-D `sigma` filled with ones. 
+<a name="l632"><span class="ln">632  </span></a>    absolute_sigma : bool, optional 
+<a name="l633"><span class="ln">633  </span></a>        If True, `sigma` is used in an absolute sense and the estimated parameter 
+<a name="l634"><span class="ln">634  </span></a>        covariance `pcov` reflects these absolute values. 
+<a name="l635"><span class="ln">635  </span></a> 
+<a name="l636"><span class="ln">636  </span></a>        If False (default), only the relative magnitudes of the `sigma` values matter. 
+<a name="l637"><span class="ln">637  </span></a>        The returned parameter covariance matrix `pcov` is based on scaling 
+<a name="l638"><span class="ln">638  </span></a>        `sigma` by a constant factor. This constant is set by demanding that the 
+<a name="l639"><span class="ln">639  </span></a>        reduced `chisq` for the optimal parameters `popt` when using the 
+<a name="l640"><span class="ln">640  </span></a>        *scaled* `sigma` equals unity. In other words, `sigma` is scaled to 
+<a name="l641"><span class="ln">641  </span></a>        match the sample variance of the residuals after the fit. Default is False. 
+<a name="l642"><span class="ln">642  </span></a>        Mathematically, 
+<a name="l643"><span class="ln">643  </span></a>        ``pcov(absolute_sigma=False) = pcov(absolute_sigma=True) * chisq(popt)/(M-N)`` 
+<a name="l644"><span class="ln">644  </span></a>    check_finite : bool, optional 
+<a name="l645"><span class="ln">645  </span></a>        If True, check that the input arrays do not contain nans of infs, 
+<a name="l646"><span class="ln">646  </span></a>        and raise a ValueError if they do. Setting this parameter to 
+<a name="l647"><span class="ln">647  </span></a>        False may silently produce nonsensical results if the input arrays 
+<a name="l648"><span class="ln">648  </span></a>        do contain nans. Default is True if `nan_policy` is not specified 
+<a name="l649"><span class="ln">649  </span></a>        explicitly and False otherwise. 
+<a name="l650"><span class="ln">650  </span></a>    bounds : 2-tuple of array_like or `Bounds`, optional 
+<a name="l651"><span class="ln">651  </span></a>        Lower and upper bounds on parameters. Defaults to no bounds. 
+<a name="l652"><span class="ln">652  </span></a>        There are two ways to specify the bounds: 
+<a name="l653"><span class="ln">653  </span></a> 
+<a name="l654"><span class="ln">654  </span></a>        - Instance of `Bounds` class. 
+<a name="l655"><span class="ln">655  </span></a> 
+<a name="l656"><span class="ln">656  </span></a>        - 2-tuple of array_like: Each element of the tuple must be either 
+<a name="l657"><span class="ln">657  </span></a>          an array with the length equal to the number of parameters, or a 
+<a name="l658"><span class="ln">658  </span></a>          scalar (in which case the bound is taken to be the same for all 
+<a name="l659"><span class="ln">659  </span></a>          parameters). Use ``np.inf`` with an appropriate sign to disable 
+<a name="l660"><span class="ln">660  </span></a>          bounds on all or some parameters. 
+<a name="l661"><span class="ln">661  </span></a> 
+<a name="l662"><span class="ln">662  </span></a>    method : {'lm', 'trf', 'dogbox'}, optional 
+<a name="l663"><span class="ln">663  </span></a>        Method to use for optimization. See `least_squares` for more details. 
+<a name="l664"><span class="ln">664  </span></a>        Default is 'lm' for unconstrained problems and 'trf' if `bounds` are 
+<a name="l665"><span class="ln">665  </span></a>        provided. The method 'lm' won't work when the number of observations 
+<a name="l666"><span class="ln">666  </span></a>        is less than the number of variables, use 'trf' or 'dogbox' in this 
+<a name="l667"><span class="ln">667  </span></a>        case. 
+<a name="l668"><span class="ln">668  </span></a> 
+<a name="l669"><span class="ln">669  </span></a>        .. versionadded:: 0.17 
+<a name="l670"><span class="ln">670  </span></a>    jac : callable, string or None, optional 
+<a name="l671"><span class="ln">671  </span></a>        Function with signature ``jac(x, ...)`` which computes the Jacobian 
+<a name="l672"><span class="ln">672  </span></a>        matrix of the model function with respect to parameters as a dense 
+<a name="l673"><span class="ln">673  </span></a>        array_like structure. It will be scaled according to provided `sigma`. 
+<a name="l674"><span class="ln">674  </span></a>        If None (default), the Jacobian will be estimated numerically. 
+<a name="l675"><span class="ln">675  </span></a>        String keywords for 'trf' and 'dogbox' methods can be used to select 
+<a name="l676"><span class="ln">676  </span></a>        a finite difference scheme, see `least_squares`. 
+<a name="l677"><span class="ln">677  </span></a> 
+<a name="l678"><span class="ln">678  </span></a>        .. versionadded:: 0.18 
+<a name="l679"><span class="ln">679  </span></a>    full_output : boolean, optional 
+<a name="l680"><span class="ln">680  </span></a>        If True, this function returns additional information: `infodict`, 
+<a name="l681"><span class="ln">681  </span></a>        `mesg`, and `ier`. 
+<a name="l682"><span class="ln">682  </span></a> 
+<a name="l683"><span class="ln">683  </span></a>        .. versionadded:: 1.9 
+<a name="l684"><span class="ln">684  </span></a>    nan_policy : {'raise', 'omit', None}, optional 
+<a name="l685"><span class="ln">685  </span></a>        Defines how to handle when input contains nan. 
+<a name="l686"><span class="ln">686  </span></a>        The following options are available (default is None): 
+<a name="l687"><span class="ln">687  </span></a> 
+<a name="l688"><span class="ln">688  </span></a>        * 'raise': throws an error 
+<a name="l689"><span class="ln">689  </span></a>        * 'omit': performs the calculations ignoring nan values 
+<a name="l690"><span class="ln">690  </span></a>        * None: no special handling of NaNs is performed 
+<a name="l691"><span class="ln">691  </span></a>          (except what is done by check_finite); the behavior when NaNs 
+<a name="l692"><span class="ln">692  </span></a>          are present is implementation-dependent and may change. 
+<a name="l693"><span class="ln">693  </span></a> 
+<a name="l694"><span class="ln">694  </span></a>        Note that if this value is specified explicitly (not None), 
+<a name="l695"><span class="ln">695  </span></a>        `check_finite` will be set as False. 
+<a name="l696"><span class="ln">696  </span></a> 
+<a name="l697"><span class="ln">697  </span></a>        .. versionadded:: 1.11 
+<a name="l698"><span class="ln">698  </span></a>    **kwargs 
+<a name="l699"><span class="ln">699  </span></a>        Keyword arguments passed to `leastsq` for ``method='lm'`` or 
+<a name="l700"><span class="ln">700  </span></a>        `least_squares` otherwise. 
+<a name="l701"><span class="ln">701  </span></a> 
+<a name="l702"><span class="ln">702  </span></a>    Returns 
+<a name="l703"><span class="ln">703  </span></a>    ------- 
+<a name="l704"><span class="ln">704  </span></a>    popt : array 
+<a name="l705"><span class="ln">705  </span></a>        Optimal values for the parameters so that the sum of the squared 
+<a name="l706"><span class="ln">706  </span></a>        residuals of ``f(xdata, *popt) - ydata`` is minimized. 
+<a name="l707"><span class="ln">707  </span></a>    pcov : 2-D array 
+<a name="l708"><span class="ln">708  </span></a>        The estimated approximate covariance of popt. The diagonals provide 
+<a name="l709"><span class="ln">709  </span></a>        the variance of the parameter estimate. To compute one standard 
+<a name="l710"><span class="ln">710  </span></a>        deviation errors on the parameters, use 
+<a name="l711"><span class="ln">711  </span></a>        ``perr = np.sqrt(np.diag(pcov))``. Note that the relationship between 
+<a name="l712"><span class="ln">712  </span></a>        `cov` and parameter error estimates is derived based on a linear 
+<a name="l713"><span class="ln">713  </span></a>        approximation to the model function around the optimum [1]_. 
+<a name="l714"><span class="ln">714  </span></a>        When this approximation becomes inaccurate, `cov` may not provide an 
+<a name="l715"><span class="ln">715  </span></a>        accurate measure of uncertainty. 
+<a name="l716"><span class="ln">716  </span></a> 
+<a name="l717"><span class="ln">717  </span></a>        How the `sigma` parameter affects the estimated covariance 
+<a name="l718"><span class="ln">718  </span></a>        depends on `absolute_sigma` argument, as described above. 
+<a name="l719"><span class="ln">719  </span></a> 
+<a name="l720"><span class="ln">720  </span></a>        If the Jacobian matrix at the solution doesn't have a full rank, then 
+<a name="l721"><span class="ln">721  </span></a>        'lm' method returns a matrix filled with ``np.inf``, on the other hand 
+<a name="l722"><span class="ln">722  </span></a>        'trf'  and 'dogbox' methods use Moore-Penrose pseudoinverse to compute 
+<a name="l723"><span class="ln">723  </span></a>        the covariance matrix. Covariance matrices with large condition numbers 
+<a name="l724"><span class="ln">724  </span></a>        (e.g. computed with `numpy.linalg.cond`) may indicate that results are 
+<a name="l725"><span class="ln">725  </span></a>        unreliable. 
+<a name="l726"><span class="ln">726  </span></a>    infodict : dict (returned only if `full_output` is True) 
+<a name="l727"><span class="ln">727  </span></a>        a dictionary of optional outputs with the keys: 
+<a name="l728"><span class="ln">728  </span></a> 
+<a name="l729"><span class="ln">729  </span></a>        ``nfev`` 
+<a name="l730"><span class="ln">730  </span></a>            The number of function calls. Methods 'trf' and 'dogbox' do not 
+<a name="l731"><span class="ln">731  </span></a>            count function calls for numerical Jacobian approximation, 
+<a name="l732"><span class="ln">732  </span></a>            as opposed to 'lm' method. 
+<a name="l733"><span class="ln">733  </span></a>        ``fvec`` 
+<a name="l734"><span class="ln">734  </span></a>            The residual values evaluated at the solution, for a 1-D `sigma` 
+<a name="l735"><span class="ln">735  </span></a>            this is ``(f(x, *popt) - ydata)/sigma``. 
+<a name="l736"><span class="ln">736  </span></a>        ``fjac`` 
+<a name="l737"><span class="ln">737  </span></a>            A permutation of the R matrix of a QR 
+<a name="l738"><span class="ln">738  </span></a>            factorization of the final approximate 
+<a name="l739"><span class="ln">739  </span></a>            Jacobian matrix, stored column wise. 
+<a name="l740"><span class="ln">740  </span></a>            Together with ipvt, the covariance of the 
+<a name="l741"><span class="ln">741  </span></a>            estimate can be approximated. 
+<a name="l742"><span class="ln">742  </span></a>            Method 'lm' only provides this information. 
+<a name="l743"><span class="ln">743  </span></a>        ``ipvt`` 
+<a name="l744"><span class="ln">744  </span></a>            An integer array of length N which defines 
+<a name="l745"><span class="ln">745  </span></a>            a permutation matrix, p, such that 
+<a name="l746"><span class="ln">746  </span></a>            fjac*p = q*r, where r is upper triangular 
+<a name="l747"><span class="ln">747  </span></a>            with diagonal elements of nonincreasing 
+<a name="l748"><span class="ln">748  </span></a>            magnitude. Column j of p is column ipvt(j) 
+<a name="l749"><span class="ln">749  </span></a>            of the identity matrix. 
+<a name="l750"><span class="ln">750  </span></a>            Method 'lm' only provides this information. 
+<a name="l751"><span class="ln">751  </span></a>        ``qtf`` 
+<a name="l752"><span class="ln">752  </span></a>            The vector (transpose(q) * fvec). 
+<a name="l753"><span class="ln">753  </span></a>            Method 'lm' only provides this information. 
+<a name="l754"><span class="ln">754  </span></a> 
+<a name="l755"><span class="ln">755  </span></a>        .. versionadded:: 1.9 
+<a name="l756"><span class="ln">756  </span></a>    mesg : str (returned only if `full_output` is True) 
+<a name="l757"><span class="ln">757  </span></a>        A string message giving information about the solution. 
+<a name="l758"><span class="ln">758  </span></a> 
+<a name="l759"><span class="ln">759  </span></a>        .. versionadded:: 1.9 
+<a name="l760"><span class="ln">760  </span></a>    ier : int (returned only if `full_output` is True) 
+<a name="l761"><span class="ln">761  </span></a>        An integer flag. If it is equal to 1, 2, 3 or 4, the solution was 
+<a name="l762"><span class="ln">762  </span></a>        found. Otherwise, the solution was not found. In either case, the 
+<a name="l763"><span class="ln">763  </span></a>        optional output variable `mesg` gives more information. 
+<a name="l764"><span class="ln">764  </span></a> 
+<a name="l765"><span class="ln">765  </span></a>        .. versionadded:: 1.9 
+<a name="l766"><span class="ln">766  </span></a> 
+<a name="l767"><span class="ln">767  </span></a>    Raises 
+<a name="l768"><span class="ln">768  </span></a>    ------ 
+<a name="l769"><span class="ln">769  </span></a>    ValueError 
+<a name="l770"><span class="ln">770  </span></a>        if either `ydata` or `xdata` contain NaNs, or if incompatible options 
+<a name="l771"><span class="ln">771  </span></a>        are used. 
+<a name="l772"><span class="ln">772  </span></a> 
+<a name="l773"><span class="ln">773  </span></a>    RuntimeError 
+<a name="l774"><span class="ln">774  </span></a>        if the least-squares minimization fails. 
+<a name="l775"><span class="ln">775  </span></a> 
+<a name="l776"><span class="ln">776  </span></a>    OptimizeWarning 
+<a name="l777"><span class="ln">777  </span></a>        if covariance of the parameters can not be estimated. 
+<a name="l778"><span class="ln">778  </span></a> 
+<a name="l779"><span class="ln">779  </span></a>    See Also 
+<a name="l780"><span class="ln">780  </span></a>    -------- 
+<a name="l781"><span class="ln">781  </span></a>    least_squares : Minimize the sum of squares of nonlinear functions. 
+<a name="l782"><span class="ln">782  </span></a>    scipy.stats.linregress : Calculate a linear least squares regression for 
+<a name="l783"><span class="ln">783  </span></a>                             two sets of measurements. 
+<a name="l784"><span class="ln">784  </span></a> 
+<a name="l785"><span class="ln">785  </span></a>    Notes 
+<a name="l786"><span class="ln">786  </span></a>    ----- 
+<a name="l787"><span class="ln">787  </span></a>    Users should ensure that inputs `xdata`, `ydata`, and the output of `f` 
+<a name="l788"><span class="ln">788  </span></a>    are ``float64``, or else the optimization may return incorrect results. 
+<a name="l789"><span class="ln">789  </span></a> 
+<a name="l790"><span class="ln">790  </span></a>    With ``method='lm'``, the algorithm uses the Levenberg-Marquardt algorithm 
+<a name="l791"><span class="ln">791  </span></a>    through `leastsq`. Note that this algorithm can only deal with 
+<a name="l792"><span class="ln">792  </span></a>    unconstrained problems. 
+<a name="l793"><span class="ln">793  </span></a> 
+<a name="l794"><span class="ln">794  </span></a>    Box constraints can be handled by methods 'trf' and 'dogbox'. Refer to 
+<a name="l795"><span class="ln">795  </span></a>    the docstring of `least_squares` for more information. 
+<a name="l796"><span class="ln">796  </span></a> 
+<a name="l797"><span class="ln">797  </span></a>    Parameters to be fitted must have similar scale. Differences of multiple 
+<a name="l798"><span class="ln">798  </span></a>    orders of magnitude can lead to incorrect results. For the 'trf' and 
+<a name="l799"><span class="ln">799  </span></a>    'dogbox' methods, the `x_scale` keyword argument can be used to scale 
+<a name="l800"><span class="ln">800  </span></a>    the parameters. 
+<a name="l801"><span class="ln">801  </span></a> 
+<a name="l802"><span class="ln">802  </span></a>    References 
+<a name="l803"><span class="ln">803  </span></a>    ---------- 
+<a name="l804"><span class="ln">804  </span></a>    .. [1] K. Vugrin et al. Confidence region estimation techniques for nonlinear 
+<a name="l805"><span class="ln">805  </span></a>           regression in groundwater flow: Three case studies. Water Resources 
+<a name="l806"><span class="ln">806  </span></a>           Research, Vol. 43, W03423, :doi:`10.1029/2005WR004804` 
+<a name="l807"><span class="ln">807  </span></a> 
+<a name="l808"><span class="ln">808  </span></a>    Examples 
+<a name="l809"><span class="ln">809  </span></a>    -------- 
+<a name="l810"><span class="ln">810  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l811"><span class="ln">811  </span></a>    &gt;&gt;&gt; import matplotlib.pyplot as plt 
+<a name="l812"><span class="ln">812  </span></a>    &gt;&gt;&gt; from scipy.optimize import curve_fit 
+<a name="l813"><span class="ln">813  </span></a> 
+<a name="l814"><span class="ln">814  </span></a>    &gt;&gt;&gt; def func(x, a, b, c): 
+<a name="l815"><span class="ln">815  </span></a>    ...     return a * np.exp(-b * x) + c 
+<a name="l816"><span class="ln">816  </span></a> 
+<a name="l817"><span class="ln">817  </span></a>    Define the data to be fit with some noise: 
+<a name="l818"><span class="ln">818  </span></a> 
+<a name="l819"><span class="ln">819  </span></a>    &gt;&gt;&gt; xdata = np.linspace(0, 4, 50) 
+<a name="l820"><span class="ln">820  </span></a>    &gt;&gt;&gt; y = func(xdata, 2.5, 1.3, 0.5) 
+<a name="l821"><span class="ln">821  </span></a>    &gt;&gt;&gt; rng = np.random.default_rng() 
+<a name="l822"><span class="ln">822  </span></a>    &gt;&gt;&gt; y_noise = 0.2 * rng.normal(size=xdata.size) 
+<a name="l823"><span class="ln">823  </span></a>    &gt;&gt;&gt; ydata = y + y_noise 
+<a name="l824"><span class="ln">824  </span></a>    &gt;&gt;&gt; plt.plot(xdata, ydata, 'b-', label='data') 
+<a name="l825"><span class="ln">825  </span></a> 
+<a name="l826"><span class="ln">826  </span></a>    Fit for the parameters a, b, c of the function `func`: 
+<a name="l827"><span class="ln">827  </span></a> 
+<a name="l828"><span class="ln">828  </span></a>    &gt;&gt;&gt; popt, pcov = curve_fit(func, xdata, ydata) 
+<a name="l829"><span class="ln">829  </span></a>    &gt;&gt;&gt; popt 
+<a name="l830"><span class="ln">830  </span></a>    array([2.56274217, 1.37268521, 0.47427475]) 
+<a name="l831"><span class="ln">831  </span></a>    &gt;&gt;&gt; plt.plot(xdata, func(xdata, *popt), 'r-', 
+<a name="l832"><span class="ln">832  </span></a>    ...          label='fit: a=%5.3f, b=%5.3f, c=%5.3f' % tuple(popt)) 
+<a name="l833"><span class="ln">833  </span></a> 
+<a name="l834"><span class="ln">834  </span></a>    Constrain the optimization to the region of ``0 &lt;= a &lt;= 3``, 
+<a name="l835"><span class="ln">835  </span></a>    ``0 &lt;= b &lt;= 1`` and ``0 &lt;= c &lt;= 0.5``: 
+<a name="l836"><span class="ln">836  </span></a> 
+<a name="l837"><span class="ln">837  </span></a>    &gt;&gt;&gt; popt, pcov = curve_fit(func, xdata, ydata, bounds=(0, [3., 1., 0.5])) 
+<a name="l838"><span class="ln">838  </span></a>    &gt;&gt;&gt; popt 
+<a name="l839"><span class="ln">839  </span></a>    array([2.43736712, 1.        , 0.34463856]) 
+<a name="l840"><span class="ln">840  </span></a>    &gt;&gt;&gt; plt.plot(xdata, func(xdata, *popt), 'g--', 
+<a name="l841"><span class="ln">841  </span></a>    ...          label='fit: a=%5.3f, b=%5.3f, c=%5.3f' % tuple(popt)) 
+<a name="l842"><span class="ln">842  </span></a> 
+<a name="l843"><span class="ln">843  </span></a>    &gt;&gt;&gt; plt.xlabel('x') 
+<a name="l844"><span class="ln">844  </span></a>    &gt;&gt;&gt; plt.ylabel('y') 
+<a name="l845"><span class="ln">845  </span></a>    &gt;&gt;&gt; plt.legend() 
+<a name="l846"><span class="ln">846  </span></a>    &gt;&gt;&gt; plt.show() 
+<a name="l847"><span class="ln">847  </span></a> 
+<a name="l848"><span class="ln">848  </span></a>    For reliable results, the model `func` should not be overparametrized; 
+<a name="l849"><span class="ln">849  </span></a>    redundant parameters can cause unreliable covariance matrices and, in some 
+<a name="l850"><span class="ln">850  </span></a>    cases, poorer quality fits. As a quick check of whether the model may be 
+<a name="l851"><span class="ln">851  </span></a>    overparameterized, calculate the condition number of the covariance matrix: 
+<a name="l852"><span class="ln">852  </span></a> 
+<a name="l853"><span class="ln">853  </span></a>    &gt;&gt;&gt; np.linalg.cond(pcov) 
+<a name="l854"><span class="ln">854  </span></a>    34.571092161547405  # may vary 
+<a name="l855"><span class="ln">855  </span></a> 
+<a name="l856"><span class="ln">856  </span></a>    The value is small, so it does not raise much concern. If, however, we were 
+<a name="l857"><span class="ln">857  </span></a>    to add a fourth parameter ``d`` to `func` with the same effect as ``a``: 
+<a name="l858"><span class="ln">858  </span></a> 
+<a name="l859"><span class="ln">859  </span></a>    &gt;&gt;&gt; def func2(x, a, b, c, d): 
+<a name="l860"><span class="ln">860  </span></a>    ...     return a * d * np.exp(-b * x) + c  # a and d are redundant 
+<a name="l861"><span class="ln">861  </span></a>    &gt;&gt;&gt; popt, pcov = curve_fit(func2, xdata, ydata) 
+<a name="l862"><span class="ln">862  </span></a>    &gt;&gt;&gt; np.linalg.cond(pcov) 
+<a name="l863"><span class="ln">863  </span></a>    1.13250718925596e+32  # may vary 
+<a name="l864"><span class="ln">864  </span></a> 
+<a name="l865"><span class="ln">865  </span></a>    Such a large value is cause for concern. The diagonal elements of the 
+<a name="l866"><span class="ln">866  </span></a>    covariance matrix, which is related to uncertainty of the fit, gives more 
+<a name="l867"><span class="ln">867  </span></a>    information: 
+<a name="l868"><span class="ln">868  </span></a> 
+<a name="l869"><span class="ln">869  </span></a>    &gt;&gt;&gt; np.diag(pcov) 
+<a name="l870"><span class="ln">870  </span></a>    array([1.48814742e+29, 3.78596560e-02, 5.39253738e-03, 2.76417220e+28])  # may vary 
+<a name="l871"><span class="ln">871  </span></a> 
+<a name="l872"><span class="ln">872  </span></a>    Note that the first and last terms are much larger than the other elements, 
+<a name="l873"><span class="ln">873  </span></a>    suggesting that the optimal values of these parameters are ambiguous and 
+<a name="l874"><span class="ln">874  </span></a>    that only one of these parameters is needed in the model. 
+<a name="l875"><span class="ln">875  </span></a> 
+<a name="l876"><span class="ln">876  </span></a>    If the optimal parameters of `f` differ by multiple orders of magnitude, the 
+<a name="l877"><span class="ln">877  </span></a>    resulting fit can be inaccurate. Sometimes, `curve_fit` can fail to find any 
+<a name="l878"><span class="ln">878  </span></a>    results: 
+<a name="l879"><span class="ln">879  </span></a> 
+<a name="l880"><span class="ln">880  </span></a>    &gt;&gt;&gt; ydata = func(xdata, 500000, 0.01, 15) 
+<a name="l881"><span class="ln">881  </span></a>    &gt;&gt;&gt; try: 
+<a name="l882"><span class="ln">882  </span></a>    ...     popt, pcov = curve_fit(func, xdata, ydata, method = 'trf') 
+<a name="l883"><span class="ln">883  </span></a>    ... except RuntimeError as e: 
+<a name="l884"><span class="ln">884  </span></a>    ...     print(e) 
+<a name="l885"><span class="ln">885  </span></a>    Optimal parameters not found: The maximum number of function evaluations is 
+<a name="l886"><span class="ln">886  </span></a>    exceeded. 
+<a name="l887"><span class="ln">887  </span></a> 
+<a name="l888"><span class="ln">888  </span></a>    If parameter scale is roughly known beforehand, it can be defined in 
+<a name="l889"><span class="ln">889  </span></a>    `x_scale` argument: 
+<a name="l890"><span class="ln">890  </span></a> 
+<a name="l891"><span class="ln">891  </span></a>    &gt;&gt;&gt; popt, pcov = curve_fit(func, xdata, ydata, method = 'trf', 
+<a name="l892"><span class="ln">892  </span></a>    ...                        x_scale = [1000, 1, 1]) 
+<a name="l893"><span class="ln">893  </span></a>    &gt;&gt;&gt; popt 
+<a name="l894"><span class="ln">894  </span></a>    array([5.00000000e+05, 1.00000000e-02, 1.49999999e+01]) 
+<a name="l895"><span class="ln">895  </span></a>    &quot;&quot;&quot;</span>
+<a name="l896"><span class="ln">896  </span></a>    <span class="s0">if </span><span class="s1">p0 </span><span class="s0">is None:</span>
+<a name="l897"><span class="ln">897  </span></a>        <span class="s3"># determine number of parameters by inspecting the function</span>
+<a name="l898"><span class="ln">898  </span></a>        <span class="s1">sig </span><span class="s0">= </span><span class="s1">_getfullargspec</span><span class="s2">(</span><span class="s1">f</span><span class="s2">)</span>
+<a name="l899"><span class="ln">899  </span></a>        <span class="s1">args </span><span class="s0">= </span><span class="s1">sig</span><span class="s2">.</span><span class="s1">args</span>
+<a name="l900"><span class="ln">900  </span></a>        <span class="s0">if </span><span class="s1">len</span><span class="s2">(</span><span class="s1">args</span><span class="s2">) </span><span class="s0">&lt; </span><span class="s5">2</span><span class="s0">:</span>
+<a name="l901"><span class="ln">901  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s4">&quot;Unable to determine number of fit parameters.&quot;</span><span class="s2">)</span>
+<a name="l902"><span class="ln">902  </span></a>        <span class="s1">n </span><span class="s0">= </span><span class="s1">len</span><span class="s2">(</span><span class="s1">args</span><span class="s2">) </span><span class="s0">- </span><span class="s5">1</span>
+<a name="l903"><span class="ln">903  </span></a>    <span class="s0">else:</span>
+<a name="l904"><span class="ln">904  </span></a>        <span class="s1">p0 </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">atleast_1d</span><span class="s2">(</span><span class="s1">p0</span><span class="s2">)</span>
+<a name="l905"><span class="ln">905  </span></a>        <span class="s1">n </span><span class="s0">= </span><span class="s1">p0</span><span class="s2">.</span><span class="s1">size</span>
+<a name="l906"><span class="ln">906  </span></a>
+<a name="l907"><span class="ln">907  </span></a>    <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">bounds</span><span class="s2">, </span><span class="s1">Bounds</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l908"><span class="ln">908  </span></a>        <span class="s1">lb</span><span class="s2">, </span><span class="s1">ub </span><span class="s0">= </span><span class="s1">bounds</span><span class="s2">.</span><span class="s1">lb</span><span class="s2">, </span><span class="s1">bounds</span><span class="s2">.</span><span class="s1">ub</span>
+<a name="l909"><span class="ln">909  </span></a>    <span class="s0">else:</span>
+<a name="l910"><span class="ln">910  </span></a>        <span class="s1">lb</span><span class="s2">, </span><span class="s1">ub </span><span class="s0">= </span><span class="s1">prepare_bounds</span><span class="s2">(</span><span class="s1">bounds</span><span class="s2">, </span><span class="s1">n</span><span class="s2">)</span>
+<a name="l911"><span class="ln">911  </span></a>    <span class="s0">if </span><span class="s1">p0 </span><span class="s0">is None:</span>
+<a name="l912"><span class="ln">912  </span></a>        <span class="s1">p0 </span><span class="s0">= </span><span class="s1">_initialize_feasible</span><span class="s2">(</span><span class="s1">lb</span><span class="s2">, </span><span class="s1">ub</span><span class="s2">)</span>
+<a name="l913"><span class="ln">913  </span></a>
+<a name="l914"><span class="ln">914  </span></a>    <span class="s1">bounded_problem </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">any</span><span class="s2">((</span><span class="s1">lb </span><span class="s0">&gt; -</span><span class="s1">np</span><span class="s2">.</span><span class="s1">inf</span><span class="s2">) </span><span class="s0">| </span><span class="s2">(</span><span class="s1">ub </span><span class="s0">&lt; </span><span class="s1">np</span><span class="s2">.</span><span class="s1">inf</span><span class="s2">))</span>
+<a name="l915"><span class="ln">915  </span></a>    <span class="s0">if </span><span class="s1">method </span><span class="s0">is None:</span>
+<a name="l916"><span class="ln">916  </span></a>        <span class="s0">if </span><span class="s1">bounded_problem</span><span class="s0">:</span>
+<a name="l917"><span class="ln">917  </span></a>            <span class="s1">method </span><span class="s0">= </span><span class="s4">'trf'</span>
+<a name="l918"><span class="ln">918  </span></a>        <span class="s0">else:</span>
+<a name="l919"><span class="ln">919  </span></a>            <span class="s1">method </span><span class="s0">= </span><span class="s4">'lm'</span>
+<a name="l920"><span class="ln">920  </span></a>
+<a name="l921"><span class="ln">921  </span></a>    <span class="s0">if </span><span class="s1">method </span><span class="s0">== </span><span class="s4">'lm' </span><span class="s0">and </span><span class="s1">bounded_problem</span><span class="s0">:</span>
+<a name="l922"><span class="ln">922  </span></a>        <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s4">&quot;Method 'lm' only works for unconstrained problems. &quot;</span>
+<a name="l923"><span class="ln">923  </span></a>                         <span class="s4">&quot;Use 'trf' or 'dogbox' instead.&quot;</span><span class="s2">)</span>
+<a name="l924"><span class="ln">924  </span></a>
+<a name="l925"><span class="ln">925  </span></a>    <span class="s0">if </span><span class="s1">check_finite </span><span class="s0">is None:</span>
+<a name="l926"><span class="ln">926  </span></a>        <span class="s1">check_finite </span><span class="s0">= True if </span><span class="s1">nan_policy </span><span class="s0">is None else False</span>
+<a name="l927"><span class="ln">927  </span></a>
+<a name="l928"><span class="ln">928  </span></a>    <span class="s3"># optimization may produce garbage for float32 inputs, cast them to float64</span>
+<a name="l929"><span class="ln">929  </span></a>    <span class="s0">if </span><span class="s1">check_finite</span><span class="s0">:</span>
+<a name="l930"><span class="ln">930  </span></a>        <span class="s1">ydata </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">asarray_chkfinite</span><span class="s2">(</span><span class="s1">ydata</span><span class="s2">, </span><span class="s1">float</span><span class="s2">)</span>
+<a name="l931"><span class="ln">931  </span></a>    <span class="s0">else:</span>
+<a name="l932"><span class="ln">932  </span></a>        <span class="s1">ydata </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">(</span><span class="s1">ydata</span><span class="s2">, </span><span class="s1">float</span><span class="s2">)</span>
+<a name="l933"><span class="ln">933  </span></a>
+<a name="l934"><span class="ln">934  </span></a>    <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">xdata</span><span class="s2">, (</span><span class="s1">list</span><span class="s2">, </span><span class="s1">tuple</span><span class="s2">, </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ndarray</span><span class="s2">))</span><span class="s0">:</span>
+<a name="l935"><span class="ln">935  </span></a>        <span class="s3"># `xdata` is passed straight to the user-defined `f`, so allow</span>
+<a name="l936"><span class="ln">936  </span></a>        <span class="s3"># non-array_like `xdata`.</span>
+<a name="l937"><span class="ln">937  </span></a>        <span class="s0">if </span><span class="s1">check_finite</span><span class="s0">:</span>
+<a name="l938"><span class="ln">938  </span></a>            <span class="s1">xdata </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">asarray_chkfinite</span><span class="s2">(</span><span class="s1">xdata</span><span class="s2">, </span><span class="s1">float</span><span class="s2">)</span>
+<a name="l939"><span class="ln">939  </span></a>        <span class="s0">else:</span>
+<a name="l940"><span class="ln">940  </span></a>            <span class="s1">xdata </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">(</span><span class="s1">xdata</span><span class="s2">, </span><span class="s1">float</span><span class="s2">)</span>
+<a name="l941"><span class="ln">941  </span></a>
+<a name="l942"><span class="ln">942  </span></a>    <span class="s0">if </span><span class="s1">ydata</span><span class="s2">.</span><span class="s1">size </span><span class="s0">== </span><span class="s5">0</span><span class="s0">:</span>
+<a name="l943"><span class="ln">943  </span></a>        <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s4">&quot;`ydata` must not be empty!&quot;</span><span class="s2">)</span>
+<a name="l944"><span class="ln">944  </span></a>
+<a name="l945"><span class="ln">945  </span></a>    <span class="s3"># nan handling is needed only if check_finite is False because if True,</span>
+<a name="l946"><span class="ln">946  </span></a>    <span class="s3"># the x-y data are already checked, and they don't contain nans.</span>
+<a name="l947"><span class="ln">947  </span></a>    <span class="s0">if not </span><span class="s1">check_finite </span><span class="s0">and </span><span class="s1">nan_policy </span><span class="s0">is not None:</span>
+<a name="l948"><span class="ln">948  </span></a>        <span class="s0">if </span><span class="s1">nan_policy </span><span class="s0">== </span><span class="s4">&quot;propagate&quot;</span><span class="s0">:</span>
+<a name="l949"><span class="ln">949  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s4">&quot;`nan_policy='propagate'` is not supported &quot;</span>
+<a name="l950"><span class="ln">950  </span></a>                             <span class="s4">&quot;by this function.&quot;</span><span class="s2">)</span>
+<a name="l951"><span class="ln">951  </span></a>
+<a name="l952"><span class="ln">952  </span></a>        <span class="s1">policies </span><span class="s0">= </span><span class="s2">[</span><span class="s0">None</span><span class="s2">, </span><span class="s4">'raise'</span><span class="s2">, </span><span class="s4">'omit'</span><span class="s2">]</span>
+<a name="l953"><span class="ln">953  </span></a>        <span class="s1">x_contains_nan</span><span class="s2">, </span><span class="s1">nan_policy </span><span class="s0">= </span><span class="s1">_contains_nan</span><span class="s2">(</span><span class="s1">xdata</span><span class="s2">, </span><span class="s1">nan_policy</span><span class="s2">,</span>
+<a name="l954"><span class="ln">954  </span></a>                                                   <span class="s1">policies</span><span class="s0">=</span><span class="s1">policies</span><span class="s2">)</span>
+<a name="l955"><span class="ln">955  </span></a>        <span class="s1">y_contains_nan</span><span class="s2">, </span><span class="s1">nan_policy </span><span class="s0">= </span><span class="s1">_contains_nan</span><span class="s2">(</span><span class="s1">ydata</span><span class="s2">, </span><span class="s1">nan_policy</span><span class="s2">,</span>
+<a name="l956"><span class="ln">956  </span></a>                                                   <span class="s1">policies</span><span class="s0">=</span><span class="s1">policies</span><span class="s2">)</span>
+<a name="l957"><span class="ln">957  </span></a>
+<a name="l958"><span class="ln">958  </span></a>        <span class="s0">if </span><span class="s2">(</span><span class="s1">x_contains_nan </span><span class="s0">or </span><span class="s1">y_contains_nan</span><span class="s2">) </span><span class="s0">and </span><span class="s1">nan_policy </span><span class="s0">== </span><span class="s4">'omit'</span><span class="s0">:</span>
+<a name="l959"><span class="ln">959  </span></a>            <span class="s3"># ignore NaNs for N dimensional arrays</span>
+<a name="l960"><span class="ln">960  </span></a>            <span class="s1">has_nan </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">isnan</span><span class="s2">(</span><span class="s1">xdata</span><span class="s2">)</span>
+<a name="l961"><span class="ln">961  </span></a>            <span class="s1">has_nan </span><span class="s0">= </span><span class="s1">has_nan</span><span class="s2">.</span><span class="s1">any</span><span class="s2">(</span><span class="s1">axis</span><span class="s0">=</span><span class="s1">tuple</span><span class="s2">(</span><span class="s1">range</span><span class="s2">(</span><span class="s1">has_nan</span><span class="s2">.</span><span class="s1">ndim</span><span class="s0">-</span><span class="s5">1</span><span class="s2">)))</span>
+<a name="l962"><span class="ln">962  </span></a>            <span class="s1">has_nan </span><span class="s0">|= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">isnan</span><span class="s2">(</span><span class="s1">ydata</span><span class="s2">)</span>
+<a name="l963"><span class="ln">963  </span></a>
+<a name="l964"><span class="ln">964  </span></a>            <span class="s1">xdata </span><span class="s0">= </span><span class="s1">xdata</span><span class="s2">[..., </span><span class="s0">~</span><span class="s1">has_nan</span><span class="s2">]</span>
+<a name="l965"><span class="ln">965  </span></a>            <span class="s1">ydata </span><span class="s0">= </span><span class="s1">ydata</span><span class="s2">[</span><span class="s0">~</span><span class="s1">has_nan</span><span class="s2">]</span>
+<a name="l966"><span class="ln">966  </span></a>
+<a name="l967"><span class="ln">967  </span></a>            <span class="s3"># Also omit the corresponding entries from sigma</span>
+<a name="l968"><span class="ln">968  </span></a>            <span class="s0">if </span><span class="s1">sigma </span><span class="s0">is not None:</span>
+<a name="l969"><span class="ln">969  </span></a>                <span class="s1">sigma </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">(</span><span class="s1">sigma</span><span class="s2">)</span>
+<a name="l970"><span class="ln">970  </span></a>                <span class="s0">if </span><span class="s1">sigma</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">== </span><span class="s5">1</span><span class="s0">:</span>
+<a name="l971"><span class="ln">971  </span></a>                    <span class="s1">sigma </span><span class="s0">= </span><span class="s1">sigma</span><span class="s2">[</span><span class="s0">~</span><span class="s1">has_nan</span><span class="s2">]</span>
+<a name="l972"><span class="ln">972  </span></a>                <span class="s0">elif </span><span class="s1">sigma</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">== </span><span class="s5">2</span><span class="s0">:</span>
+<a name="l973"><span class="ln">973  </span></a>                    <span class="s1">sigma </span><span class="s0">= </span><span class="s1">sigma</span><span class="s2">[</span><span class="s0">~</span><span class="s1">has_nan</span><span class="s2">, </span><span class="s0">:</span><span class="s2">]</span>
+<a name="l974"><span class="ln">974  </span></a>                    <span class="s1">sigma </span><span class="s0">= </span><span class="s1">sigma</span><span class="s2">[</span><span class="s0">:</span><span class="s2">, </span><span class="s0">~</span><span class="s1">has_nan</span><span class="s2">]</span>
+<a name="l975"><span class="ln">975  </span></a>
+<a name="l976"><span class="ln">976  </span></a>    <span class="s3"># Determine type of sigma</span>
+<a name="l977"><span class="ln">977  </span></a>    <span class="s0">if </span><span class="s1">sigma </span><span class="s0">is not None:</span>
+<a name="l978"><span class="ln">978  </span></a>        <span class="s1">sigma </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">asarray</span><span class="s2">(</span><span class="s1">sigma</span><span class="s2">)</span>
+<a name="l979"><span class="ln">979  </span></a>
+<a name="l980"><span class="ln">980  </span></a>        <span class="s3"># if 1-D or a scalar, sigma are errors, define transform = 1/sigma</span>
+<a name="l981"><span class="ln">981  </span></a>        <span class="s0">if </span><span class="s1">sigma</span><span class="s2">.</span><span class="s1">size </span><span class="s0">== </span><span class="s5">1 </span><span class="s0">or </span><span class="s1">sigma</span><span class="s2">.</span><span class="s1">shape </span><span class="s0">== </span><span class="s2">(</span><span class="s1">ydata</span><span class="s2">.</span><span class="s1">size</span><span class="s2">,)</span><span class="s0">:</span>
+<a name="l982"><span class="ln">982  </span></a>            <span class="s1">transform </span><span class="s0">= </span><span class="s5">1.0 </span><span class="s0">/ </span><span class="s1">sigma</span>
+<a name="l983"><span class="ln">983  </span></a>        <span class="s3"># if 2-D, sigma is the covariance matrix,</span>
+<a name="l984"><span class="ln">984  </span></a>        <span class="s3"># define transform = L such that L L^T = C</span>
+<a name="l985"><span class="ln">985  </span></a>        <span class="s0">elif </span><span class="s1">sigma</span><span class="s2">.</span><span class="s1">shape </span><span class="s0">== </span><span class="s2">(</span><span class="s1">ydata</span><span class="s2">.</span><span class="s1">size</span><span class="s2">, </span><span class="s1">ydata</span><span class="s2">.</span><span class="s1">size</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l986"><span class="ln">986  </span></a>            <span class="s0">try:</span>
+<a name="l987"><span class="ln">987  </span></a>                <span class="s3"># scipy.linalg.cholesky requires lower=True to return L L^T = A</span>
+<a name="l988"><span class="ln">988  </span></a>                <span class="s1">transform </span><span class="s0">= </span><span class="s1">cholesky</span><span class="s2">(</span><span class="s1">sigma</span><span class="s2">, </span><span class="s1">lower</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l989"><span class="ln">989  </span></a>            <span class="s0">except </span><span class="s1">LinAlgError </span><span class="s0">as </span><span class="s1">e</span><span class="s0">:</span>
+<a name="l990"><span class="ln">990  </span></a>                <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s4">&quot;`sigma` must be positive definite.&quot;</span><span class="s2">) </span><span class="s0">from </span><span class="s1">e</span>
+<a name="l991"><span class="ln">991  </span></a>        <span class="s0">else:</span>
+<a name="l992"><span class="ln">992  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s4">&quot;`sigma` has incorrect shape.&quot;</span><span class="s2">)</span>
+<a name="l993"><span class="ln">993  </span></a>    <span class="s0">else:</span>
+<a name="l994"><span class="ln">994  </span></a>        <span class="s1">transform </span><span class="s0">= None</span>
+<a name="l995"><span class="ln">995  </span></a>
+<a name="l996"><span class="ln">996  </span></a>    <span class="s1">func </span><span class="s0">= </span><span class="s1">_lightweight_memoizer</span><span class="s2">(</span><span class="s1">_wrap_func</span><span class="s2">(</span><span class="s1">f</span><span class="s2">, </span><span class="s1">xdata</span><span class="s2">, </span><span class="s1">ydata</span><span class="s2">, </span><span class="s1">transform</span><span class="s2">))</span>
+<a name="l997"><span class="ln">997  </span></a>
+<a name="l998"><span class="ln">998  </span></a>    <span class="s0">if </span><span class="s1">callable</span><span class="s2">(</span><span class="s1">jac</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l999"><span class="ln">999  </span></a>        <span class="s1">jac </span><span class="s0">= </span><span class="s1">_lightweight_memoizer</span><span class="s2">(</span><span class="s1">_wrap_jac</span><span class="s2">(</span><span class="s1">jac</span><span class="s2">, </span><span class="s1">xdata</span><span class="s2">, </span><span class="s1">transform</span><span class="s2">))</span>
+<a name="l1000"><span class="ln">1000 </span></a>    <span class="s0">elif </span><span class="s1">jac </span><span class="s0">is None and </span><span class="s1">method </span><span class="s0">!= </span><span class="s4">'lm'</span><span class="s0">:</span>
+<a name="l1001"><span class="ln">1001 </span></a>        <span class="s1">jac </span><span class="s0">= </span><span class="s4">'2-point'</span>
+<a name="l1002"><span class="ln">1002 </span></a>
+<a name="l1003"><span class="ln">1003 </span></a>    <span class="s0">if </span><span class="s4">'args' </span><span class="s0">in </span><span class="s1">kwargs</span><span class="s0">:</span>
+<a name="l1004"><span class="ln">1004 </span></a>        <span class="s3"># The specification for the model function `f` does not support</span>
+<a name="l1005"><span class="ln">1005 </span></a>        <span class="s3"># additional arguments. Refer to the `curve_fit` docstring for</span>
+<a name="l1006"><span class="ln">1006 </span></a>        <span class="s3"># acceptable call signatures of `f`.</span>
+<a name="l1007"><span class="ln">1007 </span></a>        <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s4">&quot;'args' is not a supported keyword argument.&quot;</span><span class="s2">)</span>
+<a name="l1008"><span class="ln">1008 </span></a>
+<a name="l1009"><span class="ln">1009 </span></a>    <span class="s0">if </span><span class="s1">method </span><span class="s0">== </span><span class="s4">'lm'</span><span class="s0">:</span>
+<a name="l1010"><span class="ln">1010 </span></a>        <span class="s3"># if ydata.size == 1, this might be used for broadcast.</span>
+<a name="l1011"><span class="ln">1011 </span></a>        <span class="s0">if </span><span class="s1">ydata</span><span class="s2">.</span><span class="s1">size </span><span class="s0">!= </span><span class="s5">1 </span><span class="s0">and </span><span class="s1">n </span><span class="s0">&gt; </span><span class="s1">ydata</span><span class="s2">.</span><span class="s1">size</span><span class="s0">:</span>
+<a name="l1012"><span class="ln">1012 </span></a>            <span class="s0">raise </span><span class="s1">TypeError</span><span class="s2">(</span><span class="s4">f&quot;The number of func parameters={</span><span class="s1">n</span><span class="s4">} must not&quot;</span>
+<a name="l1013"><span class="ln">1013 </span></a>                            <span class="s4">f&quot; exceed the number of data points={</span><span class="s1">ydata</span><span class="s2">.</span><span class="s1">size</span><span class="s4">}&quot;</span><span class="s2">)</span>
+<a name="l1014"><span class="ln">1014 </span></a>        <span class="s1">res </span><span class="s0">= </span><span class="s1">leastsq</span><span class="s2">(</span><span class="s1">func</span><span class="s2">, </span><span class="s1">p0</span><span class="s2">, </span><span class="s1">Dfun</span><span class="s0">=</span><span class="s1">jac</span><span class="s2">, </span><span class="s1">full_output</span><span class="s0">=</span><span class="s5">1</span><span class="s2">, </span><span class="s0">**</span><span class="s1">kwargs</span><span class="s2">)</span>
+<a name="l1015"><span class="ln">1015 </span></a>        <span class="s1">popt</span><span class="s2">, </span><span class="s1">pcov</span><span class="s2">, </span><span class="s1">infodict</span><span class="s2">, </span><span class="s1">errmsg</span><span class="s2">, </span><span class="s1">ier </span><span class="s0">= </span><span class="s1">res</span>
+<a name="l1016"><span class="ln">1016 </span></a>        <span class="s1">ysize </span><span class="s0">= </span><span class="s1">len</span><span class="s2">(</span><span class="s1">infodict</span><span class="s2">[</span><span class="s4">'fvec'</span><span class="s2">])</span>
+<a name="l1017"><span class="ln">1017 </span></a>        <span class="s1">cost </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">sum</span><span class="s2">(</span><span class="s1">infodict</span><span class="s2">[</span><span class="s4">'fvec'</span><span class="s2">] </span><span class="s0">** </span><span class="s5">2</span><span class="s2">)</span>
+<a name="l1018"><span class="ln">1018 </span></a>        <span class="s0">if </span><span class="s1">ier </span><span class="s0">not in </span><span class="s2">[</span><span class="s5">1</span><span class="s2">, </span><span class="s5">2</span><span class="s2">, </span><span class="s5">3</span><span class="s2">, </span><span class="s5">4</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l1019"><span class="ln">1019 </span></a>            <span class="s0">raise </span><span class="s1">RuntimeError</span><span class="s2">(</span><span class="s4">&quot;Optimal parameters not found: &quot; </span><span class="s0">+ </span><span class="s1">errmsg</span><span class="s2">)</span>
+<a name="l1020"><span class="ln">1020 </span></a>    <span class="s0">else:</span>
+<a name="l1021"><span class="ln">1021 </span></a>        <span class="s3"># Rename maxfev (leastsq) to max_nfev (least_squares), if specified.</span>
+<a name="l1022"><span class="ln">1022 </span></a>        <span class="s0">if </span><span class="s4">'max_nfev' </span><span class="s0">not in </span><span class="s1">kwargs</span><span class="s0">:</span>
+<a name="l1023"><span class="ln">1023 </span></a>            <span class="s1">kwargs</span><span class="s2">[</span><span class="s4">'max_nfev'</span><span class="s2">] </span><span class="s0">= </span><span class="s1">kwargs</span><span class="s2">.</span><span class="s1">pop</span><span class="s2">(</span><span class="s4">'maxfev'</span><span class="s2">, </span><span class="s0">None</span><span class="s2">)</span>
+<a name="l1024"><span class="ln">1024 </span></a>
+<a name="l1025"><span class="ln">1025 </span></a>        <span class="s1">res </span><span class="s0">= </span><span class="s1">least_squares</span><span class="s2">(</span><span class="s1">func</span><span class="s2">, </span><span class="s1">p0</span><span class="s2">, </span><span class="s1">jac</span><span class="s0">=</span><span class="s1">jac</span><span class="s2">, </span><span class="s1">bounds</span><span class="s0">=</span><span class="s1">bounds</span><span class="s2">, </span><span class="s1">method</span><span class="s0">=</span><span class="s1">method</span><span class="s2">,</span>
+<a name="l1026"><span class="ln">1026 </span></a>                            <span class="s0">**</span><span class="s1">kwargs</span><span class="s2">)</span>
+<a name="l1027"><span class="ln">1027 </span></a>
+<a name="l1028"><span class="ln">1028 </span></a>        <span class="s0">if not </span><span class="s1">res</span><span class="s2">.</span><span class="s1">success</span><span class="s0">:</span>
+<a name="l1029"><span class="ln">1029 </span></a>            <span class="s0">raise </span><span class="s1">RuntimeError</span><span class="s2">(</span><span class="s4">&quot;Optimal parameters not found: &quot; </span><span class="s0">+ </span><span class="s1">res</span><span class="s2">.</span><span class="s1">message</span><span class="s2">)</span>
+<a name="l1030"><span class="ln">1030 </span></a>
+<a name="l1031"><span class="ln">1031 </span></a>        <span class="s1">infodict </span><span class="s0">= </span><span class="s1">dict</span><span class="s2">(</span><span class="s1">nfev</span><span class="s0">=</span><span class="s1">res</span><span class="s2">.</span><span class="s1">nfev</span><span class="s2">, </span><span class="s1">fvec</span><span class="s0">=</span><span class="s1">res</span><span class="s2">.</span><span class="s1">fun</span><span class="s2">)</span>
+<a name="l1032"><span class="ln">1032 </span></a>        <span class="s1">ier </span><span class="s0">= </span><span class="s1">res</span><span class="s2">.</span><span class="s1">status</span>
+<a name="l1033"><span class="ln">1033 </span></a>        <span class="s1">errmsg </span><span class="s0">= </span><span class="s1">res</span><span class="s2">.</span><span class="s1">message</span>
+<a name="l1034"><span class="ln">1034 </span></a>
+<a name="l1035"><span class="ln">1035 </span></a>        <span class="s1">ysize </span><span class="s0">= </span><span class="s1">len</span><span class="s2">(</span><span class="s1">res</span><span class="s2">.</span><span class="s1">fun</span><span class="s2">)</span>
+<a name="l1036"><span class="ln">1036 </span></a>        <span class="s1">cost </span><span class="s0">= </span><span class="s5">2 </span><span class="s0">* </span><span class="s1">res</span><span class="s2">.</span><span class="s1">cost  </span><span class="s3"># res.cost is half sum of squares!</span>
+<a name="l1037"><span class="ln">1037 </span></a>        <span class="s1">popt </span><span class="s0">= </span><span class="s1">res</span><span class="s2">.</span><span class="s1">x</span>
+<a name="l1038"><span class="ln">1038 </span></a>
+<a name="l1039"><span class="ln">1039 </span></a>        <span class="s3"># Do Moore-Penrose inverse discarding zero singular values.</span>
+<a name="l1040"><span class="ln">1040 </span></a>        <span class="s1">_</span><span class="s2">, </span><span class="s1">s</span><span class="s2">, </span><span class="s1">VT </span><span class="s0">= </span><span class="s1">svd</span><span class="s2">(</span><span class="s1">res</span><span class="s2">.</span><span class="s1">jac</span><span class="s2">, </span><span class="s1">full_matrices</span><span class="s0">=False</span><span class="s2">)</span>
+<a name="l1041"><span class="ln">1041 </span></a>        <span class="s1">threshold </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">finfo</span><span class="s2">(</span><span class="s1">float</span><span class="s2">).</span><span class="s1">eps </span><span class="s0">* </span><span class="s1">max</span><span class="s2">(</span><span class="s1">res</span><span class="s2">.</span><span class="s1">jac</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">) </span><span class="s0">* </span><span class="s1">s</span><span class="s2">[</span><span class="s5">0</span><span class="s2">]</span>
+<a name="l1042"><span class="ln">1042 </span></a>        <span class="s1">s </span><span class="s0">= </span><span class="s1">s</span><span class="s2">[</span><span class="s1">s </span><span class="s0">&gt; </span><span class="s1">threshold</span><span class="s2">]</span>
+<a name="l1043"><span class="ln">1043 </span></a>        <span class="s1">VT </span><span class="s0">= </span><span class="s1">VT</span><span class="s2">[</span><span class="s0">:</span><span class="s1">s</span><span class="s2">.</span><span class="s1">size</span><span class="s2">]</span>
+<a name="l1044"><span class="ln">1044 </span></a>        <span class="s1">pcov </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">dot</span><span class="s2">(</span><span class="s1">VT</span><span class="s2">.</span><span class="s1">T </span><span class="s0">/ </span><span class="s1">s</span><span class="s0">**</span><span class="s5">2</span><span class="s2">, </span><span class="s1">VT</span><span class="s2">)</span>
+<a name="l1045"><span class="ln">1045 </span></a>
+<a name="l1046"><span class="ln">1046 </span></a>    <span class="s1">warn_cov </span><span class="s0">= False</span>
+<a name="l1047"><span class="ln">1047 </span></a>    <span class="s0">if </span><span class="s1">pcov </span><span class="s0">is None or </span><span class="s1">np</span><span class="s2">.</span><span class="s1">isnan</span><span class="s2">(</span><span class="s1">pcov</span><span class="s2">).</span><span class="s1">any</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l1048"><span class="ln">1048 </span></a>        <span class="s3"># indeterminate covariance</span>
+<a name="l1049"><span class="ln">1049 </span></a>        <span class="s1">pcov </span><span class="s0">= </span><span class="s1">zeros</span><span class="s2">((</span><span class="s1">len</span><span class="s2">(</span><span class="s1">popt</span><span class="s2">), </span><span class="s1">len</span><span class="s2">(</span><span class="s1">popt</span><span class="s2">)), </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">float</span><span class="s2">)</span>
+<a name="l1050"><span class="ln">1050 </span></a>        <span class="s1">pcov</span><span class="s2">.</span><span class="s1">fill</span><span class="s2">(</span><span class="s1">inf</span><span class="s2">)</span>
+<a name="l1051"><span class="ln">1051 </span></a>        <span class="s1">warn_cov </span><span class="s0">= True</span>
+<a name="l1052"><span class="ln">1052 </span></a>    <span class="s0">elif not </span><span class="s1">absolute_sigma</span><span class="s0">:</span>
+<a name="l1053"><span class="ln">1053 </span></a>        <span class="s0">if </span><span class="s1">ysize </span><span class="s0">&gt; </span><span class="s1">p0</span><span class="s2">.</span><span class="s1">size</span><span class="s0">:</span>
+<a name="l1054"><span class="ln">1054 </span></a>            <span class="s1">s_sq </span><span class="s0">= </span><span class="s1">cost </span><span class="s0">/ </span><span class="s2">(</span><span class="s1">ysize </span><span class="s0">- </span><span class="s1">p0</span><span class="s2">.</span><span class="s1">size</span><span class="s2">)</span>
+<a name="l1055"><span class="ln">1055 </span></a>            <span class="s1">pcov </span><span class="s0">= </span><span class="s1">pcov </span><span class="s0">* </span><span class="s1">s_sq</span>
+<a name="l1056"><span class="ln">1056 </span></a>        <span class="s0">else:</span>
+<a name="l1057"><span class="ln">1057 </span></a>            <span class="s1">pcov</span><span class="s2">.</span><span class="s1">fill</span><span class="s2">(</span><span class="s1">inf</span><span class="s2">)</span>
+<a name="l1058"><span class="ln">1058 </span></a>            <span class="s1">warn_cov </span><span class="s0">= True</span>
+<a name="l1059"><span class="ln">1059 </span></a>
+<a name="l1060"><span class="ln">1060 </span></a>    <span class="s0">if </span><span class="s1">warn_cov</span><span class="s0">:</span>
+<a name="l1061"><span class="ln">1061 </span></a>        <span class="s1">warnings</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s4">'Covariance of the parameters could not be estimated'</span><span class="s2">,</span>
+<a name="l1062"><span class="ln">1062 </span></a>                      <span class="s1">category</span><span class="s0">=</span><span class="s1">OptimizeWarning</span><span class="s2">, </span><span class="s1">stacklevel</span><span class="s0">=</span><span class="s5">2</span><span class="s2">)</span>
+<a name="l1063"><span class="ln">1063 </span></a>
+<a name="l1064"><span class="ln">1064 </span></a>    <span class="s0">if </span><span class="s1">full_output</span><span class="s0">:</span>
+<a name="l1065"><span class="ln">1065 </span></a>        <span class="s0">return </span><span class="s1">popt</span><span class="s2">, </span><span class="s1">pcov</span><span class="s2">, </span><span class="s1">infodict</span><span class="s2">, </span><span class="s1">errmsg</span><span class="s2">, </span><span class="s1">ier</span>
+<a name="l1066"><span class="ln">1066 </span></a>    <span class="s0">else:</span>
+<a name="l1067"><span class="ln">1067 </span></a>        <span class="s0">return </span><span class="s1">popt</span><span class="s2">, </span><span class="s1">pcov</span>
+<a name="l1068"><span class="ln">1068 </span></a>
+<a name="l1069"><span class="ln">1069 </span></a>
+<a name="l1070"><span class="ln">1070 </span></a><span class="s0">def </span><span class="s1">check_gradient</span><span class="s2">(</span><span class="s1">fcn</span><span class="s2">, </span><span class="s1">Dfcn</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s0">=</span><span class="s2">(), </span><span class="s1">col_deriv</span><span class="s0">=</span><span class="s5">0</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l1071"><span class="ln">1071 </span></a>    <span class="s3">&quot;&quot;&quot;Perform a simple check on the gradient for correctness. 
+<a name="l1072"><span class="ln">1072 </span></a> 
+<a name="l1073"><span class="ln">1073 </span></a>    &quot;&quot;&quot;</span>
+<a name="l1074"><span class="ln">1074 </span></a>
+<a name="l1075"><span class="ln">1075 </span></a>    <span class="s1">x </span><span class="s0">= </span><span class="s1">atleast_1d</span><span class="s2">(</span><span class="s1">x0</span><span class="s2">)</span>
+<a name="l1076"><span class="ln">1076 </span></a>    <span class="s1">n </span><span class="s0">= </span><span class="s1">len</span><span class="s2">(</span><span class="s1">x</span><span class="s2">)</span>
+<a name="l1077"><span class="ln">1077 </span></a>    <span class="s1">x </span><span class="s0">= </span><span class="s1">x</span><span class="s2">.</span><span class="s1">reshape</span><span class="s2">((</span><span class="s1">n</span><span class="s2">,))</span>
+<a name="l1078"><span class="ln">1078 </span></a>    <span class="s1">fvec </span><span class="s0">= </span><span class="s1">atleast_1d</span><span class="s2">(</span><span class="s1">fcn</span><span class="s2">(</span><span class="s1">x</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">))</span>
+<a name="l1079"><span class="ln">1079 </span></a>    <span class="s1">m </span><span class="s0">= </span><span class="s1">len</span><span class="s2">(</span><span class="s1">fvec</span><span class="s2">)</span>
+<a name="l1080"><span class="ln">1080 </span></a>    <span class="s1">fvec </span><span class="s0">= </span><span class="s1">fvec</span><span class="s2">.</span><span class="s1">reshape</span><span class="s2">((</span><span class="s1">m</span><span class="s2">,))</span>
+<a name="l1081"><span class="ln">1081 </span></a>    <span class="s1">ldfjac </span><span class="s0">= </span><span class="s1">m</span>
+<a name="l1082"><span class="ln">1082 </span></a>    <span class="s1">fjac </span><span class="s0">= </span><span class="s1">atleast_1d</span><span class="s2">(</span><span class="s1">Dfcn</span><span class="s2">(</span><span class="s1">x</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">))</span>
+<a name="l1083"><span class="ln">1083 </span></a>    <span class="s1">fjac </span><span class="s0">= </span><span class="s1">fjac</span><span class="s2">.</span><span class="s1">reshape</span><span class="s2">((</span><span class="s1">m</span><span class="s2">, </span><span class="s1">n</span><span class="s2">))</span>
+<a name="l1084"><span class="ln">1084 </span></a>    <span class="s0">if </span><span class="s1">col_deriv </span><span class="s0">== </span><span class="s5">0</span><span class="s0">:</span>
+<a name="l1085"><span class="ln">1085 </span></a>        <span class="s1">fjac </span><span class="s0">= </span><span class="s1">transpose</span><span class="s2">(</span><span class="s1">fjac</span><span class="s2">)</span>
+<a name="l1086"><span class="ln">1086 </span></a>
+<a name="l1087"><span class="ln">1087 </span></a>    <span class="s1">xp </span><span class="s0">= </span><span class="s1">zeros</span><span class="s2">((</span><span class="s1">n</span><span class="s2">,), </span><span class="s1">float</span><span class="s2">)</span>
+<a name="l1088"><span class="ln">1088 </span></a>    <span class="s1">err </span><span class="s0">= </span><span class="s1">zeros</span><span class="s2">((</span><span class="s1">m</span><span class="s2">,), </span><span class="s1">float</span><span class="s2">)</span>
+<a name="l1089"><span class="ln">1089 </span></a>    <span class="s1">fvecp </span><span class="s0">= None</span>
+<a name="l1090"><span class="ln">1090 </span></a>    <span class="s1">_minpack</span><span class="s2">.</span><span class="s1">_chkder</span><span class="s2">(</span><span class="s1">m</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">x</span><span class="s2">, </span><span class="s1">fvec</span><span class="s2">, </span><span class="s1">fjac</span><span class="s2">, </span><span class="s1">ldfjac</span><span class="s2">, </span><span class="s1">xp</span><span class="s2">, </span><span class="s1">fvecp</span><span class="s2">, </span><span class="s5">1</span><span class="s2">, </span><span class="s1">err</span><span class="s2">)</span>
+<a name="l1091"><span class="ln">1091 </span></a>
+<a name="l1092"><span class="ln">1092 </span></a>    <span class="s1">fvecp </span><span class="s0">= </span><span class="s1">atleast_1d</span><span class="s2">(</span><span class="s1">fcn</span><span class="s2">(</span><span class="s1">xp</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">))</span>
+<a name="l1093"><span class="ln">1093 </span></a>    <span class="s1">fvecp </span><span class="s0">= </span><span class="s1">fvecp</span><span class="s2">.</span><span class="s1">reshape</span><span class="s2">((</span><span class="s1">m</span><span class="s2">,))</span>
+<a name="l1094"><span class="ln">1094 </span></a>    <span class="s1">_minpack</span><span class="s2">.</span><span class="s1">_chkder</span><span class="s2">(</span><span class="s1">m</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">x</span><span class="s2">, </span><span class="s1">fvec</span><span class="s2">, </span><span class="s1">fjac</span><span class="s2">, </span><span class="s1">ldfjac</span><span class="s2">, </span><span class="s1">xp</span><span class="s2">, </span><span class="s1">fvecp</span><span class="s2">, </span><span class="s5">2</span><span class="s2">, </span><span class="s1">err</span><span class="s2">)</span>
+<a name="l1095"><span class="ln">1095 </span></a>
+<a name="l1096"><span class="ln">1096 </span></a>    <span class="s1">good </span><span class="s0">= </span><span class="s2">(</span><span class="s1">prod</span><span class="s2">(</span><span class="s1">greater</span><span class="s2">(</span><span class="s1">err</span><span class="s2">, </span><span class="s5">0.5</span><span class="s2">), </span><span class="s1">axis</span><span class="s0">=</span><span class="s5">0</span><span class="s2">))</span>
+<a name="l1097"><span class="ln">1097 </span></a>
+<a name="l1098"><span class="ln">1098 </span></a>    <span class="s0">return </span><span class="s2">(</span><span class="s1">good</span><span class="s2">, </span><span class="s1">err</span><span class="s2">)</span>
+<a name="l1099"><span class="ln">1099 </span></a>
+<a name="l1100"><span class="ln">1100 </span></a>
+<a name="l1101"><span class="ln">1101 </span></a><span class="s0">def </span><span class="s1">_del2</span><span class="s2">(</span><span class="s1">p0</span><span class="s2">, </span><span class="s1">p1</span><span class="s2">, </span><span class="s1">d</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l1102"><span class="ln">1102 </span></a>    <span class="s0">return </span><span class="s1">p0 </span><span class="s0">- </span><span class="s1">np</span><span class="s2">.</span><span class="s1">square</span><span class="s2">(</span><span class="s1">p1 </span><span class="s0">- </span><span class="s1">p0</span><span class="s2">) </span><span class="s0">/ </span><span class="s1">d</span>
+<a name="l1103"><span class="ln">1103 </span></a>
+<a name="l1104"><span class="ln">1104 </span></a>
+<a name="l1105"><span class="ln">1105 </span></a><span class="s0">def </span><span class="s1">_relerr</span><span class="s2">(</span><span class="s1">actual</span><span class="s2">, </span><span class="s1">desired</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l1106"><span class="ln">1106 </span></a>    <span class="s0">return </span><span class="s2">(</span><span class="s1">actual </span><span class="s0">- </span><span class="s1">desired</span><span class="s2">) </span><span class="s0">/ </span><span class="s1">desired</span>
+<a name="l1107"><span class="ln">1107 </span></a>
+<a name="l1108"><span class="ln">1108 </span></a>
+<a name="l1109"><span class="ln">1109 </span></a><span class="s0">def </span><span class="s1">_fixed_point_helper</span><span class="s2">(</span><span class="s1">func</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s1">xtol</span><span class="s2">, </span><span class="s1">maxiter</span><span class="s2">, </span><span class="s1">use_accel</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l1110"><span class="ln">1110 </span></a>    <span class="s1">p0 </span><span class="s0">= </span><span class="s1">x0</span>
+<a name="l1111"><span class="ln">1111 </span></a>    <span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">range</span><span class="s2">(</span><span class="s1">maxiter</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l1112"><span class="ln">1112 </span></a>        <span class="s1">p1 </span><span class="s0">= </span><span class="s1">func</span><span class="s2">(</span><span class="s1">p0</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l1113"><span class="ln">1113 </span></a>        <span class="s0">if </span><span class="s1">use_accel</span><span class="s0">:</span>
+<a name="l1114"><span class="ln">1114 </span></a>            <span class="s1">p2 </span><span class="s0">= </span><span class="s1">func</span><span class="s2">(</span><span class="s1">p1</span><span class="s2">, </span><span class="s0">*</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l1115"><span class="ln">1115 </span></a>            <span class="s1">d </span><span class="s0">= </span><span class="s1">p2 </span><span class="s0">- </span><span class="s5">2.0 </span><span class="s0">* </span><span class="s1">p1 </span><span class="s0">+ </span><span class="s1">p0</span>
+<a name="l1116"><span class="ln">1116 </span></a>            <span class="s1">p </span><span class="s0">= </span><span class="s1">_lazywhere</span><span class="s2">(</span><span class="s1">d </span><span class="s0">!= </span><span class="s5">0</span><span class="s2">, (</span><span class="s1">p0</span><span class="s2">, </span><span class="s1">p1</span><span class="s2">, </span><span class="s1">d</span><span class="s2">), </span><span class="s1">f</span><span class="s0">=</span><span class="s1">_del2</span><span class="s2">, </span><span class="s1">fillvalue</span><span class="s0">=</span><span class="s1">p2</span><span class="s2">)</span>
+<a name="l1117"><span class="ln">1117 </span></a>        <span class="s0">else:</span>
+<a name="l1118"><span class="ln">1118 </span></a>            <span class="s1">p </span><span class="s0">= </span><span class="s1">p1</span>
+<a name="l1119"><span class="ln">1119 </span></a>        <span class="s1">relerr </span><span class="s0">= </span><span class="s1">_lazywhere</span><span class="s2">(</span><span class="s1">p0 </span><span class="s0">!= </span><span class="s5">0</span><span class="s2">, (</span><span class="s1">p</span><span class="s2">, </span><span class="s1">p0</span><span class="s2">), </span><span class="s1">f</span><span class="s0">=</span><span class="s1">_relerr</span><span class="s2">, </span><span class="s1">fillvalue</span><span class="s0">=</span><span class="s1">p</span><span class="s2">)</span>
+<a name="l1120"><span class="ln">1120 </span></a>        <span class="s0">if </span><span class="s1">np</span><span class="s2">.</span><span class="s1">all</span><span class="s2">(</span><span class="s1">np</span><span class="s2">.</span><span class="s1">abs</span><span class="s2">(</span><span class="s1">relerr</span><span class="s2">) </span><span class="s0">&lt; </span><span class="s1">xtol</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l1121"><span class="ln">1121 </span></a>            <span class="s0">return </span><span class="s1">p</span>
+<a name="l1122"><span class="ln">1122 </span></a>        <span class="s1">p0 </span><span class="s0">= </span><span class="s1">p</span>
+<a name="l1123"><span class="ln">1123 </span></a>    <span class="s1">msg </span><span class="s0">= </span><span class="s4">&quot;Failed to converge after %d iterations, value is %s&quot; </span><span class="s0">% </span><span class="s2">(</span><span class="s1">maxiter</span><span class="s2">, </span><span class="s1">p</span><span class="s2">)</span>
+<a name="l1124"><span class="ln">1124 </span></a>    <span class="s0">raise </span><span class="s1">RuntimeError</span><span class="s2">(</span><span class="s1">msg</span><span class="s2">)</span>
+<a name="l1125"><span class="ln">1125 </span></a>
+<a name="l1126"><span class="ln">1126 </span></a>
+<a name="l1127"><span class="ln">1127 </span></a><span class="s0">def </span><span class="s1">fixed_point</span><span class="s2">(</span><span class="s1">func</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s0">=</span><span class="s2">(), </span><span class="s1">xtol</span><span class="s0">=</span><span class="s5">1e-8</span><span class="s2">, </span><span class="s1">maxiter</span><span class="s0">=</span><span class="s5">500</span><span class="s2">, </span><span class="s1">method</span><span class="s0">=</span><span class="s4">'del2'</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l1128"><span class="ln">1128 </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l1129"><span class="ln">1129 </span></a>    Find a fixed point of the function. 
+<a name="l1130"><span class="ln">1130 </span></a> 
+<a name="l1131"><span class="ln">1131 </span></a>    Given a function of one or more variables and a starting point, find a 
+<a name="l1132"><span class="ln">1132 </span></a>    fixed point of the function: i.e., where ``func(x0) == x0``. 
+<a name="l1133"><span class="ln">1133 </span></a> 
+<a name="l1134"><span class="ln">1134 </span></a>    Parameters 
+<a name="l1135"><span class="ln">1135 </span></a>    ---------- 
+<a name="l1136"><span class="ln">1136 </span></a>    func : function 
+<a name="l1137"><span class="ln">1137 </span></a>        Function to evaluate. 
+<a name="l1138"><span class="ln">1138 </span></a>    x0 : array_like 
+<a name="l1139"><span class="ln">1139 </span></a>        Fixed point of function. 
+<a name="l1140"><span class="ln">1140 </span></a>    args : tuple, optional 
+<a name="l1141"><span class="ln">1141 </span></a>        Extra arguments to `func`. 
+<a name="l1142"><span class="ln">1142 </span></a>    xtol : float, optional 
+<a name="l1143"><span class="ln">1143 </span></a>        Convergence tolerance, defaults to 1e-08. 
+<a name="l1144"><span class="ln">1144 </span></a>    maxiter : int, optional 
+<a name="l1145"><span class="ln">1145 </span></a>        Maximum number of iterations, defaults to 500. 
+<a name="l1146"><span class="ln">1146 </span></a>    method : {&quot;del2&quot;, &quot;iteration&quot;}, optional 
+<a name="l1147"><span class="ln">1147 </span></a>        Method of finding the fixed-point, defaults to &quot;del2&quot;, 
+<a name="l1148"><span class="ln">1148 </span></a>        which uses Steffensen's Method with Aitken's ``Del^2`` 
+<a name="l1149"><span class="ln">1149 </span></a>        convergence acceleration [1]_. The &quot;iteration&quot; method simply iterates 
+<a name="l1150"><span class="ln">1150 </span></a>        the function until convergence is detected, without attempting to 
+<a name="l1151"><span class="ln">1151 </span></a>        accelerate the convergence. 
+<a name="l1152"><span class="ln">1152 </span></a> 
+<a name="l1153"><span class="ln">1153 </span></a>    References 
+<a name="l1154"><span class="ln">1154 </span></a>    ---------- 
+<a name="l1155"><span class="ln">1155 </span></a>    .. [1] Burden, Faires, &quot;Numerical Analysis&quot;, 5th edition, pg. 80 
+<a name="l1156"><span class="ln">1156 </span></a> 
+<a name="l1157"><span class="ln">1157 </span></a>    Examples 
+<a name="l1158"><span class="ln">1158 </span></a>    -------- 
+<a name="l1159"><span class="ln">1159 </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l1160"><span class="ln">1160 </span></a>    &gt;&gt;&gt; from scipy import optimize 
+<a name="l1161"><span class="ln">1161 </span></a>    &gt;&gt;&gt; def func(x, c1, c2): 
+<a name="l1162"><span class="ln">1162 </span></a>    ...    return np.sqrt(c1/(x+c2)) 
+<a name="l1163"><span class="ln">1163 </span></a>    &gt;&gt;&gt; c1 = np.array([10,12.]) 
+<a name="l1164"><span class="ln">1164 </span></a>    &gt;&gt;&gt; c2 = np.array([3, 5.]) 
+<a name="l1165"><span class="ln">1165 </span></a>    &gt;&gt;&gt; optimize.fixed_point(func, [1.2, 1.3], args=(c1,c2)) 
+<a name="l1166"><span class="ln">1166 </span></a>    array([ 1.4920333 ,  1.37228132]) 
+<a name="l1167"><span class="ln">1167 </span></a> 
+<a name="l1168"><span class="ln">1168 </span></a>    &quot;&quot;&quot;</span>
+<a name="l1169"><span class="ln">1169 </span></a>    <span class="s1">use_accel </span><span class="s0">= </span><span class="s2">{</span><span class="s4">'del2'</span><span class="s0">: True</span><span class="s2">, </span><span class="s4">'iteration'</span><span class="s0">: False</span><span class="s2">}[</span><span class="s1">method</span><span class="s2">]</span>
+<a name="l1170"><span class="ln">1170 </span></a>    <span class="s1">x0 </span><span class="s0">= </span><span class="s1">_asarray_validated</span><span class="s2">(</span><span class="s1">x0</span><span class="s2">, </span><span class="s1">as_inexact</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l1171"><span class="ln">1171 </span></a>    <span class="s0">return </span><span class="s1">_fixed_point_helper</span><span class="s2">(</span><span class="s1">func</span><span class="s2">, </span><span class="s1">x0</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s1">xtol</span><span class="s2">, </span><span class="s1">maxiter</span><span class="s2">, </span><span class="s1">use_accel</span><span class="s2">)</span>
+<a name="l1172"><span class="ln">1172 </span></a></pre>
+</body>
+</html>

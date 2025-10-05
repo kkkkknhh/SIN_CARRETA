@@ -1,0 +1,425 @@
+<html>
+<head>
+<title>rcode.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+rcode.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>R code printer 
+<a name="l3"><span class="ln">3    </span></a> 
+<a name="l4"><span class="ln">4    </span></a>The RCodePrinter converts single SymPy expressions into single R expressions, 
+<a name="l5"><span class="ln">5    </span></a>using the functions defined in math.h where possible. 
+<a name="l6"><span class="ln">6    </span></a> 
+<a name="l7"><span class="ln">7    </span></a> 
+<a name="l8"><span class="ln">8    </span></a> 
+<a name="l9"><span class="ln">9    </span></a>&quot;&quot;&quot;</span>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">from </span><span class="s1">__future__ </span><span class="s2">import </span><span class="s1">annotations</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">from </span><span class="s1">typing </span><span class="s2">import </span><span class="s1">Any</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">numbers </span><span class="s2">import </span><span class="s1">equal_valued</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">printing</span><span class="s3">.</span><span class="s1">codeprinter </span><span class="s2">import </span><span class="s1">CodePrinter</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">printing</span><span class="s3">.</span><span class="s1">precedence </span><span class="s2">import </span><span class="s1">precedence</span><span class="s3">, </span><span class="s1">PRECEDENCE</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">sets</span><span class="s3">.</span><span class="s1">fancysets </span><span class="s2">import </span><span class="s1">Range</span>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s0"># dictionary mapping SymPy function to (argument_conditions, C_function).</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s0"># Used in RCodePrinter._print_Function(self)</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s1">known_functions </span><span class="s2">= </span><span class="s3">{</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s0">#&quot;Abs&quot;: [(lambda x: not x.is_integer, &quot;fabs&quot;)],</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s4">&quot;Abs&quot;</span><span class="s2">: </span><span class="s4">&quot;abs&quot;</span><span class="s3">,</span>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s4">&quot;sin&quot;</span><span class="s2">: </span><span class="s4">&quot;sin&quot;</span><span class="s3">,</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s4">&quot;cos&quot;</span><span class="s2">: </span><span class="s4">&quot;cos&quot;</span><span class="s3">,</span>
+<a name="l26"><span class="ln">26   </span></a>    <span class="s4">&quot;tan&quot;</span><span class="s2">: </span><span class="s4">&quot;tan&quot;</span><span class="s3">,</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s4">&quot;asin&quot;</span><span class="s2">: </span><span class="s4">&quot;asin&quot;</span><span class="s3">,</span>
+<a name="l28"><span class="ln">28   </span></a>    <span class="s4">&quot;acos&quot;</span><span class="s2">: </span><span class="s4">&quot;acos&quot;</span><span class="s3">,</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s4">&quot;atan&quot;</span><span class="s2">: </span><span class="s4">&quot;atan&quot;</span><span class="s3">,</span>
+<a name="l30"><span class="ln">30   </span></a>    <span class="s4">&quot;atan2&quot;</span><span class="s2">: </span><span class="s4">&quot;atan2&quot;</span><span class="s3">,</span>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s4">&quot;exp&quot;</span><span class="s2">: </span><span class="s4">&quot;exp&quot;</span><span class="s3">,</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s4">&quot;log&quot;</span><span class="s2">: </span><span class="s4">&quot;log&quot;</span><span class="s3">,</span>
+<a name="l33"><span class="ln">33   </span></a>    <span class="s4">&quot;erf&quot;</span><span class="s2">: </span><span class="s4">&quot;erf&quot;</span><span class="s3">,</span>
+<a name="l34"><span class="ln">34   </span></a>    <span class="s4">&quot;sinh&quot;</span><span class="s2">: </span><span class="s4">&quot;sinh&quot;</span><span class="s3">,</span>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s4">&quot;cosh&quot;</span><span class="s2">: </span><span class="s4">&quot;cosh&quot;</span><span class="s3">,</span>
+<a name="l36"><span class="ln">36   </span></a>    <span class="s4">&quot;tanh&quot;</span><span class="s2">: </span><span class="s4">&quot;tanh&quot;</span><span class="s3">,</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s4">&quot;asinh&quot;</span><span class="s2">: </span><span class="s4">&quot;asinh&quot;</span><span class="s3">,</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s4">&quot;acosh&quot;</span><span class="s2">: </span><span class="s4">&quot;acosh&quot;</span><span class="s3">,</span>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s4">&quot;atanh&quot;</span><span class="s2">: </span><span class="s4">&quot;atanh&quot;</span><span class="s3">,</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s4">&quot;floor&quot;</span><span class="s2">: </span><span class="s4">&quot;floor&quot;</span><span class="s3">,</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s4">&quot;ceiling&quot;</span><span class="s2">: </span><span class="s4">&quot;ceiling&quot;</span><span class="s3">,</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s4">&quot;sign&quot;</span><span class="s2">: </span><span class="s4">&quot;sign&quot;</span><span class="s3">,</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s4">&quot;Max&quot;</span><span class="s2">: </span><span class="s4">&quot;max&quot;</span><span class="s3">,</span>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s4">&quot;Min&quot;</span><span class="s2">: </span><span class="s4">&quot;min&quot;</span><span class="s3">,</span>
+<a name="l45"><span class="ln">45   </span></a>    <span class="s4">&quot;factorial&quot;</span><span class="s2">: </span><span class="s4">&quot;factorial&quot;</span><span class="s3">,</span>
+<a name="l46"><span class="ln">46   </span></a>    <span class="s4">&quot;gamma&quot;</span><span class="s2">: </span><span class="s4">&quot;gamma&quot;</span><span class="s3">,</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s4">&quot;digamma&quot;</span><span class="s2">: </span><span class="s4">&quot;digamma&quot;</span><span class="s3">,</span>
+<a name="l48"><span class="ln">48   </span></a>    <span class="s4">&quot;trigamma&quot;</span><span class="s2">: </span><span class="s4">&quot;trigamma&quot;</span><span class="s3">,</span>
+<a name="l49"><span class="ln">49   </span></a>    <span class="s4">&quot;beta&quot;</span><span class="s2">: </span><span class="s4">&quot;beta&quot;</span><span class="s3">,</span>
+<a name="l50"><span class="ln">50   </span></a>    <span class="s4">&quot;sqrt&quot;</span><span class="s2">: </span><span class="s4">&quot;sqrt&quot;</span><span class="s3">,  </span><span class="s0"># To enable automatic rewrite</span>
+<a name="l51"><span class="ln">51   </span></a><span class="s3">}</span>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a><span class="s0"># These are the core reserved words in the R language. Taken from:</span>
+<a name="l54"><span class="ln">54   </span></a><span class="s0"># https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Reserved-words</span>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a><span class="s1">reserved_words </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'if'</span><span class="s3">,</span>
+<a name="l57"><span class="ln">57   </span></a>                  <span class="s4">'else'</span><span class="s3">,</span>
+<a name="l58"><span class="ln">58   </span></a>                  <span class="s4">'repeat'</span><span class="s3">,</span>
+<a name="l59"><span class="ln">59   </span></a>                  <span class="s4">'while'</span><span class="s3">,</span>
+<a name="l60"><span class="ln">60   </span></a>                  <span class="s4">'function'</span><span class="s3">,</span>
+<a name="l61"><span class="ln">61   </span></a>                  <span class="s4">'for'</span><span class="s3">,</span>
+<a name="l62"><span class="ln">62   </span></a>                  <span class="s4">'in'</span><span class="s3">,</span>
+<a name="l63"><span class="ln">63   </span></a>                  <span class="s4">'next'</span><span class="s3">,</span>
+<a name="l64"><span class="ln">64   </span></a>                  <span class="s4">'break'</span><span class="s3">,</span>
+<a name="l65"><span class="ln">65   </span></a>                  <span class="s4">'TRUE'</span><span class="s3">,</span>
+<a name="l66"><span class="ln">66   </span></a>                  <span class="s4">'FALSE'</span><span class="s3">,</span>
+<a name="l67"><span class="ln">67   </span></a>                  <span class="s4">'NULL'</span><span class="s3">,</span>
+<a name="l68"><span class="ln">68   </span></a>                  <span class="s4">'Inf'</span><span class="s3">,</span>
+<a name="l69"><span class="ln">69   </span></a>                  <span class="s4">'NaN'</span><span class="s3">,</span>
+<a name="l70"><span class="ln">70   </span></a>                  <span class="s4">'NA'</span><span class="s3">,</span>
+<a name="l71"><span class="ln">71   </span></a>                  <span class="s4">'NA_integer_'</span><span class="s3">,</span>
+<a name="l72"><span class="ln">72   </span></a>                  <span class="s4">'NA_real_'</span><span class="s3">,</span>
+<a name="l73"><span class="ln">73   </span></a>                  <span class="s4">'NA_complex_'</span><span class="s3">,</span>
+<a name="l74"><span class="ln">74   </span></a>                  <span class="s4">'NA_character_'</span><span class="s3">,</span>
+<a name="l75"><span class="ln">75   </span></a>                  <span class="s4">'volatile'</span><span class="s3">]</span>
+<a name="l76"><span class="ln">76   </span></a>
+<a name="l77"><span class="ln">77   </span></a>
+<a name="l78"><span class="ln">78   </span></a><span class="s2">class </span><span class="s1">RCodePrinter</span><span class="s3">(</span><span class="s1">CodePrinter</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l79"><span class="ln">79   </span></a>    <span class="s0">&quot;&quot;&quot;A printer to convert SymPy expressions to strings of R code&quot;&quot;&quot;</span>
+<a name="l80"><span class="ln">80   </span></a>    <span class="s1">printmethod </span><span class="s2">= </span><span class="s4">&quot;_rcode&quot;</span>
+<a name="l81"><span class="ln">81   </span></a>    <span class="s1">language </span><span class="s2">= </span><span class="s4">&quot;R&quot;</span>
+<a name="l82"><span class="ln">82   </span></a>
+<a name="l83"><span class="ln">83   </span></a>    <span class="s1">_default_settings</span><span class="s2">: </span><span class="s1">dict</span><span class="s3">[</span><span class="s1">str</span><span class="s3">, </span><span class="s1">Any</span><span class="s3">] </span><span class="s2">= </span><span class="s1">dict</span><span class="s3">(</span><span class="s1">CodePrinter</span><span class="s3">.</span><span class="s1">_default_settings</span><span class="s3">, </span><span class="s2">**</span><span class="s3">{</span>
+<a name="l84"><span class="ln">84   </span></a>        <span class="s4">'precision'</span><span class="s2">: </span><span class="s5">15</span><span class="s3">,</span>
+<a name="l85"><span class="ln">85   </span></a>        <span class="s4">'user_functions'</span><span class="s2">: </span><span class="s3">{},</span>
+<a name="l86"><span class="ln">86   </span></a>        <span class="s4">'contract'</span><span class="s2">: True</span><span class="s3">,</span>
+<a name="l87"><span class="ln">87   </span></a>        <span class="s4">'dereference'</span><span class="s2">: </span><span class="s1">set</span><span class="s3">(),</span>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s3">})</span>
+<a name="l89"><span class="ln">89   </span></a>    <span class="s1">_operators </span><span class="s2">= </span><span class="s3">{</span>
+<a name="l90"><span class="ln">90   </span></a>       <span class="s4">'and'</span><span class="s2">: </span><span class="s4">'&amp;'</span><span class="s3">,</span>
+<a name="l91"><span class="ln">91   </span></a>        <span class="s4">'or'</span><span class="s2">: </span><span class="s4">'|'</span><span class="s3">,</span>
+<a name="l92"><span class="ln">92   </span></a>       <span class="s4">'not'</span><span class="s2">: </span><span class="s4">'!'</span><span class="s3">,</span>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s3">}</span>
+<a name="l94"><span class="ln">94   </span></a>
+<a name="l95"><span class="ln">95   </span></a>    <span class="s1">_relationals</span><span class="s2">: </span><span class="s1">dict</span><span class="s3">[</span><span class="s1">str</span><span class="s3">, </span><span class="s1">str</span><span class="s3">] </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l96"><span class="ln">96   </span></a>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">settings</span><span class="s2">=</span><span class="s3">{})</span><span class="s2">:</span>
+<a name="l98"><span class="ln">98   </span></a>        <span class="s1">CodePrinter</span><span class="s3">.</span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">settings</span><span class="s3">)</span>
+<a name="l99"><span class="ln">99   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">known_functions </span><span class="s2">= </span><span class="s1">dict</span><span class="s3">(</span><span class="s1">known_functions</span><span class="s3">)</span>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s1">userfuncs </span><span class="s2">= </span><span class="s1">settings</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">'user_functions'</span><span class="s3">, {})</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">known_functions</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(</span><span class="s1">userfuncs</span><span class="s3">)</span>
+<a name="l102"><span class="ln">102  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_dereference </span><span class="s2">= </span><span class="s1">set</span><span class="s3">(</span><span class="s1">settings</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">'dereference'</span><span class="s3">, []))</span>
+<a name="l103"><span class="ln">103  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">reserved_words </span><span class="s2">= </span><span class="s1">set</span><span class="s3">(</span><span class="s1">reserved_words</span><span class="s3">)</span>
+<a name="l104"><span class="ln">104  </span></a>
+<a name="l105"><span class="ln">105  </span></a>    <span class="s2">def </span><span class="s1">_rate_index_position</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">p</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l106"><span class="ln">106  </span></a>        <span class="s2">return </span><span class="s1">p</span><span class="s2">*</span><span class="s5">5</span>
+<a name="l107"><span class="ln">107  </span></a>
+<a name="l108"><span class="ln">108  </span></a>    <span class="s2">def </span><span class="s1">_get_statement</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">codestring</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l109"><span class="ln">109  </span></a>        <span class="s2">return </span><span class="s4">&quot;%s;&quot; </span><span class="s2">% </span><span class="s1">codestring</span>
+<a name="l110"><span class="ln">110  </span></a>
+<a name="l111"><span class="ln">111  </span></a>    <span class="s2">def </span><span class="s1">_get_comment</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">text</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l112"><span class="ln">112  </span></a>        <span class="s2">return </span><span class="s4">&quot;// {}&quot;</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">text</span><span class="s3">)</span>
+<a name="l113"><span class="ln">113  </span></a>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s2">def </span><span class="s1">_declare_number_const</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">name</span><span class="s3">, </span><span class="s1">value</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l115"><span class="ln">115  </span></a>        <span class="s2">return </span><span class="s4">&quot;{} = {};&quot;</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, </span><span class="s1">value</span><span class="s3">)</span>
+<a name="l116"><span class="ln">116  </span></a>
+<a name="l117"><span class="ln">117  </span></a>    <span class="s2">def </span><span class="s1">_format_code</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">lines</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l118"><span class="ln">118  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">indent_code</span><span class="s3">(</span><span class="s1">lines</span><span class="s3">)</span>
+<a name="l119"><span class="ln">119  </span></a>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s2">def </span><span class="s1">_traverse_matrix_indices</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">mat</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l121"><span class="ln">121  </span></a>        <span class="s1">rows</span><span class="s3">, </span><span class="s1">cols </span><span class="s2">= </span><span class="s1">mat</span><span class="s3">.</span><span class="s1">shape</span>
+<a name="l122"><span class="ln">122  </span></a>        <span class="s2">return </span><span class="s3">((</span><span class="s1">i</span><span class="s3">, </span><span class="s1">j</span><span class="s3">) </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">rows</span><span class="s3">) </span><span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">cols</span><span class="s3">))</span>
+<a name="l123"><span class="ln">123  </span></a>
+<a name="l124"><span class="ln">124  </span></a>    <span class="s2">def </span><span class="s1">_get_loop_opening_ending</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">indices</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s0">&quot;&quot;&quot;Returns a tuple (open_lines, close_lines) containing lists of codelines 
+<a name="l126"><span class="ln">126  </span></a>        &quot;&quot;&quot;</span>
+<a name="l127"><span class="ln">127  </span></a>        <span class="s1">open_lines </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l128"><span class="ln">128  </span></a>        <span class="s1">close_lines </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l129"><span class="ln">129  </span></a>        <span class="s1">loopstart </span><span class="s2">= </span><span class="s4">&quot;for (%(var)s in %(start)s:%(end)s){&quot;</span>
+<a name="l130"><span class="ln">130  </span></a>        <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">indices</span><span class="s2">:</span>
+<a name="l131"><span class="ln">131  </span></a>            <span class="s0"># R arrays start at 1 and end at dimension</span>
+<a name="l132"><span class="ln">132  </span></a>            <span class="s1">open_lines</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">loopstart </span><span class="s2">% </span><span class="s3">{</span>
+<a name="l133"><span class="ln">133  </span></a>                <span class="s4">'var'</span><span class="s2">: </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">i</span><span class="s3">.</span><span class="s1">label</span><span class="s3">),</span>
+<a name="l134"><span class="ln">134  </span></a>                <span class="s4">'start'</span><span class="s2">: </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">i</span><span class="s3">.</span><span class="s1">lower</span><span class="s2">+</span><span class="s5">1</span><span class="s3">),</span>
+<a name="l135"><span class="ln">135  </span></a>                <span class="s4">'end'</span><span class="s2">: </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">i</span><span class="s3">.</span><span class="s1">upper </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">)})</span>
+<a name="l136"><span class="ln">136  </span></a>            <span class="s1">close_lines</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s4">&quot;}&quot;</span><span class="s3">)</span>
+<a name="l137"><span class="ln">137  </span></a>        <span class="s2">return </span><span class="s1">open_lines</span><span class="s3">, </span><span class="s1">close_lines</span>
+<a name="l138"><span class="ln">138  </span></a>
+<a name="l139"><span class="ln">139  </span></a>    <span class="s2">def </span><span class="s1">_print_Pow</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l140"><span class="ln">140  </span></a>        <span class="s2">if </span><span class="s4">&quot;Pow&quot; </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">known_functions</span><span class="s2">:</span>
+<a name="l141"><span class="ln">141  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print_Function</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">)</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s1">PREC </span><span class="s2">= </span><span class="s1">precedence</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">)</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s2">if </span><span class="s1">equal_valued</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">exp</span><span class="s3">, </span><span class="s2">-</span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l144"><span class="ln">144  </span></a>            <span class="s2">return </span><span class="s4">'1.0/%s' </span><span class="s2">% </span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">parenthesize</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">base</span><span class="s3">, </span><span class="s1">PREC</span><span class="s3">))</span>
+<a name="l145"><span class="ln">145  </span></a>        <span class="s2">elif </span><span class="s1">equal_valued</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">exp</span><span class="s3">, </span><span class="s5">0.5</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l146"><span class="ln">146  </span></a>            <span class="s2">return </span><span class="s4">'sqrt(%s)' </span><span class="s2">% </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">base</span><span class="s3">)</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s2">else:</span>
+<a name="l148"><span class="ln">148  </span></a>            <span class="s2">return </span><span class="s4">'%s^%s' </span><span class="s2">% </span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">parenthesize</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">base</span><span class="s3">, </span><span class="s1">PREC</span><span class="s3">),</span>
+<a name="l149"><span class="ln">149  </span></a>                                 <span class="s1">self</span><span class="s3">.</span><span class="s1">parenthesize</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">exp</span><span class="s3">, </span><span class="s1">PREC</span><span class="s3">))</span>
+<a name="l150"><span class="ln">150  </span></a>
+<a name="l151"><span class="ln">151  </span></a>
+<a name="l152"><span class="ln">152  </span></a>    <span class="s2">def </span><span class="s1">_print_Rational</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l153"><span class="ln">153  </span></a>        <span class="s1">p</span><span class="s3">, </span><span class="s1">q </span><span class="s2">= </span><span class="s1">int</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">p</span><span class="s3">), </span><span class="s1">int</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">q</span><span class="s3">)</span>
+<a name="l154"><span class="ln">154  </span></a>        <span class="s2">return </span><span class="s4">'%d.0/%d.0' </span><span class="s2">% </span><span class="s3">(</span><span class="s1">p</span><span class="s3">, </span><span class="s1">q</span><span class="s3">)</span>
+<a name="l155"><span class="ln">155  </span></a>
+<a name="l156"><span class="ln">156  </span></a>    <span class="s2">def </span><span class="s1">_print_Indexed</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l157"><span class="ln">157  </span></a>        <span class="s1">inds </span><span class="s2">= </span><span class="s3">[ </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">i</span><span class="s3">) </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">indices </span><span class="s3">]</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s2">return </span><span class="s4">&quot;%s[%s]&quot; </span><span class="s2">% </span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">base</span><span class="s3">.</span><span class="s1">label</span><span class="s3">), </span><span class="s4">&quot;, &quot;</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">inds</span><span class="s3">))</span>
+<a name="l159"><span class="ln">159  </span></a>
+<a name="l160"><span class="ln">160  </span></a>    <span class="s2">def </span><span class="s1">_print_Exp1</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s2">return </span><span class="s4">&quot;exp(1)&quot;</span>
+<a name="l162"><span class="ln">162  </span></a>
+<a name="l163"><span class="ln">163  </span></a>    <span class="s2">def </span><span class="s1">_print_Pi</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l164"><span class="ln">164  </span></a>        <span class="s2">return </span><span class="s4">'pi'</span>
+<a name="l165"><span class="ln">165  </span></a>
+<a name="l166"><span class="ln">166  </span></a>    <span class="s2">def </span><span class="s1">_print_Infinity</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l167"><span class="ln">167  </span></a>        <span class="s2">return </span><span class="s4">'Inf'</span>
+<a name="l168"><span class="ln">168  </span></a>
+<a name="l169"><span class="ln">169  </span></a>    <span class="s2">def </span><span class="s1">_print_NegativeInfinity</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l170"><span class="ln">170  </span></a>        <span class="s2">return </span><span class="s4">'-Inf'</span>
+<a name="l171"><span class="ln">171  </span></a>
+<a name="l172"><span class="ln">172  </span></a>    <span class="s2">def </span><span class="s1">_print_Assignment</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l173"><span class="ln">173  </span></a>        <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">codegen</span><span class="s3">.</span><span class="s1">ast </span><span class="s2">import </span><span class="s1">Assignment</span>
+<a name="l174"><span class="ln">174  </span></a>
+<a name="l175"><span class="ln">175  </span></a>        <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">matrices</span><span class="s3">.</span><span class="s1">expressions</span><span class="s3">.</span><span class="s1">matexpr </span><span class="s2">import </span><span class="s1">MatrixSymbol</span>
+<a name="l176"><span class="ln">176  </span></a>        <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">tensor</span><span class="s3">.</span><span class="s1">indexed </span><span class="s2">import </span><span class="s1">IndexedBase</span>
+<a name="l177"><span class="ln">177  </span></a>        <span class="s1">lhs </span><span class="s2">= </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">lhs</span>
+<a name="l178"><span class="ln">178  </span></a>        <span class="s1">rhs </span><span class="s2">= </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">rhs</span>
+<a name="l179"><span class="ln">179  </span></a>        <span class="s0"># We special case assignments that take multiple lines</span>
+<a name="l180"><span class="ln">180  </span></a>        <span class="s0">#if isinstance(expr.rhs, Piecewise):</span>
+<a name="l181"><span class="ln">181  </span></a>        <span class="s0">#    from sympy.functions.elementary.piecewise import Piecewise</span>
+<a name="l182"><span class="ln">182  </span></a>        <span class="s0">#    # Here we modify Piecewise so each expression is now</span>
+<a name="l183"><span class="ln">183  </span></a>        <span class="s0">#    # an Assignment, and then continue on the print.</span>
+<a name="l184"><span class="ln">184  </span></a>        <span class="s0">#    expressions = []</span>
+<a name="l185"><span class="ln">185  </span></a>        <span class="s0">#    conditions = []</span>
+<a name="l186"><span class="ln">186  </span></a>        <span class="s0">#    for (e, c) in rhs.args:</span>
+<a name="l187"><span class="ln">187  </span></a>        <span class="s0">#        expressions.append(Assignment(lhs, e))</span>
+<a name="l188"><span class="ln">188  </span></a>        <span class="s0">#        conditions.append(c)</span>
+<a name="l189"><span class="ln">189  </span></a>        <span class="s0">#    temp = Piecewise(*zip(expressions, conditions))</span>
+<a name="l190"><span class="ln">190  </span></a>        <span class="s0">#    return self._print(temp)</span>
+<a name="l191"><span class="ln">191  </span></a>        <span class="s0">#elif isinstance(lhs, MatrixSymbol):</span>
+<a name="l192"><span class="ln">192  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">lhs</span><span class="s3">, </span><span class="s1">MatrixSymbol</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l193"><span class="ln">193  </span></a>            <span class="s0"># Here we form an Assignment for each element in the array,</span>
+<a name="l194"><span class="ln">194  </span></a>            <span class="s0"># printing each one.</span>
+<a name="l195"><span class="ln">195  </span></a>            <span class="s1">lines </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l196"><span class="ln">196  </span></a>            <span class="s2">for </span><span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s1">j</span><span class="s3">) </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_traverse_matrix_indices</span><span class="s3">(</span><span class="s1">lhs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l197"><span class="ln">197  </span></a>                <span class="s1">temp </span><span class="s2">= </span><span class="s1">Assignment</span><span class="s3">(</span><span class="s1">lhs</span><span class="s3">[</span><span class="s1">i</span><span class="s3">, </span><span class="s1">j</span><span class="s3">], </span><span class="s1">rhs</span><span class="s3">[</span><span class="s1">i</span><span class="s3">, </span><span class="s1">j</span><span class="s3">])</span>
+<a name="l198"><span class="ln">198  </span></a>                <span class="s1">code0 </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">temp</span><span class="s3">)</span>
+<a name="l199"><span class="ln">199  </span></a>                <span class="s1">lines</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">code0</span><span class="s3">)</span>
+<a name="l200"><span class="ln">200  </span></a>            <span class="s2">return </span><span class="s4">&quot;\n&quot;</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">lines</span><span class="s3">)</span>
+<a name="l201"><span class="ln">201  </span></a>        <span class="s2">elif </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_settings</span><span class="s3">[</span><span class="s4">&quot;contract&quot;</span><span class="s3">] </span><span class="s2">and </span><span class="s3">(</span><span class="s1">lhs</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">IndexedBase</span><span class="s3">) </span><span class="s2">or</span>
+<a name="l202"><span class="ln">202  </span></a>                <span class="s1">rhs</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">IndexedBase</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l203"><span class="ln">203  </span></a>            <span class="s0"># Here we check if there is looping to be done, and if so</span>
+<a name="l204"><span class="ln">204  </span></a>            <span class="s0"># print the required loops.</span>
+<a name="l205"><span class="ln">205  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_doprint_loops</span><span class="s3">(</span><span class="s1">rhs</span><span class="s3">, </span><span class="s1">lhs</span><span class="s3">)</span>
+<a name="l206"><span class="ln">206  </span></a>        <span class="s2">else:</span>
+<a name="l207"><span class="ln">207  </span></a>            <span class="s1">lhs_code </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">lhs</span><span class="s3">)</span>
+<a name="l208"><span class="ln">208  </span></a>            <span class="s1">rhs_code </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">rhs</span><span class="s3">)</span>
+<a name="l209"><span class="ln">209  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_get_statement</span><span class="s3">(</span><span class="s4">&quot;%s = %s&quot; </span><span class="s2">% </span><span class="s3">(</span><span class="s1">lhs_code</span><span class="s3">, </span><span class="s1">rhs_code</span><span class="s3">))</span>
+<a name="l210"><span class="ln">210  </span></a>
+<a name="l211"><span class="ln">211  </span></a>    <span class="s2">def </span><span class="s1">_print_Piecewise</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l212"><span class="ln">212  </span></a>        <span class="s0"># This method is called only for inline if constructs</span>
+<a name="l213"><span class="ln">213  </span></a>        <span class="s0"># Top level piecewise is handled in doprint()</span>
+<a name="l214"><span class="ln">214  </span></a>        <span class="s2">if </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s2">-</span><span class="s5">1</span><span class="s3">].</span><span class="s1">cond </span><span class="s2">== True:</span>
+<a name="l215"><span class="ln">215  </span></a>            <span class="s1">last_line </span><span class="s2">= </span><span class="s4">&quot;%s&quot; </span><span class="s2">% </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s2">-</span><span class="s5">1</span><span class="s3">].</span><span class="s1">expr</span><span class="s3">)</span>
+<a name="l216"><span class="ln">216  </span></a>        <span class="s2">else:</span>
+<a name="l217"><span class="ln">217  </span></a>            <span class="s1">last_line </span><span class="s2">= </span><span class="s4">&quot;ifelse(%s,%s,NA)&quot; </span><span class="s2">% </span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s2">-</span><span class="s5">1</span><span class="s3">].</span><span class="s1">cond</span><span class="s3">), </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s2">-</span><span class="s5">1</span><span class="s3">].</span><span class="s1">expr</span><span class="s3">))</span>
+<a name="l218"><span class="ln">218  </span></a>        <span class="s1">code</span><span class="s2">=</span><span class="s1">last_line</span>
+<a name="l219"><span class="ln">219  </span></a>        <span class="s2">for </span><span class="s1">e</span><span class="s3">, </span><span class="s1">c </span><span class="s2">in </span><span class="s1">reversed</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s2">:-</span><span class="s5">1</span><span class="s3">])</span><span class="s2">:</span>
+<a name="l220"><span class="ln">220  </span></a>            <span class="s1">code</span><span class="s2">= </span><span class="s4">&quot;ifelse(%s,%s,&quot; </span><span class="s2">% </span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">c</span><span class="s3">), </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">e</span><span class="s3">))</span><span class="s2">+</span><span class="s1">code</span><span class="s2">+</span><span class="s4">&quot;)&quot;</span>
+<a name="l221"><span class="ln">221  </span></a>        <span class="s2">return</span><span class="s3">(</span><span class="s1">code</span><span class="s3">)</span>
+<a name="l222"><span class="ln">222  </span></a>
+<a name="l223"><span class="ln">223  </span></a>    <span class="s2">def </span><span class="s1">_print_ITE</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l224"><span class="ln">224  </span></a>        <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">functions </span><span class="s2">import </span><span class="s1">Piecewise</span>
+<a name="l225"><span class="ln">225  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">rewrite</span><span class="s3">(</span><span class="s1">Piecewise</span><span class="s3">))</span>
+<a name="l226"><span class="ln">226  </span></a>
+<a name="l227"><span class="ln">227  </span></a>    <span class="s2">def </span><span class="s1">_print_MatrixElement</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l228"><span class="ln">228  </span></a>        <span class="s2">return </span><span class="s4">&quot;{}[{}]&quot;</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">parenthesize</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">, </span><span class="s1">PRECEDENCE</span><span class="s3">[</span><span class="s4">&quot;Atom&quot;</span><span class="s3">],</span>
+<a name="l229"><span class="ln">229  </span></a>            <span class="s1">strict</span><span class="s2">=True</span><span class="s3">), </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">j </span><span class="s2">+ </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">i</span><span class="s2">*</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s5">1</span><span class="s3">])</span>
+<a name="l230"><span class="ln">230  </span></a>
+<a name="l231"><span class="ln">231  </span></a>    <span class="s2">def </span><span class="s1">_print_Symbol</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l232"><span class="ln">232  </span></a>        <span class="s1">name </span><span class="s2">= </span><span class="s1">super</span><span class="s3">().</span><span class="s1">_print_Symbol</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">)</span>
+<a name="l233"><span class="ln">233  </span></a>        <span class="s2">if </span><span class="s1">expr </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_dereference</span><span class="s2">:</span>
+<a name="l234"><span class="ln">234  </span></a>            <span class="s2">return </span><span class="s4">'(*{})'</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)</span>
+<a name="l235"><span class="ln">235  </span></a>        <span class="s2">else:</span>
+<a name="l236"><span class="ln">236  </span></a>            <span class="s2">return </span><span class="s1">name</span>
+<a name="l237"><span class="ln">237  </span></a>
+<a name="l238"><span class="ln">238  </span></a>    <span class="s2">def </span><span class="s1">_print_Relational</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l239"><span class="ln">239  </span></a>        <span class="s1">lhs_code </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">lhs</span><span class="s3">)</span>
+<a name="l240"><span class="ln">240  </span></a>        <span class="s1">rhs_code </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">rhs</span><span class="s3">)</span>
+<a name="l241"><span class="ln">241  </span></a>        <span class="s1">op </span><span class="s2">= </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">rel_op</span>
+<a name="l242"><span class="ln">242  </span></a>        <span class="s2">return </span><span class="s4">&quot;{} {} {}&quot;</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">lhs_code</span><span class="s3">, </span><span class="s1">op</span><span class="s3">, </span><span class="s1">rhs_code</span><span class="s3">)</span>
+<a name="l243"><span class="ln">243  </span></a>
+<a name="l244"><span class="ln">244  </span></a>    <span class="s2">def </span><span class="s1">_print_AugmentedAssignment</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l245"><span class="ln">245  </span></a>        <span class="s1">lhs_code </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">lhs</span><span class="s3">)</span>
+<a name="l246"><span class="ln">246  </span></a>        <span class="s1">op </span><span class="s2">= </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">op</span>
+<a name="l247"><span class="ln">247  </span></a>        <span class="s1">rhs_code </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">rhs</span><span class="s3">)</span>
+<a name="l248"><span class="ln">248  </span></a>        <span class="s2">return </span><span class="s4">&quot;{} {} {};&quot;</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">lhs_code</span><span class="s3">, </span><span class="s1">op</span><span class="s3">, </span><span class="s1">rhs_code</span><span class="s3">)</span>
+<a name="l249"><span class="ln">249  </span></a>
+<a name="l250"><span class="ln">250  </span></a>    <span class="s2">def </span><span class="s1">_print_For</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l251"><span class="ln">251  </span></a>        <span class="s1">target </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">target</span><span class="s3">)</span>
+<a name="l252"><span class="ln">252  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">iterable</span><span class="s3">, </span><span class="s1">Range</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l253"><span class="ln">253  </span></a>            <span class="s1">start</span><span class="s3">, </span><span class="s1">stop</span><span class="s3">, </span><span class="s1">step </span><span class="s2">= </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">iterable</span><span class="s3">.</span><span class="s1">args</span>
+<a name="l254"><span class="ln">254  </span></a>        <span class="s2">else:</span>
+<a name="l255"><span class="ln">255  </span></a>            <span class="s2">raise </span><span class="s1">NotImplementedError</span><span class="s3">(</span><span class="s4">&quot;Only iterable currently supported is Range&quot;</span><span class="s3">)</span>
+<a name="l256"><span class="ln">256  </span></a>        <span class="s1">body </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">body</span><span class="s3">)</span>
+<a name="l257"><span class="ln">257  </span></a>        <span class="s2">return </span><span class="s4">'for({target} in seq(from={start}, to={stop}, by={step}){{\n{body}\n}}'</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">target</span><span class="s2">=</span><span class="s1">target</span><span class="s3">, </span><span class="s1">start</span><span class="s2">=</span><span class="s1">start</span><span class="s3">,</span>
+<a name="l258"><span class="ln">258  </span></a>                <span class="s1">stop</span><span class="s2">=</span><span class="s1">stop</span><span class="s2">-</span><span class="s5">1</span><span class="s3">, </span><span class="s1">step</span><span class="s2">=</span><span class="s1">step</span><span class="s3">, </span><span class="s1">body</span><span class="s2">=</span><span class="s1">body</span><span class="s3">)</span>
+<a name="l259"><span class="ln">259  </span></a>
+<a name="l260"><span class="ln">260  </span></a>
+<a name="l261"><span class="ln">261  </span></a>    <span class="s2">def </span><span class="s1">indent_code</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">code</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l262"><span class="ln">262  </span></a>        <span class="s0">&quot;&quot;&quot;Accepts a string of code or a list of code lines&quot;&quot;&quot;</span>
+<a name="l263"><span class="ln">263  </span></a>
+<a name="l264"><span class="ln">264  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">code</span><span class="s3">, </span><span class="s1">str</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l265"><span class="ln">265  </span></a>            <span class="s1">code_lines </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">indent_code</span><span class="s3">(</span><span class="s1">code</span><span class="s3">.</span><span class="s1">splitlines</span><span class="s3">(</span><span class="s2">True</span><span class="s3">))</span>
+<a name="l266"><span class="ln">266  </span></a>            <span class="s2">return </span><span class="s4">''</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">code_lines</span><span class="s3">)</span>
+<a name="l267"><span class="ln">267  </span></a>
+<a name="l268"><span class="ln">268  </span></a>        <span class="s1">tab </span><span class="s2">= </span><span class="s4">&quot;   &quot;</span>
+<a name="l269"><span class="ln">269  </span></a>        <span class="s1">inc_token </span><span class="s2">= </span><span class="s3">(</span><span class="s4">'{'</span><span class="s3">, </span><span class="s4">'('</span><span class="s3">, </span><span class="s4">'{\n'</span><span class="s3">, </span><span class="s4">'(\n'</span><span class="s3">)</span>
+<a name="l270"><span class="ln">270  </span></a>        <span class="s1">dec_token </span><span class="s2">= </span><span class="s3">(</span><span class="s4">'}'</span><span class="s3">, </span><span class="s4">')'</span><span class="s3">)</span>
+<a name="l271"><span class="ln">271  </span></a>
+<a name="l272"><span class="ln">272  </span></a>        <span class="s1">code </span><span class="s2">= </span><span class="s3">[ </span><span class="s1">line</span><span class="s3">.</span><span class="s1">lstrip</span><span class="s3">(</span><span class="s4">' \t'</span><span class="s3">) </span><span class="s2">for </span><span class="s1">line </span><span class="s2">in </span><span class="s1">code </span><span class="s3">]</span>
+<a name="l273"><span class="ln">273  </span></a>
+<a name="l274"><span class="ln">274  </span></a>        <span class="s1">increase </span><span class="s2">= </span><span class="s3">[ </span><span class="s1">int</span><span class="s3">(</span><span class="s1">any</span><span class="s3">(</span><span class="s1">map</span><span class="s3">(</span><span class="s1">line</span><span class="s3">.</span><span class="s1">endswith</span><span class="s3">, </span><span class="s1">inc_token</span><span class="s3">))) </span><span class="s2">for </span><span class="s1">line </span><span class="s2">in </span><span class="s1">code </span><span class="s3">]</span>
+<a name="l275"><span class="ln">275  </span></a>        <span class="s1">decrease </span><span class="s2">= </span><span class="s3">[ </span><span class="s1">int</span><span class="s3">(</span><span class="s1">any</span><span class="s3">(</span><span class="s1">map</span><span class="s3">(</span><span class="s1">line</span><span class="s3">.</span><span class="s1">startswith</span><span class="s3">, </span><span class="s1">dec_token</span><span class="s3">)))</span>
+<a name="l276"><span class="ln">276  </span></a>                     <span class="s2">for </span><span class="s1">line </span><span class="s2">in </span><span class="s1">code </span><span class="s3">]</span>
+<a name="l277"><span class="ln">277  </span></a>
+<a name="l278"><span class="ln">278  </span></a>        <span class="s1">pretty </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l279"><span class="ln">279  </span></a>        <span class="s1">level </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l280"><span class="ln">280  </span></a>        <span class="s2">for </span><span class="s1">n</span><span class="s3">, </span><span class="s1">line </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">code</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l281"><span class="ln">281  </span></a>            <span class="s2">if </span><span class="s1">line </span><span class="s2">in </span><span class="s3">(</span><span class="s4">''</span><span class="s3">, </span><span class="s4">'\n'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l282"><span class="ln">282  </span></a>                <span class="s1">pretty</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">line</span><span class="s3">)</span>
+<a name="l283"><span class="ln">283  </span></a>                <span class="s2">continue</span>
+<a name="l284"><span class="ln">284  </span></a>            <span class="s1">level </span><span class="s2">-= </span><span class="s1">decrease</span><span class="s3">[</span><span class="s1">n</span><span class="s3">]</span>
+<a name="l285"><span class="ln">285  </span></a>            <span class="s1">pretty</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s4">&quot;%s%s&quot; </span><span class="s2">% </span><span class="s3">(</span><span class="s1">tab</span><span class="s2">*</span><span class="s1">level</span><span class="s3">, </span><span class="s1">line</span><span class="s3">))</span>
+<a name="l286"><span class="ln">286  </span></a>            <span class="s1">level </span><span class="s2">+= </span><span class="s1">increase</span><span class="s3">[</span><span class="s1">n</span><span class="s3">]</span>
+<a name="l287"><span class="ln">287  </span></a>        <span class="s2">return </span><span class="s1">pretty</span>
+<a name="l288"><span class="ln">288  </span></a>
+<a name="l289"><span class="ln">289  </span></a>
+<a name="l290"><span class="ln">290  </span></a><span class="s2">def </span><span class="s1">rcode</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">assign_to</span><span class="s2">=None</span><span class="s3">, </span><span class="s2">**</span><span class="s1">settings</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l291"><span class="ln">291  </span></a>    <span class="s0">&quot;&quot;&quot;Converts an expr to a string of r code 
+<a name="l292"><span class="ln">292  </span></a> 
+<a name="l293"><span class="ln">293  </span></a>    Parameters 
+<a name="l294"><span class="ln">294  </span></a>    ========== 
+<a name="l295"><span class="ln">295  </span></a> 
+<a name="l296"><span class="ln">296  </span></a>    expr : Expr 
+<a name="l297"><span class="ln">297  </span></a>        A SymPy expression to be converted. 
+<a name="l298"><span class="ln">298  </span></a>    assign_to : optional 
+<a name="l299"><span class="ln">299  </span></a>        When given, the argument is used as the name of the variable to which 
+<a name="l300"><span class="ln">300  </span></a>        the expression is assigned. Can be a string, ``Symbol``, 
+<a name="l301"><span class="ln">301  </span></a>        ``MatrixSymbol``, or ``Indexed`` type. This is helpful in case of 
+<a name="l302"><span class="ln">302  </span></a>        line-wrapping, or for expressions that generate multi-line statements. 
+<a name="l303"><span class="ln">303  </span></a>    precision : integer, optional 
+<a name="l304"><span class="ln">304  </span></a>        The precision for numbers such as pi [default=15]. 
+<a name="l305"><span class="ln">305  </span></a>    user_functions : dict, optional 
+<a name="l306"><span class="ln">306  </span></a>        A dictionary where the keys are string representations of either 
+<a name="l307"><span class="ln">307  </span></a>        ``FunctionClass`` or ``UndefinedFunction`` instances and the values 
+<a name="l308"><span class="ln">308  </span></a>        are their desired R string representations. Alternatively, the 
+<a name="l309"><span class="ln">309  </span></a>        dictionary value can be a list of tuples i.e. [(argument_test, 
+<a name="l310"><span class="ln">310  </span></a>        rfunction_string)] or [(argument_test, rfunction_formater)]. See below 
+<a name="l311"><span class="ln">311  </span></a>        for examples. 
+<a name="l312"><span class="ln">312  </span></a>    human : bool, optional 
+<a name="l313"><span class="ln">313  </span></a>        If True, the result is a single string that may contain some constant 
+<a name="l314"><span class="ln">314  </span></a>        declarations for the number symbols. If False, the same information is 
+<a name="l315"><span class="ln">315  </span></a>        returned in a tuple of (symbols_to_declare, not_supported_functions, 
+<a name="l316"><span class="ln">316  </span></a>        code_text). [default=True]. 
+<a name="l317"><span class="ln">317  </span></a>    contract: bool, optional 
+<a name="l318"><span class="ln">318  </span></a>        If True, ``Indexed`` instances are assumed to obey tensor contraction 
+<a name="l319"><span class="ln">319  </span></a>        rules and the corresponding nested loops over indices are generated. 
+<a name="l320"><span class="ln">320  </span></a>        Setting contract=False will not generate loops, instead the user is 
+<a name="l321"><span class="ln">321  </span></a>        responsible to provide values for the indices in the code. 
+<a name="l322"><span class="ln">322  </span></a>        [default=True]. 
+<a name="l323"><span class="ln">323  </span></a> 
+<a name="l324"><span class="ln">324  </span></a>    Examples 
+<a name="l325"><span class="ln">325  </span></a>    ======== 
+<a name="l326"><span class="ln">326  </span></a> 
+<a name="l327"><span class="ln">327  </span></a>    &gt;&gt;&gt; from sympy import rcode, symbols, Rational, sin, ceiling, Abs, Function 
+<a name="l328"><span class="ln">328  </span></a>    &gt;&gt;&gt; x, tau = symbols(&quot;x, tau&quot;) 
+<a name="l329"><span class="ln">329  </span></a>    &gt;&gt;&gt; rcode((2*tau)**Rational(7, 2)) 
+<a name="l330"><span class="ln">330  </span></a>    '8*sqrt(2)*tau^(7.0/2.0)' 
+<a name="l331"><span class="ln">331  </span></a>    &gt;&gt;&gt; rcode(sin(x), assign_to=&quot;s&quot;) 
+<a name="l332"><span class="ln">332  </span></a>    's = sin(x);' 
+<a name="l333"><span class="ln">333  </span></a> 
+<a name="l334"><span class="ln">334  </span></a>    Simple custom printing can be defined for certain types by passing a 
+<a name="l335"><span class="ln">335  </span></a>    dictionary of {&quot;type&quot; : &quot;function&quot;} to the ``user_functions`` kwarg. 
+<a name="l336"><span class="ln">336  </span></a>    Alternatively, the dictionary value can be a list of tuples i.e. 
+<a name="l337"><span class="ln">337  </span></a>    [(argument_test, cfunction_string)]. 
+<a name="l338"><span class="ln">338  </span></a> 
+<a name="l339"><span class="ln">339  </span></a>    &gt;&gt;&gt; custom_functions = { 
+<a name="l340"><span class="ln">340  </span></a>    ...   &quot;ceiling&quot;: &quot;CEIL&quot;, 
+<a name="l341"><span class="ln">341  </span></a>    ...   &quot;Abs&quot;: [(lambda x: not x.is_integer, &quot;fabs&quot;), 
+<a name="l342"><span class="ln">342  </span></a>    ...           (lambda x: x.is_integer, &quot;ABS&quot;)], 
+<a name="l343"><span class="ln">343  </span></a>    ...   &quot;func&quot;: &quot;f&quot; 
+<a name="l344"><span class="ln">344  </span></a>    ... } 
+<a name="l345"><span class="ln">345  </span></a>    &gt;&gt;&gt; func = Function('func') 
+<a name="l346"><span class="ln">346  </span></a>    &gt;&gt;&gt; rcode(func(Abs(x) + ceiling(x)), user_functions=custom_functions) 
+<a name="l347"><span class="ln">347  </span></a>    'f(fabs(x) + CEIL(x))' 
+<a name="l348"><span class="ln">348  </span></a> 
+<a name="l349"><span class="ln">349  </span></a>    or if the R-function takes a subset of the original arguments: 
+<a name="l350"><span class="ln">350  </span></a> 
+<a name="l351"><span class="ln">351  </span></a>    &gt;&gt;&gt; rcode(2**x + 3**x, user_functions={'Pow': [ 
+<a name="l352"><span class="ln">352  </span></a>    ...   (lambda b, e: b == 2, lambda b, e: 'exp2(%s)' % e), 
+<a name="l353"><span class="ln">353  </span></a>    ...   (lambda b, e: b != 2, 'pow')]}) 
+<a name="l354"><span class="ln">354  </span></a>    'exp2(x) + pow(3, x)' 
+<a name="l355"><span class="ln">355  </span></a> 
+<a name="l356"><span class="ln">356  </span></a>    ``Piecewise`` expressions are converted into conditionals. If an 
+<a name="l357"><span class="ln">357  </span></a>    ``assign_to`` variable is provided an if statement is created, otherwise 
+<a name="l358"><span class="ln">358  </span></a>    the ternary operator is used. Note that if the ``Piecewise`` lacks a 
+<a name="l359"><span class="ln">359  </span></a>    default term, represented by ``(expr, True)`` then an error will be thrown. 
+<a name="l360"><span class="ln">360  </span></a>    This is to prevent generating an expression that may not evaluate to 
+<a name="l361"><span class="ln">361  </span></a>    anything. 
+<a name="l362"><span class="ln">362  </span></a> 
+<a name="l363"><span class="ln">363  </span></a>    &gt;&gt;&gt; from sympy import Piecewise 
+<a name="l364"><span class="ln">364  </span></a>    &gt;&gt;&gt; expr = Piecewise((x + 1, x &gt; 0), (x, True)) 
+<a name="l365"><span class="ln">365  </span></a>    &gt;&gt;&gt; print(rcode(expr, assign_to=tau)) 
+<a name="l366"><span class="ln">366  </span></a>    tau = ifelse(x &gt; 0,x + 1,x); 
+<a name="l367"><span class="ln">367  </span></a> 
+<a name="l368"><span class="ln">368  </span></a>    Support for loops is provided through ``Indexed`` types. With 
+<a name="l369"><span class="ln">369  </span></a>    ``contract=True`` these expressions will be turned into loops, whereas 
+<a name="l370"><span class="ln">370  </span></a>    ``contract=False`` will just print the assignment expression that should be 
+<a name="l371"><span class="ln">371  </span></a>    looped over: 
+<a name="l372"><span class="ln">372  </span></a> 
+<a name="l373"><span class="ln">373  </span></a>    &gt;&gt;&gt; from sympy import Eq, IndexedBase, Idx 
+<a name="l374"><span class="ln">374  </span></a>    &gt;&gt;&gt; len_y = 5 
+<a name="l375"><span class="ln">375  </span></a>    &gt;&gt;&gt; y = IndexedBase('y', shape=(len_y,)) 
+<a name="l376"><span class="ln">376  </span></a>    &gt;&gt;&gt; t = IndexedBase('t', shape=(len_y,)) 
+<a name="l377"><span class="ln">377  </span></a>    &gt;&gt;&gt; Dy = IndexedBase('Dy', shape=(len_y-1,)) 
+<a name="l378"><span class="ln">378  </span></a>    &gt;&gt;&gt; i = Idx('i', len_y-1) 
+<a name="l379"><span class="ln">379  </span></a>    &gt;&gt;&gt; e=Eq(Dy[i], (y[i+1]-y[i])/(t[i+1]-t[i])) 
+<a name="l380"><span class="ln">380  </span></a>    &gt;&gt;&gt; rcode(e.rhs, assign_to=e.lhs, contract=False) 
+<a name="l381"><span class="ln">381  </span></a>    'Dy[i] = (y[i + 1] - y[i])/(t[i + 1] - t[i]);' 
+<a name="l382"><span class="ln">382  </span></a> 
+<a name="l383"><span class="ln">383  </span></a>    Matrices are also supported, but a ``MatrixSymbol`` of the same dimensions 
+<a name="l384"><span class="ln">384  </span></a>    must be provided to ``assign_to``. Note that any expression that can be 
+<a name="l385"><span class="ln">385  </span></a>    generated normally can also exist inside a Matrix: 
+<a name="l386"><span class="ln">386  </span></a> 
+<a name="l387"><span class="ln">387  </span></a>    &gt;&gt;&gt; from sympy import Matrix, MatrixSymbol 
+<a name="l388"><span class="ln">388  </span></a>    &gt;&gt;&gt; mat = Matrix([x**2, Piecewise((x + 1, x &gt; 0), (x, True)), sin(x)]) 
+<a name="l389"><span class="ln">389  </span></a>    &gt;&gt;&gt; A = MatrixSymbol('A', 3, 1) 
+<a name="l390"><span class="ln">390  </span></a>    &gt;&gt;&gt; print(rcode(mat, A)) 
+<a name="l391"><span class="ln">391  </span></a>    A[0] = x^2; 
+<a name="l392"><span class="ln">392  </span></a>    A[1] = ifelse(x &gt; 0,x + 1,x); 
+<a name="l393"><span class="ln">393  </span></a>    A[2] = sin(x); 
+<a name="l394"><span class="ln">394  </span></a> 
+<a name="l395"><span class="ln">395  </span></a>    &quot;&quot;&quot;</span>
+<a name="l396"><span class="ln">396  </span></a>
+<a name="l397"><span class="ln">397  </span></a>    <span class="s2">return </span><span class="s1">RCodePrinter</span><span class="s3">(</span><span class="s1">settings</span><span class="s3">).</span><span class="s1">doprint</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">assign_to</span><span class="s3">)</span>
+<a name="l398"><span class="ln">398  </span></a>
+<a name="l399"><span class="ln">399  </span></a>
+<a name="l400"><span class="ln">400  </span></a><span class="s2">def </span><span class="s1">print_rcode</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s2">**</span><span class="s1">settings</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l401"><span class="ln">401  </span></a>    <span class="s0">&quot;&quot;&quot;Prints R representation of the given expression.&quot;&quot;&quot;</span>
+<a name="l402"><span class="ln">402  </span></a>    <span class="s1">print</span><span class="s3">(</span><span class="s1">rcode</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s2">**</span><span class="s1">settings</span><span class="s3">))</span>
+<a name="l403"><span class="ln">403  </span></a></pre>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<html>
+<head>
+<title>absoft.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #969896;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+absoft.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a>
+<a name="l2"><span class="ln">2    </span></a><span class="s1"># Absoft Corporation ceased operations on 12/31/2022.</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s1"># Thus, all links to &lt;http://www.absoft.com&gt; are invalid.</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s1"># Notes:</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s1"># - when using -g77 then use -DUNDERSCORE_G77 to compile f2py</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">#   generated extension modules (works for f2py v2.45.241_1936 and up)</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s2">import </span><span class="s0">os</span>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">from </span><span class="s0">numpy</span><span class="s3">.</span><span class="s0">distutils</span><span class="s3">.</span><span class="s0">cpuinfo </span><span class="s2">import </span><span class="s0">cpu</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">from </span><span class="s0">numpy</span><span class="s3">.</span><span class="s0">distutils</span><span class="s3">.</span><span class="s0">fcompiler </span><span class="s2">import </span><span class="s0">FCompiler</span><span class="s3">, </span><span class="s0">dummy_fortran_file</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">from </span><span class="s0">numpy</span><span class="s3">.</span><span class="s0">distutils</span><span class="s3">.</span><span class="s0">misc_util </span><span class="s2">import </span><span class="s0">cyg2win32</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s0">compilers </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'AbsoftFCompiler'</span><span class="s3">]</span>
+<a name="l15"><span class="ln">15   </span></a>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">class </span><span class="s0">AbsoftFCompiler</span><span class="s3">(</span><span class="s0">FCompiler</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s0">compiler_type </span><span class="s2">= </span><span class="s4">'absoft'</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s0">description </span><span class="s2">= </span><span class="s4">'Absoft Corp Fortran Compiler'</span>
+<a name="l20"><span class="ln">20   </span></a>    <span class="s1">#version_pattern = r'FORTRAN 77 Compiler (?P&lt;version&gt;[^\s*,]*).*?Absoft Corp'</span>
+<a name="l21"><span class="ln">21   </span></a>    <span class="s0">version_pattern </span><span class="s2">= </span><span class="s4">r'(f90:.*?(Absoft Pro FORTRAN Version|FORTRAN 77 Compiler|Absoft Fortran Compiler Version|Copyright Absoft Corporation.*?Version))'</span><span class="s2">+</span><span class="s0">\</span>
+<a name="l22"><span class="ln">22   </span></a>                       <span class="s4">r' (?P&lt;version&gt;[^\s*,]*)(.*?Absoft Corp|)'</span>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s1"># on windows: f90 -V -c dummy.f</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s1"># f90: Copyright Absoft Corporation 1994-1998 mV2; Cray Research, Inc. 1994-1996 CF90 (2.x.x.x  f36t87) Version 2.3 Wed Apr 19, 2006  13:05:16</span>
+<a name="l26"><span class="ln">26   </span></a>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s1"># samt5735(8)$ f90 -V -c dummy.f</span>
+<a name="l28"><span class="ln">28   </span></a>    <span class="s1"># f90: Copyright Absoft Corporation 1994-2002; Absoft Pro FORTRAN Version 8.0</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s1"># Note that fink installs g77 as f77, so need to use f90 for detection.</span>
+<a name="l30"><span class="ln">30   </span></a>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s0">executables </span><span class="s2">= </span><span class="s3">{</span>
+<a name="l32"><span class="ln">32   </span></a>        <span class="s4">'version_cmd'  </span><span class="s2">: None</span><span class="s3">,          </span><span class="s1"># set by update_executables</span>
+<a name="l33"><span class="ln">33   </span></a>        <span class="s4">'compiler_f77' </span><span class="s2">: </span><span class="s3">[</span><span class="s4">&quot;f77&quot;</span><span class="s3">],</span>
+<a name="l34"><span class="ln">34   </span></a>        <span class="s4">'compiler_fix' </span><span class="s2">: </span><span class="s3">[</span><span class="s4">&quot;f90&quot;</span><span class="s3">],</span>
+<a name="l35"><span class="ln">35   </span></a>        <span class="s4">'compiler_f90' </span><span class="s2">: </span><span class="s3">[</span><span class="s4">&quot;f90&quot;</span><span class="s3">],</span>
+<a name="l36"><span class="ln">36   </span></a>        <span class="s4">'linker_so'    </span><span class="s2">: </span><span class="s3">[</span><span class="s4">&quot;&lt;F90&gt;&quot;</span><span class="s3">],</span>
+<a name="l37"><span class="ln">37   </span></a>        <span class="s4">'archiver'     </span><span class="s2">: </span><span class="s3">[</span><span class="s4">&quot;ar&quot;</span><span class="s3">, </span><span class="s4">&quot;-cr&quot;</span><span class="s3">],</span>
+<a name="l38"><span class="ln">38   </span></a>        <span class="s4">'ranlib'       </span><span class="s2">: </span><span class="s3">[</span><span class="s4">&quot;ranlib&quot;</span><span class="s3">]</span>
+<a name="l39"><span class="ln">39   </span></a>        <span class="s3">}</span>
+<a name="l40"><span class="ln">40   </span></a>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s2">if </span><span class="s0">os</span><span class="s3">.</span><span class="s0">name</span><span class="s2">==</span><span class="s4">'nt'</span><span class="s2">:</span>
+<a name="l42"><span class="ln">42   </span></a>        <span class="s0">library_switch </span><span class="s2">= </span><span class="s4">'/out:'      </span><span class="s1">#No space after /out:!</span>
+<a name="l43"><span class="ln">43   </span></a>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s0">module_dir_switch </span><span class="s2">= None</span>
+<a name="l45"><span class="ln">45   </span></a>    <span class="s0">module_include_switch </span><span class="s2">= </span><span class="s4">'-p'</span>
+<a name="l46"><span class="ln">46   </span></a>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s2">def </span><span class="s0">update_executables</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l48"><span class="ln">48   </span></a>        <span class="s0">f </span><span class="s2">= </span><span class="s0">cyg2win32</span><span class="s3">(</span><span class="s0">dummy_fortran_file</span><span class="s3">())</span>
+<a name="l49"><span class="ln">49   </span></a>        <span class="s0">self</span><span class="s3">.</span><span class="s0">executables</span><span class="s3">[</span><span class="s4">'version_cmd'</span><span class="s3">] </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'&lt;F90&gt;'</span><span class="s3">, </span><span class="s4">'-V'</span><span class="s3">, </span><span class="s4">'-c'</span><span class="s3">,</span>
+<a name="l50"><span class="ln">50   </span></a>                                           <span class="s0">f</span><span class="s2">+</span><span class="s4">'.f'</span><span class="s3">, </span><span class="s4">'-o'</span><span class="s3">, </span><span class="s0">f</span><span class="s2">+</span><span class="s4">'.o'</span><span class="s3">]</span>
+<a name="l51"><span class="ln">51   </span></a>
+<a name="l52"><span class="ln">52   </span></a>    <span class="s2">def </span><span class="s0">get_flags_linker_so</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l53"><span class="ln">53   </span></a>        <span class="s2">if </span><span class="s0">os</span><span class="s3">.</span><span class="s0">name</span><span class="s2">==</span><span class="s4">'nt'</span><span class="s2">:</span>
+<a name="l54"><span class="ln">54   </span></a>            <span class="s0">opt </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'/dll'</span><span class="s3">]</span>
+<a name="l55"><span class="ln">55   </span></a>        <span class="s1"># The &quot;-K shared&quot; switches are being left in for pre-9.0 versions</span>
+<a name="l56"><span class="ln">56   </span></a>        <span class="s1"># of Absoft though I don't think versions earlier than 9 can</span>
+<a name="l57"><span class="ln">57   </span></a>        <span class="s1"># actually be used to build shared libraries.  In fact, version</span>
+<a name="l58"><span class="ln">58   </span></a>        <span class="s1"># 8 of Absoft doesn't recognize &quot;-K shared&quot; and will fail.</span>
+<a name="l59"><span class="ln">59   </span></a>        <span class="s2">elif </span><span class="s0">self</span><span class="s3">.</span><span class="s0">get_version</span><span class="s3">() </span><span class="s2">&gt;= </span><span class="s4">'9.0'</span><span class="s2">:</span>
+<a name="l60"><span class="ln">60   </span></a>            <span class="s0">opt </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'-shared'</span><span class="s3">]</span>
+<a name="l61"><span class="ln">61   </span></a>        <span class="s2">else:</span>
+<a name="l62"><span class="ln">62   </span></a>            <span class="s0">opt </span><span class="s2">= </span><span class="s3">[</span><span class="s4">&quot;-K&quot;</span><span class="s3">, </span><span class="s4">&quot;shared&quot;</span><span class="s3">]</span>
+<a name="l63"><span class="ln">63   </span></a>        <span class="s2">return </span><span class="s0">opt</span>
+<a name="l64"><span class="ln">64   </span></a>
+<a name="l65"><span class="ln">65   </span></a>    <span class="s2">def </span><span class="s0">library_dir_option</span><span class="s3">(</span><span class="s0">self</span><span class="s3">, </span><span class="s0">dir</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s2">if </span><span class="s0">os</span><span class="s3">.</span><span class="s0">name</span><span class="s2">==</span><span class="s4">'nt'</span><span class="s2">:</span>
+<a name="l67"><span class="ln">67   </span></a>            <span class="s2">return </span><span class="s3">[</span><span class="s4">'-link'</span><span class="s3">, </span><span class="s4">'/PATH:%s' </span><span class="s2">% </span><span class="s3">(</span><span class="s0">dir</span><span class="s3">)]</span>
+<a name="l68"><span class="ln">68   </span></a>        <span class="s2">return </span><span class="s4">&quot;-L&quot; </span><span class="s2">+ </span><span class="s0">dir</span>
+<a name="l69"><span class="ln">69   </span></a>
+<a name="l70"><span class="ln">70   </span></a>    <span class="s2">def </span><span class="s0">library_option</span><span class="s3">(</span><span class="s0">self</span><span class="s3">, </span><span class="s0">lib</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l71"><span class="ln">71   </span></a>        <span class="s2">if </span><span class="s0">os</span><span class="s3">.</span><span class="s0">name</span><span class="s2">==</span><span class="s4">'nt'</span><span class="s2">:</span>
+<a name="l72"><span class="ln">72   </span></a>            <span class="s2">return </span><span class="s4">'%s.lib' </span><span class="s2">% </span><span class="s3">(</span><span class="s0">lib</span><span class="s3">)</span>
+<a name="l73"><span class="ln">73   </span></a>        <span class="s2">return </span><span class="s4">&quot;-l&quot; </span><span class="s2">+ </span><span class="s0">lib</span>
+<a name="l74"><span class="ln">74   </span></a>
+<a name="l75"><span class="ln">75   </span></a>    <span class="s2">def </span><span class="s0">get_library_dirs</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l76"><span class="ln">76   </span></a>        <span class="s0">opt </span><span class="s2">= </span><span class="s0">FCompiler</span><span class="s3">.</span><span class="s0">get_library_dirs</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span>
+<a name="l77"><span class="ln">77   </span></a>        <span class="s0">d </span><span class="s2">= </span><span class="s0">os</span><span class="s3">.</span><span class="s0">environ</span><span class="s3">.</span><span class="s0">get</span><span class="s3">(</span><span class="s4">'ABSOFT'</span><span class="s3">)</span>
+<a name="l78"><span class="ln">78   </span></a>        <span class="s2">if </span><span class="s0">d</span><span class="s2">:</span>
+<a name="l79"><span class="ln">79   </span></a>            <span class="s2">if </span><span class="s0">self</span><span class="s3">.</span><span class="s0">get_version</span><span class="s3">() </span><span class="s2">&gt;= </span><span class="s4">'10.0'</span><span class="s2">:</span>
+<a name="l80"><span class="ln">80   </span></a>                <span class="s1"># use shared libraries, the static libraries were not compiled -fPIC</span>
+<a name="l81"><span class="ln">81   </span></a>                <span class="s0">prefix </span><span class="s2">= </span><span class="s4">'sh'</span>
+<a name="l82"><span class="ln">82   </span></a>            <span class="s2">else:</span>
+<a name="l83"><span class="ln">83   </span></a>                <span class="s0">prefix </span><span class="s2">= </span><span class="s4">''</span>
+<a name="l84"><span class="ln">84   </span></a>            <span class="s2">if </span><span class="s0">cpu</span><span class="s3">.</span><span class="s0">is_64bit</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l85"><span class="ln">85   </span></a>                <span class="s0">suffix </span><span class="s2">= </span><span class="s4">'64'</span>
+<a name="l86"><span class="ln">86   </span></a>            <span class="s2">else:</span>
+<a name="l87"><span class="ln">87   </span></a>                <span class="s0">suffix </span><span class="s2">= </span><span class="s4">''</span>
+<a name="l88"><span class="ln">88   </span></a>            <span class="s0">opt</span><span class="s3">.</span><span class="s0">append</span><span class="s3">(</span><span class="s0">os</span><span class="s3">.</span><span class="s0">path</span><span class="s3">.</span><span class="s0">join</span><span class="s3">(</span><span class="s0">d</span><span class="s3">, </span><span class="s4">'%slib%s' </span><span class="s2">% </span><span class="s3">(</span><span class="s0">prefix</span><span class="s3">, </span><span class="s0">suffix</span><span class="s3">)))</span>
+<a name="l89"><span class="ln">89   </span></a>        <span class="s2">return </span><span class="s0">opt</span>
+<a name="l90"><span class="ln">90   </span></a>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s2">def </span><span class="s0">get_libraries</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l92"><span class="ln">92   </span></a>        <span class="s0">opt </span><span class="s2">= </span><span class="s0">FCompiler</span><span class="s3">.</span><span class="s0">get_libraries</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span>
+<a name="l93"><span class="ln">93   </span></a>        <span class="s2">if </span><span class="s0">self</span><span class="s3">.</span><span class="s0">get_version</span><span class="s3">() </span><span class="s2">&gt;= </span><span class="s4">'11.0'</span><span class="s2">:</span>
+<a name="l94"><span class="ln">94   </span></a>            <span class="s0">opt</span><span class="s3">.</span><span class="s0">extend</span><span class="s3">([</span><span class="s4">'af90math'</span><span class="s3">, </span><span class="s4">'afio'</span><span class="s3">, </span><span class="s4">'af77math'</span><span class="s3">, </span><span class="s4">'amisc'</span><span class="s3">])</span>
+<a name="l95"><span class="ln">95   </span></a>        <span class="s2">elif </span><span class="s0">self</span><span class="s3">.</span><span class="s0">get_version</span><span class="s3">() </span><span class="s2">&gt;= </span><span class="s4">'10.0'</span><span class="s2">:</span>
+<a name="l96"><span class="ln">96   </span></a>            <span class="s0">opt</span><span class="s3">.</span><span class="s0">extend</span><span class="s3">([</span><span class="s4">'af90math'</span><span class="s3">, </span><span class="s4">'afio'</span><span class="s3">, </span><span class="s4">'af77math'</span><span class="s3">, </span><span class="s4">'U77'</span><span class="s3">])</span>
+<a name="l97"><span class="ln">97   </span></a>        <span class="s2">elif </span><span class="s0">self</span><span class="s3">.</span><span class="s0">get_version</span><span class="s3">() </span><span class="s2">&gt;= </span><span class="s4">'8.0'</span><span class="s2">:</span>
+<a name="l98"><span class="ln">98   </span></a>            <span class="s0">opt</span><span class="s3">.</span><span class="s0">extend</span><span class="s3">([</span><span class="s4">'f90math'</span><span class="s3">, </span><span class="s4">'fio'</span><span class="s3">, </span><span class="s4">'f77math'</span><span class="s3">, </span><span class="s4">'U77'</span><span class="s3">])</span>
+<a name="l99"><span class="ln">99   </span></a>        <span class="s2">else:</span>
+<a name="l100"><span class="ln">100  </span></a>            <span class="s0">opt</span><span class="s3">.</span><span class="s0">extend</span><span class="s3">([</span><span class="s4">'fio'</span><span class="s3">, </span><span class="s4">'f90math'</span><span class="s3">, </span><span class="s4">'fmath'</span><span class="s3">, </span><span class="s4">'U77'</span><span class="s3">])</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s2">if </span><span class="s0">os</span><span class="s3">.</span><span class="s0">name </span><span class="s2">==</span><span class="s4">'nt'</span><span class="s2">:</span>
+<a name="l102"><span class="ln">102  </span></a>            <span class="s0">opt</span><span class="s3">.</span><span class="s0">append</span><span class="s3">(</span><span class="s4">'COMDLG32'</span><span class="s3">)</span>
+<a name="l103"><span class="ln">103  </span></a>        <span class="s2">return </span><span class="s0">opt</span>
+<a name="l104"><span class="ln">104  </span></a>
+<a name="l105"><span class="ln">105  </span></a>    <span class="s2">def </span><span class="s0">get_flags</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l106"><span class="ln">106  </span></a>        <span class="s0">opt </span><span class="s2">= </span><span class="s0">FCompiler</span><span class="s3">.</span><span class="s0">get_flags</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span>
+<a name="l107"><span class="ln">107  </span></a>        <span class="s2">if </span><span class="s0">os</span><span class="s3">.</span><span class="s0">name </span><span class="s2">!= </span><span class="s4">'nt'</span><span class="s2">:</span>
+<a name="l108"><span class="ln">108  </span></a>            <span class="s0">opt</span><span class="s3">.</span><span class="s0">extend</span><span class="s3">([</span><span class="s4">'-s'</span><span class="s3">])</span>
+<a name="l109"><span class="ln">109  </span></a>            <span class="s2">if </span><span class="s0">self</span><span class="s3">.</span><span class="s0">get_version</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l110"><span class="ln">110  </span></a>                <span class="s2">if </span><span class="s0">self</span><span class="s3">.</span><span class="s0">get_version</span><span class="s3">()</span><span class="s2">&gt;=</span><span class="s4">'8.2'</span><span class="s2">:</span>
+<a name="l111"><span class="ln">111  </span></a>                    <span class="s0">opt</span><span class="s3">.</span><span class="s0">append</span><span class="s3">(</span><span class="s4">'-fpic'</span><span class="s3">)</span>
+<a name="l112"><span class="ln">112  </span></a>        <span class="s2">return </span><span class="s0">opt</span>
+<a name="l113"><span class="ln">113  </span></a>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s2">def </span><span class="s0">get_flags_f77</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l115"><span class="ln">115  </span></a>        <span class="s0">opt </span><span class="s2">= </span><span class="s0">FCompiler</span><span class="s3">.</span><span class="s0">get_flags_f77</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span>
+<a name="l116"><span class="ln">116  </span></a>        <span class="s0">opt</span><span class="s3">.</span><span class="s0">extend</span><span class="s3">([</span><span class="s4">'-N22'</span><span class="s3">, </span><span class="s4">'-N90'</span><span class="s3">, </span><span class="s4">'-N110'</span><span class="s3">])</span>
+<a name="l117"><span class="ln">117  </span></a>        <span class="s0">v </span><span class="s2">= </span><span class="s0">self</span><span class="s3">.</span><span class="s0">get_version</span><span class="s3">()</span>
+<a name="l118"><span class="ln">118  </span></a>        <span class="s2">if </span><span class="s0">os</span><span class="s3">.</span><span class="s0">name </span><span class="s2">== </span><span class="s4">'nt'</span><span class="s2">:</span>
+<a name="l119"><span class="ln">119  </span></a>            <span class="s2">if </span><span class="s0">v </span><span class="s2">and </span><span class="s0">v</span><span class="s2">&gt;=</span><span class="s4">'8.0'</span><span class="s2">:</span>
+<a name="l120"><span class="ln">120  </span></a>                <span class="s0">opt</span><span class="s3">.</span><span class="s0">extend</span><span class="s3">([</span><span class="s4">'-f'</span><span class="s3">, </span><span class="s4">'-N15'</span><span class="s3">])</span>
+<a name="l121"><span class="ln">121  </span></a>        <span class="s2">else:</span>
+<a name="l122"><span class="ln">122  </span></a>            <span class="s0">opt</span><span class="s3">.</span><span class="s0">append</span><span class="s3">(</span><span class="s4">'-f'</span><span class="s3">)</span>
+<a name="l123"><span class="ln">123  </span></a>            <span class="s2">if </span><span class="s0">v</span><span class="s2">:</span>
+<a name="l124"><span class="ln">124  </span></a>                <span class="s2">if </span><span class="s0">v</span><span class="s2">&lt;=</span><span class="s4">'4.6'</span><span class="s2">:</span>
+<a name="l125"><span class="ln">125  </span></a>                    <span class="s0">opt</span><span class="s3">.</span><span class="s0">append</span><span class="s3">(</span><span class="s4">'-B108'</span><span class="s3">)</span>
+<a name="l126"><span class="ln">126  </span></a>                <span class="s2">else:</span>
+<a name="l127"><span class="ln">127  </span></a>                    <span class="s1"># Though -N15 is undocumented, it works with</span>
+<a name="l128"><span class="ln">128  </span></a>                    <span class="s1"># Absoft 8.0 on Linux</span>
+<a name="l129"><span class="ln">129  </span></a>                    <span class="s0">opt</span><span class="s3">.</span><span class="s0">append</span><span class="s3">(</span><span class="s4">'-N15'</span><span class="s3">)</span>
+<a name="l130"><span class="ln">130  </span></a>        <span class="s2">return </span><span class="s0">opt</span>
+<a name="l131"><span class="ln">131  </span></a>
+<a name="l132"><span class="ln">132  </span></a>    <span class="s2">def </span><span class="s0">get_flags_f90</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l133"><span class="ln">133  </span></a>        <span class="s0">opt </span><span class="s2">= </span><span class="s0">FCompiler</span><span class="s3">.</span><span class="s0">get_flags_f90</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span>
+<a name="l134"><span class="ln">134  </span></a>        <span class="s0">opt</span><span class="s3">.</span><span class="s0">extend</span><span class="s3">([</span><span class="s4">&quot;-YCFRL=1&quot;</span><span class="s3">, </span><span class="s4">&quot;-YCOM_NAMES=LCS&quot;</span><span class="s3">, </span><span class="s4">&quot;-YCOM_PFX&quot;</span><span class="s3">, </span><span class="s4">&quot;-YEXT_PFX&quot;</span><span class="s3">,</span>
+<a name="l135"><span class="ln">135  </span></a>                    <span class="s4">&quot;-YCOM_SFX=_&quot;</span><span class="s3">, </span><span class="s4">&quot;-YEXT_SFX=_&quot;</span><span class="s3">, </span><span class="s4">&quot;-YEXT_NAMES=LCS&quot;</span><span class="s3">])</span>
+<a name="l136"><span class="ln">136  </span></a>        <span class="s2">if </span><span class="s0">self</span><span class="s3">.</span><span class="s0">get_version</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l137"><span class="ln">137  </span></a>            <span class="s2">if </span><span class="s0">self</span><span class="s3">.</span><span class="s0">get_version</span><span class="s3">()</span><span class="s2">&gt;</span><span class="s4">'4.6'</span><span class="s2">:</span>
+<a name="l138"><span class="ln">138  </span></a>                <span class="s0">opt</span><span class="s3">.</span><span class="s0">extend</span><span class="s3">([</span><span class="s4">&quot;-YDEALLOC=ALL&quot;</span><span class="s3">])</span>
+<a name="l139"><span class="ln">139  </span></a>        <span class="s2">return </span><span class="s0">opt</span>
+<a name="l140"><span class="ln">140  </span></a>
+<a name="l141"><span class="ln">141  </span></a>    <span class="s2">def </span><span class="s0">get_flags_fix</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s0">opt </span><span class="s2">= </span><span class="s0">FCompiler</span><span class="s3">.</span><span class="s0">get_flags_fix</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s0">opt</span><span class="s3">.</span><span class="s0">extend</span><span class="s3">([</span><span class="s4">&quot;-YCFRL=1&quot;</span><span class="s3">, </span><span class="s4">&quot;-YCOM_NAMES=LCS&quot;</span><span class="s3">, </span><span class="s4">&quot;-YCOM_PFX&quot;</span><span class="s3">, </span><span class="s4">&quot;-YEXT_PFX&quot;</span><span class="s3">,</span>
+<a name="l144"><span class="ln">144  </span></a>                    <span class="s4">&quot;-YCOM_SFX=_&quot;</span><span class="s3">, </span><span class="s4">&quot;-YEXT_SFX=_&quot;</span><span class="s3">, </span><span class="s4">&quot;-YEXT_NAMES=LCS&quot;</span><span class="s3">])</span>
+<a name="l145"><span class="ln">145  </span></a>        <span class="s0">opt</span><span class="s3">.</span><span class="s0">extend</span><span class="s3">([</span><span class="s4">&quot;-f&quot;</span><span class="s3">, </span><span class="s4">&quot;fixed&quot;</span><span class="s3">])</span>
+<a name="l146"><span class="ln">146  </span></a>        <span class="s2">return </span><span class="s0">opt</span>
+<a name="l147"><span class="ln">147  </span></a>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s2">def </span><span class="s0">get_flags_opt</span><span class="s3">(</span><span class="s0">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l149"><span class="ln">149  </span></a>        <span class="s0">opt </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'-O'</span><span class="s3">]</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s2">return </span><span class="s0">opt</span>
+<a name="l151"><span class="ln">151  </span></a>
+<a name="l152"><span class="ln">152  </span></a><span class="s2">if </span><span class="s0">__name__ </span><span class="s2">== </span><span class="s4">'__main__'</span><span class="s2">:</span>
+<a name="l153"><span class="ln">153  </span></a>    <span class="s2">from </span><span class="s0">distutils </span><span class="s2">import </span><span class="s0">log</span>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s0">log</span><span class="s3">.</span><span class="s0">set_verbosity</span><span class="s3">(</span><span class="s5">2</span><span class="s3">)</span>
+<a name="l155"><span class="ln">155  </span></a>    <span class="s2">from </span><span class="s0">numpy</span><span class="s3">.</span><span class="s0">distutils </span><span class="s2">import </span><span class="s0">customized_fcompiler</span>
+<a name="l156"><span class="ln">156  </span></a>    <span class="s0">print</span><span class="s3">(</span><span class="s0">customized_fcompiler</span><span class="s3">(</span><span class="s0">compiler</span><span class="s2">=</span><span class="s4">'absoft'</span><span class="s3">).</span><span class="s0">get_version</span><span class="s3">())</span>
+<a name="l157"><span class="ln">157  </span></a></pre>
+</body>
+</html>

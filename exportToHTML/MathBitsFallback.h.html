@@ -1,0 +1,181 @@
+<html>
+<head>
+<title>MathBitsFallback.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #000080; font-weight: bold;}
+.s1 { color: #333333;}
+.s2 { color: #660e7a; font-weight: bold;}
+.s3 { color: #969896; font-style: italic;}
+.s4 { color: #0086b3;}
+.s5 { color: #006666; font-weight: bold;}
+.s6 { color: #183691; font-weight: bold;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+MathBitsFallback.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#include </span><span class="s1">&lt;ATen/core/Tensor.h&gt;</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">#include </span><span class="s1">&lt;ATen/core/dispatch/Dispatcher.h&gt;</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">#include </span><span class="s1">&lt;ATen/core/op_registration/op_registration.h&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">#include </span><span class="s1">&lt;ATen/native/UnaryOps.h&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">#include </span><span class="s1">&lt;ATen/native/Resize.h&gt;</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">#include </span><span class="s1">&lt;c10/util/irange.h&gt;</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">#include </span><span class="s1">&lt;torch/library.h&gt;</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">#ifndef </span><span class="s1">AT_PER_OPERATOR_HEADERS</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">#include </span><span class="s1">&lt;ATen/Functions.h&gt;</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s0">#else</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s0">#include </span><span class="s1">&lt;ATen/ops/clone.h&gt;</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s0">#include </span><span class="s1">&lt;utility&gt;</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s0">#endif</span>
+<a name="l16"><span class="ln">16   </span></a>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">namespace </span><span class="s1">at::native {</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s3">// This fallback should only be used for operations that are self inverse and have a corresponding tensor</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s3">// bit (internally implemented using DispatchKey) to maintain the state on tensor using tensor bit.</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s3">// Currently there are two tensor bits that trigger this fallback: conjugate bit and negative bit.</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s3">// Conjugate bit is set on a tensor when `.conj()` is called and neg bit is set on a tensor when `.conj().imag` is called.</span>
+<a name="l22"><span class="ln">22   </span></a>
+<a name="l23"><span class="ln">23   </span></a><span class="s3">// NOTE: To use this fallback, `clone` and `copy_` should fully understand and be able to correctly handle the semantic of your math bit.</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s0">struct </span><span class="s1">MathOpFallback {</span>
+<a name="l25"><span class="ln">25   </span></a>  <span class="s1">MathOpFallback(DispatchKey key_, std::string op_name_) : key(key_), op_name(std::move(op_name_)) {}</span>
+<a name="l26"><span class="ln">26   </span></a>  <span class="s2">virtual </span><span class="s0">bool </span><span class="s1">is_bit_set(</span><span class="s0">const </span><span class="s1">Tensor&amp;) = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l27"><span class="ln">27   </span></a>  <span class="s0">void </span><span class="s1">fallback_impl(</span><span class="s0">const </span><span class="s1">c10::OperatorHandle&amp; op, DispatchKeySet dispatch_keys, torch::jit::Stack* stack) {</span>
+<a name="l28"><span class="ln">28   </span></a>    <span class="s3">/* 
+<a name="l29"><span class="ln">29   </span></a>      Situations to handle: 
+<a name="l30"><span class="ln">30   </span></a>        1. Out-of-place operation.  Easy: materialize all inputs and 
+<a name="l31"><span class="ln">31   </span></a>          call it a day. 
+<a name="l32"><span class="ln">32   </span></a>        2. Inplace operation.  Desugar x.add_(2) into x.conj_().add_(2).conj_(). 
+<a name="l33"><span class="ln">33   </span></a>          Materialize other inputs as in (1). 
+<a name="l34"><span class="ln">34   </span></a>        3. out= operation.  Desugar add(x, 2, out=y) into y.copy_(add(x, 2)) 
+<a name="l35"><span class="ln">35   </span></a>        Materialize other inputs as in (1). 
+<a name="l36"><span class="ln">36   </span></a> 
+<a name="l37"><span class="ln">37   </span></a>        It is important to be able to tell if we READ from an argument and if we 
+<a name="l38"><span class="ln">38   </span></a>        WRITE to an argument.  Conservative approach is to assume that we always 
+<a name="l39"><span class="ln">39   </span></a>        READ from an argument, but in out= operations you can skip 
+<a name="l40"><span class="ln">40   </span></a>        conjugating inputs on entry that never get used. In the current schema we 
+<a name="l41"><span class="ln">41   </span></a>        can't easily tell if the operation is in in-place or out= operation. 
+<a name="l42"><span class="ln">42   </span></a> 
+<a name="l43"><span class="ln">43   </span></a>        Note: 
+<a name="l44"><span class="ln">44   </span></a>        1. Mutable tensorlists containing tensors whose math bit set to true are disallowed. 
+<a name="l45"><span class="ln">45   </span></a>        2. Mutable tensors with math bit set to true are unconditionally cloned to ensure 
+<a name="l46"><span class="ln">46   </span></a>           correct behavior in the case when the mutable tensor shares memory with non mutable arguments. 
+<a name="l47"><span class="ln">47   </span></a> 
+<a name="l48"><span class="ln">48   </span></a>           If we were to in-place resolve the math bit for mutable inputs, then the non-mutable inputs sharing partial or full memory 
+<a name="l49"><span class="ln">49   </span></a>           with these mutable inputs would read into wrong values in the following cases: 
+<a name="l50"><span class="ln">50   </span></a>           1. Non mutable inputs have their math bit set to false. 
+<a name="l51"><span class="ln">51   </span></a>           2. Math bit for mutable input(s) is resolved before the non mutable inputs (with bit set to true and sharing memory 
+<a name="l52"><span class="ln">52   </span></a>              with one or more mutable arg(s)) are cloned. 
+<a name="l53"><span class="ln">53   </span></a>           At the end, the final value of the mutable arguments from the stack are copied into the original input mutable tensor inputs. 
+<a name="l54"><span class="ln">54   </span></a>    */</span>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s0">const auto</span><span class="s1">&amp; arguments = op.schema().arguments();</span>
+<a name="l56"><span class="ln">56   </span></a>    <span class="s0">const auto </span><span class="s1">num_arguments = arguments.size();</span>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s0">const auto </span><span class="s1">stack_start = stack</span><span class="s5">-&gt;</span><span class="s1">size() - num_arguments;</span>
+<a name="l58"><span class="ln">58   </span></a>
+<a name="l59"><span class="ln">59   </span></a>    <span class="s1">std::optional&lt;</span><span class="s0">bool</span><span class="s1">&gt; is_write;</span>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s0">for </span><span class="s1">(</span><span class="s0">const auto </span><span class="s1">i : c10::irange(num_arguments)) {</span>
+<a name="l61"><span class="ln">61   </span></a>      <span class="s3">// Three possible states:</span>
+<a name="l62"><span class="ln">62   </span></a>      <span class="s3">// 1. alias_info has no value --&gt; out-of-place operation</span>
+<a name="l63"><span class="ln">63   </span></a>      <span class="s3">// 2. alias_info does have a value, alias_info-&gt;is_write=True --&gt; in-place or out= operation</span>
+<a name="l64"><span class="ln">64   </span></a>      <span class="s3">// 3. alias_info does have a value, alias_info-&gt;is_write=False --&gt; view operation</span>
+<a name="l65"><span class="ln">65   </span></a>      <span class="s0">const </span><span class="s1">AliasInfo* alias_info = arguments[i].alias_info();</span>
+<a name="l66"><span class="ln">66   </span></a>      <span class="s0">if </span><span class="s1">(alias_info != nullptr) {</span>
+<a name="l67"><span class="ln">67   </span></a>        <span class="s0">if </span><span class="s1">(is_write.has_value()) {</span>
+<a name="l68"><span class="ln">68   </span></a>          <span class="s1">TORCH_CHECK(*is_write == alias_info</span><span class="s5">-&gt;</span><span class="s1">isWrite(),</span>
+<a name="l69"><span class="ln">69   </span></a>            <span class="s6">&quot;Unsupported operator for &quot;</span><span class="s1">, op_name, </span><span class="s6">&quot; fallback: &quot;</span><span class="s1">, op.schema().name(),</span>
+<a name="l70"><span class="ln">70   </span></a>            <span class="s1">op_name, </span><span class="s6">&quot; fallback doesn't work for operators with a mix &quot;</span>
+<a name="l71"><span class="ln">71   </span></a>            <span class="s6">&quot;mutable and non-mutable inputs that alias with outputs, &quot;</span>
+<a name="l72"><span class="ln">72   </span></a>            <span class="s6">&quot;this must be implemented manually.  &quot;</span>
+<a name="l73"><span class="ln">73   </span></a>            <span class="s6">&quot;If you got this error on a core op, please report a bug to PyTorch.&quot;</span><span class="s1">);</span>
+<a name="l74"><span class="ln">74   </span></a>        <span class="s1">} </span><span class="s0">else </span><span class="s1">{</span>
+<a name="l75"><span class="ln">75   </span></a>          <span class="s1">is_write = alias_info</span><span class="s5">-&gt;</span><span class="s1">isWrite();</span>
+<a name="l76"><span class="ln">76   </span></a>        <span class="s1">}</span>
+<a name="l77"><span class="ln">77   </span></a>      <span class="s1">}</span>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s1">}</span>
+<a name="l79"><span class="ln">79   </span></a>
+<a name="l80"><span class="ln">80   </span></a>    <span class="s0">if </span><span class="s1">(is_write.has_value() &amp;&amp; !*is_write) {</span>
+<a name="l81"><span class="ln">81   </span></a>      <span class="s3">// We assume that view operators automatically handle the math bit</span>
+<a name="l82"><span class="ln">82   </span></a>      <span class="s3">// correctly by propagating the dispatch key in key_set.</span>
+<a name="l83"><span class="ln">83   </span></a>      <span class="s3">// This is not necessarily always right, so you should test these cases.</span>
+<a name="l84"><span class="ln">84   </span></a>      <span class="s1">op.redispatchBoxed(dispatch_keys &amp; c10::DispatchKeySet(DispatchKeySet::FULL_AFTER, key), stack);</span>
+<a name="l85"><span class="ln">85   </span></a>      <span class="s0">return</span><span class="s1">;</span>
+<a name="l86"><span class="ln">86   </span></a>    <span class="s1">}</span>
+<a name="l87"><span class="ln">87   </span></a>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s3">// Mutable inputs with math bit set to True and their clones</span>
+<a name="l89"><span class="ln">89   </span></a>    <span class="s1">std::vector&lt;std::pair&lt;Tensor, Tensor&gt;&gt; mutable_inputs_with_their_clones;</span>
+<a name="l90"><span class="ln">90   </span></a>    <span class="s0">for </span><span class="s1">(</span><span class="s0">const auto </span><span class="s1">i : c10::irange(num_arguments)) {</span>
+<a name="l91"><span class="ln">91   </span></a>      <span class="s0">auto</span><span class="s1">&amp; ivalue = (*stack)[stack_start + i];</span>
+<a name="l92"><span class="ln">92   </span></a>      <span class="s0">if </span><span class="s1">(!(ivalue.isTensor() || ivalue.isTensorList())) {</span>
+<a name="l93"><span class="ln">93   </span></a>        <span class="s0">continue</span><span class="s1">;</span>
+<a name="l94"><span class="ln">94   </span></a>      <span class="s1">}</span>
+<a name="l95"><span class="ln">95   </span></a>      <span class="s0">const auto</span><span class="s1">&amp; argument = arguments[i];</span>
+<a name="l96"><span class="ln">96   </span></a>      <span class="s0">bool </span><span class="s1">mut_arg = </span><span class="s0">false</span><span class="s1">;</span>
+<a name="l97"><span class="ln">97   </span></a>      <span class="s0">if </span><span class="s1">(argument.alias_info()) {</span>
+<a name="l98"><span class="ln">98   </span></a>        <span class="s3">// Was already tested by is_write loop above</span>
+<a name="l99"><span class="ln">99   </span></a>        <span class="s1">TORCH_INTERNAL_ASSERT_DEBUG_ONLY(argument.alias_info()</span><span class="s5">-&gt;</span><span class="s1">isWrite());</span>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s1">mut_arg = </span><span class="s2">true</span><span class="s1">;</span>
+<a name="l101"><span class="ln">101  </span></a>      <span class="s1">}</span>
+<a name="l102"><span class="ln">102  </span></a>      <span class="s0">if </span><span class="s1">(ivalue.isTensor()) {</span>
+<a name="l103"><span class="ln">103  </span></a>        <span class="s0">if </span><span class="s1">(!is_bit_set(ivalue.toTensor())) {</span>
+<a name="l104"><span class="ln">104  </span></a>          <span class="s0">continue</span><span class="s1">;</span>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s1">}</span>
+<a name="l106"><span class="ln">106  </span></a>        <span class="s0">auto </span><span class="s1">tensor = std::move(ivalue).toTensor();</span>
+<a name="l107"><span class="ln">107  </span></a>        <span class="s0">auto </span><span class="s1">resolved_tensor = at::clone(tensor);</span>
+<a name="l108"><span class="ln">108  </span></a>        <span class="s0">if </span><span class="s1">(mut_arg) {</span>
+<a name="l109"><span class="ln">109  </span></a>          <span class="s1">TORCH_CHECK(mutable_inputs_with_their_clones.empty(), op_name, </span><span class="s6">&quot; fallback does not support operators with more than one mutable tensors with &quot;</span><span class="s1">,</span>
+<a name="l110"><span class="ln">110  </span></a>            <span class="s1">op_name, </span><span class="s6">&quot;bit set to true.&quot;</span><span class="s1">);</span>
+<a name="l111"><span class="ln">111  </span></a>          <span class="s1">mutable_inputs_with_their_clones.emplace_back(std::move(tensor), resolved_tensor);</span>
+<a name="l112"><span class="ln">112  </span></a>        <span class="s1">}</span>
+<a name="l113"><span class="ln">113  </span></a>        <span class="s1">(*stack)[stack_start + i] = std::move(resolved_tensor);</span>
+<a name="l114"><span class="ln">114  </span></a>      <span class="s1">} </span><span class="s0">else if </span><span class="s1">(ivalue.isTensorList()) {</span>
+<a name="l115"><span class="ln">115  </span></a>        <span class="s0">auto </span><span class="s1">tensors = std::move(ivalue).toTensorList();</span>
+<a name="l116"><span class="ln">116  </span></a>        <span class="s0">for</span><span class="s1">(</span><span class="s0">const auto </span><span class="s1">j : c10::irange(tensors.size())) {</span>
+<a name="l117"><span class="ln">117  </span></a>          <span class="s0">const auto</span><span class="s1">&amp; tensor = tensors[j];</span>
+<a name="l118"><span class="ln">118  </span></a>          <span class="s0">if </span><span class="s1">(!is_bit_set(tensor)) {</span>
+<a name="l119"><span class="ln">119  </span></a>            <span class="s0">continue</span><span class="s1">;</span>
+<a name="l120"><span class="ln">120  </span></a>          <span class="s1">}</span>
+<a name="l121"><span class="ln">121  </span></a>          <span class="s1">TORCH_CHECK(!mut_arg, </span><span class="s6">&quot; fallback doesn't currently support mutable TensorLists with &quot;</span><span class="s1">,</span>
+<a name="l122"><span class="ln">122  </span></a>              <span class="s1">op_name, </span><span class="s6">&quot; inputs. Please materialize all the &quot;</span><span class="s1">, op_name, </span><span class="s6">&quot; input tensor(s) in the mutable TensorList inputs before calling &quot;</span><span class="s1">,</span>
+<a name="l123"><span class="ln">123  </span></a>              <span class="s1">op.schema().name());</span>
+<a name="l124"><span class="ln">124  </span></a>          <span class="s1">tensors[j] = at::clone(tensor);</span>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s1">}</span>
+<a name="l126"><span class="ln">126  </span></a>        <span class="s1">(*stack)[stack_start + i] = std::move(tensors);</span>
+<a name="l127"><span class="ln">127  </span></a>      <span class="s1">}</span>
+<a name="l128"><span class="ln">128  </span></a>    <span class="s1">}</span>
+<a name="l129"><span class="ln">129  </span></a>
+<a name="l130"><span class="ln">130  </span></a>    <span class="s1">op.redispatchBoxed(dispatch_keys &amp; c10::DispatchKeySet(DispatchKeySet::FULL_AFTER, key), stack);</span>
+<a name="l131"><span class="ln">131  </span></a>
+<a name="l132"><span class="ln">132  </span></a>    <span class="s1">TORCH_INTERNAL_ASSERT(mutable_inputs_with_their_clones.size() &lt;= </span><span class="s4">1</span><span class="s1">);</span>
+<a name="l133"><span class="ln">133  </span></a>
+<a name="l134"><span class="ln">134  </span></a>    <span class="s0">for </span><span class="s1">(std::pair&lt;Tensor, Tensor&gt; mut_tensors: mutable_inputs_with_their_clones) {</span>
+<a name="l135"><span class="ln">135  </span></a>      <span class="s0">auto</span><span class="s1">&amp; mutable_input =  mut_tensors.first;</span>
+<a name="l136"><span class="ln">136  </span></a>      <span class="s0">auto</span><span class="s1">&amp; cloned_mutable_input =  mut_tensors.second;</span>
+<a name="l137"><span class="ln">137  </span></a>      <span class="s0">auto</span><span class="s1">&amp; ivalue = (*stack)[stack_start];</span>
+<a name="l138"><span class="ln">138  </span></a>      <span class="s0">auto </span><span class="s1">returned_output = std::move(ivalue).toTensor();</span>
+<a name="l139"><span class="ln">139  </span></a>
+<a name="l140"><span class="ln">140  </span></a>      <span class="s3">// sanity check to ensure that the tensor in stack aliases the cloned_mutable_input</span>
+<a name="l141"><span class="ln">141  </span></a>      <span class="s1">TORCH_INTERNAL_ASSERT(cloned_mutable_input.is_same(returned_output));</span>
+<a name="l142"><span class="ln">142  </span></a>
+<a name="l143"><span class="ln">143  </span></a>      <span class="s3">// necessary for out= arg</span>
+<a name="l144"><span class="ln">144  </span></a>      <span class="s1">at::native::resize_output(mutable_input, returned_output.sizes());</span>
+<a name="l145"><span class="ln">145  </span></a>
+<a name="l146"><span class="ln">146  </span></a>      <span class="s1">mutable_input.copy_(returned_output);</span>
+<a name="l147"><span class="ln">147  </span></a>      <span class="s1">(*stack)[stack_start] = std::move(mutable_input);</span>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s1">}</span>
+<a name="l149"><span class="ln">149  </span></a>  <span class="s1">}</span>
+<a name="l150"><span class="ln">150  </span></a>
+<a name="l151"><span class="ln">151  </span></a>  <span class="s2">virtual </span><span class="s1">~MathOpFallback() = </span><span class="s0">default</span><span class="s1">;</span>
+<a name="l152"><span class="ln">152  </span></a>
+<a name="l153"><span class="ln">153  </span></a>  <span class="s1">DispatchKey key;</span>
+<a name="l154"><span class="ln">154  </span></a>  <span class="s1">std::string op_name;</span>
+<a name="l155"><span class="ln">155  </span></a><span class="s1">};</span>
+<a name="l156"><span class="ln">156  </span></a>
+<a name="l157"><span class="ln">157  </span></a><span class="s1">} </span><span class="s3">// namespace at::native</span>
+<a name="l158"><span class="ln">158  </span></a></pre>
+</body>
+</html>

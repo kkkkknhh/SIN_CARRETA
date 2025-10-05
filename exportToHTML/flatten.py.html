@@ -1,0 +1,181 @@
+<html>
+<head>
+<title>flatten.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+flatten.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: allow-untyped-defs</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s2">from </span><span class="s1">typing </span><span class="s2">import </span><span class="s1">Union</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">from </span><span class="s1">torch </span><span class="s2">import </span><span class="s1">Tensor</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">types </span><span class="s2">import </span><span class="s1">_size</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">module </span><span class="s2">import </span><span class="s1">Module</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">&quot;Flatten&quot;</span><span class="s3">, </span><span class="s4">&quot;Unflatten&quot;</span><span class="s3">]</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">class </span><span class="s1">Flatten</span><span class="s3">(</span><span class="s1">Module</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l15"><span class="ln">15   </span></a>    Flattens a contiguous range of dims into a tensor. 
+<a name="l16"><span class="ln">16   </span></a> 
+<a name="l17"><span class="ln">17   </span></a>    For use with :class:`~nn.Sequential`, see :meth:`torch.flatten` for details. 
+<a name="l18"><span class="ln">18   </span></a> 
+<a name="l19"><span class="ln">19   </span></a>    Shape: 
+<a name="l20"><span class="ln">20   </span></a>        - Input: :math:`(*, S_{\text{start}},..., S_{i}, ..., S_{\text{end}}, *)`,' 
+<a name="l21"><span class="ln">21   </span></a>          where :math:`S_{i}` is the size at dimension :math:`i` and :math:`*` means any 
+<a name="l22"><span class="ln">22   </span></a>          number of dimensions including none. 
+<a name="l23"><span class="ln">23   </span></a>        - Output: :math:`(*, \prod_{i=\text{start}}^{\text{end}} S_{i}, *)`. 
+<a name="l24"><span class="ln">24   </span></a> 
+<a name="l25"><span class="ln">25   </span></a>    Args: 
+<a name="l26"><span class="ln">26   </span></a>        start_dim: first dim to flatten (default = 1). 
+<a name="l27"><span class="ln">27   </span></a>        end_dim: last dim to flatten (default = -1). 
+<a name="l28"><span class="ln">28   </span></a> 
+<a name="l29"><span class="ln">29   </span></a>    Examples:: 
+<a name="l30"><span class="ln">30   </span></a>        &gt;&gt;&gt; input = torch.randn(32, 1, 5, 5) 
+<a name="l31"><span class="ln">31   </span></a>        &gt;&gt;&gt; # With default parameters 
+<a name="l32"><span class="ln">32   </span></a>        &gt;&gt;&gt; m = nn.Flatten() 
+<a name="l33"><span class="ln">33   </span></a>        &gt;&gt;&gt; output = m(input) 
+<a name="l34"><span class="ln">34   </span></a>        &gt;&gt;&gt; output.size() 
+<a name="l35"><span class="ln">35   </span></a>        torch.Size([32, 25]) 
+<a name="l36"><span class="ln">36   </span></a>        &gt;&gt;&gt; # With non-default parameters 
+<a name="l37"><span class="ln">37   </span></a>        &gt;&gt;&gt; m = nn.Flatten(0, 2) 
+<a name="l38"><span class="ln">38   </span></a>        &gt;&gt;&gt; output = m(input) 
+<a name="l39"><span class="ln">39   </span></a>        &gt;&gt;&gt; output.size() 
+<a name="l40"><span class="ln">40   </span></a>        torch.Size([160, 5]) 
+<a name="l41"><span class="ln">41   </span></a>    &quot;&quot;&quot;</span>
+<a name="l42"><span class="ln">42   </span></a>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s1">__constants__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">&quot;start_dim&quot;</span><span class="s3">, </span><span class="s4">&quot;end_dim&quot;</span><span class="s3">]</span>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s1">start_dim</span><span class="s2">: </span><span class="s1">int</span>
+<a name="l45"><span class="ln">45   </span></a>    <span class="s1">end_dim</span><span class="s2">: </span><span class="s1">int</span>
+<a name="l46"><span class="ln">46   </span></a>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">start_dim</span><span class="s2">: </span><span class="s1">int </span><span class="s2">= </span><span class="s5">1</span><span class="s3">, </span><span class="s1">end_dim</span><span class="s2">: </span><span class="s1">int </span><span class="s2">= -</span><span class="s5">1</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l48"><span class="ln">48   </span></a>        <span class="s1">super</span><span class="s3">().</span><span class="s1">__init__</span><span class="s3">()</span>
+<a name="l49"><span class="ln">49   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">start_dim </span><span class="s2">= </span><span class="s1">start_dim</span>
+<a name="l50"><span class="ln">50   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">end_dim </span><span class="s2">= </span><span class="s1">end_dim</span>
+<a name="l51"><span class="ln">51   </span></a>
+<a name="l52"><span class="ln">52   </span></a>    <span class="s2">def </span><span class="s1">forward</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">input</span><span class="s2">: </span><span class="s1">Tensor</span><span class="s3">) </span><span class="s1">-&gt; Tensor</span><span class="s2">:</span>
+<a name="l53"><span class="ln">53   </span></a>        <span class="s2">return </span><span class="s1">input</span><span class="s3">.</span><span class="s1">flatten</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">start_dim</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">end_dim</span><span class="s3">)</span>
+<a name="l54"><span class="ln">54   </span></a>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s2">def </span><span class="s1">extra_repr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; str</span><span class="s2">:</span>
+<a name="l56"><span class="ln">56   </span></a>        <span class="s2">return </span><span class="s4">f&quot;start_dim={</span><span class="s1">self</span><span class="s3">.</span><span class="s1">start_dim</span><span class="s4">}, end_dim={</span><span class="s1">self</span><span class="s3">.</span><span class="s1">end_dim</span><span class="s4">}&quot;</span>
+<a name="l57"><span class="ln">57   </span></a>
+<a name="l58"><span class="ln">58   </span></a>
+<a name="l59"><span class="ln">59   </span></a><span class="s2">class </span><span class="s1">Unflatten</span><span class="s3">(</span><span class="s1">Module</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l61"><span class="ln">61   </span></a>    Unflattens a tensor dim expanding it to a desired shape. For use with :class:`~nn.Sequential`. 
+<a name="l62"><span class="ln">62   </span></a> 
+<a name="l63"><span class="ln">63   </span></a>    * :attr:`dim` specifies the dimension of the input tensor to be unflattened, and it can 
+<a name="l64"><span class="ln">64   </span></a>      be either `int` or `str` when `Tensor` or `NamedTensor` is used, respectively. 
+<a name="l65"><span class="ln">65   </span></a> 
+<a name="l66"><span class="ln">66   </span></a>    * :attr:`unflattened_size` is the new shape of the unflattened dimension of the tensor and it can be 
+<a name="l67"><span class="ln">67   </span></a>      a `tuple` of ints or a `list` of ints or `torch.Size` for `Tensor` input;  a `NamedShape` 
+<a name="l68"><span class="ln">68   </span></a>      (tuple of `(name, size)` tuples) for `NamedTensor` input. 
+<a name="l69"><span class="ln">69   </span></a> 
+<a name="l70"><span class="ln">70   </span></a>    Shape: 
+<a name="l71"><span class="ln">71   </span></a>        - Input: :math:`(*, S_{\text{dim}}, *)`, where :math:`S_{\text{dim}}` is the size at 
+<a name="l72"><span class="ln">72   </span></a>          dimension :attr:`dim` and :math:`*` means any number of dimensions including none. 
+<a name="l73"><span class="ln">73   </span></a>        - Output: :math:`(*, U_1, ..., U_n, *)`, where :math:`U` = :attr:`unflattened_size` and 
+<a name="l74"><span class="ln">74   </span></a>          :math:`\prod_{i=1}^n U_i = S_{\text{dim}}`. 
+<a name="l75"><span class="ln">75   </span></a> 
+<a name="l76"><span class="ln">76   </span></a>    Args: 
+<a name="l77"><span class="ln">77   </span></a>        dim (Union[int, str]): Dimension to be unflattened 
+<a name="l78"><span class="ln">78   </span></a>        unflattened_size (Union[torch.Size, Tuple, List, NamedShape]): New shape of the unflattened dimension 
+<a name="l79"><span class="ln">79   </span></a> 
+<a name="l80"><span class="ln">80   </span></a>    Examples: 
+<a name="l81"><span class="ln">81   </span></a>        &gt;&gt;&gt; input = torch.randn(2, 50) 
+<a name="l82"><span class="ln">82   </span></a>        &gt;&gt;&gt; # With tuple of ints 
+<a name="l83"><span class="ln">83   </span></a>        &gt;&gt;&gt; m = nn.Sequential( 
+<a name="l84"><span class="ln">84   </span></a>        &gt;&gt;&gt;     nn.Linear(50, 50), 
+<a name="l85"><span class="ln">85   </span></a>        &gt;&gt;&gt;     nn.Unflatten(1, (2, 5, 5)) 
+<a name="l86"><span class="ln">86   </span></a>        &gt;&gt;&gt; ) 
+<a name="l87"><span class="ln">87   </span></a>        &gt;&gt;&gt; output = m(input) 
+<a name="l88"><span class="ln">88   </span></a>        &gt;&gt;&gt; output.size() 
+<a name="l89"><span class="ln">89   </span></a>        torch.Size([2, 2, 5, 5]) 
+<a name="l90"><span class="ln">90   </span></a>        &gt;&gt;&gt; # With torch.Size 
+<a name="l91"><span class="ln">91   </span></a>        &gt;&gt;&gt; m = nn.Sequential( 
+<a name="l92"><span class="ln">92   </span></a>        &gt;&gt;&gt;     nn.Linear(50, 50), 
+<a name="l93"><span class="ln">93   </span></a>        &gt;&gt;&gt;     nn.Unflatten(1, torch.Size([2, 5, 5])) 
+<a name="l94"><span class="ln">94   </span></a>        &gt;&gt;&gt; ) 
+<a name="l95"><span class="ln">95   </span></a>        &gt;&gt;&gt; output = m(input) 
+<a name="l96"><span class="ln">96   </span></a>        &gt;&gt;&gt; output.size() 
+<a name="l97"><span class="ln">97   </span></a>        torch.Size([2, 2, 5, 5]) 
+<a name="l98"><span class="ln">98   </span></a>        &gt;&gt;&gt; # With namedshape (tuple of tuples) 
+<a name="l99"><span class="ln">99   </span></a>        &gt;&gt;&gt; input = torch.randn(2, 50, names=(&quot;N&quot;, &quot;features&quot;)) 
+<a name="l100"><span class="ln">100  </span></a>        &gt;&gt;&gt; unflatten = nn.Unflatten(&quot;features&quot;, ((&quot;C&quot;, 2), (&quot;H&quot;, 5), (&quot;W&quot;, 5))) 
+<a name="l101"><span class="ln">101  </span></a>        &gt;&gt;&gt; output = unflatten(input) 
+<a name="l102"><span class="ln">102  </span></a>        &gt;&gt;&gt; output.size() 
+<a name="l103"><span class="ln">103  </span></a>        torch.Size([2, 2, 5, 5]) 
+<a name="l104"><span class="ln">104  </span></a>    &quot;&quot;&quot;</span>
+<a name="l105"><span class="ln">105  </span></a>
+<a name="l106"><span class="ln">106  </span></a>    <span class="s1">NamedShape </span><span class="s2">= </span><span class="s1">tuple</span><span class="s3">[</span><span class="s1">tuple</span><span class="s3">[</span><span class="s1">str</span><span class="s3">, </span><span class="s1">int</span><span class="s3">]]</span>
+<a name="l107"><span class="ln">107  </span></a>
+<a name="l108"><span class="ln">108  </span></a>    <span class="s1">__constants__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">&quot;dim&quot;</span><span class="s3">, </span><span class="s4">&quot;unflattened_size&quot;</span><span class="s3">]</span>
+<a name="l109"><span class="ln">109  </span></a>    <span class="s1">dim</span><span class="s2">: </span><span class="s1">Union</span><span class="s3">[</span><span class="s1">int</span><span class="s3">, </span><span class="s1">str</span><span class="s3">]</span>
+<a name="l110"><span class="ln">110  </span></a>    <span class="s1">unflattened_size</span><span class="s2">: </span><span class="s1">Union</span><span class="s3">[</span><span class="s1">_size</span><span class="s3">, </span><span class="s1">NamedShape</span><span class="s3">]</span>
+<a name="l111"><span class="ln">111  </span></a>
+<a name="l112"><span class="ln">112  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span>
+<a name="l113"><span class="ln">113  </span></a>        <span class="s1">self</span><span class="s3">, </span><span class="s1">dim</span><span class="s2">: </span><span class="s1">Union</span><span class="s3">[</span><span class="s1">int</span><span class="s3">, </span><span class="s1">str</span><span class="s3">], </span><span class="s1">unflattened_size</span><span class="s2">: </span><span class="s1">Union</span><span class="s3">[</span><span class="s1">_size</span><span class="s3">, </span><span class="s1">NamedShape</span><span class="s3">]</span>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l115"><span class="ln">115  </span></a>        <span class="s1">super</span><span class="s3">().</span><span class="s1">__init__</span><span class="s3">()</span>
+<a name="l116"><span class="ln">116  </span></a>
+<a name="l117"><span class="ln">117  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">dim</span><span class="s3">, </span><span class="s1">int</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l118"><span class="ln">118  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_require_tuple_int</span><span class="s3">(</span><span class="s1">unflattened_size</span><span class="s3">)</span>
+<a name="l119"><span class="ln">119  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">dim</span><span class="s3">, </span><span class="s1">str</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l120"><span class="ln">120  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_require_tuple_tuple</span><span class="s3">(</span><span class="s1">unflattened_size</span><span class="s3">)</span>
+<a name="l121"><span class="ln">121  </span></a>        <span class="s2">else:</span>
+<a name="l122"><span class="ln">122  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;invalid argument type for dim parameter&quot;</span><span class="s3">)</span>
+<a name="l123"><span class="ln">123  </span></a>
+<a name="l124"><span class="ln">124  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">dim </span><span class="s2">= </span><span class="s1">dim</span>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">unflattened_size </span><span class="s2">= </span><span class="s1">unflattened_size</span>
+<a name="l126"><span class="ln">126  </span></a>
+<a name="l127"><span class="ln">127  </span></a>    <span class="s2">def </span><span class="s1">_require_tuple_tuple</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">input</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l128"><span class="ln">128  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">tuple</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l129"><span class="ln">129  </span></a>            <span class="s2">for </span><span class="s1">idx</span><span class="s3">, </span><span class="s1">elem </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">input</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l130"><span class="ln">130  </span></a>                <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">elem</span><span class="s3">, </span><span class="s1">tuple</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l131"><span class="ln">131  </span></a>                    <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span>
+<a name="l132"><span class="ln">132  </span></a>                        <span class="s4">&quot;unflattened_size must be tuple of tuples, &quot;</span>
+<a name="l133"><span class="ln">133  </span></a>                        <span class="s2">+ </span><span class="s4">f&quot;but found element of type {</span><span class="s1">type</span><span class="s3">(</span><span class="s1">elem</span><span class="s3">).</span><span class="s1">__name__</span><span class="s4">} at pos {</span><span class="s1">idx</span><span class="s4">}&quot;</span>
+<a name="l134"><span class="ln">134  </span></a>                    <span class="s3">)</span>
+<a name="l135"><span class="ln">135  </span></a>            <span class="s2">return</span>
+<a name="l136"><span class="ln">136  </span></a>        <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span>
+<a name="l137"><span class="ln">137  </span></a>            <span class="s4">&quot;unflattened_size must be a tuple of tuples, &quot;</span>
+<a name="l138"><span class="ln">138  </span></a>            <span class="s2">+ </span><span class="s4">f&quot;but found type {</span><span class="s1">type</span><span class="s3">(</span><span class="s1">input</span><span class="s3">).</span><span class="s1">__name__</span><span class="s4">}&quot;</span>
+<a name="l139"><span class="ln">139  </span></a>        <span class="s3">)</span>
+<a name="l140"><span class="ln">140  </span></a>
+<a name="l141"><span class="ln">141  </span></a>    <span class="s2">def </span><span class="s1">_require_tuple_int</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">input</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, (</span><span class="s1">tuple</span><span class="s3">, </span><span class="s1">list</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l143"><span class="ln">143  </span></a>            <span class="s2">for </span><span class="s1">idx</span><span class="s3">, </span><span class="s1">elem </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">input</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l144"><span class="ln">144  </span></a>                <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">elem</span><span class="s3">, </span><span class="s1">int</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l145"><span class="ln">145  </span></a>                    <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span>
+<a name="l146"><span class="ln">146  </span></a>                        <span class="s4">&quot;unflattened_size must be tuple of ints, &quot;</span>
+<a name="l147"><span class="ln">147  </span></a>                        <span class="s2">+ </span><span class="s4">f&quot;but found element of type {</span><span class="s1">type</span><span class="s3">(</span><span class="s1">elem</span><span class="s3">).</span><span class="s1">__name__</span><span class="s4">} at pos {</span><span class="s1">idx</span><span class="s4">}&quot;</span>
+<a name="l148"><span class="ln">148  </span></a>                    <span class="s3">)</span>
+<a name="l149"><span class="ln">149  </span></a>            <span class="s2">return</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span>
+<a name="l151"><span class="ln">151  </span></a>            <span class="s4">f&quot;unflattened_size must be a tuple of ints, but found type {</span><span class="s1">type</span><span class="s3">(</span><span class="s1">input</span><span class="s3">).</span><span class="s1">__name__</span><span class="s4">}&quot;</span>
+<a name="l152"><span class="ln">152  </span></a>        <span class="s3">)</span>
+<a name="l153"><span class="ln">153  </span></a>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s2">def </span><span class="s1">forward</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">input</span><span class="s2">: </span><span class="s1">Tensor</span><span class="s3">) </span><span class="s1">-&gt; Tensor</span><span class="s2">:</span>
+<a name="l155"><span class="ln">155  </span></a>        <span class="s2">return </span><span class="s1">input</span><span class="s3">.</span><span class="s1">unflatten</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">dim</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">unflattened_size</span><span class="s3">)</span>
+<a name="l156"><span class="ln">156  </span></a>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s2">def </span><span class="s1">extra_repr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; str</span><span class="s2">:</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s2">return </span><span class="s4">f&quot;dim={</span><span class="s1">self</span><span class="s3">.</span><span class="s1">dim</span><span class="s4">}, unflattened_size={</span><span class="s1">self</span><span class="s3">.</span><span class="s1">unflattened_size</span><span class="s4">}&quot;</span>
+<a name="l159"><span class="ln">159  </span></a></pre>
+</body>
+</html>

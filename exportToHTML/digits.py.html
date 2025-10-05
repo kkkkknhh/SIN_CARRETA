@@ -1,0 +1,173 @@
+<html>
+<head>
+<title>digits.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #0086b3;}
+.s4 { color: #969896;}
+.s5 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+digits.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">from </span><span class="s1">collections </span><span class="s0">import </span><span class="s1">defaultdict</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">utilities</span><span class="s2">.</span><span class="s1">iterables </span><span class="s0">import </span><span class="s1">multiset</span><span class="s2">, </span><span class="s1">is_palindromic </span><span class="s0">as </span><span class="s1">_palindromic</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">utilities</span><span class="s2">.</span><span class="s1">misc </span><span class="s0">import </span><span class="s1">as_int</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">def </span><span class="s1">digits</span><span class="s2">(</span><span class="s1">n</span><span class="s2">, </span><span class="s1">b</span><span class="s0">=</span><span class="s3">10</span><span class="s2">, </span><span class="s1">digits</span><span class="s0">=None</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l8"><span class="ln">8    </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l9"><span class="ln">9    </span></a>    Return a list of the digits of ``n`` in base ``b``. The first 
+<a name="l10"><span class="ln">10   </span></a>    element in the list is ``b`` (or ``-b`` if ``n`` is negative). 
+<a name="l11"><span class="ln">11   </span></a> 
+<a name="l12"><span class="ln">12   </span></a>    Examples 
+<a name="l13"><span class="ln">13   </span></a>    ======== 
+<a name="l14"><span class="ln">14   </span></a> 
+<a name="l15"><span class="ln">15   </span></a>    &gt;&gt;&gt; from sympy.ntheory.digits import digits 
+<a name="l16"><span class="ln">16   </span></a>    &gt;&gt;&gt; digits(35) 
+<a name="l17"><span class="ln">17   </span></a>    [10, 3, 5] 
+<a name="l18"><span class="ln">18   </span></a> 
+<a name="l19"><span class="ln">19   </span></a>    If the number is negative, the negative sign will be placed on the 
+<a name="l20"><span class="ln">20   </span></a>    base (which is the first element in the returned list): 
+<a name="l21"><span class="ln">21   </span></a> 
+<a name="l22"><span class="ln">22   </span></a>    &gt;&gt;&gt; digits(-35) 
+<a name="l23"><span class="ln">23   </span></a>    [-10, 3, 5] 
+<a name="l24"><span class="ln">24   </span></a> 
+<a name="l25"><span class="ln">25   </span></a>    Bases other than 10 (and greater than 1) can be selected with ``b``: 
+<a name="l26"><span class="ln">26   </span></a> 
+<a name="l27"><span class="ln">27   </span></a>    &gt;&gt;&gt; digits(27, b=2) 
+<a name="l28"><span class="ln">28   </span></a>    [2, 1, 1, 0, 1, 1] 
+<a name="l29"><span class="ln">29   </span></a> 
+<a name="l30"><span class="ln">30   </span></a>    Use the ``digits`` keyword if a certain number of digits is desired: 
+<a name="l31"><span class="ln">31   </span></a> 
+<a name="l32"><span class="ln">32   </span></a>    &gt;&gt;&gt; digits(35, digits=4) 
+<a name="l33"><span class="ln">33   </span></a>    [10, 0, 0, 3, 5] 
+<a name="l34"><span class="ln">34   </span></a> 
+<a name="l35"><span class="ln">35   </span></a>    Parameters 
+<a name="l36"><span class="ln">36   </span></a>    ========== 
+<a name="l37"><span class="ln">37   </span></a> 
+<a name="l38"><span class="ln">38   </span></a>    n: integer 
+<a name="l39"><span class="ln">39   </span></a>        The number whose digits are returned. 
+<a name="l40"><span class="ln">40   </span></a> 
+<a name="l41"><span class="ln">41   </span></a>    b: integer 
+<a name="l42"><span class="ln">42   </span></a>        The base in which digits are computed. 
+<a name="l43"><span class="ln">43   </span></a> 
+<a name="l44"><span class="ln">44   </span></a>    digits: integer (or None for all digits) 
+<a name="l45"><span class="ln">45   </span></a>        The number of digits to be returned (padded with zeros, if 
+<a name="l46"><span class="ln">46   </span></a>        necessary). 
+<a name="l47"><span class="ln">47   </span></a> 
+<a name="l48"><span class="ln">48   </span></a>    See Also 
+<a name="l49"><span class="ln">49   </span></a>    ======== 
+<a name="l50"><span class="ln">50   </span></a>    sympy.core.intfunc.num_digits, count_digits 
+<a name="l51"><span class="ln">51   </span></a>    &quot;&quot;&quot;</span>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a>    <span class="s1">b </span><span class="s0">= </span><span class="s1">as_int</span><span class="s2">(</span><span class="s1">b</span><span class="s2">)</span>
+<a name="l54"><span class="ln">54   </span></a>    <span class="s1">n </span><span class="s0">= </span><span class="s1">as_int</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s0">if </span><span class="s1">b </span><span class="s0">&lt; </span><span class="s3">2</span><span class="s0">:</span>
+<a name="l56"><span class="ln">56   </span></a>        <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s5">&quot;b must be greater than 1&quot;</span><span class="s2">)</span>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s0">else:</span>
+<a name="l58"><span class="ln">58   </span></a>        <span class="s1">x</span><span class="s2">, </span><span class="s1">y </span><span class="s0">= </span><span class="s1">abs</span><span class="s2">(</span><span class="s1">n</span><span class="s2">), []</span>
+<a name="l59"><span class="ln">59   </span></a>        <span class="s0">while </span><span class="s1">x </span><span class="s0">&gt;= </span><span class="s1">b</span><span class="s0">:</span>
+<a name="l60"><span class="ln">60   </span></a>            <span class="s1">x</span><span class="s2">, </span><span class="s1">r </span><span class="s0">= </span><span class="s1">divmod</span><span class="s2">(</span><span class="s1">x</span><span class="s2">, </span><span class="s1">b</span><span class="s2">)</span>
+<a name="l61"><span class="ln">61   </span></a>            <span class="s1">y</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">r</span><span class="s2">)</span>
+<a name="l62"><span class="ln">62   </span></a>        <span class="s1">y</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">x</span><span class="s2">)</span>
+<a name="l63"><span class="ln">63   </span></a>        <span class="s1">y</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s0">-</span><span class="s1">b </span><span class="s0">if </span><span class="s1">n </span><span class="s0">&lt; </span><span class="s3">0 </span><span class="s0">else </span><span class="s1">b</span><span class="s2">)</span>
+<a name="l64"><span class="ln">64   </span></a>        <span class="s1">y</span><span class="s2">.</span><span class="s1">reverse</span><span class="s2">()</span>
+<a name="l65"><span class="ln">65   </span></a>        <span class="s1">ndig </span><span class="s0">= </span><span class="s1">len</span><span class="s2">(</span><span class="s1">y</span><span class="s2">) </span><span class="s0">- </span><span class="s3">1</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s0">if </span><span class="s1">digits </span><span class="s0">is not None:</span>
+<a name="l67"><span class="ln">67   </span></a>            <span class="s0">if </span><span class="s1">ndig </span><span class="s0">&gt; </span><span class="s1">digits</span><span class="s0">:</span>
+<a name="l68"><span class="ln">68   </span></a>                <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span>
+<a name="l69"><span class="ln">69   </span></a>                    <span class="s5">&quot;For %s, at least %s digits are needed.&quot; </span><span class="s0">% </span><span class="s2">(</span><span class="s1">n</span><span class="s2">, </span><span class="s1">ndig</span><span class="s2">))</span>
+<a name="l70"><span class="ln">70   </span></a>            <span class="s0">elif </span><span class="s1">ndig </span><span class="s0">&lt; </span><span class="s1">digits</span><span class="s0">:</span>
+<a name="l71"><span class="ln">71   </span></a>                <span class="s1">y</span><span class="s2">[</span><span class="s3">1</span><span class="s0">:</span><span class="s3">1</span><span class="s2">] </span><span class="s0">= </span><span class="s2">[</span><span class="s3">0</span><span class="s2">]</span><span class="s0">*</span><span class="s2">(</span><span class="s1">digits </span><span class="s0">- </span><span class="s1">ndig</span><span class="s2">)</span>
+<a name="l72"><span class="ln">72   </span></a>        <span class="s0">return </span><span class="s1">y</span>
+<a name="l73"><span class="ln">73   </span></a>
+<a name="l74"><span class="ln">74   </span></a>
+<a name="l75"><span class="ln">75   </span></a><span class="s0">def </span><span class="s1">count_digits</span><span class="s2">(</span><span class="s1">n</span><span class="s2">, </span><span class="s1">b</span><span class="s0">=</span><span class="s3">10</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l76"><span class="ln">76   </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l77"><span class="ln">77   </span></a>    Return a dictionary whose keys are the digits of ``n`` in the 
+<a name="l78"><span class="ln">78   </span></a>    given base, ``b``, with keys indicating the digits appearing in the 
+<a name="l79"><span class="ln">79   </span></a>    number and values indicating how many times that digit appeared. 
+<a name="l80"><span class="ln">80   </span></a> 
+<a name="l81"><span class="ln">81   </span></a>    Examples 
+<a name="l82"><span class="ln">82   </span></a>    ======== 
+<a name="l83"><span class="ln">83   </span></a> 
+<a name="l84"><span class="ln">84   </span></a>    &gt;&gt;&gt; from sympy.ntheory import count_digits 
+<a name="l85"><span class="ln">85   </span></a> 
+<a name="l86"><span class="ln">86   </span></a>    &gt;&gt;&gt; count_digits(1111339) 
+<a name="l87"><span class="ln">87   </span></a>    {1: 4, 3: 2, 9: 1} 
+<a name="l88"><span class="ln">88   </span></a> 
+<a name="l89"><span class="ln">89   </span></a>    The digits returned are always represented in base-10 
+<a name="l90"><span class="ln">90   </span></a>    but the number itself can be entered in any format that is 
+<a name="l91"><span class="ln">91   </span></a>    understood by Python; the base of the number can also be 
+<a name="l92"><span class="ln">92   </span></a>    given if it is different than 10: 
+<a name="l93"><span class="ln">93   </span></a> 
+<a name="l94"><span class="ln">94   </span></a>    &gt;&gt;&gt; n = 0xFA; n 
+<a name="l95"><span class="ln">95   </span></a>    250 
+<a name="l96"><span class="ln">96   </span></a>    &gt;&gt;&gt; count_digits(_) 
+<a name="l97"><span class="ln">97   </span></a>    {0: 1, 2: 1, 5: 1} 
+<a name="l98"><span class="ln">98   </span></a>    &gt;&gt;&gt; count_digits(n, 16) 
+<a name="l99"><span class="ln">99   </span></a>    {10: 1, 15: 1} 
+<a name="l100"><span class="ln">100  </span></a> 
+<a name="l101"><span class="ln">101  </span></a>    The default dictionary will return a 0 for any digit that did 
+<a name="l102"><span class="ln">102  </span></a>    not appear in the number. For example, which digits appear 7 
+<a name="l103"><span class="ln">103  </span></a>    times in ``77!``: 
+<a name="l104"><span class="ln">104  </span></a> 
+<a name="l105"><span class="ln">105  </span></a>    &gt;&gt;&gt; from sympy import factorial 
+<a name="l106"><span class="ln">106  </span></a>    &gt;&gt;&gt; c77 = count_digits(factorial(77)) 
+<a name="l107"><span class="ln">107  </span></a>    &gt;&gt;&gt; [i for i in range(10) if c77[i] == 7] 
+<a name="l108"><span class="ln">108  </span></a>    [1, 3, 7, 9] 
+<a name="l109"><span class="ln">109  </span></a> 
+<a name="l110"><span class="ln">110  </span></a>    See Also 
+<a name="l111"><span class="ln">111  </span></a>    ======== 
+<a name="l112"><span class="ln">112  </span></a>    sympy.core.intfunc.num_digits, digits 
+<a name="l113"><span class="ln">113  </span></a>    &quot;&quot;&quot;</span>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s1">rv </span><span class="s0">= </span><span class="s1">defaultdict</span><span class="s2">(</span><span class="s1">int</span><span class="s2">, </span><span class="s1">multiset</span><span class="s2">(</span><span class="s1">digits</span><span class="s2">(</span><span class="s1">n</span><span class="s2">, </span><span class="s1">b</span><span class="s2">)).</span><span class="s1">items</span><span class="s2">())</span>
+<a name="l115"><span class="ln">115  </span></a>    <span class="s1">rv</span><span class="s2">.</span><span class="s1">pop</span><span class="s2">(</span><span class="s1">b</span><span class="s2">) </span><span class="s0">if </span><span class="s1">b </span><span class="s0">in </span><span class="s1">rv </span><span class="s0">else </span><span class="s1">rv</span><span class="s2">.</span><span class="s1">pop</span><span class="s2">(</span><span class="s0">-</span><span class="s1">b</span><span class="s2">)  </span><span class="s4"># b or -b is there</span>
+<a name="l116"><span class="ln">116  </span></a>    <span class="s0">return </span><span class="s1">rv</span>
+<a name="l117"><span class="ln">117  </span></a>
+<a name="l118"><span class="ln">118  </span></a>
+<a name="l119"><span class="ln">119  </span></a><span class="s0">def </span><span class="s1">is_palindromic</span><span class="s2">(</span><span class="s1">n</span><span class="s2">, </span><span class="s1">b</span><span class="s0">=</span><span class="s3">10</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s4">&quot;&quot;&quot;return True if ``n`` is the same when read from left to right 
+<a name="l121"><span class="ln">121  </span></a>    or right to left in the given base, ``b``. 
+<a name="l122"><span class="ln">122  </span></a> 
+<a name="l123"><span class="ln">123  </span></a>    Examples 
+<a name="l124"><span class="ln">124  </span></a>    ======== 
+<a name="l125"><span class="ln">125  </span></a> 
+<a name="l126"><span class="ln">126  </span></a>    &gt;&gt;&gt; from sympy.ntheory import is_palindromic 
+<a name="l127"><span class="ln">127  </span></a> 
+<a name="l128"><span class="ln">128  </span></a>    &gt;&gt;&gt; all(is_palindromic(i) for i in (-11, 1, 22, 121)) 
+<a name="l129"><span class="ln">129  </span></a>    True 
+<a name="l130"><span class="ln">130  </span></a> 
+<a name="l131"><span class="ln">131  </span></a>    The second argument allows you to test numbers in other 
+<a name="l132"><span class="ln">132  </span></a>    bases. For example, 88 is palindromic in base-10 but not 
+<a name="l133"><span class="ln">133  </span></a>    in base-8: 
+<a name="l134"><span class="ln">134  </span></a> 
+<a name="l135"><span class="ln">135  </span></a>    &gt;&gt;&gt; is_palindromic(88, 8) 
+<a name="l136"><span class="ln">136  </span></a>    False 
+<a name="l137"><span class="ln">137  </span></a> 
+<a name="l138"><span class="ln">138  </span></a>    On the other hand, a number can be palindromic in base-8 but 
+<a name="l139"><span class="ln">139  </span></a>    not in base-10: 
+<a name="l140"><span class="ln">140  </span></a> 
+<a name="l141"><span class="ln">141  </span></a>    &gt;&gt;&gt; 0o121, is_palindromic(0o121) 
+<a name="l142"><span class="ln">142  </span></a>    (81, False) 
+<a name="l143"><span class="ln">143  </span></a> 
+<a name="l144"><span class="ln">144  </span></a>    Or it might be palindromic in both bases: 
+<a name="l145"><span class="ln">145  </span></a> 
+<a name="l146"><span class="ln">146  </span></a>    &gt;&gt;&gt; oct(121), is_palindromic(121, 8) and is_palindromic(121) 
+<a name="l147"><span class="ln">147  </span></a>    ('0o171', True) 
+<a name="l148"><span class="ln">148  </span></a> 
+<a name="l149"><span class="ln">149  </span></a>    &quot;&quot;&quot;</span>
+<a name="l150"><span class="ln">150  </span></a>    <span class="s0">return </span><span class="s1">_palindromic</span><span class="s2">(</span><span class="s1">digits</span><span class="s2">(</span><span class="s1">n</span><span class="s2">, </span><span class="s1">b</span><span class="s2">), </span><span class="s3">1</span><span class="s2">)</span>
+<a name="l151"><span class="ln">151  </span></a></pre>
+</body>
+</html>

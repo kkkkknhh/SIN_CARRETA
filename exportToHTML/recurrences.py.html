@@ -1,0 +1,189 @@
+<html>
+<head>
+<title>recurrences.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+recurrences.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>Recurrences 
+<a name="l3"><span class="ln">3    </span></a>&quot;&quot;&quot;</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core </span><span class="s2">import </span><span class="s1">S</span><span class="s3">, </span><span class="s1">sympify</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities</span><span class="s3">.</span><span class="s1">iterables </span><span class="s2">import </span><span class="s1">iterable</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities</span><span class="s3">.</span><span class="s1">misc </span><span class="s2">import </span><span class="s1">as_int</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">def </span><span class="s1">linrec</span><span class="s3">(</span><span class="s1">coeffs</span><span class="s3">, </span><span class="s1">init</span><span class="s3">, </span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l11"><span class="ln">11   </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l12"><span class="ln">12   </span></a>    Evaluation of univariate linear recurrences of homogeneous type 
+<a name="l13"><span class="ln">13   </span></a>    having coefficients independent of the recurrence variable. 
+<a name="l14"><span class="ln">14   </span></a> 
+<a name="l15"><span class="ln">15   </span></a>    Parameters 
+<a name="l16"><span class="ln">16   </span></a>    ========== 
+<a name="l17"><span class="ln">17   </span></a> 
+<a name="l18"><span class="ln">18   </span></a>    coeffs : iterable 
+<a name="l19"><span class="ln">19   </span></a>        Coefficients of the recurrence 
+<a name="l20"><span class="ln">20   </span></a>    init : iterable 
+<a name="l21"><span class="ln">21   </span></a>        Initial values of the recurrence 
+<a name="l22"><span class="ln">22   </span></a>    n : Integer 
+<a name="l23"><span class="ln">23   </span></a>        Point of evaluation for the recurrence 
+<a name="l24"><span class="ln">24   </span></a> 
+<a name="l25"><span class="ln">25   </span></a>    Notes 
+<a name="l26"><span class="ln">26   </span></a>    ===== 
+<a name="l27"><span class="ln">27   </span></a> 
+<a name="l28"><span class="ln">28   </span></a>    Let `y(n)` be the recurrence of given type, ``c`` be the sequence 
+<a name="l29"><span class="ln">29   </span></a>    of coefficients, ``b`` be the sequence of initial/base values of the 
+<a name="l30"><span class="ln">30   </span></a>    recurrence and ``k`` (equal to ``len(c)``) be the order of recurrence. 
+<a name="l31"><span class="ln">31   </span></a>    Then, 
+<a name="l32"><span class="ln">32   </span></a> 
+<a name="l33"><span class="ln">33   </span></a>    .. math :: y(n) = \begin{cases} b_n &amp; 0 \le n &lt; k \\ 
+<a name="l34"><span class="ln">34   </span></a>        c_0 y(n-1) + c_1 y(n-2) + \cdots + c_{k-1} y(n-k) &amp; n \ge k 
+<a name="l35"><span class="ln">35   </span></a>        \end{cases} 
+<a name="l36"><span class="ln">36   </span></a> 
+<a name="l37"><span class="ln">37   </span></a>    Let `x_0, x_1, \ldots, x_n` be a sequence and consider the transformation 
+<a name="l38"><span class="ln">38   </span></a>    that maps each polynomial `f(x)` to `T(f(x))` where each power `x^i` is 
+<a name="l39"><span class="ln">39   </span></a>    replaced by the corresponding value `x_i`. The sequence is then a solution 
+<a name="l40"><span class="ln">40   </span></a>    of the recurrence if and only if `T(x^i p(x)) = 0` for each `i \ge 0` where 
+<a name="l41"><span class="ln">41   </span></a>    `p(x) = x^k - c_0 x^(k-1) - \cdots - c_{k-1}` is the characteristic 
+<a name="l42"><span class="ln">42   </span></a>    polynomial. 
+<a name="l43"><span class="ln">43   </span></a> 
+<a name="l44"><span class="ln">44   </span></a>    Then `T(f(x)p(x)) = 0` for each polynomial `f(x)` (as it is a linear 
+<a name="l45"><span class="ln">45   </span></a>    combination of powers `x^i`). Now, if `x^n` is congruent to 
+<a name="l46"><span class="ln">46   </span></a>    `g(x) = a_0 x^0 + a_1 x^1 + \cdots + a_{k-1} x^{k-1}` modulo `p(x)`, then 
+<a name="l47"><span class="ln">47   </span></a>    `T(x^n) = x_n` is equal to 
+<a name="l48"><span class="ln">48   </span></a>    `T(g(x)) = a_0 x_0 + a_1 x_1 + \cdots + a_{k-1} x_{k-1}`. 
+<a name="l49"><span class="ln">49   </span></a> 
+<a name="l50"><span class="ln">50   </span></a>    Computation of `x^n`, 
+<a name="l51"><span class="ln">51   </span></a>    given `x^k = c_0 x^{k-1} + c_1 x^{k-2} + \cdots + c_{k-1}` 
+<a name="l52"><span class="ln">52   </span></a>    is performed using exponentiation by squaring (refer to [1_]) with 
+<a name="l53"><span class="ln">53   </span></a>    an additional reduction step performed to retain only first `k` powers 
+<a name="l54"><span class="ln">54   </span></a>    of `x` in the representation of `x^n`. 
+<a name="l55"><span class="ln">55   </span></a> 
+<a name="l56"><span class="ln">56   </span></a>    Examples 
+<a name="l57"><span class="ln">57   </span></a>    ======== 
+<a name="l58"><span class="ln">58   </span></a> 
+<a name="l59"><span class="ln">59   </span></a>    &gt;&gt;&gt; from sympy.discrete.recurrences import linrec 
+<a name="l60"><span class="ln">60   </span></a>    &gt;&gt;&gt; from sympy.abc import x, y, z 
+<a name="l61"><span class="ln">61   </span></a> 
+<a name="l62"><span class="ln">62   </span></a>    &gt;&gt;&gt; linrec(coeffs=[1, 1], init=[0, 1], n=10) 
+<a name="l63"><span class="ln">63   </span></a>    55 
+<a name="l64"><span class="ln">64   </span></a> 
+<a name="l65"><span class="ln">65   </span></a>    &gt;&gt;&gt; linrec(coeffs=[1, 1], init=[x, y], n=10) 
+<a name="l66"><span class="ln">66   </span></a>    34*x + 55*y 
+<a name="l67"><span class="ln">67   </span></a> 
+<a name="l68"><span class="ln">68   </span></a>    &gt;&gt;&gt; linrec(coeffs=[x, y], init=[0, 1], n=5) 
+<a name="l69"><span class="ln">69   </span></a>    x**2*y + x*(x**3 + 2*x*y) + y**2 
+<a name="l70"><span class="ln">70   </span></a> 
+<a name="l71"><span class="ln">71   </span></a>    &gt;&gt;&gt; linrec(coeffs=[1, 2, 3, 0, 0, 4], init=[x, y, z], n=16) 
+<a name="l72"><span class="ln">72   </span></a>    13576*x + 5676*y + 2356*z 
+<a name="l73"><span class="ln">73   </span></a> 
+<a name="l74"><span class="ln">74   </span></a>    References 
+<a name="l75"><span class="ln">75   </span></a>    ========== 
+<a name="l76"><span class="ln">76   </span></a> 
+<a name="l77"><span class="ln">77   </span></a>    .. [1] https://en.wikipedia.org/wiki/Exponentiation_by_squaring 
+<a name="l78"><span class="ln">78   </span></a>    .. [2] https://en.wikipedia.org/w/index.php?title=Modular_exponentiation&amp;section=6#Matrices 
+<a name="l79"><span class="ln">79   </span></a> 
+<a name="l80"><span class="ln">80   </span></a>    See Also 
+<a name="l81"><span class="ln">81   </span></a>    ======== 
+<a name="l82"><span class="ln">82   </span></a> 
+<a name="l83"><span class="ln">83   </span></a>    sympy.polys.agca.extensions.ExtensionElement.__pow__ 
+<a name="l84"><span class="ln">84   </span></a> 
+<a name="l85"><span class="ln">85   </span></a>    &quot;&quot;&quot;</span>
+<a name="l86"><span class="ln">86   </span></a>
+<a name="l87"><span class="ln">87   </span></a>    <span class="s2">if not </span><span class="s1">coeffs</span><span class="s2">:</span>
+<a name="l88"><span class="ln">88   </span></a>        <span class="s2">return </span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span>
+<a name="l89"><span class="ln">89   </span></a>
+<a name="l90"><span class="ln">90   </span></a>    <span class="s2">if not </span><span class="s1">iterable</span><span class="s3">(</span><span class="s1">coeffs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l91"><span class="ln">91   </span></a>        <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;Expected a sequence of coefficients for&quot;</span>
+<a name="l92"><span class="ln">92   </span></a>                        <span class="s4">&quot; the recurrence&quot;</span><span class="s3">)</span>
+<a name="l93"><span class="ln">93   </span></a>
+<a name="l94"><span class="ln">94   </span></a>    <span class="s2">if not </span><span class="s1">iterable</span><span class="s3">(</span><span class="s1">init</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l95"><span class="ln">95   </span></a>        <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;Expected a sequence of values for the initialization&quot;</span>
+<a name="l96"><span class="ln">96   </span></a>                        <span class="s4">&quot; of the recurrence&quot;</span><span class="s3">)</span>
+<a name="l97"><span class="ln">97   </span></a>
+<a name="l98"><span class="ln">98   </span></a>    <span class="s1">n </span><span class="s2">= </span><span class="s1">as_int</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l99"><span class="ln">99   </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;Point of evaluation of recurrence must be a &quot;</span>
+<a name="l101"><span class="ln">101  </span></a>                        <span class="s4">&quot;non-negative integer&quot;</span><span class="s3">)</span>
+<a name="l102"><span class="ln">102  </span></a>
+<a name="l103"><span class="ln">103  </span></a>    <span class="s1">c </span><span class="s2">= </span><span class="s3">[</span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">) </span><span class="s2">for </span><span class="s1">arg </span><span class="s2">in </span><span class="s1">coeffs</span><span class="s3">]</span>
+<a name="l104"><span class="ln">104  </span></a>    <span class="s1">b </span><span class="s2">= </span><span class="s3">[</span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">) </span><span class="s2">for </span><span class="s1">arg </span><span class="s2">in </span><span class="s1">init</span><span class="s3">]</span>
+<a name="l105"><span class="ln">105  </span></a>    <span class="s1">k </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">c</span><span class="s3">)</span>
+<a name="l106"><span class="ln">106  </span></a>
+<a name="l107"><span class="ln">107  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">b</span><span class="s3">) </span><span class="s2">&gt; </span><span class="s1">k</span><span class="s2">:</span>
+<a name="l108"><span class="ln">108  </span></a>        <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;Count of initial values should not exceed the &quot;</span>
+<a name="l109"><span class="ln">109  </span></a>                        <span class="s4">&quot;order of the recurrence&quot;</span><span class="s3">)</span>
+<a name="l110"><span class="ln">110  </span></a>    <span class="s2">else:</span>
+<a name="l111"><span class="ln">111  </span></a>        <span class="s1">b </span><span class="s2">+= </span><span class="s3">[</span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span><span class="s3">]</span><span class="s2">*</span><span class="s3">(</span><span class="s1">k </span><span class="s2">- </span><span class="s1">len</span><span class="s3">(</span><span class="s1">b</span><span class="s3">)) </span><span class="s0"># remaining initial values default to zero</span>
+<a name="l112"><span class="ln">112  </span></a>
+<a name="l113"><span class="ln">113  </span></a>    <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s1">k</span><span class="s2">:</span>
+<a name="l114"><span class="ln">114  </span></a>        <span class="s2">return </span><span class="s1">b</span><span class="s3">[</span><span class="s1">n</span><span class="s3">]</span>
+<a name="l115"><span class="ln">115  </span></a>    <span class="s1">terms </span><span class="s2">= </span><span class="s3">[</span><span class="s1">u</span><span class="s2">*</span><span class="s1">v </span><span class="s2">for </span><span class="s1">u</span><span class="s3">, </span><span class="s1">v </span><span class="s2">in </span><span class="s1">zip</span><span class="s3">(</span><span class="s1">linrec_coeffs</span><span class="s3">(</span><span class="s1">c</span><span class="s3">, </span><span class="s1">n</span><span class="s3">), </span><span class="s1">b</span><span class="s3">)]</span>
+<a name="l116"><span class="ln">116  </span></a>    <span class="s2">return </span><span class="s1">sum</span><span class="s3">(</span><span class="s1">terms</span><span class="s3">[</span><span class="s2">:-</span><span class="s5">1</span><span class="s3">], </span><span class="s1">terms</span><span class="s3">[</span><span class="s2">-</span><span class="s5">1</span><span class="s3">])</span>
+<a name="l117"><span class="ln">117  </span></a>
+<a name="l118"><span class="ln">118  </span></a>
+<a name="l119"><span class="ln">119  </span></a><span class="s2">def </span><span class="s1">linrec_coeffs</span><span class="s3">(</span><span class="s1">c</span><span class="s3">, </span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l121"><span class="ln">121  </span></a>    Compute the coefficients of n'th term in linear recursion 
+<a name="l122"><span class="ln">122  </span></a>    sequence defined by c. 
+<a name="l123"><span class="ln">123  </span></a> 
+<a name="l124"><span class="ln">124  </span></a>    `x^k = c_0 x^{k-1} + c_1 x^{k-2} + \cdots + c_{k-1}`. 
+<a name="l125"><span class="ln">125  </span></a> 
+<a name="l126"><span class="ln">126  </span></a>    It computes the coefficients by using binary exponentiation. 
+<a name="l127"><span class="ln">127  </span></a>    This function is used by `linrec` and `_eval_pow_by_cayley`. 
+<a name="l128"><span class="ln">128  </span></a> 
+<a name="l129"><span class="ln">129  </span></a>    Parameters 
+<a name="l130"><span class="ln">130  </span></a>    ========== 
+<a name="l131"><span class="ln">131  </span></a> 
+<a name="l132"><span class="ln">132  </span></a>    c = coefficients of the divisor polynomial 
+<a name="l133"><span class="ln">133  </span></a>    n = exponent of x, so dividend is x^n 
+<a name="l134"><span class="ln">134  </span></a> 
+<a name="l135"><span class="ln">135  </span></a>    &quot;&quot;&quot;</span>
+<a name="l136"><span class="ln">136  </span></a>
+<a name="l137"><span class="ln">137  </span></a>    <span class="s1">k </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">c</span><span class="s3">)</span>
+<a name="l138"><span class="ln">138  </span></a>
+<a name="l139"><span class="ln">139  </span></a>    <span class="s2">def </span><span class="s1">_square_and_reduce</span><span class="s3">(</span><span class="s1">u</span><span class="s3">, </span><span class="s1">offset</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l140"><span class="ln">140  </span></a>        <span class="s0"># squares `(u_0 + u_1 x + u_2 x^2 + \cdots + u_{k-1} x^k)` (and</span>
+<a name="l141"><span class="ln">141  </span></a>        <span class="s0"># multiplies by `x` if offset is 1) and reduces the above result of</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s0"># length upto `2k` to `k` using the characteristic equation of the</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s0"># recurrence given by, `x^k = c_0 x^{k-1} + c_1 x^{k-2} + \cdots + c_{k-1}`</span>
+<a name="l144"><span class="ln">144  </span></a>
+<a name="l145"><span class="ln">145  </span></a>        <span class="s1">w </span><span class="s2">= </span><span class="s3">[</span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span><span class="s3">]</span><span class="s2">*</span><span class="s3">(</span><span class="s5">2</span><span class="s2">*</span><span class="s1">len</span><span class="s3">(</span><span class="s1">u</span><span class="s3">) </span><span class="s2">- </span><span class="s5">1 </span><span class="s2">+ </span><span class="s1">offset</span><span class="s3">)</span>
+<a name="l146"><span class="ln">146  </span></a>        <span class="s2">for </span><span class="s1">i</span><span class="s3">, </span><span class="s1">p </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">u</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l147"><span class="ln">147  </span></a>            <span class="s2">for </span><span class="s1">j</span><span class="s3">, </span><span class="s1">q </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">u</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l148"><span class="ln">148  </span></a>                <span class="s1">w</span><span class="s3">[</span><span class="s1">offset </span><span class="s2">+ </span><span class="s1">i </span><span class="s2">+ </span><span class="s1">j</span><span class="s3">] </span><span class="s2">+= </span><span class="s1">p</span><span class="s2">*</span><span class="s1">q</span>
+<a name="l149"><span class="ln">149  </span></a>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">w</span><span class="s3">) </span><span class="s2">- </span><span class="s5">1</span><span class="s3">, </span><span class="s1">k </span><span class="s2">- </span><span class="s5">1</span><span class="s3">, </span><span class="s2">-</span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l151"><span class="ln">151  </span></a>            <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">k</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l152"><span class="ln">152  </span></a>                <span class="s1">w</span><span class="s3">[</span><span class="s1">j </span><span class="s2">- </span><span class="s1">i </span><span class="s2">- </span><span class="s5">1</span><span class="s3">] </span><span class="s2">+= </span><span class="s1">w</span><span class="s3">[</span><span class="s1">j</span><span class="s3">]</span><span class="s2">*</span><span class="s1">c</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+<a name="l153"><span class="ln">153  </span></a>
+<a name="l154"><span class="ln">154  </span></a>        <span class="s2">return </span><span class="s1">w</span><span class="s3">[</span><span class="s2">:</span><span class="s1">k</span><span class="s3">]</span>
+<a name="l155"><span class="ln">155  </span></a>
+<a name="l156"><span class="ln">156  </span></a>    <span class="s2">def </span><span class="s1">_final_coeffs</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l157"><span class="ln">157  </span></a>        <span class="s0"># computes the final coefficient list - `cf` corresponding to the</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s0"># point at which recurrence is to be evalauted - `n`, such that,</span>
+<a name="l159"><span class="ln">159  </span></a>        <span class="s0"># `y(n) = cf_0 y(k-1) + cf_1 y(k-2) + \cdots + cf_{k-1} y(0)`</span>
+<a name="l160"><span class="ln">160  </span></a>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s2">if </span><span class="s1">n </span><span class="s2">&lt; </span><span class="s1">k</span><span class="s2">:</span>
+<a name="l162"><span class="ln">162  </span></a>            <span class="s2">return </span><span class="s3">[</span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span><span class="s3">]</span><span class="s2">*</span><span class="s1">n </span><span class="s2">+ </span><span class="s3">[</span><span class="s1">S</span><span class="s3">.</span><span class="s1">One</span><span class="s3">] </span><span class="s2">+ </span><span class="s3">[</span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span><span class="s3">]</span><span class="s2">*</span><span class="s3">(</span><span class="s1">k </span><span class="s2">- </span><span class="s1">n </span><span class="s2">- </span><span class="s5">1</span><span class="s3">)</span>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s2">else:</span>
+<a name="l164"><span class="ln">164  </span></a>            <span class="s2">return </span><span class="s1">_square_and_reduce</span><span class="s3">(</span><span class="s1">_final_coeffs</span><span class="s3">(</span><span class="s1">n </span><span class="s2">// </span><span class="s5">2</span><span class="s3">), </span><span class="s1">n </span><span class="s2">% </span><span class="s5">2</span><span class="s3">)</span>
+<a name="l165"><span class="ln">165  </span></a>
+<a name="l166"><span class="ln">166  </span></a>    <span class="s2">return </span><span class="s1">_final_coeffs</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+<a name="l167"><span class="ln">167  </span></a></pre>
+</body>
+</html>

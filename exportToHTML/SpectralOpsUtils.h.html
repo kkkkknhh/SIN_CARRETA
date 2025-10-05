@@ -1,0 +1,107 @@
+<html>
+<head>
+<title>SpectralOpsUtils.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #000080; font-weight: bold;}
+.s2 { color: #660e7a; font-weight: bold;}
+.s3 { color: #969896; font-style: italic;}
+.s4 { color: #0086b3;}
+.s5 { color: #183691; font-weight: bold;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+SpectralOpsUtils.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#include </span><span class="s0">&lt;string&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">#include </span><span class="s0">&lt;stdexcept&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s1">#include </span><span class="s0">&lt;sstream&gt;</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/ScalarType.h&gt;</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/ArrayRef.h&gt;</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/Exception.h&gt;</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/native/DispatchStub.h&gt;</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/core/TensorBase.h&gt;</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">namespace </span><span class="s0">at::native {</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s3">// Normalization types used in _fft_with_size</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s1">enum </span><span class="s2">class </span><span class="s0">fft_norm_mode {</span>
+<a name="l16"><span class="ln">16   </span></a>  <span class="s0">none,       </span><span class="s3">// No normalization</span>
+<a name="l17"><span class="ln">17   </span></a>  <span class="s0">by_root_n,  </span><span class="s3">// Divide by sqrt(signal_size)</span>
+<a name="l18"><span class="ln">18   </span></a>  <span class="s0">by_n,       </span><span class="s3">// Divide by signal_size</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s0">};</span>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s3">// NOTE [ Fourier Transform Conjugate Symmetry ]</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s3">//</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s3">// Real-to-complex Fourier transform satisfies the conjugate symmetry. That is,</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s3">// assuming X is the transformed K-dimensionsal signal, we have</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s3">//</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s3">//     X[i_1, ..., i_K] = X[j_i, ..., j_K]*,</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s3">//</span>
+<a name="l28"><span class="ln">28   </span></a><span class="s3">//       where j_k  = (N_k - i_k)  mod N_k, N_k being the signal size at dim k,</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s3">//             * is the conjugate operator.</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s3">//</span>
+<a name="l31"><span class="ln">31   </span></a><span class="s3">// Therefore, in such cases, FFT libraries return only roughly half of the</span>
+<a name="l32"><span class="ln">32   </span></a><span class="s3">// values to avoid redundancy:</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s3">//</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s3">//     X[:, :, ..., :floor(N / 2) + 1]</span>
+<a name="l35"><span class="ln">35   </span></a><span class="s3">//</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s3">// This is also the assumption in cuFFT and MKL. In ATen SpectralOps, such</span>
+<a name="l37"><span class="ln">37   </span></a><span class="s3">// halved signal will also be returned by default (flag onesided=True).</span>
+<a name="l38"><span class="ln">38   </span></a><span class="s3">// The following infer_ft_real_to_complex_onesided_size function calculates the</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s3">// onesided size from the twosided size.</span>
+<a name="l40"><span class="ln">40   </span></a><span class="s3">//</span>
+<a name="l41"><span class="ln">41   </span></a><span class="s3">// Note that this loses some information about the size of signal at last</span>
+<a name="l42"><span class="ln">42   </span></a><span class="s3">// dimension. E.g., both 11 and 10 maps to 6. Hence, the following</span>
+<a name="l43"><span class="ln">43   </span></a><span class="s3">// infer_ft_complex_to_real_onesided_size function takes in optional parameter</span>
+<a name="l44"><span class="ln">44   </span></a><span class="s3">// to infer the twosided size from given onesided size.</span>
+<a name="l45"><span class="ln">45   </span></a><span class="s3">//</span>
+<a name="l46"><span class="ln">46   </span></a><span class="s3">// cuFFT doc: http://docs.nvidia.com/cuda/cufft/index.html#multi-dimensional</span>
+<a name="l47"><span class="ln">47   </span></a><span class="s3">// MKL doc: https://software.intel.com/en-us/mkl-developer-reference-c-dfti-complex-storage-dfti-real-storage-dfti-conjugate-even-storage#CONJUGATE_EVEN_STORAGE</span>
+<a name="l48"><span class="ln">48   </span></a>
+<a name="l49"><span class="ln">49   </span></a><span class="s2">inline </span><span class="s0">int64_t infer_ft_real_to_complex_onesided_size(int64_t real_size) {</span>
+<a name="l50"><span class="ln">50   </span></a>  <span class="s1">return </span><span class="s0">(real_size / </span><span class="s4">2</span><span class="s0">) + </span><span class="s4">1</span><span class="s0">;</span>
+<a name="l51"><span class="ln">51   </span></a><span class="s0">}</span>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a><span class="s2">inline </span><span class="s0">int64_t infer_ft_complex_to_real_onesided_size(int64_t complex_size,</span>
+<a name="l54"><span class="ln">54   </span></a>                                                      <span class="s0">int64_t expected_size=-</span><span class="s4">1</span><span class="s0">) {</span>
+<a name="l55"><span class="ln">55   </span></a>  <span class="s0">int64_t base = (complex_size - </span><span class="s4">1</span><span class="s0">) * </span><span class="s4">2</span><span class="s0">;</span>
+<a name="l56"><span class="ln">56   </span></a>  <span class="s1">if </span><span class="s0">(expected_size &lt; </span><span class="s4">0</span><span class="s0">) {</span>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s1">return </span><span class="s0">base + </span><span class="s4">1</span><span class="s0">;</span>
+<a name="l58"><span class="ln">58   </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(base == expected_size) {</span>
+<a name="l59"><span class="ln">59   </span></a>    <span class="s1">return </span><span class="s0">base;</span>
+<a name="l60"><span class="ln">60   </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(base + </span><span class="s4">1 </span><span class="s0">== expected_size) {</span>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s1">return </span><span class="s0">base + </span><span class="s4">1</span><span class="s0">;</span>
+<a name="l62"><span class="ln">62   </span></a>  <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l63"><span class="ln">63   </span></a>    <span class="s0">std::ostringstream ss;</span>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s0">ss &lt;&lt; </span><span class="s5">&quot;expected real signal size &quot; </span><span class="s0">&lt;&lt; expected_size &lt;&lt; </span><span class="s5">&quot; is incompatible &quot;</span>
+<a name="l65"><span class="ln">65   </span></a>       <span class="s0">&lt;&lt; </span><span class="s5">&quot;with onesided complex frequency size &quot; </span><span class="s0">&lt;&lt; complex_size;</span>
+<a name="l66"><span class="ln">66   </span></a>    <span class="s0">TORCH_CHECK(</span><span class="s1">false</span><span class="s0">, ss.str());</span>
+<a name="l67"><span class="ln">67   </span></a>  <span class="s0">}</span>
+<a name="l68"><span class="ln">68   </span></a><span class="s0">}</span>
+<a name="l69"><span class="ln">69   </span></a>
+<a name="l70"><span class="ln">70   </span></a><span class="s2">using </span><span class="s0">fft_fill_with_conjugate_symmetry_fn =</span>
+<a name="l71"><span class="ln">71   </span></a>    <span class="s1">void </span><span class="s0">(*)(ScalarType dtype, IntArrayRef mirror_dims, IntArrayRef half_sizes,</span>
+<a name="l72"><span class="ln">72   </span></a>             <span class="s0">IntArrayRef in_strides, </span><span class="s1">const void</span><span class="s0">* in_data,</span>
+<a name="l73"><span class="ln">73   </span></a>             <span class="s0">IntArrayRef out_strides, </span><span class="s1">void</span><span class="s0">* out_data);</span>
+<a name="l74"><span class="ln">74   </span></a><span class="s0">DECLARE_DISPATCH(fft_fill_with_conjugate_symmetry_fn, fft_fill_with_conjugate_symmetry_stub)</span>
+<a name="l75"><span class="ln">75   </span></a>
+<a name="l76"><span class="ln">76   </span></a><span class="s3">// In real-to-complex transform, cuFFT and MKL only fill half of the values</span>
+<a name="l77"><span class="ln">77   </span></a><span class="s3">// due to conjugate symmetry. This function fills in the other half of the full</span>
+<a name="l78"><span class="ln">78   </span></a><span class="s3">// fft by using the Hermitian symmetry in the signal.</span>
+<a name="l79"><span class="ln">79   </span></a><span class="s3">// self should be the shape of the full signal and dims.back() should be the</span>
+<a name="l80"><span class="ln">80   </span></a><span class="s3">// one-sided dimension.</span>
+<a name="l81"><span class="ln">81   </span></a><span class="s3">// See NOTE [ Fourier Transform Conjugate Symmetry ]</span>
+<a name="l82"><span class="ln">82   </span></a><span class="s0">TORCH_API </span><span class="s1">void </span><span class="s0">_fft_fill_with_conjugate_symmetry_(</span><span class="s1">const </span><span class="s0">Tensor&amp; self, IntArrayRef dims);</span>
+<a name="l83"><span class="ln">83   </span></a>
+<a name="l84"><span class="ln">84   </span></a><span class="s0">} </span><span class="s3">// namespace at::native</span>
+<a name="l85"><span class="ln">85   </span></a></pre>
+</body>
+</html>

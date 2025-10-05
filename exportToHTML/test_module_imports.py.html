@@ -1,0 +1,65 @@
+<html>
+<head>
+<title>test_module_imports.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+test_module_imports.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>Checks that SymPy does not contain indirect imports. 
+<a name="l3"><span class="ln">3    </span></a> 
+<a name="l4"><span class="ln">4    </span></a>An indirect import is importing a symbol from a module that itself imported the 
+<a name="l5"><span class="ln">5    </span></a>symbol from elsewhere. Such a constellation makes it harder to diagnose 
+<a name="l6"><span class="ln">6    </span></a>inter-module dependencies and import order problems, and is therefore strongly 
+<a name="l7"><span class="ln">7    </span></a>discouraged. 
+<a name="l8"><span class="ln">8    </span></a> 
+<a name="l9"><span class="ln">9    </span></a>(Indirect imports from end-user code is fine and in fact a best practice.) 
+<a name="l10"><span class="ln">10   </span></a> 
+<a name="l11"><span class="ln">11   </span></a>Implementation note: Forcing Python into actually unloading already-imported 
+<a name="l12"><span class="ln">12   </span></a>submodules is a tricky and partly undocumented process. To avoid these issues, 
+<a name="l13"><span class="ln">13   </span></a>the actual diagnostic code is in bin/diagnose_imports, which is run as a 
+<a name="l14"><span class="ln">14   </span></a>separate, pristine Python process. 
+<a name="l15"><span class="ln">15   </span></a>&quot;&quot;&quot;</span>
+<a name="l16"><span class="ln">16   </span></a>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">import </span><span class="s1">subprocess</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s2">import </span><span class="s1">sys</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">from </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path </span><span class="s2">import </span><span class="s1">abspath</span><span class="s3">, </span><span class="s1">dirname</span><span class="s3">, </span><span class="s1">join</span><span class="s3">, </span><span class="s1">normpath</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s2">import </span><span class="s1">inspect</span>
+<a name="l21"><span class="ln">21   </span></a>
+<a name="l22"><span class="ln">22   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">testing</span><span class="s3">.</span><span class="s1">pytest </span><span class="s2">import </span><span class="s1">XFAIL</span>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a><span class="s2">@</span><span class="s1">XFAIL</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s2">def </span><span class="s1">test_module_imports_are_direct</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l26"><span class="ln">26   </span></a>    <span class="s1">my_filename </span><span class="s2">= </span><span class="s1">abspath</span><span class="s3">(</span><span class="s1">inspect</span><span class="s3">.</span><span class="s1">getfile</span><span class="s3">(</span><span class="s1">inspect</span><span class="s3">.</span><span class="s1">currentframe</span><span class="s3">()))</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s1">my_dirname </span><span class="s2">= </span><span class="s1">dirname</span><span class="s3">(</span><span class="s1">my_filename</span><span class="s3">)</span>
+<a name="l28"><span class="ln">28   </span></a>    <span class="s1">diagnose_imports_filename </span><span class="s2">= </span><span class="s1">join</span><span class="s3">(</span><span class="s1">my_dirname</span><span class="s3">, </span><span class="s4">'diagnose_imports.py'</span><span class="s3">)</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s1">diagnose_imports_filename </span><span class="s2">= </span><span class="s1">normpath</span><span class="s3">(</span><span class="s1">diagnose_imports_filename</span><span class="s3">)</span>
+<a name="l30"><span class="ln">30   </span></a>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s1">process </span><span class="s2">= </span><span class="s1">subprocess</span><span class="s3">.</span><span class="s1">Popen</span><span class="s3">(</span>
+<a name="l32"><span class="ln">32   </span></a>        <span class="s3">[</span>
+<a name="l33"><span class="ln">33   </span></a>            <span class="s1">sys</span><span class="s3">.</span><span class="s1">executable</span><span class="s3">,</span>
+<a name="l34"><span class="ln">34   </span></a>            <span class="s1">normpath</span><span class="s3">(</span><span class="s1">diagnose_imports_filename</span><span class="s3">),</span>
+<a name="l35"><span class="ln">35   </span></a>            <span class="s4">'--problems'</span><span class="s3">,</span>
+<a name="l36"><span class="ln">36   </span></a>            <span class="s4">'--by-importer'</span>
+<a name="l37"><span class="ln">37   </span></a>        <span class="s3">],</span>
+<a name="l38"><span class="ln">38   </span></a>        <span class="s1">stdout</span><span class="s2">=</span><span class="s1">subprocess</span><span class="s3">.</span><span class="s1">PIPE</span><span class="s3">,</span>
+<a name="l39"><span class="ln">39   </span></a>        <span class="s1">stderr</span><span class="s2">=</span><span class="s1">subprocess</span><span class="s3">.</span><span class="s1">STDOUT</span><span class="s3">,</span>
+<a name="l40"><span class="ln">40   </span></a>        <span class="s1">bufsize</span><span class="s2">=-</span><span class="s5">1</span><span class="s3">)</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s1">output</span><span class="s3">, </span><span class="s1">_ </span><span class="s2">= </span><span class="s1">process</span><span class="s3">.</span><span class="s1">communicate</span><span class="s3">()</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s2">assert </span><span class="s1">output </span><span class="s2">== </span><span class="s4">''</span><span class="s3">, </span><span class="s4">&quot;There are import problems:\n&quot; </span><span class="s2">+ </span><span class="s1">output</span><span class="s3">.</span><span class="s1">decode</span><span class="s3">()</span>
+<a name="l43"><span class="ln">43   </span></a></pre>
+</body>
+</html>

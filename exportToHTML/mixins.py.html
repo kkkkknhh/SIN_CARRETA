@@ -1,0 +1,204 @@
+<html>
+<head>
+<title>mixins.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+mixins.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>Mixin classes for custom array types that don't inherit from ndarray. 
+<a name="l3"><span class="ln">3    </span></a>&quot;&quot;&quot;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">from </span><span class="s1">numpy</span><span class="s3">.</span><span class="s1">_core </span><span class="s2">import </span><span class="s1">umath </span><span class="s2">as </span><span class="s1">um</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'NDArrayOperatorsMixin'</span><span class="s3">]</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">def </span><span class="s1">_disables_array_ufunc</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l11"><span class="ln">11   </span></a>    <span class="s0">&quot;&quot;&quot;True when __array_ufunc__ is set to None.&quot;&quot;&quot;</span>
+<a name="l12"><span class="ln">12   </span></a>    <span class="s2">try:</span>
+<a name="l13"><span class="ln">13   </span></a>        <span class="s2">return </span><span class="s1">obj</span><span class="s3">.</span><span class="s1">__array_ufunc__ </span><span class="s2">is None</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s2">except </span><span class="s1">AttributeError</span><span class="s2">:</span>
+<a name="l15"><span class="ln">15   </span></a>        <span class="s2">return False</span>
+<a name="l16"><span class="ln">16   </span></a>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a><span class="s2">def </span><span class="s1">_binary_method</span><span class="s3">(</span><span class="s1">ufunc</span><span class="s3">, </span><span class="s1">name</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s0">&quot;&quot;&quot;Implement a forward binary method with a ufunc, e.g., __add__.&quot;&quot;&quot;</span>
+<a name="l20"><span class="ln">20   </span></a>    <span class="s2">def </span><span class="s1">func</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l21"><span class="ln">21   </span></a>        <span class="s2">if </span><span class="s1">_disables_array_ufunc</span><span class="s3">(</span><span class="s1">other</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l22"><span class="ln">22   </span></a>            <span class="s2">return </span><span class="s1">NotImplemented</span>
+<a name="l23"><span class="ln">23   </span></a>        <span class="s2">return </span><span class="s1">ufunc</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">)</span>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s1">func</span><span class="s3">.</span><span class="s1">__name__ </span><span class="s2">= </span><span class="s4">'__{}__'</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s2">return </span><span class="s1">func</span>
+<a name="l26"><span class="ln">26   </span></a>
+<a name="l27"><span class="ln">27   </span></a>
+<a name="l28"><span class="ln">28   </span></a><span class="s2">def </span><span class="s1">_reflected_binary_method</span><span class="s3">(</span><span class="s1">ufunc</span><span class="s3">, </span><span class="s1">name</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s0">&quot;&quot;&quot;Implement a reflected binary method with a ufunc, e.g., __radd__.&quot;&quot;&quot;</span>
+<a name="l30"><span class="ln">30   </span></a>    <span class="s2">def </span><span class="s1">func</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l31"><span class="ln">31   </span></a>        <span class="s2">if </span><span class="s1">_disables_array_ufunc</span><span class="s3">(</span><span class="s1">other</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l32"><span class="ln">32   </span></a>            <span class="s2">return </span><span class="s1">NotImplemented</span>
+<a name="l33"><span class="ln">33   </span></a>        <span class="s2">return </span><span class="s1">ufunc</span><span class="s3">(</span><span class="s1">other</span><span class="s3">, </span><span class="s1">self</span><span class="s3">)</span>
+<a name="l34"><span class="ln">34   </span></a>    <span class="s1">func</span><span class="s3">.</span><span class="s1">__name__ </span><span class="s2">= </span><span class="s4">'__r{}__'</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)</span>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s2">return </span><span class="s1">func</span>
+<a name="l36"><span class="ln">36   </span></a>
+<a name="l37"><span class="ln">37   </span></a>
+<a name="l38"><span class="ln">38   </span></a><span class="s2">def </span><span class="s1">_inplace_binary_method</span><span class="s3">(</span><span class="s1">ufunc</span><span class="s3">, </span><span class="s1">name</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s0">&quot;&quot;&quot;Implement an in-place binary method with a ufunc, e.g., __iadd__.&quot;&quot;&quot;</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s2">def </span><span class="s1">func</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l41"><span class="ln">41   </span></a>        <span class="s2">return </span><span class="s1">ufunc</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">, </span><span class="s1">out</span><span class="s2">=</span><span class="s3">(</span><span class="s1">self</span><span class="s3">,))</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s1">func</span><span class="s3">.</span><span class="s1">__name__ </span><span class="s2">= </span><span class="s4">'__i{}__'</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s2">return </span><span class="s1">func</span>
+<a name="l44"><span class="ln">44   </span></a>
+<a name="l45"><span class="ln">45   </span></a>
+<a name="l46"><span class="ln">46   </span></a><span class="s2">def </span><span class="s1">_numeric_methods</span><span class="s3">(</span><span class="s1">ufunc</span><span class="s3">, </span><span class="s1">name</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s0">&quot;&quot;&quot;Implement forward, reflected and inplace binary methods with a ufunc.&quot;&quot;&quot;</span>
+<a name="l48"><span class="ln">48   </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">_binary_method</span><span class="s3">(</span><span class="s1">ufunc</span><span class="s3">, </span><span class="s1">name</span><span class="s3">),</span>
+<a name="l49"><span class="ln">49   </span></a>            <span class="s1">_reflected_binary_method</span><span class="s3">(</span><span class="s1">ufunc</span><span class="s3">, </span><span class="s1">name</span><span class="s3">),</span>
+<a name="l50"><span class="ln">50   </span></a>            <span class="s1">_inplace_binary_method</span><span class="s3">(</span><span class="s1">ufunc</span><span class="s3">, </span><span class="s1">name</span><span class="s3">))</span>
+<a name="l51"><span class="ln">51   </span></a>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a><span class="s2">def </span><span class="s1">_unary_method</span><span class="s3">(</span><span class="s1">ufunc</span><span class="s3">, </span><span class="s1">name</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l54"><span class="ln">54   </span></a>    <span class="s0">&quot;&quot;&quot;Implement a unary special method with a ufunc.&quot;&quot;&quot;</span>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s2">def </span><span class="s1">func</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l56"><span class="ln">56   </span></a>        <span class="s2">return </span><span class="s1">ufunc</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s1">func</span><span class="s3">.</span><span class="s1">__name__ </span><span class="s2">= </span><span class="s4">'__{}__'</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)</span>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s2">return </span><span class="s1">func</span>
+<a name="l59"><span class="ln">59   </span></a>
+<a name="l60"><span class="ln">60   </span></a>
+<a name="l61"><span class="ln">61   </span></a><span class="s2">class </span><span class="s1">NDArrayOperatorsMixin</span><span class="s2">:</span>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s0">&quot;&quot;&quot;Mixin defining all operator special methods using __array_ufunc__. 
+<a name="l63"><span class="ln">63   </span></a> 
+<a name="l64"><span class="ln">64   </span></a>    This class implements the special methods for almost all of Python's 
+<a name="l65"><span class="ln">65   </span></a>    builtin operators defined in the `operator` module, including comparisons 
+<a name="l66"><span class="ln">66   </span></a>    (``==``, ``&gt;``, etc.) and arithmetic (``+``, ``*``, ``-``, etc.), by 
+<a name="l67"><span class="ln">67   </span></a>    deferring to the ``__array_ufunc__`` method, which subclasses must 
+<a name="l68"><span class="ln">68   </span></a>    implement. 
+<a name="l69"><span class="ln">69   </span></a> 
+<a name="l70"><span class="ln">70   </span></a>    It is useful for writing classes that do not inherit from `numpy.ndarray`, 
+<a name="l71"><span class="ln">71   </span></a>    but that should support arithmetic and numpy universal functions like 
+<a name="l72"><span class="ln">72   </span></a>    arrays as described in `A Mechanism for Overriding Ufuncs 
+<a name="l73"><span class="ln">73   </span></a>    &lt;https://numpy.org/neps/nep-0013-ufunc-overrides.html&gt;`_. 
+<a name="l74"><span class="ln">74   </span></a> 
+<a name="l75"><span class="ln">75   </span></a>    As an trivial example, consider this implementation of an ``ArrayLike`` 
+<a name="l76"><span class="ln">76   </span></a>    class that simply wraps a NumPy array and ensures that the result of any 
+<a name="l77"><span class="ln">77   </span></a>    arithmetic operation is also an ``ArrayLike`` object: 
+<a name="l78"><span class="ln">78   </span></a> 
+<a name="l79"><span class="ln">79   </span></a>        &gt;&gt;&gt; import numbers 
+<a name="l80"><span class="ln">80   </span></a>        &gt;&gt;&gt; class ArrayLike(np.lib.mixins.NDArrayOperatorsMixin): 
+<a name="l81"><span class="ln">81   </span></a>        ...     def __init__(self, value): 
+<a name="l82"><span class="ln">82   </span></a>        ...         self.value = np.asarray(value) 
+<a name="l83"><span class="ln">83   </span></a>        ... 
+<a name="l84"><span class="ln">84   </span></a>        ...     # One might also consider adding the built-in list type to this 
+<a name="l85"><span class="ln">85   </span></a>        ...     # list, to support operations like np.add(array_like, list) 
+<a name="l86"><span class="ln">86   </span></a>        ...     _HANDLED_TYPES = (np.ndarray, numbers.Number) 
+<a name="l87"><span class="ln">87   </span></a>        ... 
+<a name="l88"><span class="ln">88   </span></a>        ...     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs): 
+<a name="l89"><span class="ln">89   </span></a>        ...         out = kwargs.get('out', ()) 
+<a name="l90"><span class="ln">90   </span></a>        ...         for x in inputs + out: 
+<a name="l91"><span class="ln">91   </span></a>        ...             # Only support operations with instances of 
+<a name="l92"><span class="ln">92   </span></a>        ...             # _HANDLED_TYPES. Use ArrayLike instead of type(self) 
+<a name="l93"><span class="ln">93   </span></a>        ...             # for isinstance to allow subclasses that don't 
+<a name="l94"><span class="ln">94   </span></a>        ...             # override __array_ufunc__ to handle ArrayLike objects. 
+<a name="l95"><span class="ln">95   </span></a>        ...             if not isinstance( 
+<a name="l96"><span class="ln">96   </span></a>        ...                 x, self._HANDLED_TYPES + (ArrayLike,) 
+<a name="l97"><span class="ln">97   </span></a>        ...             ): 
+<a name="l98"><span class="ln">98   </span></a>        ...                 return NotImplemented 
+<a name="l99"><span class="ln">99   </span></a>        ... 
+<a name="l100"><span class="ln">100  </span></a>        ...         # Defer to the implementation of the ufunc 
+<a name="l101"><span class="ln">101  </span></a>        ...         # on unwrapped values. 
+<a name="l102"><span class="ln">102  </span></a>        ...         inputs = tuple(x.value if isinstance(x, ArrayLike) else x 
+<a name="l103"><span class="ln">103  </span></a>        ...                     for x in inputs) 
+<a name="l104"><span class="ln">104  </span></a>        ...         if out: 
+<a name="l105"><span class="ln">105  </span></a>        ...             kwargs['out'] = tuple( 
+<a name="l106"><span class="ln">106  </span></a>        ...                 x.value if isinstance(x, ArrayLike) else x 
+<a name="l107"><span class="ln">107  </span></a>        ...                 for x in out) 
+<a name="l108"><span class="ln">108  </span></a>        ...         result = getattr(ufunc, method)(*inputs, **kwargs) 
+<a name="l109"><span class="ln">109  </span></a>        ... 
+<a name="l110"><span class="ln">110  </span></a>        ...         if type(result) is tuple: 
+<a name="l111"><span class="ln">111  </span></a>        ...             # multiple return values 
+<a name="l112"><span class="ln">112  </span></a>        ...             return tuple(type(self)(x) for x in result) 
+<a name="l113"><span class="ln">113  </span></a>        ...         elif method == 'at': 
+<a name="l114"><span class="ln">114  </span></a>        ...             # no return value 
+<a name="l115"><span class="ln">115  </span></a>        ...             return None 
+<a name="l116"><span class="ln">116  </span></a>        ...         else: 
+<a name="l117"><span class="ln">117  </span></a>        ...             # one return value 
+<a name="l118"><span class="ln">118  </span></a>        ...             return type(self)(result) 
+<a name="l119"><span class="ln">119  </span></a>        ... 
+<a name="l120"><span class="ln">120  </span></a>        ...     def __repr__(self): 
+<a name="l121"><span class="ln">121  </span></a>        ...         return '%s(%r)' % (type(self).__name__, self.value) 
+<a name="l122"><span class="ln">122  </span></a> 
+<a name="l123"><span class="ln">123  </span></a>    In interactions between ``ArrayLike`` objects and numbers or numpy arrays, 
+<a name="l124"><span class="ln">124  </span></a>    the result is always another ``ArrayLike``: 
+<a name="l125"><span class="ln">125  </span></a> 
+<a name="l126"><span class="ln">126  </span></a>        &gt;&gt;&gt; x = ArrayLike([1, 2, 3]) 
+<a name="l127"><span class="ln">127  </span></a>        &gt;&gt;&gt; x - 1 
+<a name="l128"><span class="ln">128  </span></a>        ArrayLike(array([0, 1, 2])) 
+<a name="l129"><span class="ln">129  </span></a>        &gt;&gt;&gt; 1 - x 
+<a name="l130"><span class="ln">130  </span></a>        ArrayLike(array([ 0, -1, -2])) 
+<a name="l131"><span class="ln">131  </span></a>        &gt;&gt;&gt; np.arange(3) - x 
+<a name="l132"><span class="ln">132  </span></a>        ArrayLike(array([-1, -1, -1])) 
+<a name="l133"><span class="ln">133  </span></a>        &gt;&gt;&gt; x - np.arange(3) 
+<a name="l134"><span class="ln">134  </span></a>        ArrayLike(array([1, 1, 1])) 
+<a name="l135"><span class="ln">135  </span></a> 
+<a name="l136"><span class="ln">136  </span></a>    Note that unlike ``numpy.ndarray``, ``ArrayLike`` does not allow operations 
+<a name="l137"><span class="ln">137  </span></a>    with arbitrary, unrecognized types. This ensures that interactions with 
+<a name="l138"><span class="ln">138  </span></a>    ArrayLike preserve a well-defined casting hierarchy. 
+<a name="l139"><span class="ln">139  </span></a> 
+<a name="l140"><span class="ln">140  </span></a>    &quot;&quot;&quot;</span>
+<a name="l141"><span class="ln">141  </span></a>    <span class="s1">__slots__ </span><span class="s2">= </span><span class="s3">()</span>
+<a name="l142"><span class="ln">142  </span></a>    <span class="s0"># Like np.ndarray, this mixin class implements &quot;Option 1&quot; from the ufunc</span>
+<a name="l143"><span class="ln">143  </span></a>    <span class="s0"># overrides NEP.</span>
+<a name="l144"><span class="ln">144  </span></a>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s0"># comparisons don't have reflected and in-place versions</span>
+<a name="l146"><span class="ln">146  </span></a>    <span class="s1">__lt__ </span><span class="s2">= </span><span class="s1">_binary_method</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">less</span><span class="s3">, </span><span class="s4">'lt'</span><span class="s3">)</span>
+<a name="l147"><span class="ln">147  </span></a>    <span class="s1">__le__ </span><span class="s2">= </span><span class="s1">_binary_method</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">less_equal</span><span class="s3">, </span><span class="s4">'le'</span><span class="s3">)</span>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s1">__eq__ </span><span class="s2">= </span><span class="s1">_binary_method</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">equal</span><span class="s3">, </span><span class="s4">'eq'</span><span class="s3">)</span>
+<a name="l149"><span class="ln">149  </span></a>    <span class="s1">__ne__ </span><span class="s2">= </span><span class="s1">_binary_method</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">not_equal</span><span class="s3">, </span><span class="s4">'ne'</span><span class="s3">)</span>
+<a name="l150"><span class="ln">150  </span></a>    <span class="s1">__gt__ </span><span class="s2">= </span><span class="s1">_binary_method</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">greater</span><span class="s3">, </span><span class="s4">'gt'</span><span class="s3">)</span>
+<a name="l151"><span class="ln">151  </span></a>    <span class="s1">__ge__ </span><span class="s2">= </span><span class="s1">_binary_method</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">greater_equal</span><span class="s3">, </span><span class="s4">'ge'</span><span class="s3">)</span>
+<a name="l152"><span class="ln">152  </span></a>
+<a name="l153"><span class="ln">153  </span></a>    <span class="s0"># numeric methods</span>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s1">__add__</span><span class="s3">, </span><span class="s1">__radd__</span><span class="s3">, </span><span class="s1">__iadd__ </span><span class="s2">= </span><span class="s1">_numeric_methods</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">add</span><span class="s3">, </span><span class="s4">'add'</span><span class="s3">)</span>
+<a name="l155"><span class="ln">155  </span></a>    <span class="s1">__sub__</span><span class="s3">, </span><span class="s1">__rsub__</span><span class="s3">, </span><span class="s1">__isub__ </span><span class="s2">= </span><span class="s1">_numeric_methods</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">subtract</span><span class="s3">, </span><span class="s4">'sub'</span><span class="s3">)</span>
+<a name="l156"><span class="ln">156  </span></a>    <span class="s1">__mul__</span><span class="s3">, </span><span class="s1">__rmul__</span><span class="s3">, </span><span class="s1">__imul__ </span><span class="s2">= </span><span class="s1">_numeric_methods</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">multiply</span><span class="s3">, </span><span class="s4">'mul'</span><span class="s3">)</span>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s1">__matmul__</span><span class="s3">, </span><span class="s1">__rmatmul__</span><span class="s3">, </span><span class="s1">__imatmul__ </span><span class="s2">= </span><span class="s1">_numeric_methods</span><span class="s3">(</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s1">um</span><span class="s3">.</span><span class="s1">matmul</span><span class="s3">, </span><span class="s4">'matmul'</span><span class="s3">)</span>
+<a name="l159"><span class="ln">159  </span></a>    <span class="s0"># Python 3 does not use __div__, __rdiv__, or __idiv__</span>
+<a name="l160"><span class="ln">160  </span></a>    <span class="s1">__truediv__</span><span class="s3">, </span><span class="s1">__rtruediv__</span><span class="s3">, </span><span class="s1">__itruediv__ </span><span class="s2">= </span><span class="s1">_numeric_methods</span><span class="s3">(</span>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s1">um</span><span class="s3">.</span><span class="s1">true_divide</span><span class="s3">, </span><span class="s4">'truediv'</span><span class="s3">)</span>
+<a name="l162"><span class="ln">162  </span></a>    <span class="s1">__floordiv__</span><span class="s3">, </span><span class="s1">__rfloordiv__</span><span class="s3">, </span><span class="s1">__ifloordiv__ </span><span class="s2">= </span><span class="s1">_numeric_methods</span><span class="s3">(</span>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s1">um</span><span class="s3">.</span><span class="s1">floor_divide</span><span class="s3">, </span><span class="s4">'floordiv'</span><span class="s3">)</span>
+<a name="l164"><span class="ln">164  </span></a>    <span class="s1">__mod__</span><span class="s3">, </span><span class="s1">__rmod__</span><span class="s3">, </span><span class="s1">__imod__ </span><span class="s2">= </span><span class="s1">_numeric_methods</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">remainder</span><span class="s3">, </span><span class="s4">'mod'</span><span class="s3">)</span>
+<a name="l165"><span class="ln">165  </span></a>    <span class="s1">__divmod__ </span><span class="s2">= </span><span class="s1">_binary_method</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">divmod</span><span class="s3">, </span><span class="s4">'divmod'</span><span class="s3">)</span>
+<a name="l166"><span class="ln">166  </span></a>    <span class="s1">__rdivmod__ </span><span class="s2">= </span><span class="s1">_reflected_binary_method</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">divmod</span><span class="s3">, </span><span class="s4">'divmod'</span><span class="s3">)</span>
+<a name="l167"><span class="ln">167  </span></a>    <span class="s0"># __idivmod__ does not exist</span>
+<a name="l168"><span class="ln">168  </span></a>    <span class="s0"># TODO: handle the optional third argument for __pow__?</span>
+<a name="l169"><span class="ln">169  </span></a>    <span class="s1">__pow__</span><span class="s3">, </span><span class="s1">__rpow__</span><span class="s3">, </span><span class="s1">__ipow__ </span><span class="s2">= </span><span class="s1">_numeric_methods</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">power</span><span class="s3">, </span><span class="s4">'pow'</span><span class="s3">)</span>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s1">__lshift__</span><span class="s3">, </span><span class="s1">__rlshift__</span><span class="s3">, </span><span class="s1">__ilshift__ </span><span class="s2">= </span><span class="s1">_numeric_methods</span><span class="s3">(</span>
+<a name="l171"><span class="ln">171  </span></a>        <span class="s1">um</span><span class="s3">.</span><span class="s1">left_shift</span><span class="s3">, </span><span class="s4">'lshift'</span><span class="s3">)</span>
+<a name="l172"><span class="ln">172  </span></a>    <span class="s1">__rshift__</span><span class="s3">, </span><span class="s1">__rrshift__</span><span class="s3">, </span><span class="s1">__irshift__ </span><span class="s2">= </span><span class="s1">_numeric_methods</span><span class="s3">(</span>
+<a name="l173"><span class="ln">173  </span></a>        <span class="s1">um</span><span class="s3">.</span><span class="s1">right_shift</span><span class="s3">, </span><span class="s4">'rshift'</span><span class="s3">)</span>
+<a name="l174"><span class="ln">174  </span></a>    <span class="s1">__and__</span><span class="s3">, </span><span class="s1">__rand__</span><span class="s3">, </span><span class="s1">__iand__ </span><span class="s2">= </span><span class="s1">_numeric_methods</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">bitwise_and</span><span class="s3">, </span><span class="s4">'and'</span><span class="s3">)</span>
+<a name="l175"><span class="ln">175  </span></a>    <span class="s1">__xor__</span><span class="s3">, </span><span class="s1">__rxor__</span><span class="s3">, </span><span class="s1">__ixor__ </span><span class="s2">= </span><span class="s1">_numeric_methods</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">bitwise_xor</span><span class="s3">, </span><span class="s4">'xor'</span><span class="s3">)</span>
+<a name="l176"><span class="ln">176  </span></a>    <span class="s1">__or__</span><span class="s3">, </span><span class="s1">__ror__</span><span class="s3">, </span><span class="s1">__ior__ </span><span class="s2">= </span><span class="s1">_numeric_methods</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">bitwise_or</span><span class="s3">, </span><span class="s4">'or'</span><span class="s3">)</span>
+<a name="l177"><span class="ln">177  </span></a>
+<a name="l178"><span class="ln">178  </span></a>    <span class="s0"># unary methods</span>
+<a name="l179"><span class="ln">179  </span></a>    <span class="s1">__neg__ </span><span class="s2">= </span><span class="s1">_unary_method</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">negative</span><span class="s3">, </span><span class="s4">'neg'</span><span class="s3">)</span>
+<a name="l180"><span class="ln">180  </span></a>    <span class="s1">__pos__ </span><span class="s2">= </span><span class="s1">_unary_method</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">positive</span><span class="s3">, </span><span class="s4">'pos'</span><span class="s3">)</span>
+<a name="l181"><span class="ln">181  </span></a>    <span class="s1">__abs__ </span><span class="s2">= </span><span class="s1">_unary_method</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">absolute</span><span class="s3">, </span><span class="s4">'abs'</span><span class="s3">)</span>
+<a name="l182"><span class="ln">182  </span></a>    <span class="s1">__invert__ </span><span class="s2">= </span><span class="s1">_unary_method</span><span class="s3">(</span><span class="s1">um</span><span class="s3">.</span><span class="s1">invert</span><span class="s3">, </span><span class="s4">'invert'</span><span class="s3">)</span>
+<a name="l183"><span class="ln">183  </span></a></pre>
+</body>
+</html>

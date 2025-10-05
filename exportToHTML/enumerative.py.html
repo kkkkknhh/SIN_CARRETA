@@ -1,0 +1,1178 @@
+<html>
+<head>
+<title>enumerative.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+enumerative.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>Algorithms and classes to support enumerative combinatorics. 
+<a name="l3"><span class="ln">3    </span></a> 
+<a name="l4"><span class="ln">4    </span></a>Currently just multiset partitions, but more could be added. 
+<a name="l5"><span class="ln">5    </span></a> 
+<a name="l6"><span class="ln">6    </span></a>Terminology (following Knuth, algorithm 7.1.2.5M TAOCP) 
+<a name="l7"><span class="ln">7    </span></a>*multiset* aaabbcccc has a *partition* aaabc | bccc 
+<a name="l8"><span class="ln">8    </span></a> 
+<a name="l9"><span class="ln">9    </span></a>The submultisets, aaabc and bccc of the partition are called 
+<a name="l10"><span class="ln">10   </span></a>*parts*, or sometimes *vectors*.  (Knuth notes that multiset 
+<a name="l11"><span class="ln">11   </span></a>partitions can be thought of as partitions of vectors of integers, 
+<a name="l12"><span class="ln">12   </span></a>where the ith element of the vector gives the multiplicity of 
+<a name="l13"><span class="ln">13   </span></a>element i.) 
+<a name="l14"><span class="ln">14   </span></a> 
+<a name="l15"><span class="ln">15   </span></a>The values a, b and c are *components* of the multiset.  These 
+<a name="l16"><span class="ln">16   </span></a>correspond to elements of a set, but in a multiset can be present 
+<a name="l17"><span class="ln">17   </span></a>with a multiplicity greater than 1. 
+<a name="l18"><span class="ln">18   </span></a> 
+<a name="l19"><span class="ln">19   </span></a>The algorithm deserves some explanation. 
+<a name="l20"><span class="ln">20   </span></a> 
+<a name="l21"><span class="ln">21   </span></a>Think of the part aaabc from the multiset above.  If we impose an 
+<a name="l22"><span class="ln">22   </span></a>ordering on the components of the multiset, we can represent a part 
+<a name="l23"><span class="ln">23   </span></a>with a vector, in which the value of the first element of the vector 
+<a name="l24"><span class="ln">24   </span></a>corresponds to the multiplicity of the first component in that 
+<a name="l25"><span class="ln">25   </span></a>part. Thus, aaabc can be represented by the vector [3, 1, 1].  We 
+<a name="l26"><span class="ln">26   </span></a>can also define an ordering on parts, based on the lexicographic 
+<a name="l27"><span class="ln">27   </span></a>ordering of the vector (leftmost vector element, i.e., the element 
+<a name="l28"><span class="ln">28   </span></a>with the smallest component number, is the most significant), so 
+<a name="l29"><span class="ln">29   </span></a>that [3, 1, 1] &gt; [3, 1, 0] and [3, 1, 1] &gt; [2, 1, 4].  The ordering 
+<a name="l30"><span class="ln">30   </span></a>on parts can be extended to an ordering on partitions: First, sort 
+<a name="l31"><span class="ln">31   </span></a>the parts in each partition, left-to-right in decreasing order. Then 
+<a name="l32"><span class="ln">32   </span></a>partition A is greater than partition B if A's leftmost/greatest 
+<a name="l33"><span class="ln">33   </span></a>part is greater than B's leftmost part.  If the leftmost parts are 
+<a name="l34"><span class="ln">34   </span></a>equal, compare the second parts, and so on. 
+<a name="l35"><span class="ln">35   </span></a> 
+<a name="l36"><span class="ln">36   </span></a>In this ordering, the greatest partition of a given multiset has only 
+<a name="l37"><span class="ln">37   </span></a>one part.  The least partition is the one in which the components 
+<a name="l38"><span class="ln">38   </span></a>are spread out, one per part. 
+<a name="l39"><span class="ln">39   </span></a> 
+<a name="l40"><span class="ln">40   </span></a>The enumeration algorithms in this file yield the partitions of the 
+<a name="l41"><span class="ln">41   </span></a>argument multiset in decreasing order.  The main data structure is a 
+<a name="l42"><span class="ln">42   </span></a>stack of parts, corresponding to the current partition.  An 
+<a name="l43"><span class="ln">43   </span></a>important invariant is that the parts on the stack are themselves in 
+<a name="l44"><span class="ln">44   </span></a>decreasing order.  This data structure is decremented to find the 
+<a name="l45"><span class="ln">45   </span></a>next smaller partition.  Most often, decrementing the partition will 
+<a name="l46"><span class="ln">46   </span></a>only involve adjustments to the smallest parts at the top of the 
+<a name="l47"><span class="ln">47   </span></a>stack, much as adjacent integers *usually* differ only in their last 
+<a name="l48"><span class="ln">48   </span></a>few digits. 
+<a name="l49"><span class="ln">49   </span></a> 
+<a name="l50"><span class="ln">50   </span></a>Knuth's algorithm uses two main operations on parts: 
+<a name="l51"><span class="ln">51   </span></a> 
+<a name="l52"><span class="ln">52   </span></a>Decrement - change the part so that it is smaller in the 
+<a name="l53"><span class="ln">53   </span></a>  (vector) lexicographic order, but reduced by the smallest amount possible. 
+<a name="l54"><span class="ln">54   </span></a>  For example, if the multiset has vector [5, 
+<a name="l55"><span class="ln">55   </span></a>  3, 1], and the bottom/greatest part is [4, 2, 1], this part would 
+<a name="l56"><span class="ln">56   </span></a>  decrement to [4, 2, 0], while [4, 0, 0] would decrement to [3, 3, 
+<a name="l57"><span class="ln">57   </span></a>  1].  A singleton part is never decremented -- [1, 0, 0] is not 
+<a name="l58"><span class="ln">58   </span></a>  decremented to [0, 3, 1].  Instead, the decrement operator needs 
+<a name="l59"><span class="ln">59   </span></a>  to fail for this case.  In Knuth's pseudocode, the decrement 
+<a name="l60"><span class="ln">60   </span></a>  operator is step m5. 
+<a name="l61"><span class="ln">61   </span></a> 
+<a name="l62"><span class="ln">62   </span></a>Spread unallocated multiplicity - Once a part has been decremented, 
+<a name="l63"><span class="ln">63   </span></a>  it cannot be the rightmost part in the partition.  There is some 
+<a name="l64"><span class="ln">64   </span></a>  multiplicity that has not been allocated, and new parts must be 
+<a name="l65"><span class="ln">65   </span></a>  created above it in the stack to use up this multiplicity.  To 
+<a name="l66"><span class="ln">66   </span></a>  maintain the invariant that the parts on the stack are in 
+<a name="l67"><span class="ln">67   </span></a>  decreasing order, these new parts must be less than or equal to 
+<a name="l68"><span class="ln">68   </span></a>  the decremented part. 
+<a name="l69"><span class="ln">69   </span></a>  For example, if the multiset is [5, 3, 1], and its most 
+<a name="l70"><span class="ln">70   </span></a>  significant part has just been decremented to [5, 3, 0], the 
+<a name="l71"><span class="ln">71   </span></a>  spread operation will add a new part so that the stack becomes 
+<a name="l72"><span class="ln">72   </span></a>  [[5, 3, 0], [0, 0, 1]].  If the most significant part (for the 
+<a name="l73"><span class="ln">73   </span></a>  same multiset) has been decremented to [2, 0, 0] the stack becomes 
+<a name="l74"><span class="ln">74   </span></a>  [[2, 0, 0], [2, 0, 0], [1, 3, 1]].  In the pseudocode, the spread 
+<a name="l75"><span class="ln">75   </span></a>  operation for one part is step m2.  The complete spread operation 
+<a name="l76"><span class="ln">76   </span></a>  is a loop of steps m2 and m3. 
+<a name="l77"><span class="ln">77   </span></a> 
+<a name="l78"><span class="ln">78   </span></a>In order to facilitate the spread operation, Knuth stores, for each 
+<a name="l79"><span class="ln">79   </span></a>component of each part, not just the multiplicity of that component 
+<a name="l80"><span class="ln">80   </span></a>in the part, but also the total multiplicity available for this 
+<a name="l81"><span class="ln">81   </span></a>component in this part or any lesser part above it on the stack. 
+<a name="l82"><span class="ln">82   </span></a> 
+<a name="l83"><span class="ln">83   </span></a>One added twist is that Knuth does not represent the part vectors as 
+<a name="l84"><span class="ln">84   </span></a>arrays. Instead, he uses a sparse representation, in which a 
+<a name="l85"><span class="ln">85   </span></a>component of a part is represented as a component number (c), plus 
+<a name="l86"><span class="ln">86   </span></a>the multiplicity of the component in that part (v) as well as the 
+<a name="l87"><span class="ln">87   </span></a>total multiplicity available for that component (u).  This saves 
+<a name="l88"><span class="ln">88   </span></a>time that would be spent skipping over zeros. 
+<a name="l89"><span class="ln">89   </span></a> 
+<a name="l90"><span class="ln">90   </span></a>&quot;&quot;&quot;</span>
+<a name="l91"><span class="ln">91   </span></a>
+<a name="l92"><span class="ln">92   </span></a><span class="s2">class </span><span class="s1">PartComponent</span><span class="s2">:</span>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s0">&quot;&quot;&quot;Internal class used in support of the multiset partitions 
+<a name="l94"><span class="ln">94   </span></a>    enumerators and the associated visitor functions. 
+<a name="l95"><span class="ln">95   </span></a> 
+<a name="l96"><span class="ln">96   </span></a>    Represents one component of one part of the current partition. 
+<a name="l97"><span class="ln">97   </span></a> 
+<a name="l98"><span class="ln">98   </span></a>    A stack of these, plus an auxiliary frame array, f, represents a 
+<a name="l99"><span class="ln">99   </span></a>    partition of the multiset. 
+<a name="l100"><span class="ln">100  </span></a> 
+<a name="l101"><span class="ln">101  </span></a>    Knuth's pseudocode makes c, u, and v separate arrays. 
+<a name="l102"><span class="ln">102  </span></a>    &quot;&quot;&quot;</span>
+<a name="l103"><span class="ln">103  </span></a>
+<a name="l104"><span class="ln">104  </span></a>    <span class="s1">__slots__ </span><span class="s2">= </span><span class="s3">(</span><span class="s4">'c'</span><span class="s3">, </span><span class="s4">'u'</span><span class="s3">, </span><span class="s4">'v'</span><span class="s3">)</span>
+<a name="l105"><span class="ln">105  </span></a>
+<a name="l106"><span class="ln">106  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l107"><span class="ln">107  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">c </span><span class="s2">= </span><span class="s5">0   </span><span class="s0"># Component number</span>
+<a name="l108"><span class="ln">108  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">u </span><span class="s2">= </span><span class="s5">0   </span><span class="s0"># The as yet unpartitioned amount in component c</span>
+<a name="l109"><span class="ln">109  </span></a>                     <span class="s0"># *before* it is allocated by this triple</span>
+<a name="l110"><span class="ln">110  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">v </span><span class="s2">= </span><span class="s5">0   </span><span class="s0"># Amount of c component in the current part</span>
+<a name="l111"><span class="ln">111  </span></a>                     <span class="s0"># (v&lt;=u).  An invariant of the representation is</span>
+<a name="l112"><span class="ln">112  </span></a>                     <span class="s0"># that the next higher triple for this component</span>
+<a name="l113"><span class="ln">113  </span></a>                     <span class="s0"># (if there is one) will have a value of u-v in</span>
+<a name="l114"><span class="ln">114  </span></a>                     <span class="s0"># its u attribute.</span>
+<a name="l115"><span class="ln">115  </span></a>
+<a name="l116"><span class="ln">116  </span></a>    <span class="s2">def </span><span class="s1">__repr__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l117"><span class="ln">117  </span></a>        <span class="s0">&quot;for debug/algorithm animation purposes&quot;</span>
+<a name="l118"><span class="ln">118  </span></a>        <span class="s2">return </span><span class="s4">'c:%d u:%d v:%d' </span><span class="s2">% </span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">c</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">u</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">v</span><span class="s3">)</span>
+<a name="l119"><span class="ln">119  </span></a>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s2">def </span><span class="s1">__eq__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l121"><span class="ln">121  </span></a>        <span class="s0">&quot;&quot;&quot;Define  value oriented equality, which is useful for testers&quot;&quot;&quot;</span>
+<a name="l122"><span class="ln">122  </span></a>        <span class="s2">return </span><span class="s3">(</span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">other</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">) </span><span class="s2">and</span>
+<a name="l123"><span class="ln">123  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">c </span><span class="s2">== </span><span class="s1">other</span><span class="s3">.</span><span class="s1">c </span><span class="s2">and</span>
+<a name="l124"><span class="ln">124  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">u </span><span class="s2">== </span><span class="s1">other</span><span class="s3">.</span><span class="s1">u </span><span class="s2">and</span>
+<a name="l125"><span class="ln">125  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">v </span><span class="s2">== </span><span class="s1">other</span><span class="s3">.</span><span class="s1">v</span><span class="s3">)</span>
+<a name="l126"><span class="ln">126  </span></a>
+<a name="l127"><span class="ln">127  </span></a>    <span class="s2">def </span><span class="s1">__ne__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l128"><span class="ln">128  </span></a>        <span class="s0">&quot;&quot;&quot;Defined for consistency with __eq__&quot;&quot;&quot;</span>
+<a name="l129"><span class="ln">129  </span></a>        <span class="s2">return not </span><span class="s1">self </span><span class="s2">== </span><span class="s1">other</span>
+<a name="l130"><span class="ln">130  </span></a>
+<a name="l131"><span class="ln">131  </span></a>
+<a name="l132"><span class="ln">132  </span></a><span class="s0"># This function tries to be a faithful implementation of algorithm</span>
+<a name="l133"><span class="ln">133  </span></a><span class="s0"># 7.1.2.5M in Volume 4A, Combinatoral Algorithms, Part 1, of The Art</span>
+<a name="l134"><span class="ln">134  </span></a><span class="s0"># of Computer Programming, by Donald Knuth.  This includes using</span>
+<a name="l135"><span class="ln">135  </span></a><span class="s0"># (mostly) the same variable names, etc.  This makes for rather</span>
+<a name="l136"><span class="ln">136  </span></a><span class="s0"># low-level Python.</span>
+<a name="l137"><span class="ln">137  </span></a>
+<a name="l138"><span class="ln">138  </span></a><span class="s0"># Changes from Knuth's pseudocode include</span>
+<a name="l139"><span class="ln">139  </span></a><span class="s0"># - use PartComponent struct/object instead of 3 arrays</span>
+<a name="l140"><span class="ln">140  </span></a><span class="s0"># - make the function a generator</span>
+<a name="l141"><span class="ln">141  </span></a><span class="s0"># - map (with some difficulty) the GOTOs to Python control structures.</span>
+<a name="l142"><span class="ln">142  </span></a><span class="s0"># - Knuth uses 1-based numbering for components, this code is 0-based</span>
+<a name="l143"><span class="ln">143  </span></a><span class="s0"># - renamed variable l to lpart.</span>
+<a name="l144"><span class="ln">144  </span></a><span class="s0"># - flag variable x takes on values True/False instead of 1/0</span>
+<a name="l145"><span class="ln">145  </span></a><span class="s0">#</span>
+<a name="l146"><span class="ln">146  </span></a><span class="s2">def </span><span class="s1">multiset_partitions_taocp</span><span class="s3">(</span><span class="s1">multiplicities</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l147"><span class="ln">147  </span></a>    <span class="s0">&quot;&quot;&quot;Enumerates partitions of a multiset. 
+<a name="l148"><span class="ln">148  </span></a> 
+<a name="l149"><span class="ln">149  </span></a>    Parameters 
+<a name="l150"><span class="ln">150  </span></a>    ========== 
+<a name="l151"><span class="ln">151  </span></a> 
+<a name="l152"><span class="ln">152  </span></a>    multiplicities 
+<a name="l153"><span class="ln">153  </span></a>         list of integer multiplicities of the components of the multiset. 
+<a name="l154"><span class="ln">154  </span></a> 
+<a name="l155"><span class="ln">155  </span></a>    Yields 
+<a name="l156"><span class="ln">156  </span></a>    ====== 
+<a name="l157"><span class="ln">157  </span></a> 
+<a name="l158"><span class="ln">158  </span></a>    state 
+<a name="l159"><span class="ln">159  </span></a>        Internal data structure which encodes a particular partition. 
+<a name="l160"><span class="ln">160  </span></a>        This output is then usually processed by a visitor function 
+<a name="l161"><span class="ln">161  </span></a>        which combines the information from this data structure with 
+<a name="l162"><span class="ln">162  </span></a>        the components themselves to produce an actual partition. 
+<a name="l163"><span class="ln">163  </span></a> 
+<a name="l164"><span class="ln">164  </span></a>        Unless they wish to create their own visitor function, users will 
+<a name="l165"><span class="ln">165  </span></a>        have little need to look inside this data structure.  But, for 
+<a name="l166"><span class="ln">166  </span></a>        reference, it is a 3-element list with components: 
+<a name="l167"><span class="ln">167  </span></a> 
+<a name="l168"><span class="ln">168  </span></a>        f 
+<a name="l169"><span class="ln">169  </span></a>            is a frame array, which is used to divide pstack into parts. 
+<a name="l170"><span class="ln">170  </span></a> 
+<a name="l171"><span class="ln">171  </span></a>        lpart 
+<a name="l172"><span class="ln">172  </span></a>            points to the base of the topmost part. 
+<a name="l173"><span class="ln">173  </span></a> 
+<a name="l174"><span class="ln">174  </span></a>        pstack 
+<a name="l175"><span class="ln">175  </span></a>            is an array of PartComponent objects. 
+<a name="l176"><span class="ln">176  </span></a> 
+<a name="l177"><span class="ln">177  </span></a>        The ``state`` output offers a peek into the internal data 
+<a name="l178"><span class="ln">178  </span></a>        structures of the enumeration function.  The client should 
+<a name="l179"><span class="ln">179  </span></a>        treat this as read-only; any modification of the data 
+<a name="l180"><span class="ln">180  </span></a>        structure will cause unpredictable (and almost certainly 
+<a name="l181"><span class="ln">181  </span></a>        incorrect) results.  Also, the components of ``state`` are 
+<a name="l182"><span class="ln">182  </span></a>        modified in place at each iteration.  Hence, the visitor must 
+<a name="l183"><span class="ln">183  </span></a>        be called at each loop iteration.  Accumulating the ``state`` 
+<a name="l184"><span class="ln">184  </span></a>        instances and processing them later will not work. 
+<a name="l185"><span class="ln">185  </span></a> 
+<a name="l186"><span class="ln">186  </span></a>    Examples 
+<a name="l187"><span class="ln">187  </span></a>    ======== 
+<a name="l188"><span class="ln">188  </span></a> 
+<a name="l189"><span class="ln">189  </span></a>    &gt;&gt;&gt; from sympy.utilities.enumerative import list_visitor 
+<a name="l190"><span class="ln">190  </span></a>    &gt;&gt;&gt; from sympy.utilities.enumerative import multiset_partitions_taocp 
+<a name="l191"><span class="ln">191  </span></a>    &gt;&gt;&gt; # variables components and multiplicities represent the multiset 'abb' 
+<a name="l192"><span class="ln">192  </span></a>    &gt;&gt;&gt; components = 'ab' 
+<a name="l193"><span class="ln">193  </span></a>    &gt;&gt;&gt; multiplicities = [1, 2] 
+<a name="l194"><span class="ln">194  </span></a>    &gt;&gt;&gt; states = multiset_partitions_taocp(multiplicities) 
+<a name="l195"><span class="ln">195  </span></a>    &gt;&gt;&gt; list(list_visitor(state, components) for state in states) 
+<a name="l196"><span class="ln">196  </span></a>    [[['a', 'b', 'b']], 
+<a name="l197"><span class="ln">197  </span></a>    [['a', 'b'], ['b']], 
+<a name="l198"><span class="ln">198  </span></a>    [['a'], ['b', 'b']], 
+<a name="l199"><span class="ln">199  </span></a>    [['a'], ['b'], ['b']]] 
+<a name="l200"><span class="ln">200  </span></a> 
+<a name="l201"><span class="ln">201  </span></a>    See Also 
+<a name="l202"><span class="ln">202  </span></a>    ======== 
+<a name="l203"><span class="ln">203  </span></a> 
+<a name="l204"><span class="ln">204  </span></a>    sympy.utilities.iterables.multiset_partitions: Takes a multiset 
+<a name="l205"><span class="ln">205  </span></a>        as input and directly yields multiset partitions.  It 
+<a name="l206"><span class="ln">206  </span></a>        dispatches to a number of functions, including this one, for 
+<a name="l207"><span class="ln">207  </span></a>        implementation.  Most users will find it more convenient to 
+<a name="l208"><span class="ln">208  </span></a>        use than multiset_partitions_taocp. 
+<a name="l209"><span class="ln">209  </span></a> 
+<a name="l210"><span class="ln">210  </span></a>    &quot;&quot;&quot;</span>
+<a name="l211"><span class="ln">211  </span></a>
+<a name="l212"><span class="ln">212  </span></a>    <span class="s0"># Important variables.</span>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s0"># m is the number of components, i.e., number of distinct elements</span>
+<a name="l214"><span class="ln">214  </span></a>    <span class="s1">m </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">multiplicities</span><span class="s3">)</span>
+<a name="l215"><span class="ln">215  </span></a>    <span class="s0"># n is the cardinality, total number of elements whether or not distinct</span>
+<a name="l216"><span class="ln">216  </span></a>    <span class="s1">n </span><span class="s2">= </span><span class="s1">sum</span><span class="s3">(</span><span class="s1">multiplicities</span><span class="s3">)</span>
+<a name="l217"><span class="ln">217  </span></a>
+<a name="l218"><span class="ln">218  </span></a>    <span class="s0"># The main data structure, f segments pstack into parts.  See</span>
+<a name="l219"><span class="ln">219  </span></a>    <span class="s0"># list_visitor() for example code indicating how this internal</span>
+<a name="l220"><span class="ln">220  </span></a>    <span class="s0"># state corresponds to a partition.</span>
+<a name="l221"><span class="ln">221  </span></a>
+<a name="l222"><span class="ln">222  </span></a>    <span class="s0"># Note: allocation of space for stack is conservative.  Knuth's</span>
+<a name="l223"><span class="ln">223  </span></a>    <span class="s0"># exercise 7.2.1.5.68 gives some indication of how to tighten this</span>
+<a name="l224"><span class="ln">224  </span></a>    <span class="s0"># bound, but this is not implemented.</span>
+<a name="l225"><span class="ln">225  </span></a>    <span class="s1">pstack </span><span class="s2">= </span><span class="s3">[</span><span class="s1">PartComponent</span><span class="s3">() </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">n </span><span class="s2">* </span><span class="s1">m </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">)]</span>
+<a name="l226"><span class="ln">226  </span></a>    <span class="s1">f </span><span class="s2">= </span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">* </span><span class="s3">(</span><span class="s1">n </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">)</span>
+<a name="l227"><span class="ln">227  </span></a>
+<a name="l228"><span class="ln">228  </span></a>    <span class="s0"># Step M1 in Knuth (Initialize)</span>
+<a name="l229"><span class="ln">229  </span></a>    <span class="s0"># Initial state - entire multiset in one part.</span>
+<a name="l230"><span class="ln">230  </span></a>    <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">m</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l231"><span class="ln">231  </span></a>        <span class="s1">ps </span><span class="s2">= </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">]</span>
+<a name="l232"><span class="ln">232  </span></a>        <span class="s1">ps</span><span class="s3">.</span><span class="s1">c </span><span class="s2">= </span><span class="s1">j</span>
+<a name="l233"><span class="ln">233  </span></a>        <span class="s1">ps</span><span class="s3">.</span><span class="s1">u </span><span class="s2">= </span><span class="s1">multiplicities</span><span class="s3">[</span><span class="s1">j</span><span class="s3">]</span>
+<a name="l234"><span class="ln">234  </span></a>        <span class="s1">ps</span><span class="s3">.</span><span class="s1">v </span><span class="s2">= </span><span class="s1">multiplicities</span><span class="s3">[</span><span class="s1">j</span><span class="s3">]</span>
+<a name="l235"><span class="ln">235  </span></a>
+<a name="l236"><span class="ln">236  </span></a>    <span class="s0"># Other variables</span>
+<a name="l237"><span class="ln">237  </span></a>    <span class="s1">f</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l238"><span class="ln">238  </span></a>    <span class="s1">a </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l239"><span class="ln">239  </span></a>    <span class="s1">lpart </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l240"><span class="ln">240  </span></a>    <span class="s1">f</span><span class="s3">[</span><span class="s5">1</span><span class="s3">] </span><span class="s2">= </span><span class="s1">m</span>
+<a name="l241"><span class="ln">241  </span></a>    <span class="s1">b </span><span class="s2">= </span><span class="s1">m  </span><span class="s0"># in general, current stack frame is from a to b - 1</span>
+<a name="l242"><span class="ln">242  </span></a>
+<a name="l243"><span class="ln">243  </span></a>    <span class="s2">while True:</span>
+<a name="l244"><span class="ln">244  </span></a>        <span class="s2">while True:</span>
+<a name="l245"><span class="ln">245  </span></a>            <span class="s0"># Step M2 (Subtract v from u)</span>
+<a name="l246"><span class="ln">246  </span></a>            <span class="s1">k </span><span class="s2">= </span><span class="s1">b</span>
+<a name="l247"><span class="ln">247  </span></a>            <span class="s1">x </span><span class="s2">= False</span>
+<a name="l248"><span class="ln">248  </span></a>            <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l249"><span class="ln">249  </span></a>                <span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">u </span><span class="s2">= </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">u </span><span class="s2">- </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v</span>
+<a name="l250"><span class="ln">250  </span></a>                <span class="s2">if </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">u </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l251"><span class="ln">251  </span></a>                    <span class="s1">x </span><span class="s2">= True</span>
+<a name="l252"><span class="ln">252  </span></a>                <span class="s2">elif not </span><span class="s1">x</span><span class="s2">:</span>
+<a name="l253"><span class="ln">253  </span></a>                    <span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">c </span><span class="s2">= </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">c</span>
+<a name="l254"><span class="ln">254  </span></a>                    <span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">v </span><span class="s2">= </span><span class="s1">min</span><span class="s3">(</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v</span><span class="s3">, </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">u</span><span class="s3">)</span>
+<a name="l255"><span class="ln">255  </span></a>                    <span class="s1">x </span><span class="s2">= </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">u </span><span class="s2">&lt; </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v</span>
+<a name="l256"><span class="ln">256  </span></a>                    <span class="s1">k </span><span class="s2">= </span><span class="s1">k </span><span class="s2">+ </span><span class="s5">1</span>
+<a name="l257"><span class="ln">257  </span></a>                <span class="s2">else:  </span><span class="s0"># x is True</span>
+<a name="l258"><span class="ln">258  </span></a>                    <span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">c </span><span class="s2">= </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">c</span>
+<a name="l259"><span class="ln">259  </span></a>                    <span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">v </span><span class="s2">= </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">u</span>
+<a name="l260"><span class="ln">260  </span></a>                    <span class="s1">k </span><span class="s2">= </span><span class="s1">k </span><span class="s2">+ </span><span class="s5">1</span>
+<a name="l261"><span class="ln">261  </span></a>                <span class="s0"># Note: x is True iff v has changed</span>
+<a name="l262"><span class="ln">262  </span></a>
+<a name="l263"><span class="ln">263  </span></a>            <span class="s0"># Step M3 (Push if nonzero.)</span>
+<a name="l264"><span class="ln">264  </span></a>            <span class="s2">if </span><span class="s1">k </span><span class="s2">&gt; </span><span class="s1">b</span><span class="s2">:</span>
+<a name="l265"><span class="ln">265  </span></a>                <span class="s1">a </span><span class="s2">= </span><span class="s1">b</span>
+<a name="l266"><span class="ln">266  </span></a>                <span class="s1">b </span><span class="s2">= </span><span class="s1">k</span>
+<a name="l267"><span class="ln">267  </span></a>                <span class="s1">lpart </span><span class="s2">= </span><span class="s1">lpart </span><span class="s2">+ </span><span class="s5">1</span>
+<a name="l268"><span class="ln">268  </span></a>                <span class="s1">f</span><span class="s3">[</span><span class="s1">lpart </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">] </span><span class="s2">= </span><span class="s1">b</span>
+<a name="l269"><span class="ln">269  </span></a>                <span class="s0"># Return to M2</span>
+<a name="l270"><span class="ln">270  </span></a>            <span class="s2">else:</span>
+<a name="l271"><span class="ln">271  </span></a>                <span class="s2">break  </span><span class="s0"># Continue to M4</span>
+<a name="l272"><span class="ln">272  </span></a>
+<a name="l273"><span class="ln">273  </span></a>        <span class="s0"># M4  Visit a partition</span>
+<a name="l274"><span class="ln">274  </span></a>        <span class="s1">state </span><span class="s2">= </span><span class="s3">[</span><span class="s1">f</span><span class="s3">, </span><span class="s1">lpart</span><span class="s3">, </span><span class="s1">pstack</span><span class="s3">]</span>
+<a name="l275"><span class="ln">275  </span></a>        <span class="s2">yield </span><span class="s1">state</span>
+<a name="l276"><span class="ln">276  </span></a>
+<a name="l277"><span class="ln">277  </span></a>        <span class="s0"># M5 (Decrease v)</span>
+<a name="l278"><span class="ln">278  </span></a>        <span class="s2">while True:</span>
+<a name="l279"><span class="ln">279  </span></a>            <span class="s1">j </span><span class="s2">= </span><span class="s1">b</span><span class="s2">-</span><span class="s5">1</span>
+<a name="l280"><span class="ln">280  </span></a>            <span class="s2">while </span><span class="s3">(</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v </span><span class="s2">== </span><span class="s5">0</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l281"><span class="ln">281  </span></a>                <span class="s1">j </span><span class="s2">= </span><span class="s1">j </span><span class="s2">- </span><span class="s5">1</span>
+<a name="l282"><span class="ln">282  </span></a>            <span class="s2">if </span><span class="s1">j </span><span class="s2">== </span><span class="s1">a </span><span class="s2">and </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l283"><span class="ln">283  </span></a>                <span class="s0"># M6 (Backtrack)</span>
+<a name="l284"><span class="ln">284  </span></a>                <span class="s2">if </span><span class="s1">lpart </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l285"><span class="ln">285  </span></a>                    <span class="s2">return</span>
+<a name="l286"><span class="ln">286  </span></a>                <span class="s1">lpart </span><span class="s2">= </span><span class="s1">lpart </span><span class="s2">- </span><span class="s5">1</span>
+<a name="l287"><span class="ln">287  </span></a>                <span class="s1">b </span><span class="s2">= </span><span class="s1">a</span>
+<a name="l288"><span class="ln">288  </span></a>                <span class="s1">a </span><span class="s2">= </span><span class="s1">f</span><span class="s3">[</span><span class="s1">lpart</span><span class="s3">]</span>
+<a name="l289"><span class="ln">289  </span></a>                <span class="s0"># Return to M5</span>
+<a name="l290"><span class="ln">290  </span></a>            <span class="s2">else:</span>
+<a name="l291"><span class="ln">291  </span></a>                <span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v </span><span class="s2">= </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v </span><span class="s2">- </span><span class="s5">1</span>
+<a name="l292"><span class="ln">292  </span></a>                <span class="s2">for </span><span class="s1">k </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">j </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l293"><span class="ln">293  </span></a>                    <span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">v </span><span class="s2">= </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">u</span>
+<a name="l294"><span class="ln">294  </span></a>                <span class="s2">break  </span><span class="s0"># GOTO M2</span>
+<a name="l295"><span class="ln">295  </span></a>
+<a name="l296"><span class="ln">296  </span></a><span class="s0"># --------------- Visitor functions for multiset partitions ---------------</span>
+<a name="l297"><span class="ln">297  </span></a><span class="s0"># A visitor takes the partition state generated by</span>
+<a name="l298"><span class="ln">298  </span></a><span class="s0"># multiset_partitions_taocp or other enumerator, and produces useful</span>
+<a name="l299"><span class="ln">299  </span></a><span class="s0"># output (such as the actual partition).</span>
+<a name="l300"><span class="ln">300  </span></a>
+<a name="l301"><span class="ln">301  </span></a>
+<a name="l302"><span class="ln">302  </span></a><span class="s2">def </span><span class="s1">factoring_visitor</span><span class="s3">(</span><span class="s1">state</span><span class="s3">, </span><span class="s1">primes</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l303"><span class="ln">303  </span></a>    <span class="s0">&quot;&quot;&quot;Use with multiset_partitions_taocp to enumerate the ways a 
+<a name="l304"><span class="ln">304  </span></a>    number can be expressed as a product of factors.  For this usage, 
+<a name="l305"><span class="ln">305  </span></a>    the exponents of the prime factors of a number are arguments to 
+<a name="l306"><span class="ln">306  </span></a>    the partition enumerator, while the corresponding prime factors 
+<a name="l307"><span class="ln">307  </span></a>    are input here. 
+<a name="l308"><span class="ln">308  </span></a> 
+<a name="l309"><span class="ln">309  </span></a>    Examples 
+<a name="l310"><span class="ln">310  </span></a>    ======== 
+<a name="l311"><span class="ln">311  </span></a> 
+<a name="l312"><span class="ln">312  </span></a>    To enumerate the factorings of a number we can think of the elements of the 
+<a name="l313"><span class="ln">313  </span></a>    partition as being the prime factors and the multiplicities as being their 
+<a name="l314"><span class="ln">314  </span></a>    exponents. 
+<a name="l315"><span class="ln">315  </span></a> 
+<a name="l316"><span class="ln">316  </span></a>    &gt;&gt;&gt; from sympy.utilities.enumerative import factoring_visitor 
+<a name="l317"><span class="ln">317  </span></a>    &gt;&gt;&gt; from sympy.utilities.enumerative import multiset_partitions_taocp 
+<a name="l318"><span class="ln">318  </span></a>    &gt;&gt;&gt; from sympy import factorint 
+<a name="l319"><span class="ln">319  </span></a>    &gt;&gt;&gt; primes, multiplicities = zip(*factorint(24).items()) 
+<a name="l320"><span class="ln">320  </span></a>    &gt;&gt;&gt; primes 
+<a name="l321"><span class="ln">321  </span></a>    (2, 3) 
+<a name="l322"><span class="ln">322  </span></a>    &gt;&gt;&gt; multiplicities 
+<a name="l323"><span class="ln">323  </span></a>    (3, 1) 
+<a name="l324"><span class="ln">324  </span></a>    &gt;&gt;&gt; states = multiset_partitions_taocp(multiplicities) 
+<a name="l325"><span class="ln">325  </span></a>    &gt;&gt;&gt; list(factoring_visitor(state, primes) for state in states) 
+<a name="l326"><span class="ln">326  </span></a>    [[24], [8, 3], [12, 2], [4, 6], [4, 2, 3], [6, 2, 2], [2, 2, 2, 3]] 
+<a name="l327"><span class="ln">327  </span></a>    &quot;&quot;&quot;</span>
+<a name="l328"><span class="ln">328  </span></a>    <span class="s1">f</span><span class="s3">, </span><span class="s1">lpart</span><span class="s3">, </span><span class="s1">pstack </span><span class="s2">= </span><span class="s1">state</span>
+<a name="l329"><span class="ln">329  </span></a>    <span class="s1">factoring </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l330"><span class="ln">330  </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">lpart </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l331"><span class="ln">331  </span></a>        <span class="s1">factor </span><span class="s2">= </span><span class="s5">1</span>
+<a name="l332"><span class="ln">332  </span></a>        <span class="s2">for </span><span class="s1">ps </span><span class="s2">in </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">f</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span><span class="s2">: </span><span class="s1">f</span><span class="s3">[</span><span class="s1">i </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">]]</span><span class="s2">:</span>
+<a name="l333"><span class="ln">333  </span></a>            <span class="s2">if </span><span class="s1">ps</span><span class="s3">.</span><span class="s1">v </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l334"><span class="ln">334  </span></a>                <span class="s1">factor </span><span class="s2">*= </span><span class="s1">primes</span><span class="s3">[</span><span class="s1">ps</span><span class="s3">.</span><span class="s1">c</span><span class="s3">] </span><span class="s2">** </span><span class="s1">ps</span><span class="s3">.</span><span class="s1">v</span>
+<a name="l335"><span class="ln">335  </span></a>        <span class="s1">factoring</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">factor</span><span class="s3">)</span>
+<a name="l336"><span class="ln">336  </span></a>    <span class="s2">return </span><span class="s1">factoring</span>
+<a name="l337"><span class="ln">337  </span></a>
+<a name="l338"><span class="ln">338  </span></a>
+<a name="l339"><span class="ln">339  </span></a><span class="s2">def </span><span class="s1">list_visitor</span><span class="s3">(</span><span class="s1">state</span><span class="s3">, </span><span class="s1">components</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l340"><span class="ln">340  </span></a>    <span class="s0">&quot;&quot;&quot;Return a list of lists to represent the partition. 
+<a name="l341"><span class="ln">341  </span></a> 
+<a name="l342"><span class="ln">342  </span></a>    Examples 
+<a name="l343"><span class="ln">343  </span></a>    ======== 
+<a name="l344"><span class="ln">344  </span></a> 
+<a name="l345"><span class="ln">345  </span></a>    &gt;&gt;&gt; from sympy.utilities.enumerative import list_visitor 
+<a name="l346"><span class="ln">346  </span></a>    &gt;&gt;&gt; from sympy.utilities.enumerative import multiset_partitions_taocp 
+<a name="l347"><span class="ln">347  </span></a>    &gt;&gt;&gt; states = multiset_partitions_taocp([1, 2, 1]) 
+<a name="l348"><span class="ln">348  </span></a>    &gt;&gt;&gt; s = next(states) 
+<a name="l349"><span class="ln">349  </span></a>    &gt;&gt;&gt; list_visitor(s, 'abc')  # for multiset 'a b b c' 
+<a name="l350"><span class="ln">350  </span></a>    [['a', 'b', 'b', 'c']] 
+<a name="l351"><span class="ln">351  </span></a>    &gt;&gt;&gt; s = next(states) 
+<a name="l352"><span class="ln">352  </span></a>    &gt;&gt;&gt; list_visitor(s, [1, 2, 3])  # for multiset '1 2 2 3 
+<a name="l353"><span class="ln">353  </span></a>    [[1, 2, 2], [3]] 
+<a name="l354"><span class="ln">354  </span></a>    &quot;&quot;&quot;</span>
+<a name="l355"><span class="ln">355  </span></a>    <span class="s1">f</span><span class="s3">, </span><span class="s1">lpart</span><span class="s3">, </span><span class="s1">pstack </span><span class="s2">= </span><span class="s1">state</span>
+<a name="l356"><span class="ln">356  </span></a>
+<a name="l357"><span class="ln">357  </span></a>    <span class="s1">partition </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l358"><span class="ln">358  </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">lpart</span><span class="s2">+</span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l359"><span class="ln">359  </span></a>        <span class="s1">part </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l360"><span class="ln">360  </span></a>        <span class="s2">for </span><span class="s1">ps </span><span class="s2">in </span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">f</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span><span class="s2">:</span><span class="s1">f</span><span class="s3">[</span><span class="s1">i</span><span class="s2">+</span><span class="s5">1</span><span class="s3">]]</span><span class="s2">:</span>
+<a name="l361"><span class="ln">361  </span></a>            <span class="s2">if </span><span class="s1">ps</span><span class="s3">.</span><span class="s1">v </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l362"><span class="ln">362  </span></a>                <span class="s1">part</span><span class="s3">.</span><span class="s1">extend</span><span class="s3">([</span><span class="s1">components</span><span class="s3">[</span><span class="s1">ps</span><span class="s3">.</span><span class="s1">c</span><span class="s3">]] </span><span class="s2">* </span><span class="s1">ps</span><span class="s3">.</span><span class="s1">v</span><span class="s3">)</span>
+<a name="l363"><span class="ln">363  </span></a>        <span class="s1">partition</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">part</span><span class="s3">)</span>
+<a name="l364"><span class="ln">364  </span></a>
+<a name="l365"><span class="ln">365  </span></a>    <span class="s2">return </span><span class="s1">partition</span>
+<a name="l366"><span class="ln">366  </span></a>
+<a name="l367"><span class="ln">367  </span></a>
+<a name="l368"><span class="ln">368  </span></a><span class="s2">class </span><span class="s1">MultisetPartitionTraverser</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l369"><span class="ln">369  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l370"><span class="ln">370  </span></a>    Has methods to ``enumerate`` and ``count`` the partitions of a multiset. 
+<a name="l371"><span class="ln">371  </span></a> 
+<a name="l372"><span class="ln">372  </span></a>    This implements a refactored and extended version of Knuth's algorithm 
+<a name="l373"><span class="ln">373  </span></a>    7.1.2.5M [AOCP]_.&quot; 
+<a name="l374"><span class="ln">374  </span></a> 
+<a name="l375"><span class="ln">375  </span></a>    The enumeration methods of this class are generators and return 
+<a name="l376"><span class="ln">376  </span></a>    data structures which can be interpreted by the same visitor 
+<a name="l377"><span class="ln">377  </span></a>    functions used for the output of ``multiset_partitions_taocp``. 
+<a name="l378"><span class="ln">378  </span></a> 
+<a name="l379"><span class="ln">379  </span></a>    Examples 
+<a name="l380"><span class="ln">380  </span></a>    ======== 
+<a name="l381"><span class="ln">381  </span></a> 
+<a name="l382"><span class="ln">382  </span></a>    &gt;&gt;&gt; from sympy.utilities.enumerative import MultisetPartitionTraverser 
+<a name="l383"><span class="ln">383  </span></a>    &gt;&gt;&gt; m = MultisetPartitionTraverser() 
+<a name="l384"><span class="ln">384  </span></a>    &gt;&gt;&gt; m.count_partitions([4,4,4,2]) 
+<a name="l385"><span class="ln">385  </span></a>    127750 
+<a name="l386"><span class="ln">386  </span></a>    &gt;&gt;&gt; m.count_partitions([3,3,3]) 
+<a name="l387"><span class="ln">387  </span></a>    686 
+<a name="l388"><span class="ln">388  </span></a> 
+<a name="l389"><span class="ln">389  </span></a>    See Also 
+<a name="l390"><span class="ln">390  </span></a>    ======== 
+<a name="l391"><span class="ln">391  </span></a> 
+<a name="l392"><span class="ln">392  </span></a>    multiset_partitions_taocp 
+<a name="l393"><span class="ln">393  </span></a>    sympy.utilities.iterables.multiset_partitions 
+<a name="l394"><span class="ln">394  </span></a> 
+<a name="l395"><span class="ln">395  </span></a>    References 
+<a name="l396"><span class="ln">396  </span></a>    ========== 
+<a name="l397"><span class="ln">397  </span></a> 
+<a name="l398"><span class="ln">398  </span></a>    .. [AOCP] Algorithm 7.1.2.5M in Volume 4A, Combinatoral Algorithms, 
+<a name="l399"><span class="ln">399  </span></a>           Part 1, of The Art of Computer Programming, by Donald Knuth. 
+<a name="l400"><span class="ln">400  </span></a> 
+<a name="l401"><span class="ln">401  </span></a>    .. [Factorisatio] On a Problem of Oppenheim concerning 
+<a name="l402"><span class="ln">402  </span></a>           &quot;Factorisatio Numerorum&quot; E. R. Canfield, Paul Erdos, Carl 
+<a name="l403"><span class="ln">403  </span></a>           Pomerance, JOURNAL OF NUMBER THEORY, Vol. 17, No. 1. August 
+<a name="l404"><span class="ln">404  </span></a>           1983.  See section 7 for a description of an algorithm 
+<a name="l405"><span class="ln">405  </span></a>           similar to Knuth's. 
+<a name="l406"><span class="ln">406  </span></a> 
+<a name="l407"><span class="ln">407  </span></a>    .. [Yorgey] Generating Multiset Partitions, Brent Yorgey, The 
+<a name="l408"><span class="ln">408  </span></a>           Monad.Reader, Issue 8, September 2007. 
+<a name="l409"><span class="ln">409  </span></a> 
+<a name="l410"><span class="ln">410  </span></a>    &quot;&quot;&quot;</span>
+<a name="l411"><span class="ln">411  </span></a>
+<a name="l412"><span class="ln">412  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l413"><span class="ln">413  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">debug </span><span class="s2">= False</span>
+<a name="l414"><span class="ln">414  </span></a>        <span class="s0"># TRACING variables.  These are useful for gathering</span>
+<a name="l415"><span class="ln">415  </span></a>        <span class="s0"># statistics on the algorithm itself, but have no particular</span>
+<a name="l416"><span class="ln">416  </span></a>        <span class="s0"># benefit to a user of the code.</span>
+<a name="l417"><span class="ln">417  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">k1 </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l418"><span class="ln">418  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">k2 </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l419"><span class="ln">419  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">p1 </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l420"><span class="ln">420  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">pstack </span><span class="s2">= None</span>
+<a name="l421"><span class="ln">421  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">f </span><span class="s2">= None</span>
+<a name="l422"><span class="ln">422  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l423"><span class="ln">423  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">discarded </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l424"><span class="ln">424  </span></a>        <span class="s0"># dp_stack is list of lists of (part_key, start_count) pairs</span>
+<a name="l425"><span class="ln">425  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">dp_stack </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l426"><span class="ln">426  </span></a>
+<a name="l427"><span class="ln">427  </span></a>        <span class="s0"># dp_map is map part_key-&gt; count, where count represents the</span>
+<a name="l428"><span class="ln">428  </span></a>        <span class="s0"># number of multiset which are descendants of a part with this</span>
+<a name="l429"><span class="ln">429  </span></a>        <span class="s0"># key, **or any of its decrements**</span>
+<a name="l430"><span class="ln">430  </span></a>
+<a name="l431"><span class="ln">431  </span></a>        <span class="s0"># Thus, when we find a part in the map, we add its count</span>
+<a name="l432"><span class="ln">432  </span></a>        <span class="s0"># value to the running total, cut off the enumeration, and</span>
+<a name="l433"><span class="ln">433  </span></a>        <span class="s0"># backtrack</span>
+<a name="l434"><span class="ln">434  </span></a>
+<a name="l435"><span class="ln">435  </span></a>        <span class="s2">if not </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'dp_map'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l436"><span class="ln">436  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">dp_map </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l437"><span class="ln">437  </span></a>
+<a name="l438"><span class="ln">438  </span></a>    <span class="s2">def </span><span class="s1">db_trace</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">msg</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l439"><span class="ln">439  </span></a>        <span class="s0">&quot;&quot;&quot;Useful for understanding/debugging the algorithms.  Not 
+<a name="l440"><span class="ln">440  </span></a>        generally activated in end-user code.&quot;&quot;&quot;</span>
+<a name="l441"><span class="ln">441  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">debug</span><span class="s2">:</span>
+<a name="l442"><span class="ln">442  </span></a>            <span class="s0"># XXX: animation_visitor is undefined... Clearly this does not</span>
+<a name="l443"><span class="ln">443  </span></a>            <span class="s0"># work and was not tested. Previous code in comments below.</span>
+<a name="l444"><span class="ln">444  </span></a>            <span class="s2">raise </span><span class="s1">RuntimeError</span>
+<a name="l445"><span class="ln">445  </span></a>            <span class="s0">#letters = 'abcdefghijklmnopqrstuvwxyz'</span>
+<a name="l446"><span class="ln">446  </span></a>            <span class="s0">#state = [self.f, self.lpart, self.pstack]</span>
+<a name="l447"><span class="ln">447  </span></a>            <span class="s0">#print(&quot;DBG:&quot;, msg,</span>
+<a name="l448"><span class="ln">448  </span></a>            <span class="s0">#      [&quot;&quot;.join(part) for part in list_visitor(state, letters)],</span>
+<a name="l449"><span class="ln">449  </span></a>            <span class="s0">#      animation_visitor(state))</span>
+<a name="l450"><span class="ln">450  </span></a>
+<a name="l451"><span class="ln">451  </span></a>    <span class="s0">#</span>
+<a name="l452"><span class="ln">452  </span></a>    <span class="s0"># Helper methods for enumeration</span>
+<a name="l453"><span class="ln">453  </span></a>    <span class="s0">#</span>
+<a name="l454"><span class="ln">454  </span></a>    <span class="s2">def </span><span class="s1">_initialize_enumeration</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">multiplicities</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l455"><span class="ln">455  </span></a>        <span class="s0">&quot;&quot;&quot;Allocates and initializes the partition stack. 
+<a name="l456"><span class="ln">456  </span></a> 
+<a name="l457"><span class="ln">457  </span></a>        This is called from the enumeration/counting routines, so 
+<a name="l458"><span class="ln">458  </span></a>        there is no need to call it separately.&quot;&quot;&quot;</span>
+<a name="l459"><span class="ln">459  </span></a>
+<a name="l460"><span class="ln">460  </span></a>        <span class="s1">num_components </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">multiplicities</span><span class="s3">)</span>
+<a name="l461"><span class="ln">461  </span></a>        <span class="s0"># cardinality is the total number of elements, whether or not distinct</span>
+<a name="l462"><span class="ln">462  </span></a>        <span class="s1">cardinality </span><span class="s2">= </span><span class="s1">sum</span><span class="s3">(</span><span class="s1">multiplicities</span><span class="s3">)</span>
+<a name="l463"><span class="ln">463  </span></a>
+<a name="l464"><span class="ln">464  </span></a>        <span class="s0"># pstack is the partition stack, which is segmented by</span>
+<a name="l465"><span class="ln">465  </span></a>        <span class="s0"># f into parts.</span>
+<a name="l466"><span class="ln">466  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">pstack </span><span class="s2">= </span><span class="s3">[</span><span class="s1">PartComponent</span><span class="s3">() </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in</span>
+<a name="l467"><span class="ln">467  </span></a>                       <span class="s1">range</span><span class="s3">(</span><span class="s1">num_components </span><span class="s2">* </span><span class="s1">cardinality </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">)]</span>
+<a name="l468"><span class="ln">468  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">f </span><span class="s2">= </span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">* </span><span class="s3">(</span><span class="s1">cardinality </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">)</span>
+<a name="l469"><span class="ln">469  </span></a>
+<a name="l470"><span class="ln">470  </span></a>        <span class="s0"># Initial state - entire multiset in one part.</span>
+<a name="l471"><span class="ln">471  </span></a>        <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">num_components</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l472"><span class="ln">472  </span></a>            <span class="s1">ps </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">]</span>
+<a name="l473"><span class="ln">473  </span></a>            <span class="s1">ps</span><span class="s3">.</span><span class="s1">c </span><span class="s2">= </span><span class="s1">j</span>
+<a name="l474"><span class="ln">474  </span></a>            <span class="s1">ps</span><span class="s3">.</span><span class="s1">u </span><span class="s2">= </span><span class="s1">multiplicities</span><span class="s3">[</span><span class="s1">j</span><span class="s3">]</span>
+<a name="l475"><span class="ln">475  </span></a>            <span class="s1">ps</span><span class="s3">.</span><span class="s1">v </span><span class="s2">= </span><span class="s1">multiplicities</span><span class="s3">[</span><span class="s1">j</span><span class="s3">]</span>
+<a name="l476"><span class="ln">476  </span></a>
+<a name="l477"><span class="ln">477  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">f</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l478"><span class="ln">478  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">f</span><span class="s3">[</span><span class="s5">1</span><span class="s3">] </span><span class="s2">= </span><span class="s1">num_components</span>
+<a name="l479"><span class="ln">479  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l480"><span class="ln">480  </span></a>
+<a name="l481"><span class="ln">481  </span></a>    <span class="s0"># The decrement_part() method corresponds to step M5 in Knuth's</span>
+<a name="l482"><span class="ln">482  </span></a>    <span class="s0"># algorithm.  This is the base version for enum_all().  Modified</span>
+<a name="l483"><span class="ln">483  </span></a>    <span class="s0"># versions of this method are needed if we want to restrict</span>
+<a name="l484"><span class="ln">484  </span></a>    <span class="s0"># sizes of the partitions produced.</span>
+<a name="l485"><span class="ln">485  </span></a>    <span class="s2">def </span><span class="s1">decrement_part</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">part</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l486"><span class="ln">486  </span></a>        <span class="s0">&quot;&quot;&quot;Decrements part (a subrange of pstack), if possible, returning 
+<a name="l487"><span class="ln">487  </span></a>        True iff the part was successfully decremented. 
+<a name="l488"><span class="ln">488  </span></a> 
+<a name="l489"><span class="ln">489  </span></a>        If you think of the v values in the part as a multi-digit 
+<a name="l490"><span class="ln">490  </span></a>        integer (least significant digit on the right) this is 
+<a name="l491"><span class="ln">491  </span></a>        basically decrementing that integer, but with the extra 
+<a name="l492"><span class="ln">492  </span></a>        constraint that the leftmost digit cannot be decremented to 0. 
+<a name="l493"><span class="ln">493  </span></a> 
+<a name="l494"><span class="ln">494  </span></a>        Parameters 
+<a name="l495"><span class="ln">495  </span></a>        ========== 
+<a name="l496"><span class="ln">496  </span></a> 
+<a name="l497"><span class="ln">497  </span></a>        part 
+<a name="l498"><span class="ln">498  </span></a>           The part, represented as a list of PartComponent objects, 
+<a name="l499"><span class="ln">499  </span></a>           which is to be decremented. 
+<a name="l500"><span class="ln">500  </span></a> 
+<a name="l501"><span class="ln">501  </span></a>        &quot;&quot;&quot;</span>
+<a name="l502"><span class="ln">502  </span></a>        <span class="s1">plen </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">part</span><span class="s3">)</span>
+<a name="l503"><span class="ln">503  </span></a>        <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">plen </span><span class="s2">- </span><span class="s5">1</span><span class="s3">, </span><span class="s2">-</span><span class="s5">1</span><span class="s3">, </span><span class="s2">-</span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l504"><span class="ln">504  </span></a>            <span class="s2">if </span><span class="s1">j </span><span class="s2">== </span><span class="s5">0 </span><span class="s2">and </span><span class="s1">part</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v </span><span class="s2">&gt; </span><span class="s5">1 </span><span class="s2">or </span><span class="s1">j </span><span class="s2">&gt; </span><span class="s5">0 </span><span class="s2">and </span><span class="s1">part</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l505"><span class="ln">505  </span></a>                <span class="s0"># found val to decrement</span>
+<a name="l506"><span class="ln">506  </span></a>                <span class="s1">part</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v </span><span class="s2">-= </span><span class="s5">1</span>
+<a name="l507"><span class="ln">507  </span></a>                <span class="s0"># Reset trailing parts back to maximum</span>
+<a name="l508"><span class="ln">508  </span></a>                <span class="s2">for </span><span class="s1">k </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">j </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">, </span><span class="s1">plen</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l509"><span class="ln">509  </span></a>                    <span class="s1">part</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">v </span><span class="s2">= </span><span class="s1">part</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">u</span>
+<a name="l510"><span class="ln">510  </span></a>                <span class="s2">return True</span>
+<a name="l511"><span class="ln">511  </span></a>        <span class="s2">return False</span>
+<a name="l512"><span class="ln">512  </span></a>
+<a name="l513"><span class="ln">513  </span></a>    <span class="s0"># Version to allow number of parts to be bounded from above.</span>
+<a name="l514"><span class="ln">514  </span></a>    <span class="s0"># Corresponds to (a modified) step M5.</span>
+<a name="l515"><span class="ln">515  </span></a>    <span class="s2">def </span><span class="s1">decrement_part_small</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">part</span><span class="s3">, </span><span class="s1">ub</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l516"><span class="ln">516  </span></a>        <span class="s0">&quot;&quot;&quot;Decrements part (a subrange of pstack), if possible, returning 
+<a name="l517"><span class="ln">517  </span></a>        True iff the part was successfully decremented. 
+<a name="l518"><span class="ln">518  </span></a> 
+<a name="l519"><span class="ln">519  </span></a>        Parameters 
+<a name="l520"><span class="ln">520  </span></a>        ========== 
+<a name="l521"><span class="ln">521  </span></a> 
+<a name="l522"><span class="ln">522  </span></a>        part 
+<a name="l523"><span class="ln">523  </span></a>            part to be decremented (topmost part on the stack) 
+<a name="l524"><span class="ln">524  </span></a> 
+<a name="l525"><span class="ln">525  </span></a>        ub 
+<a name="l526"><span class="ln">526  </span></a>            the maximum number of parts allowed in a partition 
+<a name="l527"><span class="ln">527  </span></a>            returned by the calling traversal. 
+<a name="l528"><span class="ln">528  </span></a> 
+<a name="l529"><span class="ln">529  </span></a>        Notes 
+<a name="l530"><span class="ln">530  </span></a>        ===== 
+<a name="l531"><span class="ln">531  </span></a> 
+<a name="l532"><span class="ln">532  </span></a>        The goal of this modification of the ordinary decrement method 
+<a name="l533"><span class="ln">533  </span></a>        is to fail (meaning that the subtree rooted at this part is to 
+<a name="l534"><span class="ln">534  </span></a>        be skipped) when it can be proved that this part can only have 
+<a name="l535"><span class="ln">535  </span></a>        child partitions which are larger than allowed by ``ub``. If a 
+<a name="l536"><span class="ln">536  </span></a>        decision is made to fail, it must be accurate, otherwise the 
+<a name="l537"><span class="ln">537  </span></a>        enumeration will miss some partitions.  But, it is OK not to 
+<a name="l538"><span class="ln">538  </span></a>        capture all the possible failures -- if a part is passed that 
+<a name="l539"><span class="ln">539  </span></a>        should not be, the resulting too-large partitions are filtered 
+<a name="l540"><span class="ln">540  </span></a>        by the enumeration one level up.  However, as is usual in 
+<a name="l541"><span class="ln">541  </span></a>        constrained enumerations, failing early is advantageous. 
+<a name="l542"><span class="ln">542  </span></a> 
+<a name="l543"><span class="ln">543  </span></a>        The tests used by this method catch the most common cases, 
+<a name="l544"><span class="ln">544  </span></a>        although this implementation is by no means the last word on 
+<a name="l545"><span class="ln">545  </span></a>        this problem.  The tests include: 
+<a name="l546"><span class="ln">546  </span></a> 
+<a name="l547"><span class="ln">547  </span></a>        1) ``lpart`` must be less than ``ub`` by at least 2.  This is because 
+<a name="l548"><span class="ln">548  </span></a>           once a part has been decremented, the partition 
+<a name="l549"><span class="ln">549  </span></a>           will gain at least one child in the spread step. 
+<a name="l550"><span class="ln">550  </span></a> 
+<a name="l551"><span class="ln">551  </span></a>        2) If the leading component of the part is about to be 
+<a name="l552"><span class="ln">552  </span></a>           decremented, check for how many parts will be added in 
+<a name="l553"><span class="ln">553  </span></a>           order to use up the unallocated multiplicity in that 
+<a name="l554"><span class="ln">554  </span></a>           leading component, and fail if this number is greater than 
+<a name="l555"><span class="ln">555  </span></a>           allowed by ``ub``.  (See code for the exact expression.)  This 
+<a name="l556"><span class="ln">556  </span></a>           test is given in the answer to Knuth's problem 7.2.1.5.69. 
+<a name="l557"><span class="ln">557  </span></a> 
+<a name="l558"><span class="ln">558  </span></a>        3) If there is *exactly* enough room to expand the leading 
+<a name="l559"><span class="ln">559  </span></a>           component by the above test, check the next component (if 
+<a name="l560"><span class="ln">560  </span></a>           it exists) once decrementing has finished.  If this has 
+<a name="l561"><span class="ln">561  </span></a>           ``v == 0``, this next component will push the expansion over the 
+<a name="l562"><span class="ln">562  </span></a>           limit by 1, so fail. 
+<a name="l563"><span class="ln">563  </span></a>        &quot;&quot;&quot;</span>
+<a name="l564"><span class="ln">564  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">&gt;= </span><span class="s1">ub </span><span class="s2">- </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l565"><span class="ln">565  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">p1 </span><span class="s2">+= </span><span class="s5">1  </span><span class="s0"># increment to keep track of usefulness of tests</span>
+<a name="l566"><span class="ln">566  </span></a>            <span class="s2">return False</span>
+<a name="l567"><span class="ln">567  </span></a>        <span class="s1">plen </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">part</span><span class="s3">)</span>
+<a name="l568"><span class="ln">568  </span></a>        <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">plen </span><span class="s2">- </span><span class="s5">1</span><span class="s3">, </span><span class="s2">-</span><span class="s5">1</span><span class="s3">, </span><span class="s2">-</span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l569"><span class="ln">569  </span></a>            <span class="s0"># Knuth's mod, (answer to problem 7.2.1.5.69)</span>
+<a name="l570"><span class="ln">570  </span></a>            <span class="s2">if </span><span class="s1">j </span><span class="s2">== </span><span class="s5">0 </span><span class="s2">and </span><span class="s3">(</span><span class="s1">part</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">v </span><span class="s2">- </span><span class="s5">1</span><span class="s3">)</span><span class="s2">*</span><span class="s3">(</span><span class="s1">ub </span><span class="s2">- </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart</span><span class="s3">) </span><span class="s2">&lt; </span><span class="s1">part</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">u</span><span class="s2">:</span>
+<a name="l571"><span class="ln">571  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">k1 </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l572"><span class="ln">572  </span></a>                <span class="s2">return False</span>
+<a name="l573"><span class="ln">573  </span></a>
+<a name="l574"><span class="ln">574  </span></a>            <span class="s2">if </span><span class="s1">j </span><span class="s2">== </span><span class="s5">0 </span><span class="s2">and </span><span class="s1">part</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v </span><span class="s2">&gt; </span><span class="s5">1 </span><span class="s2">or </span><span class="s1">j </span><span class="s2">&gt; </span><span class="s5">0 </span><span class="s2">and </span><span class="s1">part</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l575"><span class="ln">575  </span></a>                <span class="s0"># found val to decrement</span>
+<a name="l576"><span class="ln">576  </span></a>                <span class="s1">part</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v </span><span class="s2">-= </span><span class="s5">1</span>
+<a name="l577"><span class="ln">577  </span></a>                <span class="s0"># Reset trailing parts back to maximum</span>
+<a name="l578"><span class="ln">578  </span></a>                <span class="s2">for </span><span class="s1">k </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">j </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">, </span><span class="s1">plen</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l579"><span class="ln">579  </span></a>                    <span class="s1">part</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">v </span><span class="s2">= </span><span class="s1">part</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">u</span>
+<a name="l580"><span class="ln">580  </span></a>
+<a name="l581"><span class="ln">581  </span></a>                <span class="s0"># Have now decremented part, but are we doomed to</span>
+<a name="l582"><span class="ln">582  </span></a>                <span class="s0"># failure when it is expanded?  Check one oddball case</span>
+<a name="l583"><span class="ln">583  </span></a>                <span class="s0"># that turns out to be surprisingly common - exactly</span>
+<a name="l584"><span class="ln">584  </span></a>                <span class="s0"># enough room to expand the leading component, but no</span>
+<a name="l585"><span class="ln">585  </span></a>                <span class="s0"># room for the second component, which has v=0.</span>
+<a name="l586"><span class="ln">586  </span></a>                <span class="s2">if </span><span class="s3">(</span><span class="s1">plen </span><span class="s2">&gt; </span><span class="s5">1 </span><span class="s2">and </span><span class="s1">part</span><span class="s3">[</span><span class="s5">1</span><span class="s3">].</span><span class="s1">v </span><span class="s2">== </span><span class="s5">0 </span><span class="s2">and</span>
+<a name="l587"><span class="ln">587  </span></a>                    <span class="s3">(</span><span class="s1">part</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">u </span><span class="s2">- </span><span class="s1">part</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">v</span><span class="s3">) </span><span class="s2">==</span>
+<a name="l588"><span class="ln">588  </span></a>                        <span class="s3">((</span><span class="s1">ub </span><span class="s2">- </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">- </span><span class="s5">1</span><span class="s3">) </span><span class="s2">* </span><span class="s1">part</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">v</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l589"><span class="ln">589  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">k2 </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l590"><span class="ln">590  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">db_trace</span><span class="s3">(</span><span class="s4">&quot;Decrement fails test 3&quot;</span><span class="s3">)</span>
+<a name="l591"><span class="ln">591  </span></a>                    <span class="s2">return False</span>
+<a name="l592"><span class="ln">592  </span></a>                <span class="s2">return True</span>
+<a name="l593"><span class="ln">593  </span></a>        <span class="s2">return False</span>
+<a name="l594"><span class="ln">594  </span></a>
+<a name="l595"><span class="ln">595  </span></a>    <span class="s2">def </span><span class="s1">decrement_part_large</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">part</span><span class="s3">, </span><span class="s1">amt</span><span class="s3">, </span><span class="s1">lb</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l596"><span class="ln">596  </span></a>        <span class="s0">&quot;&quot;&quot;Decrements part, while respecting size constraint. 
+<a name="l597"><span class="ln">597  </span></a> 
+<a name="l598"><span class="ln">598  </span></a>        A part can have no children which are of sufficient size (as 
+<a name="l599"><span class="ln">599  </span></a>        indicated by ``lb``) unless that part has sufficient 
+<a name="l600"><span class="ln">600  </span></a>        unallocated multiplicity.  When enforcing the size constraint, 
+<a name="l601"><span class="ln">601  </span></a>        this method will decrement the part (if necessary) by an 
+<a name="l602"><span class="ln">602  </span></a>        amount needed to ensure sufficient unallocated multiplicity. 
+<a name="l603"><span class="ln">603  </span></a> 
+<a name="l604"><span class="ln">604  </span></a>        Returns True iff the part was successfully decremented. 
+<a name="l605"><span class="ln">605  </span></a> 
+<a name="l606"><span class="ln">606  </span></a>        Parameters 
+<a name="l607"><span class="ln">607  </span></a>        ========== 
+<a name="l608"><span class="ln">608  </span></a> 
+<a name="l609"><span class="ln">609  </span></a>        part 
+<a name="l610"><span class="ln">610  </span></a>            part to be decremented (topmost part on the stack) 
+<a name="l611"><span class="ln">611  </span></a> 
+<a name="l612"><span class="ln">612  </span></a>        amt 
+<a name="l613"><span class="ln">613  </span></a>            Can only take values 0 or 1.  A value of 1 means that the 
+<a name="l614"><span class="ln">614  </span></a>            part must be decremented, and then the size constraint is 
+<a name="l615"><span class="ln">615  </span></a>            enforced.  A value of 0 means just to enforce the ``lb`` 
+<a name="l616"><span class="ln">616  </span></a>            size constraint. 
+<a name="l617"><span class="ln">617  </span></a> 
+<a name="l618"><span class="ln">618  </span></a>        lb 
+<a name="l619"><span class="ln">619  </span></a>            The partitions produced by the calling enumeration must 
+<a name="l620"><span class="ln">620  </span></a>            have more parts than this value. 
+<a name="l621"><span class="ln">621  </span></a> 
+<a name="l622"><span class="ln">622  </span></a>        &quot;&quot;&quot;</span>
+<a name="l623"><span class="ln">623  </span></a>
+<a name="l624"><span class="ln">624  </span></a>        <span class="s2">if </span><span class="s1">amt </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l625"><span class="ln">625  </span></a>            <span class="s0"># In this case we always need to decrement, *before*</span>
+<a name="l626"><span class="ln">626  </span></a>            <span class="s0"># enforcing the &quot;sufficient unallocated multiplicity&quot;</span>
+<a name="l627"><span class="ln">627  </span></a>            <span class="s0"># constraint.  Easiest for this is just to call the</span>
+<a name="l628"><span class="ln">628  </span></a>            <span class="s0"># regular decrement method.</span>
+<a name="l629"><span class="ln">629  </span></a>            <span class="s2">if not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">decrement_part</span><span class="s3">(</span><span class="s1">part</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l630"><span class="ln">630  </span></a>                <span class="s2">return False</span>
+<a name="l631"><span class="ln">631  </span></a>
+<a name="l632"><span class="ln">632  </span></a>        <span class="s0"># Next, perform any needed additional decrementing to respect</span>
+<a name="l633"><span class="ln">633  </span></a>        <span class="s0"># &quot;sufficient unallocated multiplicity&quot; (or fail if this is</span>
+<a name="l634"><span class="ln">634  </span></a>        <span class="s0"># not possible).</span>
+<a name="l635"><span class="ln">635  </span></a>        <span class="s1">min_unalloc </span><span class="s2">= </span><span class="s1">lb </span><span class="s2">- </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart</span>
+<a name="l636"><span class="ln">636  </span></a>        <span class="s2">if </span><span class="s1">min_unalloc </span><span class="s2">&lt;= </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l637"><span class="ln">637  </span></a>            <span class="s2">return True</span>
+<a name="l638"><span class="ln">638  </span></a>        <span class="s1">total_mult </span><span class="s2">= </span><span class="s1">sum</span><span class="s3">(</span><span class="s1">pc</span><span class="s3">.</span><span class="s1">u </span><span class="s2">for </span><span class="s1">pc </span><span class="s2">in </span><span class="s1">part</span><span class="s3">)</span>
+<a name="l639"><span class="ln">639  </span></a>        <span class="s1">total_alloc </span><span class="s2">= </span><span class="s1">sum</span><span class="s3">(</span><span class="s1">pc</span><span class="s3">.</span><span class="s1">v </span><span class="s2">for </span><span class="s1">pc </span><span class="s2">in </span><span class="s1">part</span><span class="s3">)</span>
+<a name="l640"><span class="ln">640  </span></a>        <span class="s2">if </span><span class="s1">total_mult </span><span class="s2">&lt;= </span><span class="s1">min_unalloc</span><span class="s2">:</span>
+<a name="l641"><span class="ln">641  </span></a>            <span class="s2">return False</span>
+<a name="l642"><span class="ln">642  </span></a>
+<a name="l643"><span class="ln">643  </span></a>        <span class="s1">deficit </span><span class="s2">= </span><span class="s1">min_unalloc </span><span class="s2">- </span><span class="s3">(</span><span class="s1">total_mult </span><span class="s2">- </span><span class="s1">total_alloc</span><span class="s3">)</span>
+<a name="l644"><span class="ln">644  </span></a>        <span class="s2">if </span><span class="s1">deficit </span><span class="s2">&lt;= </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l645"><span class="ln">645  </span></a>            <span class="s2">return True</span>
+<a name="l646"><span class="ln">646  </span></a>
+<a name="l647"><span class="ln">647  </span></a>        <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">part</span><span class="s3">) </span><span class="s2">- </span><span class="s5">1</span><span class="s3">, </span><span class="s2">-</span><span class="s5">1</span><span class="s3">, </span><span class="s2">-</span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l648"><span class="ln">648  </span></a>            <span class="s2">if </span><span class="s1">i </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l649"><span class="ln">649  </span></a>                <span class="s2">if </span><span class="s1">part</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">v </span><span class="s2">&gt; </span><span class="s1">deficit</span><span class="s2">:</span>
+<a name="l650"><span class="ln">650  </span></a>                    <span class="s1">part</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">v </span><span class="s2">-= </span><span class="s1">deficit</span>
+<a name="l651"><span class="ln">651  </span></a>                    <span class="s2">return True</span>
+<a name="l652"><span class="ln">652  </span></a>                <span class="s2">else:</span>
+<a name="l653"><span class="ln">653  </span></a>                    <span class="s2">return False  </span><span class="s0"># This shouldn't happen, due to above check</span>
+<a name="l654"><span class="ln">654  </span></a>            <span class="s2">else:</span>
+<a name="l655"><span class="ln">655  </span></a>                <span class="s2">if </span><span class="s1">part</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">v </span><span class="s2">&gt;= </span><span class="s1">deficit</span><span class="s2">:</span>
+<a name="l656"><span class="ln">656  </span></a>                    <span class="s1">part</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">v </span><span class="s2">-= </span><span class="s1">deficit</span>
+<a name="l657"><span class="ln">657  </span></a>                    <span class="s2">return True</span>
+<a name="l658"><span class="ln">658  </span></a>                <span class="s2">else:</span>
+<a name="l659"><span class="ln">659  </span></a>                    <span class="s1">deficit </span><span class="s2">-= </span><span class="s1">part</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">v</span>
+<a name="l660"><span class="ln">660  </span></a>                    <span class="s1">part</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">v </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l661"><span class="ln">661  </span></a>
+<a name="l662"><span class="ln">662  </span></a>    <span class="s2">def </span><span class="s1">decrement_part_range</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">part</span><span class="s3">, </span><span class="s1">lb</span><span class="s3">, </span><span class="s1">ub</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l663"><span class="ln">663  </span></a>        <span class="s0">&quot;&quot;&quot;Decrements part (a subrange of pstack), if possible, returning 
+<a name="l664"><span class="ln">664  </span></a>        True iff the part was successfully decremented. 
+<a name="l665"><span class="ln">665  </span></a> 
+<a name="l666"><span class="ln">666  </span></a>        Parameters 
+<a name="l667"><span class="ln">667  </span></a>        ========== 
+<a name="l668"><span class="ln">668  </span></a> 
+<a name="l669"><span class="ln">669  </span></a>        part 
+<a name="l670"><span class="ln">670  </span></a>            part to be decremented (topmost part on the stack) 
+<a name="l671"><span class="ln">671  </span></a> 
+<a name="l672"><span class="ln">672  </span></a>        ub 
+<a name="l673"><span class="ln">673  </span></a>            the maximum number of parts allowed in a partition 
+<a name="l674"><span class="ln">674  </span></a>            returned by the calling traversal. 
+<a name="l675"><span class="ln">675  </span></a> 
+<a name="l676"><span class="ln">676  </span></a>        lb 
+<a name="l677"><span class="ln">677  </span></a>            The partitions produced by the calling enumeration must 
+<a name="l678"><span class="ln">678  </span></a>            have more parts than this value. 
+<a name="l679"><span class="ln">679  </span></a> 
+<a name="l680"><span class="ln">680  </span></a>        Notes 
+<a name="l681"><span class="ln">681  </span></a>        ===== 
+<a name="l682"><span class="ln">682  </span></a> 
+<a name="l683"><span class="ln">683  </span></a>        Combines the constraints of _small and _large decrement 
+<a name="l684"><span class="ln">684  </span></a>        methods.  If returns success, part has been decremented at 
+<a name="l685"><span class="ln">685  </span></a>        least once, but perhaps by quite a bit more if needed to meet 
+<a name="l686"><span class="ln">686  </span></a>        the lb constraint. 
+<a name="l687"><span class="ln">687  </span></a>        &quot;&quot;&quot;</span>
+<a name="l688"><span class="ln">688  </span></a>
+<a name="l689"><span class="ln">689  </span></a>        <span class="s0"># Constraint in the range case is just enforcing both the</span>
+<a name="l690"><span class="ln">690  </span></a>        <span class="s0"># constraints from _small and _large cases.  Note the 0 as the</span>
+<a name="l691"><span class="ln">691  </span></a>        <span class="s0"># second argument to the _large call -- this is the signal to</span>
+<a name="l692"><span class="ln">692  </span></a>        <span class="s0"># decrement only as needed to for constraint enforcement.  The</span>
+<a name="l693"><span class="ln">693  </span></a>        <span class="s0"># short circuiting and left-to-right order of the 'and'</span>
+<a name="l694"><span class="ln">694  </span></a>        <span class="s0"># operator is important for this to work correctly.</span>
+<a name="l695"><span class="ln">695  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">decrement_part_small</span><span class="s3">(</span><span class="s1">part</span><span class="s3">, </span><span class="s1">ub</span><span class="s3">) </span><span class="s2">and </span><span class="s1">\</span>
+<a name="l696"><span class="ln">696  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">decrement_part_large</span><span class="s3">(</span><span class="s1">part</span><span class="s3">, </span><span class="s5">0</span><span class="s3">, </span><span class="s1">lb</span><span class="s3">)</span>
+<a name="l697"><span class="ln">697  </span></a>
+<a name="l698"><span class="ln">698  </span></a>    <span class="s2">def </span><span class="s1">spread_part_multiplicity</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l699"><span class="ln">699  </span></a>        <span class="s0">&quot;&quot;&quot;Returns True if a new part has been created, and 
+<a name="l700"><span class="ln">700  </span></a>        adjusts pstack, f and lpart as needed. 
+<a name="l701"><span class="ln">701  </span></a> 
+<a name="l702"><span class="ln">702  </span></a>        Notes 
+<a name="l703"><span class="ln">703  </span></a>        ===== 
+<a name="l704"><span class="ln">704  </span></a> 
+<a name="l705"><span class="ln">705  </span></a>        Spreads unallocated multiplicity from the current top part 
+<a name="l706"><span class="ln">706  </span></a>        into a new part created above the current on the stack.  This 
+<a name="l707"><span class="ln">707  </span></a>        new part is constrained to be less than or equal to the old in 
+<a name="l708"><span class="ln">708  </span></a>        terms of the part ordering. 
+<a name="l709"><span class="ln">709  </span></a> 
+<a name="l710"><span class="ln">710  </span></a>        This call does nothing (and returns False) if the current top 
+<a name="l711"><span class="ln">711  </span></a>        part has no unallocated multiplicity. 
+<a name="l712"><span class="ln">712  </span></a> 
+<a name="l713"><span class="ln">713  </span></a>        &quot;&quot;&quot;</span>
+<a name="l714"><span class="ln">714  </span></a>        <span class="s1">j </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">f</span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart</span><span class="s3">]  </span><span class="s0"># base of current top part</span>
+<a name="l715"><span class="ln">715  </span></a>        <span class="s1">k </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">f</span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">]  </span><span class="s0"># ub of current; potential base of next</span>
+<a name="l716"><span class="ln">716  </span></a>        <span class="s1">base </span><span class="s2">= </span><span class="s1">k  </span><span class="s0"># save for later comparison</span>
+<a name="l717"><span class="ln">717  </span></a>
+<a name="l718"><span class="ln">718  </span></a>        <span class="s1">changed </span><span class="s2">= False  </span><span class="s0"># Set to true when the new part (so far) is</span>
+<a name="l719"><span class="ln">719  </span></a>                         <span class="s0"># strictly less than (as opposed to less than</span>
+<a name="l720"><span class="ln">720  </span></a>                         <span class="s0"># or equal) to the old.</span>
+<a name="l721"><span class="ln">721  </span></a>        <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">f</span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart</span><span class="s3">], </span><span class="s1">self</span><span class="s3">.</span><span class="s1">f</span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">])</span><span class="s2">:</span>
+<a name="l722"><span class="ln">722  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">u </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">u </span><span class="s2">- </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v</span>
+<a name="l723"><span class="ln">723  </span></a>            <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">u </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l724"><span class="ln">724  </span></a>                <span class="s1">changed </span><span class="s2">= True</span>
+<a name="l725"><span class="ln">725  </span></a>            <span class="s2">else:</span>
+<a name="l726"><span class="ln">726  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">c </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">c</span>
+<a name="l727"><span class="ln">727  </span></a>                <span class="s2">if </span><span class="s1">changed</span><span class="s2">:  </span><span class="s0"># Put all available multiplicity in this part</span>
+<a name="l728"><span class="ln">728  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">v </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">u</span>
+<a name="l729"><span class="ln">729  </span></a>                <span class="s2">else:  </span><span class="s0"># Still maintaining ordering constraint</span>
+<a name="l730"><span class="ln">730  </span></a>                    <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">u </span><span class="s2">&lt; </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v</span><span class="s2">:</span>
+<a name="l731"><span class="ln">731  </span></a>                        <span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">v </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">u</span>
+<a name="l732"><span class="ln">732  </span></a>                        <span class="s1">changed </span><span class="s2">= True</span>
+<a name="l733"><span class="ln">733  </span></a>                    <span class="s2">else:</span>
+<a name="l734"><span class="ln">734  </span></a>                        <span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">k</span><span class="s3">].</span><span class="s1">v </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">j</span><span class="s3">].</span><span class="s1">v</span>
+<a name="l735"><span class="ln">735  </span></a>                <span class="s1">k </span><span class="s2">= </span><span class="s1">k </span><span class="s2">+ </span><span class="s5">1</span>
+<a name="l736"><span class="ln">736  </span></a>        <span class="s2">if </span><span class="s1">k </span><span class="s2">&gt; </span><span class="s1">base</span><span class="s2">:</span>
+<a name="l737"><span class="ln">737  </span></a>            <span class="s0"># Adjust for the new part on stack</span>
+<a name="l738"><span class="ln">738  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">+ </span><span class="s5">1</span>
+<a name="l739"><span class="ln">739  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">f</span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">] </span><span class="s2">= </span><span class="s1">k</span>
+<a name="l740"><span class="ln">740  </span></a>            <span class="s2">return True</span>
+<a name="l741"><span class="ln">741  </span></a>        <span class="s2">return False</span>
+<a name="l742"><span class="ln">742  </span></a>
+<a name="l743"><span class="ln">743  </span></a>    <span class="s2">def </span><span class="s1">top_part</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l744"><span class="ln">744  </span></a>        <span class="s0">&quot;&quot;&quot;Return current top part on the stack, as a slice of pstack. 
+<a name="l745"><span class="ln">745  </span></a> 
+<a name="l746"><span class="ln">746  </span></a>        &quot;&quot;&quot;</span>
+<a name="l747"><span class="ln">747  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">f</span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart</span><span class="s3">]</span><span class="s2">:</span><span class="s1">self</span><span class="s3">.</span><span class="s1">f</span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">]]</span>
+<a name="l748"><span class="ln">748  </span></a>
+<a name="l749"><span class="ln">749  </span></a>    <span class="s0"># Same interface and functionality as multiset_partitions_taocp(),</span>
+<a name="l750"><span class="ln">750  </span></a>    <span class="s0"># but some might find this refactored version easier to follow.</span>
+<a name="l751"><span class="ln">751  </span></a>    <span class="s2">def </span><span class="s1">enum_all</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">multiplicities</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l752"><span class="ln">752  </span></a>        <span class="s0">&quot;&quot;&quot;Enumerate the partitions of a multiset. 
+<a name="l753"><span class="ln">753  </span></a> 
+<a name="l754"><span class="ln">754  </span></a>        Examples 
+<a name="l755"><span class="ln">755  </span></a>        ======== 
+<a name="l756"><span class="ln">756  </span></a> 
+<a name="l757"><span class="ln">757  </span></a>        &gt;&gt;&gt; from sympy.utilities.enumerative import list_visitor 
+<a name="l758"><span class="ln">758  </span></a>        &gt;&gt;&gt; from sympy.utilities.enumerative import MultisetPartitionTraverser 
+<a name="l759"><span class="ln">759  </span></a>        &gt;&gt;&gt; m = MultisetPartitionTraverser() 
+<a name="l760"><span class="ln">760  </span></a>        &gt;&gt;&gt; states = m.enum_all([2,2]) 
+<a name="l761"><span class="ln">761  </span></a>        &gt;&gt;&gt; list(list_visitor(state, 'ab') for state in states) 
+<a name="l762"><span class="ln">762  </span></a>        [[['a', 'a', 'b', 'b']], 
+<a name="l763"><span class="ln">763  </span></a>        [['a', 'a', 'b'], ['b']], 
+<a name="l764"><span class="ln">764  </span></a>        [['a', 'a'], ['b', 'b']], 
+<a name="l765"><span class="ln">765  </span></a>        [['a', 'a'], ['b'], ['b']], 
+<a name="l766"><span class="ln">766  </span></a>        [['a', 'b', 'b'], ['a']], 
+<a name="l767"><span class="ln">767  </span></a>        [['a', 'b'], ['a', 'b']], 
+<a name="l768"><span class="ln">768  </span></a>        [['a', 'b'], ['a'], ['b']], 
+<a name="l769"><span class="ln">769  </span></a>        [['a'], ['a'], ['b', 'b']], 
+<a name="l770"><span class="ln">770  </span></a>        [['a'], ['a'], ['b'], ['b']]] 
+<a name="l771"><span class="ln">771  </span></a> 
+<a name="l772"><span class="ln">772  </span></a>        See Also 
+<a name="l773"><span class="ln">773  </span></a>        ======== 
+<a name="l774"><span class="ln">774  </span></a> 
+<a name="l775"><span class="ln">775  </span></a>        multiset_partitions_taocp: 
+<a name="l776"><span class="ln">776  </span></a>            which provides the same result as this method, but is 
+<a name="l777"><span class="ln">777  </span></a>            about twice as fast.  Hence, enum_all is primarily useful 
+<a name="l778"><span class="ln">778  </span></a>            for testing.  Also see the function for a discussion of 
+<a name="l779"><span class="ln">779  </span></a>            states and visitors. 
+<a name="l780"><span class="ln">780  </span></a> 
+<a name="l781"><span class="ln">781  </span></a>        &quot;&quot;&quot;</span>
+<a name="l782"><span class="ln">782  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_initialize_enumeration</span><span class="s3">(</span><span class="s1">multiplicities</span><span class="s3">)</span>
+<a name="l783"><span class="ln">783  </span></a>        <span class="s2">while True:</span>
+<a name="l784"><span class="ln">784  </span></a>            <span class="s2">while </span><span class="s1">self</span><span class="s3">.</span><span class="s1">spread_part_multiplicity</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l785"><span class="ln">785  </span></a>                <span class="s2">pass</span>
+<a name="l786"><span class="ln">786  </span></a>
+<a name="l787"><span class="ln">787  </span></a>            <span class="s0"># M4  Visit a partition</span>
+<a name="l788"><span class="ln">788  </span></a>            <span class="s1">state </span><span class="s2">= </span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">f</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">]</span>
+<a name="l789"><span class="ln">789  </span></a>            <span class="s2">yield </span><span class="s1">state</span>
+<a name="l790"><span class="ln">790  </span></a>
+<a name="l791"><span class="ln">791  </span></a>            <span class="s0"># M5 (Decrease v)</span>
+<a name="l792"><span class="ln">792  </span></a>            <span class="s2">while not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">decrement_part</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">top_part</span><span class="s3">())</span><span class="s2">:</span>
+<a name="l793"><span class="ln">793  </span></a>                <span class="s0"># M6 (Backtrack)</span>
+<a name="l794"><span class="ln">794  </span></a>                <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l795"><span class="ln">795  </span></a>                    <span class="s2">return</span>
+<a name="l796"><span class="ln">796  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">-= </span><span class="s5">1</span>
+<a name="l797"><span class="ln">797  </span></a>
+<a name="l798"><span class="ln">798  </span></a>    <span class="s2">def </span><span class="s1">enum_small</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">multiplicities</span><span class="s3">, </span><span class="s1">ub</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l799"><span class="ln">799  </span></a>        <span class="s0">&quot;&quot;&quot;Enumerate multiset partitions with no more than ``ub`` parts. 
+<a name="l800"><span class="ln">800  </span></a> 
+<a name="l801"><span class="ln">801  </span></a>        Equivalent to enum_range(multiplicities, 0, ub) 
+<a name="l802"><span class="ln">802  </span></a> 
+<a name="l803"><span class="ln">803  </span></a>        Parameters 
+<a name="l804"><span class="ln">804  </span></a>        ========== 
+<a name="l805"><span class="ln">805  </span></a> 
+<a name="l806"><span class="ln">806  </span></a>        multiplicities 
+<a name="l807"><span class="ln">807  </span></a>             list of multiplicities of the components of the multiset. 
+<a name="l808"><span class="ln">808  </span></a> 
+<a name="l809"><span class="ln">809  </span></a>        ub 
+<a name="l810"><span class="ln">810  </span></a>            Maximum number of parts 
+<a name="l811"><span class="ln">811  </span></a> 
+<a name="l812"><span class="ln">812  </span></a>        Examples 
+<a name="l813"><span class="ln">813  </span></a>        ======== 
+<a name="l814"><span class="ln">814  </span></a> 
+<a name="l815"><span class="ln">815  </span></a>        &gt;&gt;&gt; from sympy.utilities.enumerative import list_visitor 
+<a name="l816"><span class="ln">816  </span></a>        &gt;&gt;&gt; from sympy.utilities.enumerative import MultisetPartitionTraverser 
+<a name="l817"><span class="ln">817  </span></a>        &gt;&gt;&gt; m = MultisetPartitionTraverser() 
+<a name="l818"><span class="ln">818  </span></a>        &gt;&gt;&gt; states = m.enum_small([2,2], 2) 
+<a name="l819"><span class="ln">819  </span></a>        &gt;&gt;&gt; list(list_visitor(state, 'ab') for state in states) 
+<a name="l820"><span class="ln">820  </span></a>        [[['a', 'a', 'b', 'b']], 
+<a name="l821"><span class="ln">821  </span></a>        [['a', 'a', 'b'], ['b']], 
+<a name="l822"><span class="ln">822  </span></a>        [['a', 'a'], ['b', 'b']], 
+<a name="l823"><span class="ln">823  </span></a>        [['a', 'b', 'b'], ['a']], 
+<a name="l824"><span class="ln">824  </span></a>        [['a', 'b'], ['a', 'b']]] 
+<a name="l825"><span class="ln">825  </span></a> 
+<a name="l826"><span class="ln">826  </span></a>        The implementation is based, in part, on the answer given to 
+<a name="l827"><span class="ln">827  </span></a>        exercise 69, in Knuth [AOCP]_. 
+<a name="l828"><span class="ln">828  </span></a> 
+<a name="l829"><span class="ln">829  </span></a>        See Also 
+<a name="l830"><span class="ln">830  </span></a>        ======== 
+<a name="l831"><span class="ln">831  </span></a> 
+<a name="l832"><span class="ln">832  </span></a>        enum_all, enum_large, enum_range 
+<a name="l833"><span class="ln">833  </span></a> 
+<a name="l834"><span class="ln">834  </span></a>        &quot;&quot;&quot;</span>
+<a name="l835"><span class="ln">835  </span></a>
+<a name="l836"><span class="ln">836  </span></a>        <span class="s0"># Keep track of iterations which do not yield a partition.</span>
+<a name="l837"><span class="ln">837  </span></a>        <span class="s0"># Clearly, we would like to keep this number small.</span>
+<a name="l838"><span class="ln">838  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">discarded </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l839"><span class="ln">839  </span></a>        <span class="s2">if </span><span class="s1">ub </span><span class="s2">&lt;= </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l840"><span class="ln">840  </span></a>            <span class="s2">return</span>
+<a name="l841"><span class="ln">841  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_initialize_enumeration</span><span class="s3">(</span><span class="s1">multiplicities</span><span class="s3">)</span>
+<a name="l842"><span class="ln">842  </span></a>        <span class="s2">while True:</span>
+<a name="l843"><span class="ln">843  </span></a>            <span class="s2">while </span><span class="s1">self</span><span class="s3">.</span><span class="s1">spread_part_multiplicity</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l844"><span class="ln">844  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">db_trace</span><span class="s3">(</span><span class="s4">'spread 1'</span><span class="s3">)</span>
+<a name="l845"><span class="ln">845  </span></a>                <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">&gt;= </span><span class="s1">ub</span><span class="s2">:</span>
+<a name="l846"><span class="ln">846  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">discarded </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l847"><span class="ln">847  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">db_trace</span><span class="s3">(</span><span class="s4">'  Discarding'</span><span class="s3">)</span>
+<a name="l848"><span class="ln">848  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">= </span><span class="s1">ub </span><span class="s2">- </span><span class="s5">2</span>
+<a name="l849"><span class="ln">849  </span></a>                    <span class="s2">break</span>
+<a name="l850"><span class="ln">850  </span></a>            <span class="s2">else:</span>
+<a name="l851"><span class="ln">851  </span></a>                <span class="s0"># M4  Visit a partition</span>
+<a name="l852"><span class="ln">852  </span></a>                <span class="s1">state </span><span class="s2">= </span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">f</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">]</span>
+<a name="l853"><span class="ln">853  </span></a>                <span class="s2">yield </span><span class="s1">state</span>
+<a name="l854"><span class="ln">854  </span></a>
+<a name="l855"><span class="ln">855  </span></a>            <span class="s0"># M5 (Decrease v)</span>
+<a name="l856"><span class="ln">856  </span></a>            <span class="s2">while not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">decrement_part_small</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">top_part</span><span class="s3">(), </span><span class="s1">ub</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l857"><span class="ln">857  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">db_trace</span><span class="s3">(</span><span class="s4">&quot;Failed decrement, going to backtrack&quot;</span><span class="s3">)</span>
+<a name="l858"><span class="ln">858  </span></a>                <span class="s0"># M6 (Backtrack)</span>
+<a name="l859"><span class="ln">859  </span></a>                <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l860"><span class="ln">860  </span></a>                    <span class="s2">return</span>
+<a name="l861"><span class="ln">861  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">-= </span><span class="s5">1</span>
+<a name="l862"><span class="ln">862  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">db_trace</span><span class="s3">(</span><span class="s4">&quot;Backtracked to&quot;</span><span class="s3">)</span>
+<a name="l863"><span class="ln">863  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">db_trace</span><span class="s3">(</span><span class="s4">&quot;decrement ok, about to expand&quot;</span><span class="s3">)</span>
+<a name="l864"><span class="ln">864  </span></a>
+<a name="l865"><span class="ln">865  </span></a>    <span class="s2">def </span><span class="s1">enum_large</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">multiplicities</span><span class="s3">, </span><span class="s1">lb</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l866"><span class="ln">866  </span></a>        <span class="s0">&quot;&quot;&quot;Enumerate the partitions of a multiset with lb &lt; num(parts) 
+<a name="l867"><span class="ln">867  </span></a> 
+<a name="l868"><span class="ln">868  </span></a>        Equivalent to enum_range(multiplicities, lb, sum(multiplicities)) 
+<a name="l869"><span class="ln">869  </span></a> 
+<a name="l870"><span class="ln">870  </span></a>        Parameters 
+<a name="l871"><span class="ln">871  </span></a>        ========== 
+<a name="l872"><span class="ln">872  </span></a> 
+<a name="l873"><span class="ln">873  </span></a>        multiplicities 
+<a name="l874"><span class="ln">874  </span></a>            list of multiplicities of the components of the multiset. 
+<a name="l875"><span class="ln">875  </span></a> 
+<a name="l876"><span class="ln">876  </span></a>        lb 
+<a name="l877"><span class="ln">877  </span></a>            Number of parts in the partition must be greater than 
+<a name="l878"><span class="ln">878  </span></a>            this lower bound. 
+<a name="l879"><span class="ln">879  </span></a> 
+<a name="l880"><span class="ln">880  </span></a> 
+<a name="l881"><span class="ln">881  </span></a>        Examples 
+<a name="l882"><span class="ln">882  </span></a>        ======== 
+<a name="l883"><span class="ln">883  </span></a> 
+<a name="l884"><span class="ln">884  </span></a>        &gt;&gt;&gt; from sympy.utilities.enumerative import list_visitor 
+<a name="l885"><span class="ln">885  </span></a>        &gt;&gt;&gt; from sympy.utilities.enumerative import MultisetPartitionTraverser 
+<a name="l886"><span class="ln">886  </span></a>        &gt;&gt;&gt; m = MultisetPartitionTraverser() 
+<a name="l887"><span class="ln">887  </span></a>        &gt;&gt;&gt; states = m.enum_large([2,2], 2) 
+<a name="l888"><span class="ln">888  </span></a>        &gt;&gt;&gt; list(list_visitor(state, 'ab') for state in states) 
+<a name="l889"><span class="ln">889  </span></a>        [[['a', 'a'], ['b'], ['b']], 
+<a name="l890"><span class="ln">890  </span></a>        [['a', 'b'], ['a'], ['b']], 
+<a name="l891"><span class="ln">891  </span></a>        [['a'], ['a'], ['b', 'b']], 
+<a name="l892"><span class="ln">892  </span></a>        [['a'], ['a'], ['b'], ['b']]] 
+<a name="l893"><span class="ln">893  </span></a> 
+<a name="l894"><span class="ln">894  </span></a>        See Also 
+<a name="l895"><span class="ln">895  </span></a>        ======== 
+<a name="l896"><span class="ln">896  </span></a> 
+<a name="l897"><span class="ln">897  </span></a>        enum_all, enum_small, enum_range 
+<a name="l898"><span class="ln">898  </span></a> 
+<a name="l899"><span class="ln">899  </span></a>        &quot;&quot;&quot;</span>
+<a name="l900"><span class="ln">900  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">discarded </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l901"><span class="ln">901  </span></a>        <span class="s2">if </span><span class="s1">lb </span><span class="s2">&gt;= </span><span class="s1">sum</span><span class="s3">(</span><span class="s1">multiplicities</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l902"><span class="ln">902  </span></a>            <span class="s2">return</span>
+<a name="l903"><span class="ln">903  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_initialize_enumeration</span><span class="s3">(</span><span class="s1">multiplicities</span><span class="s3">)</span>
+<a name="l904"><span class="ln">904  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">decrement_part_large</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">top_part</span><span class="s3">(), </span><span class="s5">0</span><span class="s3">, </span><span class="s1">lb</span><span class="s3">)</span>
+<a name="l905"><span class="ln">905  </span></a>        <span class="s2">while True:</span>
+<a name="l906"><span class="ln">906  </span></a>            <span class="s1">good_partition </span><span class="s2">= True</span>
+<a name="l907"><span class="ln">907  </span></a>            <span class="s2">while </span><span class="s1">self</span><span class="s3">.</span><span class="s1">spread_part_multiplicity</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l908"><span class="ln">908  </span></a>                <span class="s2">if not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">decrement_part_large</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">top_part</span><span class="s3">(), </span><span class="s5">0</span><span class="s3">, </span><span class="s1">lb</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l909"><span class="ln">909  </span></a>                    <span class="s0"># Failure here should be rare/impossible</span>
+<a name="l910"><span class="ln">910  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">discarded </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l911"><span class="ln">911  </span></a>                    <span class="s1">good_partition </span><span class="s2">= False</span>
+<a name="l912"><span class="ln">912  </span></a>                    <span class="s2">break</span>
+<a name="l913"><span class="ln">913  </span></a>
+<a name="l914"><span class="ln">914  </span></a>            <span class="s0"># M4  Visit a partition</span>
+<a name="l915"><span class="ln">915  </span></a>            <span class="s2">if </span><span class="s1">good_partition</span><span class="s2">:</span>
+<a name="l916"><span class="ln">916  </span></a>                <span class="s1">state </span><span class="s2">= </span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">f</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">]</span>
+<a name="l917"><span class="ln">917  </span></a>                <span class="s2">yield </span><span class="s1">state</span>
+<a name="l918"><span class="ln">918  </span></a>
+<a name="l919"><span class="ln">919  </span></a>            <span class="s0"># M5 (Decrease v)</span>
+<a name="l920"><span class="ln">920  </span></a>            <span class="s2">while not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">decrement_part_large</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">top_part</span><span class="s3">(), </span><span class="s5">1</span><span class="s3">, </span><span class="s1">lb</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l921"><span class="ln">921  </span></a>                <span class="s0"># M6 (Backtrack)</span>
+<a name="l922"><span class="ln">922  </span></a>                <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l923"><span class="ln">923  </span></a>                    <span class="s2">return</span>
+<a name="l924"><span class="ln">924  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">-= </span><span class="s5">1</span>
+<a name="l925"><span class="ln">925  </span></a>
+<a name="l926"><span class="ln">926  </span></a>    <span class="s2">def </span><span class="s1">enum_range</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">multiplicities</span><span class="s3">, </span><span class="s1">lb</span><span class="s3">, </span><span class="s1">ub</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l927"><span class="ln">927  </span></a>
+<a name="l928"><span class="ln">928  </span></a>        <span class="s0">&quot;&quot;&quot;Enumerate the partitions of a multiset with 
+<a name="l929"><span class="ln">929  </span></a>        ``lb &lt; num(parts) &lt;= ub``. 
+<a name="l930"><span class="ln">930  </span></a> 
+<a name="l931"><span class="ln">931  </span></a>        In particular, if partitions with exactly ``k`` parts are 
+<a name="l932"><span class="ln">932  </span></a>        desired, call with ``(multiplicities, k - 1, k)``.  This 
+<a name="l933"><span class="ln">933  </span></a>        method generalizes enum_all, enum_small, and enum_large. 
+<a name="l934"><span class="ln">934  </span></a> 
+<a name="l935"><span class="ln">935  </span></a>        Examples 
+<a name="l936"><span class="ln">936  </span></a>        ======== 
+<a name="l937"><span class="ln">937  </span></a> 
+<a name="l938"><span class="ln">938  </span></a>        &gt;&gt;&gt; from sympy.utilities.enumerative import list_visitor 
+<a name="l939"><span class="ln">939  </span></a>        &gt;&gt;&gt; from sympy.utilities.enumerative import MultisetPartitionTraverser 
+<a name="l940"><span class="ln">940  </span></a>        &gt;&gt;&gt; m = MultisetPartitionTraverser() 
+<a name="l941"><span class="ln">941  </span></a>        &gt;&gt;&gt; states = m.enum_range([2,2], 1, 2) 
+<a name="l942"><span class="ln">942  </span></a>        &gt;&gt;&gt; list(list_visitor(state, 'ab') for state in states) 
+<a name="l943"><span class="ln">943  </span></a>        [[['a', 'a', 'b'], ['b']], 
+<a name="l944"><span class="ln">944  </span></a>        [['a', 'a'], ['b', 'b']], 
+<a name="l945"><span class="ln">945  </span></a>        [['a', 'b', 'b'], ['a']], 
+<a name="l946"><span class="ln">946  </span></a>        [['a', 'b'], ['a', 'b']]] 
+<a name="l947"><span class="ln">947  </span></a> 
+<a name="l948"><span class="ln">948  </span></a>        &quot;&quot;&quot;</span>
+<a name="l949"><span class="ln">949  </span></a>        <span class="s0"># combine the constraints of the _large and _small</span>
+<a name="l950"><span class="ln">950  </span></a>        <span class="s0"># enumerations.</span>
+<a name="l951"><span class="ln">951  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">discarded </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l952"><span class="ln">952  </span></a>        <span class="s2">if </span><span class="s1">ub </span><span class="s2">&lt;= </span><span class="s5">0 </span><span class="s2">or </span><span class="s1">lb </span><span class="s2">&gt;= </span><span class="s1">sum</span><span class="s3">(</span><span class="s1">multiplicities</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l953"><span class="ln">953  </span></a>            <span class="s2">return</span>
+<a name="l954"><span class="ln">954  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_initialize_enumeration</span><span class="s3">(</span><span class="s1">multiplicities</span><span class="s3">)</span>
+<a name="l955"><span class="ln">955  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">decrement_part_large</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">top_part</span><span class="s3">(), </span><span class="s5">0</span><span class="s3">, </span><span class="s1">lb</span><span class="s3">)</span>
+<a name="l956"><span class="ln">956  </span></a>        <span class="s2">while True:</span>
+<a name="l957"><span class="ln">957  </span></a>            <span class="s1">good_partition </span><span class="s2">= True</span>
+<a name="l958"><span class="ln">958  </span></a>            <span class="s2">while </span><span class="s1">self</span><span class="s3">.</span><span class="s1">spread_part_multiplicity</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l959"><span class="ln">959  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">db_trace</span><span class="s3">(</span><span class="s4">&quot;spread 1&quot;</span><span class="s3">)</span>
+<a name="l960"><span class="ln">960  </span></a>                <span class="s2">if not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">decrement_part_large</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">top_part</span><span class="s3">(), </span><span class="s5">0</span><span class="s3">, </span><span class="s1">lb</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l961"><span class="ln">961  </span></a>                    <span class="s0"># Failure here - possible in range case?</span>
+<a name="l962"><span class="ln">962  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">db_trace</span><span class="s3">(</span><span class="s4">&quot;  Discarding (large cons)&quot;</span><span class="s3">)</span>
+<a name="l963"><span class="ln">963  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">discarded </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l964"><span class="ln">964  </span></a>                    <span class="s1">good_partition </span><span class="s2">= False</span>
+<a name="l965"><span class="ln">965  </span></a>                    <span class="s2">break</span>
+<a name="l966"><span class="ln">966  </span></a>                <span class="s2">elif </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">&gt;= </span><span class="s1">ub</span><span class="s2">:</span>
+<a name="l967"><span class="ln">967  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">discarded </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l968"><span class="ln">968  </span></a>                    <span class="s1">good_partition </span><span class="s2">= False</span>
+<a name="l969"><span class="ln">969  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">db_trace</span><span class="s3">(</span><span class="s4">&quot;  Discarding small cons&quot;</span><span class="s3">)</span>
+<a name="l970"><span class="ln">970  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">= </span><span class="s1">ub </span><span class="s2">- </span><span class="s5">2</span>
+<a name="l971"><span class="ln">971  </span></a>                    <span class="s2">break</span>
+<a name="l972"><span class="ln">972  </span></a>
+<a name="l973"><span class="ln">973  </span></a>            <span class="s0"># M4  Visit a partition</span>
+<a name="l974"><span class="ln">974  </span></a>            <span class="s2">if </span><span class="s1">good_partition</span><span class="s2">:</span>
+<a name="l975"><span class="ln">975  </span></a>                <span class="s1">state </span><span class="s2">= </span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">f</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pstack</span><span class="s3">]</span>
+<a name="l976"><span class="ln">976  </span></a>                <span class="s2">yield </span><span class="s1">state</span>
+<a name="l977"><span class="ln">977  </span></a>
+<a name="l978"><span class="ln">978  </span></a>            <span class="s0"># M5 (Decrease v)</span>
+<a name="l979"><span class="ln">979  </span></a>            <span class="s2">while not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">decrement_part_range</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">top_part</span><span class="s3">(), </span><span class="s1">lb</span><span class="s3">, </span><span class="s1">ub</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l980"><span class="ln">980  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">db_trace</span><span class="s3">(</span><span class="s4">&quot;Failed decrement, going to backtrack&quot;</span><span class="s3">)</span>
+<a name="l981"><span class="ln">981  </span></a>                <span class="s0"># M6 (Backtrack)</span>
+<a name="l982"><span class="ln">982  </span></a>                <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l983"><span class="ln">983  </span></a>                    <span class="s2">return</span>
+<a name="l984"><span class="ln">984  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">-= </span><span class="s5">1</span>
+<a name="l985"><span class="ln">985  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">db_trace</span><span class="s3">(</span><span class="s4">&quot;Backtracked to&quot;</span><span class="s3">)</span>
+<a name="l986"><span class="ln">986  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">db_trace</span><span class="s3">(</span><span class="s4">&quot;decrement ok, about to expand&quot;</span><span class="s3">)</span>
+<a name="l987"><span class="ln">987  </span></a>
+<a name="l988"><span class="ln">988  </span></a>    <span class="s2">def </span><span class="s1">count_partitions_slow</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">multiplicities</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l989"><span class="ln">989  </span></a>        <span class="s0">&quot;&quot;&quot;Returns the number of partitions of a multiset whose elements 
+<a name="l990"><span class="ln">990  </span></a>        have the multiplicities given in ``multiplicities``. 
+<a name="l991"><span class="ln">991  </span></a> 
+<a name="l992"><span class="ln">992  </span></a>        Primarily for comparison purposes.  It follows the same path as 
+<a name="l993"><span class="ln">993  </span></a>        enumerate, and counts, rather than generates, the partitions. 
+<a name="l994"><span class="ln">994  </span></a> 
+<a name="l995"><span class="ln">995  </span></a>        See Also 
+<a name="l996"><span class="ln">996  </span></a>        ======== 
+<a name="l997"><span class="ln">997  </span></a> 
+<a name="l998"><span class="ln">998  </span></a>        count_partitions 
+<a name="l999"><span class="ln">999  </span></a>            Has the same calling interface, but is much faster. 
+<a name="l1000"><span class="ln">1000 </span></a> 
+<a name="l1001"><span class="ln">1001 </span></a>        &quot;&quot;&quot;</span>
+<a name="l1002"><span class="ln">1002 </span></a>        <span class="s0"># number of partitions so far in the enumeration</span>
+<a name="l1003"><span class="ln">1003 </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">pcount </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l1004"><span class="ln">1004 </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_initialize_enumeration</span><span class="s3">(</span><span class="s1">multiplicities</span><span class="s3">)</span>
+<a name="l1005"><span class="ln">1005 </span></a>        <span class="s2">while True:</span>
+<a name="l1006"><span class="ln">1006 </span></a>            <span class="s2">while </span><span class="s1">self</span><span class="s3">.</span><span class="s1">spread_part_multiplicity</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l1007"><span class="ln">1007 </span></a>                <span class="s2">pass</span>
+<a name="l1008"><span class="ln">1008 </span></a>
+<a name="l1009"><span class="ln">1009 </span></a>            <span class="s0"># M4  Visit (count) a partition</span>
+<a name="l1010"><span class="ln">1010 </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">pcount </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l1011"><span class="ln">1011 </span></a>
+<a name="l1012"><span class="ln">1012 </span></a>            <span class="s0"># M5 (Decrease v)</span>
+<a name="l1013"><span class="ln">1013 </span></a>            <span class="s2">while not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">decrement_part</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">top_part</span><span class="s3">())</span><span class="s2">:</span>
+<a name="l1014"><span class="ln">1014 </span></a>                <span class="s0"># M6 (Backtrack)</span>
+<a name="l1015"><span class="ln">1015 </span></a>                <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l1016"><span class="ln">1016 </span></a>                    <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pcount</span>
+<a name="l1017"><span class="ln">1017 </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">-= </span><span class="s5">1</span>
+<a name="l1018"><span class="ln">1018 </span></a>
+<a name="l1019"><span class="ln">1019 </span></a>    <span class="s2">def </span><span class="s1">count_partitions</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">multiplicities</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1020"><span class="ln">1020 </span></a>        <span class="s0">&quot;&quot;&quot;Returns the number of partitions of a multiset whose components 
+<a name="l1021"><span class="ln">1021 </span></a>        have the multiplicities given in ``multiplicities``. 
+<a name="l1022"><span class="ln">1022 </span></a> 
+<a name="l1023"><span class="ln">1023 </span></a>        For larger counts, this method is much faster than calling one 
+<a name="l1024"><span class="ln">1024 </span></a>        of the enumerators and counting the result.  Uses dynamic 
+<a name="l1025"><span class="ln">1025 </span></a>        programming to cut down on the number of nodes actually 
+<a name="l1026"><span class="ln">1026 </span></a>        explored.  The dictionary used in order to accelerate the 
+<a name="l1027"><span class="ln">1027 </span></a>        counting process is stored in the ``MultisetPartitionTraverser`` 
+<a name="l1028"><span class="ln">1028 </span></a>        object and persists across calls.  If the user does not 
+<a name="l1029"><span class="ln">1029 </span></a>        expect to call ``count_partitions`` for any additional 
+<a name="l1030"><span class="ln">1030 </span></a>        multisets, the object should be cleared to save memory.  On 
+<a name="l1031"><span class="ln">1031 </span></a>        the other hand, the cache built up from one count run can 
+<a name="l1032"><span class="ln">1032 </span></a>        significantly speed up subsequent calls to ``count_partitions``, 
+<a name="l1033"><span class="ln">1033 </span></a>        so it may be advantageous not to clear the object. 
+<a name="l1034"><span class="ln">1034 </span></a> 
+<a name="l1035"><span class="ln">1035 </span></a>        Examples 
+<a name="l1036"><span class="ln">1036 </span></a>        ======== 
+<a name="l1037"><span class="ln">1037 </span></a> 
+<a name="l1038"><span class="ln">1038 </span></a>        &gt;&gt;&gt; from sympy.utilities.enumerative import MultisetPartitionTraverser 
+<a name="l1039"><span class="ln">1039 </span></a>        &gt;&gt;&gt; m = MultisetPartitionTraverser() 
+<a name="l1040"><span class="ln">1040 </span></a>        &gt;&gt;&gt; m.count_partitions([9,8,2]) 
+<a name="l1041"><span class="ln">1041 </span></a>        288716 
+<a name="l1042"><span class="ln">1042 </span></a>        &gt;&gt;&gt; m.count_partitions([2,2]) 
+<a name="l1043"><span class="ln">1043 </span></a>        9 
+<a name="l1044"><span class="ln">1044 </span></a>        &gt;&gt;&gt; del m 
+<a name="l1045"><span class="ln">1045 </span></a> 
+<a name="l1046"><span class="ln">1046 </span></a>        Notes 
+<a name="l1047"><span class="ln">1047 </span></a>        ===== 
+<a name="l1048"><span class="ln">1048 </span></a> 
+<a name="l1049"><span class="ln">1049 </span></a>        If one looks at the workings of Knuth's algorithm M [AOCP]_, it 
+<a name="l1050"><span class="ln">1050 </span></a>        can be viewed as a traversal of a binary tree of parts.  A 
+<a name="l1051"><span class="ln">1051 </span></a>        part has (up to) two children, the left child resulting from 
+<a name="l1052"><span class="ln">1052 </span></a>        the spread operation, and the right child from the decrement 
+<a name="l1053"><span class="ln">1053 </span></a>        operation.  The ordinary enumeration of multiset partitions is 
+<a name="l1054"><span class="ln">1054 </span></a>        an in-order traversal of this tree, and with the partitions 
+<a name="l1055"><span class="ln">1055 </span></a>        corresponding to paths from the root to the leaves. The 
+<a name="l1056"><span class="ln">1056 </span></a>        mapping from paths to partitions is a little complicated, 
+<a name="l1057"><span class="ln">1057 </span></a>        since the partition would contain only those parts which are 
+<a name="l1058"><span class="ln">1058 </span></a>        leaves or the parents of a spread link, not those which are 
+<a name="l1059"><span class="ln">1059 </span></a>        parents of a decrement link. 
+<a name="l1060"><span class="ln">1060 </span></a> 
+<a name="l1061"><span class="ln">1061 </span></a>        For counting purposes, it is sufficient to count leaves, and 
+<a name="l1062"><span class="ln">1062 </span></a>        this can be done with a recursive in-order traversal.  The 
+<a name="l1063"><span class="ln">1063 </span></a>        number of leaves of a subtree rooted at a particular part is a 
+<a name="l1064"><span class="ln">1064 </span></a>        function only of that part itself, so memoizing has the 
+<a name="l1065"><span class="ln">1065 </span></a>        potential to speed up the counting dramatically. 
+<a name="l1066"><span class="ln">1066 </span></a> 
+<a name="l1067"><span class="ln">1067 </span></a>        This method follows a computational approach which is similar 
+<a name="l1068"><span class="ln">1068 </span></a>        to the hypothetical memoized recursive function, but with two 
+<a name="l1069"><span class="ln">1069 </span></a>        differences: 
+<a name="l1070"><span class="ln">1070 </span></a> 
+<a name="l1071"><span class="ln">1071 </span></a>        1) This method is iterative, borrowing its structure from the 
+<a name="l1072"><span class="ln">1072 </span></a>           other enumerations and maintaining an explicit stack of 
+<a name="l1073"><span class="ln">1073 </span></a>           parts which are in the process of being counted.  (There 
+<a name="l1074"><span class="ln">1074 </span></a>           may be multisets which can be counted reasonably quickly by 
+<a name="l1075"><span class="ln">1075 </span></a>           this implementation, but which would overflow the default 
+<a name="l1076"><span class="ln">1076 </span></a>           Python recursion limit with a recursive implementation.) 
+<a name="l1077"><span class="ln">1077 </span></a> 
+<a name="l1078"><span class="ln">1078 </span></a>        2) Instead of using the part data structure directly, a more 
+<a name="l1079"><span class="ln">1079 </span></a>           compact key is constructed.  This saves space, but more 
+<a name="l1080"><span class="ln">1080 </span></a>           importantly coalesces some parts which would remain 
+<a name="l1081"><span class="ln">1081 </span></a>           separate with physical keys. 
+<a name="l1082"><span class="ln">1082 </span></a> 
+<a name="l1083"><span class="ln">1083 </span></a>        Unlike the enumeration functions, there is currently no _range 
+<a name="l1084"><span class="ln">1084 </span></a>        version of count_partitions.  If someone wants to stretch 
+<a name="l1085"><span class="ln">1085 </span></a>        their brain, it should be possible to construct one by 
+<a name="l1086"><span class="ln">1086 </span></a>        memoizing with a histogram of counts rather than a single 
+<a name="l1087"><span class="ln">1087 </span></a>        count, and combining the histograms. 
+<a name="l1088"><span class="ln">1088 </span></a>        &quot;&quot;&quot;</span>
+<a name="l1089"><span class="ln">1089 </span></a>        <span class="s0"># number of partitions so far in the enumeration</span>
+<a name="l1090"><span class="ln">1090 </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">pcount </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l1091"><span class="ln">1091 </span></a>
+<a name="l1092"><span class="ln">1092 </span></a>        <span class="s0"># dp_stack is list of lists of (part_key, start_count) pairs</span>
+<a name="l1093"><span class="ln">1093 </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">dp_stack </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l1094"><span class="ln">1094 </span></a>
+<a name="l1095"><span class="ln">1095 </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_initialize_enumeration</span><span class="s3">(</span><span class="s1">multiplicities</span><span class="s3">)</span>
+<a name="l1096"><span class="ln">1096 </span></a>        <span class="s1">pkey </span><span class="s2">= </span><span class="s1">part_key</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">top_part</span><span class="s3">())</span>
+<a name="l1097"><span class="ln">1097 </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">dp_stack</span><span class="s3">.</span><span class="s1">append</span><span class="s3">([(</span><span class="s1">pkey</span><span class="s3">, </span><span class="s5">0</span><span class="s3">), ])</span>
+<a name="l1098"><span class="ln">1098 </span></a>        <span class="s2">while True:</span>
+<a name="l1099"><span class="ln">1099 </span></a>            <span class="s2">while </span><span class="s1">self</span><span class="s3">.</span><span class="s1">spread_part_multiplicity</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l1100"><span class="ln">1100 </span></a>                <span class="s1">pkey </span><span class="s2">= </span><span class="s1">part_key</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">top_part</span><span class="s3">())</span>
+<a name="l1101"><span class="ln">1101 </span></a>                <span class="s2">if </span><span class="s1">pkey </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">dp_map</span><span class="s2">:</span>
+<a name="l1102"><span class="ln">1102 </span></a>                    <span class="s0"># Already have a cached value for the count of the</span>
+<a name="l1103"><span class="ln">1103 </span></a>                    <span class="s0"># subtree rooted at this part.  Add it to the</span>
+<a name="l1104"><span class="ln">1104 </span></a>                    <span class="s0"># running counter, and break out of the spread</span>
+<a name="l1105"><span class="ln">1105 </span></a>                    <span class="s0"># loop.  The -1 below is to compensate for the</span>
+<a name="l1106"><span class="ln">1106 </span></a>                    <span class="s0"># leaf that this code path would otherwise find,</span>
+<a name="l1107"><span class="ln">1107 </span></a>                    <span class="s0"># and which gets incremented for below.</span>
+<a name="l1108"><span class="ln">1108 </span></a>
+<a name="l1109"><span class="ln">1109 </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">pcount </span><span class="s2">+= </span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">dp_map</span><span class="s3">[</span><span class="s1">pkey</span><span class="s3">] </span><span class="s2">- </span><span class="s5">1</span><span class="s3">)</span>
+<a name="l1110"><span class="ln">1110 </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">-= </span><span class="s5">1</span>
+<a name="l1111"><span class="ln">1111 </span></a>                    <span class="s2">break</span>
+<a name="l1112"><span class="ln">1112 </span></a>                <span class="s2">else:</span>
+<a name="l1113"><span class="ln">1113 </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">dp_stack</span><span class="s3">.</span><span class="s1">append</span><span class="s3">([(</span><span class="s1">pkey</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pcount</span><span class="s3">), ])</span>
+<a name="l1114"><span class="ln">1114 </span></a>
+<a name="l1115"><span class="ln">1115 </span></a>            <span class="s0"># M4  count a leaf partition</span>
+<a name="l1116"><span class="ln">1116 </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">pcount </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l1117"><span class="ln">1117 </span></a>
+<a name="l1118"><span class="ln">1118 </span></a>            <span class="s0"># M5 (Decrease v)</span>
+<a name="l1119"><span class="ln">1119 </span></a>            <span class="s2">while not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">decrement_part</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">top_part</span><span class="s3">())</span><span class="s2">:</span>
+<a name="l1120"><span class="ln">1120 </span></a>                <span class="s0"># M6 (Backtrack)</span>
+<a name="l1121"><span class="ln">1121 </span></a>                <span class="s2">for </span><span class="s1">key</span><span class="s3">, </span><span class="s1">oldcount </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">dp_stack</span><span class="s3">.</span><span class="s1">pop</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l1122"><span class="ln">1122 </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">dp_map</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pcount </span><span class="s2">- </span><span class="s1">oldcount</span>
+<a name="l1123"><span class="ln">1123 </span></a>                <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l1124"><span class="ln">1124 </span></a>                    <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pcount</span>
+<a name="l1125"><span class="ln">1125 </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">lpart </span><span class="s2">-= </span><span class="s5">1</span>
+<a name="l1126"><span class="ln">1126 </span></a>
+<a name="l1127"><span class="ln">1127 </span></a>            <span class="s0"># At this point have successfully decremented the part on</span>
+<a name="l1128"><span class="ln">1128 </span></a>            <span class="s0"># the stack and it does not appear in the cache.  It needs</span>
+<a name="l1129"><span class="ln">1129 </span></a>            <span class="s0"># to be added to the list at the top of dp_stack</span>
+<a name="l1130"><span class="ln">1130 </span></a>            <span class="s1">pkey </span><span class="s2">= </span><span class="s1">part_key</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">top_part</span><span class="s3">())</span>
+<a name="l1131"><span class="ln">1131 </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">dp_stack</span><span class="s3">[</span><span class="s2">-</span><span class="s5">1</span><span class="s3">].</span><span class="s1">append</span><span class="s3">((</span><span class="s1">pkey</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pcount</span><span class="s3">),)</span>
+<a name="l1132"><span class="ln">1132 </span></a>
+<a name="l1133"><span class="ln">1133 </span></a>
+<a name="l1134"><span class="ln">1134 </span></a><span class="s2">def </span><span class="s1">part_key</span><span class="s3">(</span><span class="s1">part</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1135"><span class="ln">1135 </span></a>    <span class="s0">&quot;&quot;&quot;Helper for MultisetPartitionTraverser.count_partitions that 
+<a name="l1136"><span class="ln">1136 </span></a>    creates a key for ``part``, that only includes information which can 
+<a name="l1137"><span class="ln">1137 </span></a>    affect the count for that part.  (Any irrelevant information just 
+<a name="l1138"><span class="ln">1138 </span></a>    reduces the effectiveness of dynamic programming.) 
+<a name="l1139"><span class="ln">1139 </span></a> 
+<a name="l1140"><span class="ln">1140 </span></a>    Notes 
+<a name="l1141"><span class="ln">1141 </span></a>    ===== 
+<a name="l1142"><span class="ln">1142 </span></a> 
+<a name="l1143"><span class="ln">1143 </span></a>    This member function is a candidate for future exploration. There 
+<a name="l1144"><span class="ln">1144 </span></a>    are likely symmetries that can be exploited to coalesce some 
+<a name="l1145"><span class="ln">1145 </span></a>    ``part_key`` values, and thereby save space and improve 
+<a name="l1146"><span class="ln">1146 </span></a>    performance. 
+<a name="l1147"><span class="ln">1147 </span></a> 
+<a name="l1148"><span class="ln">1148 </span></a>    &quot;&quot;&quot;</span>
+<a name="l1149"><span class="ln">1149 </span></a>    <span class="s0"># The component number is irrelevant for counting partitions, so</span>
+<a name="l1150"><span class="ln">1150 </span></a>    <span class="s0"># leave it out of the memo key.</span>
+<a name="l1151"><span class="ln">1151 </span></a>    <span class="s1">rval </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l1152"><span class="ln">1152 </span></a>    <span class="s2">for </span><span class="s1">ps </span><span class="s2">in </span><span class="s1">part</span><span class="s2">:</span>
+<a name="l1153"><span class="ln">1153 </span></a>        <span class="s1">rval</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">ps</span><span class="s3">.</span><span class="s1">u</span><span class="s3">)</span>
+<a name="l1154"><span class="ln">1154 </span></a>        <span class="s1">rval</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">ps</span><span class="s3">.</span><span class="s1">v</span><span class="s3">)</span>
+<a name="l1155"><span class="ln">1155 </span></a>    <span class="s2">return </span><span class="s1">tuple</span><span class="s3">(</span><span class="s1">rval</span><span class="s3">)</span>
+<a name="l1156"><span class="ln">1156 </span></a></pre>
+</body>
+</html>

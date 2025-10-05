@@ -1,0 +1,149 @@
+<html>
+<head>
+<title>_per_sample_grad.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_per_sample_grad.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: allow-untyped-defs</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s2">import </span><span class="s1">functools</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">import </span><span class="s1">torch</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">nn</span><span class="s3">.</span><span class="s1">utils</span><span class="s3">.</span><span class="s1">_expanded_weights</span><span class="s3">.</span><span class="s1">expanded_weights_impl </span><span class="s2">import </span><span class="s1">ExpandedWeight</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">utils </span><span class="s2">import </span><span class="s1">_pytree </span><span class="s2">as </span><span class="s1">pytree</span>
+<a name="l7"><span class="ln">7    </span></a>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s0"># dependency on `functional_call` means that this can't be exposed in utils</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0"># without creating circular dependency</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">def </span><span class="s1">call_for_per_sample_grads</span><span class="s3">(</span>
+<a name="l12"><span class="ln">12   </span></a>    <span class="s1">module</span><span class="s3">,</span>
+<a name="l13"><span class="ln">13   </span></a>    <span class="s2">*</span><span class="s3">,</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s1">batch_size</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l15"><span class="ln">15   </span></a>    <span class="s1">loss_reduction</span><span class="s2">=</span><span class="s4">&quot;sum&quot;</span><span class="s3">,</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s1">batch_first</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s3">)</span><span class="s2">:</span>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l19"><span class="ln">19   </span></a>    Return a forward function for a module, populating grad_sample with per sample gradients on backward invocation. 
+<a name="l20"><span class="ln">20   </span></a> 
+<a name="l21"><span class="ln">21   </span></a>    Args: 
+<a name="l22"><span class="ln">22   </span></a>        module: The ``nn.Module`` to get per sample gradients with respect to. All trainable 
+<a name="l23"><span class="ln">23   </span></a>          parameters will compute per sample gradients, located in a ``grad_sample`` 
+<a name="l24"><span class="ln">24   </span></a>          field when ``backward`` is invoked 
+<a name="l25"><span class="ln">25   </span></a>        batch_size: The batch size of the input. If None is passed, all tensor arguments in args and kwargs must have 
+<a name="l26"><span class="ln">26   </span></a>          the same batch size, which is the size of the first dimension. Otherwise, it must be passed manually. 
+<a name="l27"><span class="ln">27   </span></a>          Default: None 
+<a name="l28"><span class="ln">28   </span></a>        loss_reduction: Indicates if the loss reduction (for aggregating the gradients) is a sum or a mean operation. If 
+<a name="l29"><span class="ln">29   </span></a>          &quot;mean&quot;, per sample gradients will be scaled by the batch size to offset the crossbatch interaction from 
+<a name="l30"><span class="ln">30   </span></a>          running mean across a batch. Must be &quot;mean&quot; or &quot;sum&quot;. Default: &quot;sum&quot; 
+<a name="l31"><span class="ln">31   </span></a>        batch_first: Indicates if the batch dimension is the first dimension. If True, the batch dimension is the first 
+<a name="l32"><span class="ln">32   </span></a>          dimension. If False, it's the second dimension. Default: True. 
+<a name="l33"><span class="ln">33   </span></a> 
+<a name="l34"><span class="ln">34   </span></a>    Examples:: 
+<a name="l35"><span class="ln">35   </span></a>        &gt;&gt;&gt; # xdoctest: +SKIP 
+<a name="l36"><span class="ln">36   </span></a>        &gt;&gt;&gt; model = nn.Linear(4, 3) 
+<a name="l37"><span class="ln">37   </span></a>        &gt;&gt;&gt; batched_input = torch.randn(5, 4)  # batch size of 5 
+<a name="l38"><span class="ln">38   </span></a>        &gt;&gt;&gt; res = call_for_per_sample_grads(model)(batched_input).sum() 
+<a name="l39"><span class="ln">39   </span></a>        &gt;&gt;&gt; res.backward() 
+<a name="l40"><span class="ln">40   </span></a>        &gt;&gt;&gt; assert model.weight.shape == (3, 4) 
+<a name="l41"><span class="ln">41   </span></a>        &gt;&gt;&gt; assert model.weight.grad_sample.shape == (5, 3, 4) 
+<a name="l42"><span class="ln">42   </span></a>        &gt;&gt;&gt; assert model.weight.grad is None 
+<a name="l43"><span class="ln">43   </span></a>        &gt;&gt;&gt; assert model.bias.shape == (3,) 
+<a name="l44"><span class="ln">44   </span></a>        &gt;&gt;&gt; assert model.bias.grad_sample.shape == (5, 3) 
+<a name="l45"><span class="ln">45   </span></a>        &gt;&gt;&gt; assert model.bias.grad is None 
+<a name="l46"><span class="ln">46   </span></a> 
+<a name="l47"><span class="ln">47   </span></a>    An example using &quot;mean&quot; loss reduction. The grad_sample fields will be scaled by batch_size from what they would be 
+<a name="l48"><span class="ln">48   </span></a>    if we ran the same code with loss_reduction=&quot;sum&quot;. This is because the mean at the end will scale all 
+<a name="l49"><span class="ln">49   </span></a>    grad_outputs by 1 / batch_size from cross batch interaction. 
+<a name="l50"><span class="ln">50   </span></a>        &gt;&gt;&gt; model = nn.Linear(4, 3) 
+<a name="l51"><span class="ln">51   </span></a>        &gt;&gt;&gt; batched_input = torch.randn(5, 4)  # batch size of 5 
+<a name="l52"><span class="ln">52   </span></a>        &gt;&gt;&gt; res = call_for_per_sample_grads(model, 5, loss_reduction=&quot;mean&quot;)( 
+<a name="l53"><span class="ln">53   </span></a>        ...     batched_input 
+<a name="l54"><span class="ln">54   </span></a>        ... ).mean() 
+<a name="l55"><span class="ln">55   </span></a>        &gt;&gt;&gt; res.backward() 
+<a name="l56"><span class="ln">56   </span></a> 
+<a name="l57"><span class="ln">57   </span></a>    Note:: 
+<a name="l58"><span class="ln">58   </span></a>        Does not work with any `nn.RNN`, including `nn.GRU` or `nn.LSTM`. Please use custom 
+<a name="l59"><span class="ln">59   </span></a>        rewrites that wrap an `nn.Linear` module. See Opacus for an example 
+<a name="l60"><span class="ln">60   </span></a>    &quot;&quot;&quot;</span>
+<a name="l61"><span class="ln">61   </span></a>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s2">def </span><span class="s1">maybe_build_expanded_weight</span><span class="s3">(</span><span class="s1">og_tensor</span><span class="s3">, </span><span class="s1">batch_size</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l63"><span class="ln">63   </span></a>        <span class="s2">if </span><span class="s1">og_tensor</span><span class="s3">.</span><span class="s1">requires_grad</span><span class="s2">:</span>
+<a name="l64"><span class="ln">64   </span></a>            <span class="s2">return </span><span class="s1">ExpandedWeight</span><span class="s3">(</span><span class="s1">og_tensor</span><span class="s3">, </span><span class="s1">batch_size</span><span class="s3">, </span><span class="s1">loss_reduction</span><span class="s3">)</span>
+<a name="l65"><span class="ln">65   </span></a>        <span class="s2">else:</span>
+<a name="l66"><span class="ln">66   </span></a>            <span class="s2">return </span><span class="s1">og_tensor</span>
+<a name="l67"><span class="ln">67   </span></a>
+<a name="l68"><span class="ln">68   </span></a>    <span class="s2">def </span><span class="s1">compute_batch_size</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l69"><span class="ln">69   </span></a>        <span class="s1">args_and_kwargs </span><span class="s2">= </span><span class="s1">pytree</span><span class="s3">.</span><span class="s1">arg_tree_leaves</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l70"><span class="ln">70   </span></a>        <span class="s1">batch_size </span><span class="s2">= None</span>
+<a name="l71"><span class="ln">71   </span></a>        <span class="s2">for </span><span class="s1">arg </span><span class="s2">in </span><span class="s1">args_and_kwargs</span><span class="s2">:</span>
+<a name="l72"><span class="ln">72   </span></a>            <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">Tensor</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l73"><span class="ln">73   </span></a>                <span class="s2">continue</span>
+<a name="l74"><span class="ln">74   </span></a>
+<a name="l75"><span class="ln">75   </span></a>            <span class="s1">arg_batch_size </span><span class="s2">= </span><span class="s1">arg</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">if </span><span class="s1">batch_first </span><span class="s2">else </span><span class="s1">arg</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s5">1</span><span class="s3">]</span>
+<a name="l76"><span class="ln">76   </span></a>            <span class="s2">if </span><span class="s1">batch_size </span><span class="s2">is not None and </span><span class="s1">batch_size </span><span class="s2">!= </span><span class="s1">arg_batch_size</span><span class="s2">:</span>
+<a name="l77"><span class="ln">77   </span></a>                <span class="s2">raise </span><span class="s1">RuntimeError</span><span class="s3">(</span>
+<a name="l78"><span class="ln">78   </span></a>                    <span class="s4">&quot;When computing batch size, found at least one input with batch size &quot;</span>
+<a name="l79"><span class="ln">79   </span></a>                    <span class="s4">f&quot;{</span><span class="s1">batch_size</span><span class="s4">} and one with batch size {</span><span class="s1">arg_batch_size</span><span class="s4">}. Please specify it &quot;</span>
+<a name="l80"><span class="ln">80   </span></a>                    <span class="s4">&quot;explicitly using the batch size kwarg in call_for_per_sample_grads&quot;</span>
+<a name="l81"><span class="ln">81   </span></a>                <span class="s3">)</span>
+<a name="l82"><span class="ln">82   </span></a>            <span class="s1">batch_size </span><span class="s2">= </span><span class="s1">arg_batch_size</span>
+<a name="l83"><span class="ln">83   </span></a>        <span class="s2">if </span><span class="s1">batch_size </span><span class="s2">is None:</span>
+<a name="l84"><span class="ln">84   </span></a>            <span class="s2">raise </span><span class="s1">RuntimeError</span><span class="s3">(</span>
+<a name="l85"><span class="ln">85   </span></a>                <span class="s4">&quot;Unable to find a tensor in the passed args and kwargs. They may not be pytree-able &quot;</span>
+<a name="l86"><span class="ln">86   </span></a>                <span class="s4">&quot;and so ExpandedWeights cannot compute the batch size from the inputs. Please specify &quot;</span>
+<a name="l87"><span class="ln">87   </span></a>                <span class="s4">&quot;it explicitly&quot;</span>
+<a name="l88"><span class="ln">88   </span></a>            <span class="s3">)</span>
+<a name="l89"><span class="ln">89   </span></a>        <span class="s2">return </span><span class="s1">batch_size</span>
+<a name="l90"><span class="ln">90   </span></a>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s2">if </span><span class="s1">loss_reduction </span><span class="s2">not in </span><span class="s3">[</span><span class="s4">&quot;sum&quot;</span><span class="s3">, </span><span class="s4">&quot;mean&quot;</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l92"><span class="ln">92   </span></a>        <span class="s2">raise </span><span class="s1">RuntimeError</span><span class="s3">(</span>
+<a name="l93"><span class="ln">93   </span></a>            <span class="s4">f&quot;Expected loss_reduction argument to be sum or mean, got {</span><span class="s1">loss_reduction</span><span class="s4">}&quot;</span>
+<a name="l94"><span class="ln">94   </span></a>        <span class="s3">)</span>
+<a name="l95"><span class="ln">95   </span></a>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">module</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">nn</span><span class="s3">.</span><span class="s1">Module</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l97"><span class="ln">97   </span></a>        <span class="s2">raise </span><span class="s1">RuntimeError</span><span class="s3">(</span>
+<a name="l98"><span class="ln">98   </span></a>            <span class="s4">f&quot;Module passed must be nn.Module, got {</span><span class="s1">type</span><span class="s3">(</span><span class="s1">module</span><span class="s3">).</span><span class="s1">__name__</span><span class="s4">}&quot;</span>
+<a name="l99"><span class="ln">99   </span></a>        <span class="s3">)</span>
+<a name="l100"><span class="ln">100  </span></a>    <span class="s2">if not </span><span class="s3">(</span><span class="s1">batch_size </span><span class="s2">is None or </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">batch_size</span><span class="s3">, </span><span class="s1">int</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s2">raise </span><span class="s1">RuntimeError</span><span class="s3">(</span>
+<a name="l102"><span class="ln">102  </span></a>            <span class="s4">f&quot;Batch size passed must be None or an integer, got {</span><span class="s1">type</span><span class="s3">(</span><span class="s1">batch_size</span><span class="s3">).</span><span class="s1">__name__</span><span class="s4">}&quot;</span>
+<a name="l103"><span class="ln">103  </span></a>        <span class="s3">)</span>
+<a name="l104"><span class="ln">104  </span></a>    <span class="s2">if </span><span class="s1">batch_size </span><span class="s2">is not None and </span><span class="s1">batch_size </span><span class="s2">&lt; </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s2">raise </span><span class="s1">RuntimeError</span><span class="s3">(</span><span class="s4">f&quot;Batch size must be positive, got {</span><span class="s1">batch_size</span><span class="s4">}&quot;</span><span class="s3">)</span>
+<a name="l106"><span class="ln">106  </span></a>    <span class="s2">for </span><span class="s1">weight </span><span class="s2">in </span><span class="s1">module</span><span class="s3">.</span><span class="s1">parameters</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l107"><span class="ln">107  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">weight</span><span class="s3">, </span><span class="s4">&quot;grad_sample&quot;</span><span class="s3">) </span><span class="s2">and </span><span class="s1">weight</span><span class="s3">.</span><span class="s1">grad_sample </span><span class="s2">is not None:  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l108"><span class="ln">108  </span></a>            <span class="s2">raise </span><span class="s1">RuntimeError</span><span class="s3">(</span>
+<a name="l109"><span class="ln">109  </span></a>                <span class="s4">&quot;Current Expanded Weights accumulates the gradients, which will be incorrect for multiple &quot;</span>
+<a name="l110"><span class="ln">110  </span></a>                <span class="s4">f&quot;calls without clearing gradients. Please clear out the grad_sample parameter of {</span><span class="s1">weight</span><span class="s4">} or &quot;</span>
+<a name="l111"><span class="ln">111  </span></a>                <span class="s4">&quot;post an issue to pytorch/pytorch to prioritize correct behavior&quot;</span>
+<a name="l112"><span class="ln">112  </span></a>            <span class="s3">)</span>
+<a name="l113"><span class="ln">113  </span></a>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s2">@</span><span class="s1">functools</span><span class="s3">.</span><span class="s1">wraps</span><span class="s3">(</span><span class="s1">module</span><span class="s3">.</span><span class="s1">forward</span><span class="s3">)</span>
+<a name="l115"><span class="ln">115  </span></a>    <span class="s2">def </span><span class="s1">wrapper</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l116"><span class="ln">116  </span></a>        <span class="s1">wrapper_batch_size </span><span class="s2">= </span><span class="s1">batch_size</span>
+<a name="l117"><span class="ln">117  </span></a>        <span class="s2">if </span><span class="s1">wrapper_batch_size </span><span class="s2">is None:</span>
+<a name="l118"><span class="ln">118  </span></a>            <span class="s1">wrapper_batch_size </span><span class="s2">= </span><span class="s1">compute_batch_size</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l119"><span class="ln">119  </span></a>
+<a name="l120"><span class="ln">120  </span></a>        <span class="s1">params </span><span class="s2">= </span><span class="s3">{</span>
+<a name="l121"><span class="ln">121  </span></a>            <span class="s1">name</span><span class="s2">: </span><span class="s1">maybe_build_expanded_weight</span><span class="s3">(</span><span class="s1">value</span><span class="s3">, </span><span class="s1">wrapper_batch_size</span><span class="s3">)</span>
+<a name="l122"><span class="ln">122  </span></a>            <span class="s2">for </span><span class="s3">(</span><span class="s1">name</span><span class="s3">, </span><span class="s1">value</span><span class="s3">) </span><span class="s2">in </span><span class="s1">module</span><span class="s3">.</span><span class="s1">named_parameters</span><span class="s3">()</span>
+<a name="l123"><span class="ln">123  </span></a>        <span class="s3">}</span>
+<a name="l124"><span class="ln">124  </span></a>        <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">func</span><span class="s3">.</span><span class="s1">functional_call</span><span class="s3">(</span><span class="s1">module</span><span class="s3">, </span><span class="s1">params</span><span class="s3">, </span><span class="s1">args</span><span class="s3">, </span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l125"><span class="ln">125  </span></a>
+<a name="l126"><span class="ln">126  </span></a>    <span class="s2">return </span><span class="s1">wrapper</span>
+<a name="l127"><span class="ln">127  </span></a></pre>
+</body>
+</html>

@@ -1,0 +1,326 @@
+<html>
+<head>
+<title>_registration.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #0086b3;}
+.s5 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_registration.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot;Module for handling ATen to ONNX functions registration. 
+<a name="l2"><span class="ln">2    </span></a> 
+<a name="l3"><span class="ln">3    </span></a>https://github.com/pytorch/pytorch/blob/6aa5bb1a76dee8112f1a9e7c194c790b5cdc6462/torch/onnx/_internal/fx/registration.py 
+<a name="l4"><span class="ln">4    </span></a>&quot;&quot;&quot;</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s0"># NOTE: Why do we need a different registry than the one in torchlib?</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0"># The registry in torchlib is used to register functions that are already implemented in</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0"># torchlib, and is designed to be a static singleton. It does not take into account custom ops or different</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s0"># opsets etc. The registry implemented for the exporter is designed to be modifiable at</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0"># export time by users, and is designed with dispatching in mind.</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s0"># mypy: allow-untyped-defs</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">from </span><span class="s1">__future__ </span><span class="s2">import </span><span class="s1">annotations</span>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">import </span><span class="s1">dataclasses</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">import </span><span class="s1">importlib</span><span class="s3">.</span><span class="s1">util</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">import </span><span class="s1">logging</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s2">import </span><span class="s1">math</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">import </span><span class="s1">operator</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s2">import </span><span class="s1">types</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s2">from </span><span class="s1">typing </span><span class="s2">import </span><span class="s1">Callable</span><span class="s3">, </span><span class="s1">Literal</span><span class="s3">, </span><span class="s1">Union</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s2">from </span><span class="s1">typing_extensions </span><span class="s2">import </span><span class="s1">TypeAlias</span>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a><span class="s2">import </span><span class="s1">torch</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s2">import </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_ops</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">onnx</span><span class="s3">.</span><span class="s1">_internal</span><span class="s3">.</span><span class="s1">_lazy_import </span><span class="s2">import </span><span class="s1">onnxscript</span><span class="s3">, </span><span class="s1">onnxscript_apis</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">onnx</span><span class="s3">.</span><span class="s1">_internal</span><span class="s3">.</span><span class="s1">exporter </span><span class="s2">import </span><span class="s1">_constants</span><span class="s3">, </span><span class="s1">_schemas</span>
+<a name="l28"><span class="ln">28   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">onnx</span><span class="s3">.</span><span class="s1">_internal</span><span class="s3">.</span><span class="s1">exporter</span><span class="s3">.</span><span class="s1">_torchlib </span><span class="s2">import </span><span class="s1">_torchlib_registry</span>
+<a name="l29"><span class="ln">29   </span></a>
+<a name="l30"><span class="ln">30   </span></a>
+<a name="l31"><span class="ln">31   </span></a><span class="s1">TorchOp</span><span class="s2">: </span><span class="s1">TypeAlias </span><span class="s2">= </span><span class="s1">Union</span><span class="s3">[</span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_ops</span><span class="s3">.</span><span class="s1">OpOverload</span><span class="s3">, </span><span class="s1">types</span><span class="s3">.</span><span class="s1">BuiltinFunctionType</span><span class="s3">, </span><span class="s1">Callable</span><span class="s3">]</span>
+<a name="l32"><span class="ln">32   </span></a>
+<a name="l33"><span class="ln">33   </span></a><span class="s1">logger </span><span class="s2">= </span><span class="s1">logging</span><span class="s3">.</span><span class="s1">getLogger</span><span class="s3">(</span><span class="s1">__name__</span><span class="s3">)</span>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a><span class="s2">@</span><span class="s1">dataclasses</span><span class="s3">.</span><span class="s1">dataclass</span>
+<a name="l37"><span class="ln">37   </span></a><span class="s2">class </span><span class="s1">OnnxDecompMeta</span><span class="s2">:</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s0">&quot;&quot;&quot;A wrapper of onnx-script function with additional metadata. 
+<a name="l39"><span class="ln">39   </span></a> 
+<a name="l40"><span class="ln">40   </span></a>    onnx_function: The onnx-script function from torchlib. 
+<a name="l41"><span class="ln">41   </span></a>    fx_target: The PyTorch node callable target. 
+<a name="l42"><span class="ln">42   </span></a>    signature: The ONNX signature of the function. When None, the signature is inferred. 
+<a name="l43"><span class="ln">43   </span></a>    is_custom: Whether the function is a custom function. 
+<a name="l44"><span class="ln">44   </span></a>    is_complex: Whether the function is a function that handles complex valued inputs. 
+<a name="l45"><span class="ln">45   </span></a>    opset_introduced: 
+<a name="l46"><span class="ln">46   </span></a>        The ONNX opset version in which the function was introduced. 
+<a name="l47"><span class="ln">47   </span></a>        Its specifies the minimum ONNX opset version required to use the function. 
+<a name="l48"><span class="ln">48   </span></a>    device: The device the function is registered to. If None, it is registered to all devices. 
+<a name="l49"><span class="ln">49   </span></a>    skip_signature_inference: Whether to skip signature inference for the function. 
+<a name="l50"><span class="ln">50   </span></a>    &quot;&quot;&quot;</span>
+<a name="l51"><span class="ln">51   </span></a>
+<a name="l52"><span class="ln">52   </span></a>    <span class="s1">onnx_function</span><span class="s2">: </span><span class="s1">Callable</span>
+<a name="l53"><span class="ln">53   </span></a>    <span class="s1">fx_target</span><span class="s2">: </span><span class="s1">TorchOp</span>
+<a name="l54"><span class="ln">54   </span></a>    <span class="s1">signature</span><span class="s2">: </span><span class="s1">_schemas</span><span class="s3">.</span><span class="s1">OpSignature </span><span class="s2">| None</span>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s1">is_custom</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= False</span>
+<a name="l56"><span class="ln">56   </span></a>    <span class="s1">is_complex</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= False</span>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s1">opset_introduced</span><span class="s2">: </span><span class="s1">int </span><span class="s2">= </span><span class="s4">18</span>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s1">device</span><span class="s2">: </span><span class="s1">Literal</span><span class="s3">[</span><span class="s5">&quot;cuda&quot;</span><span class="s3">, </span><span class="s5">&quot;cpu&quot;</span><span class="s3">] </span><span class="s2">| </span><span class="s1">str </span><span class="s2">| None = None  </span><span class="s0"># noqa: PYI051</span>
+<a name="l59"><span class="ln">59   </span></a>    <span class="s1">skip_signature_inference</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= False</span>
+<a name="l60"><span class="ln">60   </span></a>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s2">def </span><span class="s1">__post_init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l62"><span class="ln">62   </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">signature </span><span class="s2">is None and not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">skip_signature_inference</span><span class="s2">:</span>
+<a name="l63"><span class="ln">63   </span></a>            <span class="s2">try:</span>
+<a name="l64"><span class="ln">64   </span></a>                <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">onnx_function</span><span class="s3">, </span><span class="s1">onnxscript</span><span class="s3">.</span><span class="s1">OnnxFunction</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l65"><span class="ln">65   </span></a>                    <span class="s1">signature </span><span class="s2">= </span><span class="s1">_schemas</span><span class="s3">.</span><span class="s1">OpSignature</span><span class="s3">.</span><span class="s1">from_function</span><span class="s3">(  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l66"><span class="ln">66   </span></a>                        <span class="s1">self</span><span class="s3">.</span><span class="s1">onnx_function</span><span class="s3">,</span>
+<a name="l67"><span class="ln">67   </span></a>                        <span class="s1">self</span><span class="s3">.</span><span class="s1">onnx_function</span><span class="s3">.</span><span class="s1">function_ir</span><span class="s3">.</span><span class="s1">domain</span><span class="s3">,</span>
+<a name="l68"><span class="ln">68   </span></a>                        <span class="s1">self</span><span class="s3">.</span><span class="s1">onnx_function</span><span class="s3">.</span><span class="s1">name</span><span class="s3">,</span>
+<a name="l69"><span class="ln">69   </span></a>                        <span class="s1">opset_version</span><span class="s2">=</span><span class="s1">self</span><span class="s3">.</span><span class="s1">onnx_function</span><span class="s3">.</span><span class="s1">opset</span><span class="s3">.</span><span class="s1">version</span><span class="s3">,</span>
+<a name="l70"><span class="ln">70   </span></a>                    <span class="s3">)</span>
+<a name="l71"><span class="ln">71   </span></a>                <span class="s2">else:</span>
+<a name="l72"><span class="ln">72   </span></a>                    <span class="s1">signature </span><span class="s2">= </span><span class="s1">_schemas</span><span class="s3">.</span><span class="s1">OpSignature</span><span class="s3">.</span><span class="s1">from_function</span><span class="s3">(</span>
+<a name="l73"><span class="ln">73   </span></a>                        <span class="s1">self</span><span class="s3">.</span><span class="s1">onnx_function</span><span class="s3">, </span><span class="s5">&quot;__traced&quot;</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">onnx_function</span><span class="s3">.</span><span class="s1">__name__</span>
+<a name="l74"><span class="ln">74   </span></a>                    <span class="s3">)</span>
+<a name="l75"><span class="ln">75   </span></a>            <span class="s2">except </span><span class="s1">Exception </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l76"><span class="ln">76   </span></a>                <span class="s0"># Log an warning if the op is custom. Raise exception for builtin ops.</span>
+<a name="l77"><span class="ln">77   </span></a>                <span class="s2">if not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">is_custom</span><span class="s2">:</span>
+<a name="l78"><span class="ln">78   </span></a>                    <span class="s2">raise</span>
+<a name="l79"><span class="ln">79   </span></a>                <span class="s2">else:</span>
+<a name="l80"><span class="ln">80   </span></a>                    <span class="s0"># When the function is targeting an HOP, for example, it will accept</span>
+<a name="l81"><span class="ln">81   </span></a>                    <span class="s0"># functions as arguments and fail to generate an ONNX signature.</span>
+<a name="l82"><span class="ln">82   </span></a>                    <span class="s0"># In this case we set signature to None and dispatch to this function always.</span>
+<a name="l83"><span class="ln">83   </span></a>                    <span class="s1">logger</span><span class="s3">.</span><span class="s1">warning</span><span class="s3">(</span>
+<a name="l84"><span class="ln">84   </span></a>                        <span class="s5">&quot;Failed to infer the signature for function '%s' because '%s'&quot;</span>
+<a name="l85"><span class="ln">85   </span></a>                        <span class="s5">&quot;All nodes targeting `%s` will be dispatched to this function&quot;</span><span class="s3">,</span>
+<a name="l86"><span class="ln">86   </span></a>                        <span class="s1">self</span><span class="s3">.</span><span class="s1">onnx_function</span><span class="s3">,</span>
+<a name="l87"><span class="ln">87   </span></a>                        <span class="s1">e</span><span class="s3">,</span>
+<a name="l88"><span class="ln">88   </span></a>                        <span class="s1">self</span><span class="s3">.</span><span class="s1">fx_target</span><span class="s3">,</span>
+<a name="l89"><span class="ln">89   </span></a>                    <span class="s3">)</span>
+<a name="l90"><span class="ln">90   </span></a>            <span class="s2">else:</span>
+<a name="l91"><span class="ln">91   </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">signature </span><span class="s2">= </span><span class="s1">signature</span>
+<a name="l92"><span class="ln">92   </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">onnx_function</span><span class="s3">.</span><span class="s1">_pt_onnx_signature </span><span class="s2">= </span><span class="s1">signature  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l93"><span class="ln">93   </span></a>
+<a name="l94"><span class="ln">94   </span></a>
+<a name="l95"><span class="ln">95   </span></a><span class="s2">def </span><span class="s1">_get_overload</span><span class="s3">(</span><span class="s1">qualified_name</span><span class="s2">: </span><span class="s1">str</span><span class="s3">) </span><span class="s1">-&gt; torch</span><span class="s3">.</span><span class="s1">_ops</span><span class="s3">.</span><span class="s1">OpOverload </span><span class="s2">| None:</span>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s0">&quot;&quot;&quot;Obtain the torch op from &lt;namespace&gt;::&lt;op_name&gt;[.&lt;overload&gt;]&quot;&quot;&quot;</span>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s0"># TODO(justinchuby): Handle arbitrary custom ops</span>
+<a name="l98"><span class="ln">98   </span></a>    <span class="s1">namespace</span><span class="s3">, </span><span class="s1">opname_overload </span><span class="s2">= </span><span class="s1">qualified_name</span><span class="s3">.</span><span class="s1">split</span><span class="s3">(</span><span class="s5">&quot;::&quot;</span><span class="s3">)</span>
+<a name="l99"><span class="ln">99   </span></a>    <span class="s1">op_name</span><span class="s3">, </span><span class="s2">*</span><span class="s1">maybe_overload </span><span class="s2">= </span><span class="s1">opname_overload</span><span class="s3">.</span><span class="s1">split</span><span class="s3">(</span><span class="s5">&quot;.&quot;</span><span class="s3">, </span><span class="s4">1</span><span class="s3">)</span>
+<a name="l100"><span class="ln">100  </span></a>    <span class="s2">if </span><span class="s1">namespace </span><span class="s2">== </span><span class="s5">&quot;_operator&quot;</span><span class="s2">:</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s0"># Builtin functions</span>
+<a name="l102"><span class="ln">102  </span></a>        <span class="s2">return </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">operator</span><span class="s3">, </span><span class="s1">op_name</span><span class="s3">)</span>
+<a name="l103"><span class="ln">103  </span></a>    <span class="s2">if </span><span class="s1">namespace </span><span class="s2">== </span><span class="s5">&quot;math&quot;</span><span class="s2">:</span>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s2">return </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">math</span><span class="s3">, </span><span class="s1">op_name</span><span class="s3">)</span>
+<a name="l105"><span class="ln">105  </span></a>    <span class="s2">if </span><span class="s1">namespace </span><span class="s2">== </span><span class="s5">&quot;torchvision&quot;</span><span class="s2">:</span>
+<a name="l106"><span class="ln">106  </span></a>        <span class="s2">if </span><span class="s1">importlib</span><span class="s3">.</span><span class="s1">util</span><span class="s3">.</span><span class="s1">find_spec</span><span class="s3">(</span><span class="s5">&quot;torchvision&quot;</span><span class="s3">) </span><span class="s2">is None:</span>
+<a name="l107"><span class="ln">107  </span></a>            <span class="s1">logger</span><span class="s3">.</span><span class="s1">warning</span><span class="s3">(</span><span class="s5">&quot;torchvision is not installed. Skipping %s&quot;</span><span class="s3">, </span><span class="s1">qualified_name</span><span class="s3">)</span>
+<a name="l108"><span class="ln">108  </span></a>            <span class="s2">return None</span>
+<a name="l109"><span class="ln">109  </span></a>    <span class="s2">try:</span>
+<a name="l110"><span class="ln">110  </span></a>        <span class="s1">op_packet </span><span class="s2">= </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">torch</span><span class="s3">.</span><span class="s1">ops</span><span class="s3">, </span><span class="s1">namespace</span><span class="s3">), </span><span class="s1">op_name</span><span class="s3">)</span>
+<a name="l111"><span class="ln">111  </span></a>        <span class="s2">if </span><span class="s1">maybe_overload</span><span class="s2">:</span>
+<a name="l112"><span class="ln">112  </span></a>            <span class="s1">overload </span><span class="s2">= </span><span class="s1">maybe_overload</span><span class="s3">[</span><span class="s4">0</span><span class="s3">]</span>
+<a name="l113"><span class="ln">113  </span></a>        <span class="s2">elif </span><span class="s5">&quot;default&quot; </span><span class="s2">in </span><span class="s1">op_packet</span><span class="s3">.</span><span class="s1">_overload_names </span><span class="s2">or </span><span class="s5">&quot;&quot; </span><span class="s2">in </span><span class="s1">op_packet</span><span class="s3">.</span><span class="s1">_overload_names</span><span class="s2">:</span>
+<a name="l114"><span class="ln">114  </span></a>            <span class="s0"># Has a default overload</span>
+<a name="l115"><span class="ln">115  </span></a>            <span class="s1">overload </span><span class="s2">= </span><span class="s5">&quot;default&quot;</span>
+<a name="l116"><span class="ln">116  </span></a>        <span class="s2">else:</span>
+<a name="l117"><span class="ln">117  </span></a>            <span class="s1">logger</span><span class="s3">.</span><span class="s1">warning</span><span class="s3">(</span>
+<a name="l118"><span class="ln">118  </span></a>                <span class="s5">&quot;'%s' does not have a 'default' overload. This could be an error in specifying the op name. Ignoring.&quot;</span><span class="s3">,</span>
+<a name="l119"><span class="ln">119  </span></a>                <span class="s1">qualified_name</span><span class="s3">,</span>
+<a name="l120"><span class="ln">120  </span></a>                <span class="s1">stacklevel</span><span class="s2">=</span><span class="s4">1</span><span class="s3">,</span>
+<a name="l121"><span class="ln">121  </span></a>            <span class="s3">)</span>
+<a name="l122"><span class="ln">122  </span></a>            <span class="s2">return None</span>
+<a name="l123"><span class="ln">123  </span></a>
+<a name="l124"><span class="ln">124  </span></a>        <span class="s2">return </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">op_packet</span><span class="s3">, </span><span class="s1">overload</span><span class="s3">)  </span><span class="s0"># type: ignore[call-overload]</span>
+<a name="l125"><span class="ln">125  </span></a>    <span class="s2">except </span><span class="s1">AttributeError</span><span class="s2">:</span>
+<a name="l126"><span class="ln">126  </span></a>        <span class="s2">if </span><span class="s1">qualified_name</span><span class="s3">.</span><span class="s1">endswith</span><span class="s3">(</span><span class="s5">&quot;getitem&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l127"><span class="ln">127  </span></a>            <span class="s0"># This is a special case where we registered the function incorrectly,</span>
+<a name="l128"><span class="ln">128  </span></a>            <span class="s0"># but for BC reasons (pt&lt;=2.4) we need to keep it.</span>
+<a name="l129"><span class="ln">129  </span></a>            <span class="s2">return None</span>
+<a name="l130"><span class="ln">130  </span></a>        <span class="s1">logger</span><span class="s3">.</span><span class="s1">info</span><span class="s3">(</span><span class="s5">&quot;'%s' is not found in this version of PyTorch.&quot;</span><span class="s3">, </span><span class="s1">qualified_name</span><span class="s3">)</span>
+<a name="l131"><span class="ln">131  </span></a>        <span class="s2">return None</span>
+<a name="l132"><span class="ln">132  </span></a>    <span class="s2">except </span><span class="s1">Exception</span><span class="s2">:</span>
+<a name="l133"><span class="ln">133  </span></a>        <span class="s1">logger</span><span class="s3">.</span><span class="s1">exception</span><span class="s3">(</span><span class="s5">&quot;Failed to find torch op '%s'&quot;</span><span class="s3">, </span><span class="s1">qualified_name</span><span class="s3">)</span>
+<a name="l134"><span class="ln">134  </span></a>        <span class="s2">return None</span>
+<a name="l135"><span class="ln">135  </span></a>
+<a name="l136"><span class="ln">136  </span></a>
+<a name="l137"><span class="ln">137  </span></a><span class="s2">class </span><span class="s1">ONNXRegistry</span><span class="s2">:</span>
+<a name="l138"><span class="ln">138  </span></a>    <span class="s0">&quot;&quot;&quot;Registry for ONNX functions. 
+<a name="l139"><span class="ln">139  </span></a> 
+<a name="l140"><span class="ln">140  </span></a>    The registry maintains a mapping from qualified names to symbolic functions under a 
+<a name="l141"><span class="ln">141  </span></a>    fixed opset version. It supports registering custom onnx-script functions and for 
+<a name="l142"><span class="ln">142  </span></a>    dispatcher to dispatch calls to the appropriate function. 
+<a name="l143"><span class="ln">143  </span></a> 
+<a name="l144"><span class="ln">144  </span></a>    &quot;&quot;&quot;</span>
+<a name="l145"><span class="ln">145  </span></a>
+<a name="l146"><span class="ln">146  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s0">&quot;&quot;&quot;Initializes the registry&quot;&quot;&quot;</span>
+<a name="l148"><span class="ln">148  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_opset_version </span><span class="s2">= </span><span class="s1">_constants</span><span class="s3">.</span><span class="s1">TORCHLIB_OPSET</span>
+<a name="l149"><span class="ln">149  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">functions</span><span class="s2">: </span><span class="s1">dict</span><span class="s3">[</span><span class="s1">TorchOp </span><span class="s2">| </span><span class="s1">str</span><span class="s3">, </span><span class="s1">list</span><span class="s3">[</span><span class="s1">OnnxDecompMeta</span><span class="s3">]] </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l150"><span class="ln">150  </span></a>
+<a name="l151"><span class="ln">151  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l152"><span class="ln">152  </span></a>    <span class="s2">def </span><span class="s1">opset_version</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; int</span><span class="s2">:</span>
+<a name="l153"><span class="ln">153  </span></a>        <span class="s0">&quot;&quot;&quot;The ONNX opset version the exporter should target.&quot;&quot;&quot;</span>
+<a name="l154"><span class="ln">154  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_opset_version</span>
+<a name="l155"><span class="ln">155  </span></a>
+<a name="l156"><span class="ln">156  </span></a>    <span class="s2">@</span><span class="s1">classmethod</span>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s2">def </span><span class="s1">from_torchlib</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s1">opset_version</span><span class="s2">=</span><span class="s1">_constants</span><span class="s3">.</span><span class="s1">TORCHLIB_OPSET</span><span class="s3">) </span><span class="s1">-&gt; ONNXRegistry</span><span class="s2">:</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s0">&quot;&quot;&quot;Populates the registry with ATen functions from torchlib. 
+<a name="l159"><span class="ln">159  </span></a> 
+<a name="l160"><span class="ln">160  </span></a>        Args: 
+<a name="l161"><span class="ln">161  </span></a>            torchlib_registry: The torchlib registry to use for populating the registry. 
+<a name="l162"><span class="ln">162  </span></a>        &quot;&quot;&quot;</span>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s1">registry </span><span class="s2">= </span><span class="s1">cls</span><span class="s3">()</span>
+<a name="l164"><span class="ln">164  </span></a>        <span class="s1">registry</span><span class="s3">.</span><span class="s1">_opset_version </span><span class="s2">= </span><span class="s1">opset_version</span>
+<a name="l165"><span class="ln">165  </span></a>        <span class="s2">for </span><span class="s1">meta </span><span class="s2">in </span><span class="s1">_torchlib_registry</span><span class="s3">.</span><span class="s1">get_torchlib_ops</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l166"><span class="ln">166  </span></a>            <span class="s1">registry</span><span class="s3">.</span><span class="s1">_register</span><span class="s3">(</span><span class="s1">meta</span><span class="s3">.</span><span class="s1">fx_target</span><span class="s3">, </span><span class="s1">meta</span><span class="s3">)</span>
+<a name="l167"><span class="ln">167  </span></a>
+<a name="l168"><span class="ln">168  </span></a>        <span class="s0"># TODO(justinchuby): Remove this once torchlib is migrated to PyTorch</span>
+<a name="l169"><span class="ln">169  </span></a>        <span class="s1">torchlib_ops </span><span class="s2">= </span><span class="s1">onnxscript_apis</span><span class="s3">.</span><span class="s1">get_torchlib_ops</span><span class="s3">()</span>
+<a name="l170"><span class="ln">170  </span></a>
+<a name="l171"><span class="ln">171  </span></a>        <span class="s2">for </span><span class="s1">torchlib_meta </span><span class="s2">in </span><span class="s1">torchlib_ops</span><span class="s2">:</span>
+<a name="l172"><span class="ln">172  </span></a>            <span class="s1">qualified_name </span><span class="s2">= </span><span class="s1">torchlib_meta</span><span class="s3">.</span><span class="s1">qualified_name</span>
+<a name="l173"><span class="ln">173  </span></a>            <span class="s1">overload_func </span><span class="s2">= </span><span class="s1">torchlib_meta</span><span class="s3">.</span><span class="s1">function</span>
+<a name="l174"><span class="ln">174  </span></a>            <span class="s2">try:</span>
+<a name="l175"><span class="ln">175  </span></a>                <span class="s0"># NOTE: This is heavily guarded with try-except because we don't want</span>
+<a name="l176"><span class="ln">176  </span></a>                <span class="s0"># to fail the entire registry population if one function fails.</span>
+<a name="l177"><span class="ln">177  </span></a>                <span class="s1">target </span><span class="s2">= </span><span class="s1">_get_overload</span><span class="s3">(</span><span class="s1">qualified_name</span><span class="s3">)</span>
+<a name="l178"><span class="ln">178  </span></a>                <span class="s2">if </span><span class="s1">target </span><span class="s2">is None:</span>
+<a name="l179"><span class="ln">179  </span></a>                    <span class="s2">continue</span>
+<a name="l180"><span class="ln">180  </span></a>
+<a name="l181"><span class="ln">181  </span></a>                <span class="s1">meta </span><span class="s2">= </span><span class="s1">OnnxDecompMeta</span><span class="s3">(</span>
+<a name="l182"><span class="ln">182  </span></a>                    <span class="s1">onnx_function</span><span class="s2">=</span><span class="s1">overload_func</span><span class="s3">,</span>
+<a name="l183"><span class="ln">183  </span></a>                    <span class="s1">fx_target</span><span class="s2">=</span><span class="s1">target</span><span class="s3">,</span>
+<a name="l184"><span class="ln">184  </span></a>                    <span class="s1">signature</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l185"><span class="ln">185  </span></a>                    <span class="s1">is_custom</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l186"><span class="ln">186  </span></a>                    <span class="s1">is_complex</span><span class="s2">=</span><span class="s1">torchlib_meta</span><span class="s3">.</span><span class="s1">is_complex</span><span class="s3">,</span>
+<a name="l187"><span class="ln">187  </span></a>                <span class="s3">)</span>
+<a name="l188"><span class="ln">188  </span></a>                <span class="s1">registry</span><span class="s3">.</span><span class="s1">_register</span><span class="s3">(</span><span class="s1">target</span><span class="s3">, </span><span class="s1">meta</span><span class="s3">)</span>
+<a name="l189"><span class="ln">189  </span></a>            <span class="s2">except </span><span class="s1">Exception</span><span class="s2">:</span>
+<a name="l190"><span class="ln">190  </span></a>                <span class="s1">logger</span><span class="s3">.</span><span class="s1">exception</span><span class="s3">(</span><span class="s5">&quot;Failed to register '%s'. Skipped&quot;</span><span class="s3">, </span><span class="s1">qualified_name</span><span class="s3">)</span>
+<a name="l191"><span class="ln">191  </span></a>                <span class="s2">continue</span>
+<a name="l192"><span class="ln">192  </span></a>
+<a name="l193"><span class="ln">193  </span></a>        <span class="s1">registry</span><span class="s3">.</span><span class="s1">_cleanup_registry_based_on_opset_version</span><span class="s3">()</span>
+<a name="l194"><span class="ln">194  </span></a>        <span class="s2">return </span><span class="s1">registry</span>
+<a name="l195"><span class="ln">195  </span></a>
+<a name="l196"><span class="ln">196  </span></a>    <span class="s2">def </span><span class="s1">_register</span><span class="s3">(</span>
+<a name="l197"><span class="ln">197  </span></a>        <span class="s1">self</span><span class="s3">,</span>
+<a name="l198"><span class="ln">198  </span></a>        <span class="s1">target</span><span class="s2">: </span><span class="s1">TorchOp</span><span class="s3">,</span>
+<a name="l199"><span class="ln">199  </span></a>        <span class="s1">onnx_decomposition</span><span class="s2">: </span><span class="s1">OnnxDecompMeta</span><span class="s3">,</span>
+<a name="l200"><span class="ln">200  </span></a>    <span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l201"><span class="ln">201  </span></a>        <span class="s0">&quot;&quot;&quot;Registers a OnnxDecompMeta to an operator. 
+<a name="l202"><span class="ln">202  </span></a> 
+<a name="l203"><span class="ln">203  </span></a>        Args: 
+<a name="l204"><span class="ln">204  </span></a>            target: The PyTorch node callable target. 
+<a name="l205"><span class="ln">205  </span></a>            onnx_decomposition: The OnnxDecompMeta to register. 
+<a name="l206"><span class="ln">206  </span></a>        &quot;&quot;&quot;</span>
+<a name="l207"><span class="ln">207  </span></a>        <span class="s1">target_or_name</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">TorchOp</span>
+<a name="l208"><span class="ln">208  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">target</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_ops</span><span class="s3">.</span><span class="s1">OpOverload</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l209"><span class="ln">209  </span></a>            <span class="s0"># Get the qualified name of the aten op because torch._ops.OpOverload lookup in</span>
+<a name="l210"><span class="ln">210  </span></a>            <span class="s0"># a dictionary is unreliable for some reason.</span>
+<a name="l211"><span class="ln">211  </span></a>            <span class="s1">target_or_name </span><span class="s2">= </span><span class="s1">target</span><span class="s3">.</span><span class="s1">name</span><span class="s3">()</span>
+<a name="l212"><span class="ln">212  </span></a>        <span class="s2">else:</span>
+<a name="l213"><span class="ln">213  </span></a>            <span class="s1">target_or_name </span><span class="s2">= </span><span class="s1">target</span>
+<a name="l214"><span class="ln">214  </span></a>        <span class="s2">if </span><span class="s1">onnx_decomposition</span><span class="s3">.</span><span class="s1">is_custom</span><span class="s2">:</span>
+<a name="l215"><span class="ln">215  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">functions</span><span class="s3">.</span><span class="s1">setdefault</span><span class="s3">(</span><span class="s1">target_or_name</span><span class="s3">, []).</span><span class="s1">insert</span><span class="s3">(</span><span class="s4">0</span><span class="s3">, </span><span class="s1">onnx_decomposition</span><span class="s3">)</span>
+<a name="l216"><span class="ln">216  </span></a>        <span class="s2">else:</span>
+<a name="l217"><span class="ln">217  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">functions</span><span class="s3">.</span><span class="s1">setdefault</span><span class="s3">(</span><span class="s1">target_or_name</span><span class="s3">, []).</span><span class="s1">append</span><span class="s3">(</span><span class="s1">onnx_decomposition</span><span class="s3">)</span>
+<a name="l218"><span class="ln">218  </span></a>
+<a name="l219"><span class="ln">219  </span></a>    <span class="s2">def </span><span class="s1">register_op</span><span class="s3">(</span>
+<a name="l220"><span class="ln">220  </span></a>        <span class="s1">self</span><span class="s3">,</span>
+<a name="l221"><span class="ln">221  </span></a>        <span class="s1">target</span><span class="s2">: </span><span class="s1">TorchOp</span><span class="s3">,</span>
+<a name="l222"><span class="ln">222  </span></a>        <span class="s1">function</span><span class="s2">: </span><span class="s1">Callable</span><span class="s3">,</span>
+<a name="l223"><span class="ln">223  </span></a>        <span class="s1">is_complex</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= False</span><span class="s3">,</span>
+<a name="l224"><span class="ln">224  </span></a>    <span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l225"><span class="ln">225  </span></a>        <span class="s0">&quot;&quot;&quot;Registers a custom operator: torch.ops.&lt;namespace&gt;.&lt;op_name&gt;.&lt;overload&gt;. 
+<a name="l226"><span class="ln">226  </span></a> 
+<a name="l227"><span class="ln">227  </span></a>        Args: 
+<a name="l228"><span class="ln">228  </span></a>            target: The PyTorch node callable target. 
+<a name="l229"><span class="ln">229  </span></a>            function: The onnx-script function to register. 
+<a name="l230"><span class="ln">230  </span></a>            is_complex: Whether the function is a function that handles complex valued inputs. 
+<a name="l231"><span class="ln">231  </span></a>        &quot;&quot;&quot;</span>
+<a name="l232"><span class="ln">232  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">target</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_ops</span><span class="s3">.</span><span class="s1">OpOverloadPacket</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l233"><span class="ln">233  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span>
+<a name="l234"><span class="ln">234  </span></a>                <span class="s5">f&quot;Target '{</span><span class="s1">target</span><span class="s5">}' should be provided as an OpOverload instead of an &quot;</span>
+<a name="l235"><span class="ln">235  </span></a>                <span class="s5">&quot;OpOverloadPacket. You can get the default overload with &quot;</span>
+<a name="l236"><span class="ln">236  </span></a>                <span class="s5">&quot;&lt;op&gt;.default&quot;</span>
+<a name="l237"><span class="ln">237  </span></a>            <span class="s3">)</span>
+<a name="l238"><span class="ln">238  </span></a>
+<a name="l239"><span class="ln">239  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_register</span><span class="s3">(</span>
+<a name="l240"><span class="ln">240  </span></a>            <span class="s1">target</span><span class="s3">,</span>
+<a name="l241"><span class="ln">241  </span></a>            <span class="s1">OnnxDecompMeta</span><span class="s3">(</span>
+<a name="l242"><span class="ln">242  </span></a>                <span class="s1">onnx_function</span><span class="s2">=</span><span class="s1">function</span><span class="s3">,</span>
+<a name="l243"><span class="ln">243  </span></a>                <span class="s1">fx_target</span><span class="s2">=</span><span class="s1">target</span><span class="s3">,</span>
+<a name="l244"><span class="ln">244  </span></a>                <span class="s1">signature</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l245"><span class="ln">245  </span></a>                <span class="s1">is_custom</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l246"><span class="ln">246  </span></a>                <span class="s1">is_complex</span><span class="s2">=</span><span class="s1">is_complex</span><span class="s3">,</span>
+<a name="l247"><span class="ln">247  </span></a>            <span class="s3">),</span>
+<a name="l248"><span class="ln">248  </span></a>        <span class="s3">)</span>
+<a name="l249"><span class="ln">249  </span></a>
+<a name="l250"><span class="ln">250  </span></a>    <span class="s2">def </span><span class="s1">get_decomps</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">target</span><span class="s2">: </span><span class="s1">TorchOp</span><span class="s3">) </span><span class="s1">-&gt; list</span><span class="s3">[</span><span class="s1">OnnxDecompMeta</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l251"><span class="ln">251  </span></a>        <span class="s0">&quot;&quot;&quot;Returns a list of OnnxDecompMeta for the given op: torch.ops.&lt;namespace&gt;.&lt;op_name&gt;.&lt;overload&gt;. 
+<a name="l252"><span class="ln">252  </span></a> 
+<a name="l253"><span class="ln">253  </span></a>        The list is ordered by the time of registration. The custom operators should come 
+<a name="l254"><span class="ln">254  </span></a>        first in the list. 
+<a name="l255"><span class="ln">255  </span></a> 
+<a name="l256"><span class="ln">256  </span></a>        Args: 
+<a name="l257"><span class="ln">257  </span></a>            target: The PyTorch node callable target. 
+<a name="l258"><span class="ln">258  </span></a>        Returns: 
+<a name="l259"><span class="ln">259  </span></a>            A list of OnnxDecompMeta corresponding to the given name, or None if 
+<a name="l260"><span class="ln">260  </span></a>            the name is not in the registry. 
+<a name="l261"><span class="ln">261  </span></a>        &quot;&quot;&quot;</span>
+<a name="l262"><span class="ln">262  </span></a>        <span class="s1">target_or_name</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">TorchOp</span>
+<a name="l263"><span class="ln">263  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">target</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_ops</span><span class="s3">.</span><span class="s1">OpOverload</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l264"><span class="ln">264  </span></a>            <span class="s0"># Get the qualified name of the aten op because torch._ops.OpOverload lookup in</span>
+<a name="l265"><span class="ln">265  </span></a>            <span class="s0"># a dictionary is unreliable for some reason.</span>
+<a name="l266"><span class="ln">266  </span></a>            <span class="s1">target_or_name </span><span class="s2">= </span><span class="s1">target</span><span class="s3">.</span><span class="s1">name</span><span class="s3">()</span>
+<a name="l267"><span class="ln">267  </span></a>        <span class="s2">else:</span>
+<a name="l268"><span class="ln">268  </span></a>            <span class="s1">target_or_name </span><span class="s2">= </span><span class="s1">target</span>
+<a name="l269"><span class="ln">269  </span></a>        <span class="s1">decomps </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">functions</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">target_or_name</span><span class="s3">, [])</span>
+<a name="l270"><span class="ln">270  </span></a>        <span class="s2">return </span><span class="s1">sorted</span><span class="s3">(</span><span class="s1">decomps</span><span class="s3">, </span><span class="s1">key</span><span class="s2">=lambda </span><span class="s1">x</span><span class="s2">: </span><span class="s1">x</span><span class="s3">.</span><span class="s1">is_custom</span><span class="s3">, </span><span class="s1">reverse</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l271"><span class="ln">271  </span></a>
+<a name="l272"><span class="ln">272  </span></a>    <span class="s2">def </span><span class="s1">is_registered</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">target</span><span class="s2">: </span><span class="s1">TorchOp</span><span class="s3">) </span><span class="s1">-&gt; bool</span><span class="s2">:</span>
+<a name="l273"><span class="ln">273  </span></a>        <span class="s0">&quot;&quot;&quot;Returns whether the given op is registered: torch.ops.&lt;namespace&gt;.&lt;op_name&gt;.&lt;overload&gt;. 
+<a name="l274"><span class="ln">274  </span></a> 
+<a name="l275"><span class="ln">275  </span></a>        Args: 
+<a name="l276"><span class="ln">276  </span></a>            target: The PyTorch node callable target. 
+<a name="l277"><span class="ln">277  </span></a> 
+<a name="l278"><span class="ln">278  </span></a>        Returns: 
+<a name="l279"><span class="ln">279  </span></a>            True if the given op is registered, otherwise False. 
+<a name="l280"><span class="ln">280  </span></a>        &quot;&quot;&quot;</span>
+<a name="l281"><span class="ln">281  </span></a>        <span class="s2">return </span><span class="s1">bool</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">get_decomps</span><span class="s3">(</span><span class="s1">target</span><span class="s3">))</span>
+<a name="l282"><span class="ln">282  </span></a>
+<a name="l283"><span class="ln">283  </span></a>    <span class="s2">def </span><span class="s1">_cleanup_registry_based_on_opset_version</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l284"><span class="ln">284  </span></a>        <span class="s0">&quot;&quot;&quot;Pick the implementation with the highest opset version valid until the current opset version.&quot;&quot;&quot;</span>
+<a name="l285"><span class="ln">285  </span></a>        <span class="s1">cleaned_functions </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l286"><span class="ln">286  </span></a>        <span class="s2">for </span><span class="s1">target_or_name</span><span class="s3">, </span><span class="s1">decomps </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">functions</span><span class="s3">.</span><span class="s1">items</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l287"><span class="ln">287  </span></a>            <span class="s0"># Filter decompositions to only include those with opset_introduced &lt;= opset_version</span>
+<a name="l288"><span class="ln">288  </span></a>            <span class="s1">decomps </span><span class="s2">= </span><span class="s3">[</span><span class="s1">d </span><span class="s2">for </span><span class="s1">d </span><span class="s2">in </span><span class="s1">decomps </span><span class="s2">if </span><span class="s1">d</span><span class="s3">.</span><span class="s1">opset_introduced </span><span class="s2">&lt;= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">opset_version</span><span class="s3">]</span>
+<a name="l289"><span class="ln">289  </span></a>
+<a name="l290"><span class="ln">290  </span></a>            <span class="s0"># Keep only the decomposition with the highest opset_introduced</span>
+<a name="l291"><span class="ln">291  </span></a>            <span class="s2">if </span><span class="s1">decomps</span><span class="s2">:</span>
+<a name="l292"><span class="ln">292  </span></a>                <span class="s0"># Find the maximum opset_introduced</span>
+<a name="l293"><span class="ln">293  </span></a>                <span class="s1">max_opset </span><span class="s2">= </span><span class="s1">max</span><span class="s3">(</span><span class="s1">d</span><span class="s3">.</span><span class="s1">opset_introduced </span><span class="s2">for </span><span class="s1">d </span><span class="s2">in </span><span class="s1">decomps</span><span class="s3">)</span>
+<a name="l294"><span class="ln">294  </span></a>
+<a name="l295"><span class="ln">295  </span></a>                <span class="s0"># Keep all decompositions with the maximum opset_introduced</span>
+<a name="l296"><span class="ln">296  </span></a>                <span class="s1">cleaned_functions</span><span class="s3">[</span><span class="s1">target_or_name</span><span class="s3">] </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l297"><span class="ln">297  </span></a>                    <span class="s1">d </span><span class="s2">for </span><span class="s1">d </span><span class="s2">in </span><span class="s1">decomps </span><span class="s2">if </span><span class="s1">d</span><span class="s3">.</span><span class="s1">opset_introduced </span><span class="s2">== </span><span class="s1">max_opset</span>
+<a name="l298"><span class="ln">298  </span></a>                <span class="s3">]</span>
+<a name="l299"><span class="ln">299  </span></a>
+<a name="l300"><span class="ln">300  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">functions </span><span class="s2">= </span><span class="s1">cleaned_functions</span>
+<a name="l301"><span class="ln">301  </span></a>
+<a name="l302"><span class="ln">302  </span></a>    <span class="s2">def </span><span class="s1">__repr__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; str</span><span class="s2">:</span>
+<a name="l303"><span class="ln">303  </span></a>        <span class="s2">return </span><span class="s5">f&quot;{</span><span class="s1">self</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">.</span><span class="s1">__name__</span><span class="s5">}(functions={</span><span class="s1">self</span><span class="s3">.</span><span class="s1">functions</span><span class="s5">})&quot;</span>
+<a name="l304"><span class="ln">304  </span></a></pre>
+</body>
+</html>

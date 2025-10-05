@@ -1,0 +1,699 @@
+<html>
+<head>
+<title>galois_resolvents.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #0086b3;}
+.s5 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+galois_resolvents.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">r&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>Galois resolvents 
+<a name="l3"><span class="ln">3    </span></a> 
+<a name="l4"><span class="ln">4    </span></a>Each of the functions in ``sympy.polys.numberfields.galoisgroups`` that 
+<a name="l5"><span class="ln">5    </span></a>computes Galois groups for a particular degree $n$ uses resolvents. Given the 
+<a name="l6"><span class="ln">6    </span></a>polynomial $T$ whose Galois group is to be computed, a resolvent is a 
+<a name="l7"><span class="ln">7    </span></a>polynomial $R$ whose roots are defined as functions of the roots of $T$. 
+<a name="l8"><span class="ln">8    </span></a> 
+<a name="l9"><span class="ln">9    </span></a>One way to compute the coefficients of $R$ is by approximating the roots of $T$ 
+<a name="l10"><span class="ln">10   </span></a>to sufficient precision. This module defines a :py:class:`~.Resolvent` class 
+<a name="l11"><span class="ln">11   </span></a>that handles this job, determining the necessary precision, and computing $R$. 
+<a name="l12"><span class="ln">12   </span></a> 
+<a name="l13"><span class="ln">13   </span></a>In some cases, the coefficients of $R$ are symmetric in the roots of $T$, 
+<a name="l14"><span class="ln">14   </span></a>meaning they are equal to fixed functions of the coefficients of $T$. Therefore 
+<a name="l15"><span class="ln">15   </span></a>another approach is to compute these functions once and for all, and record 
+<a name="l16"><span class="ln">16   </span></a>them in a lookup table. This module defines code that can compute such tables. 
+<a name="l17"><span class="ln">17   </span></a>The tables for polynomials $T$ of degrees 4 through 6, produced by this code, 
+<a name="l18"><span class="ln">18   </span></a>are recorded in the resolvent_lookup.py module. 
+<a name="l19"><span class="ln">19   </span></a> 
+<a name="l20"><span class="ln">20   </span></a>&quot;&quot;&quot;</span>
+<a name="l21"><span class="ln">21   </span></a>
+<a name="l22"><span class="ln">22   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">evalf </span><span class="s2">import </span><span class="s3">(</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s1">evalf</span><span class="s3">, </span><span class="s1">fastlog</span><span class="s3">, </span><span class="s1">_evalf_with_bounded_error</span><span class="s3">, </span><span class="s1">quad_to_mpmath</span><span class="s3">,</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s3">)</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">symbol </span><span class="s2">import </span><span class="s1">symbols</span><span class="s3">, </span><span class="s1">Dummy</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">densetools </span><span class="s2">import </span><span class="s1">dup_eval</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">domains </span><span class="s2">import </span><span class="s1">ZZ</span>
+<a name="l28"><span class="ln">28   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">orderings </span><span class="s2">import </span><span class="s1">lex</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">polyroots </span><span class="s2">import </span><span class="s1">preprocess_roots</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">polytools </span><span class="s2">import </span><span class="s1">Poly</span>
+<a name="l31"><span class="ln">31   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">rings </span><span class="s2">import </span><span class="s1">xring</span>
+<a name="l32"><span class="ln">32   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">specialpolys </span><span class="s2">import </span><span class="s1">symmetric_poly</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities</span><span class="s3">.</span><span class="s1">lambdify </span><span class="s2">import </span><span class="s1">lambdify</span>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a><span class="s2">from </span><span class="s1">mpmath </span><span class="s2">import </span><span class="s1">MPContext</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s2">from </span><span class="s1">mpmath</span><span class="s3">.</span><span class="s1">libmp</span><span class="s3">.</span><span class="s1">libmpf </span><span class="s2">import </span><span class="s1">prec_to_dps</span>
+<a name="l37"><span class="ln">37   </span></a>
+<a name="l38"><span class="ln">38   </span></a>
+<a name="l39"><span class="ln">39   </span></a><span class="s2">class </span><span class="s1">GaloisGroupException</span><span class="s3">(</span><span class="s1">Exception</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s3">...</span>
+<a name="l41"><span class="ln">41   </span></a>
+<a name="l42"><span class="ln">42   </span></a>
+<a name="l43"><span class="ln">43   </span></a><span class="s2">class </span><span class="s1">ResolventException</span><span class="s3">(</span><span class="s1">GaloisGroupException</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s3">...</span>
+<a name="l45"><span class="ln">45   </span></a>
+<a name="l46"><span class="ln">46   </span></a>
+<a name="l47"><span class="ln">47   </span></a><span class="s2">class </span><span class="s1">Resolvent</span><span class="s2">:</span>
+<a name="l48"><span class="ln">48   </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l49"><span class="ln">49   </span></a>    If $G$ is a subgroup of the symmetric group $S_n$, 
+<a name="l50"><span class="ln">50   </span></a>    $F$ a multivariate polynomial in $\mathbb{Z}[X_1, \ldots, X_n]$, 
+<a name="l51"><span class="ln">51   </span></a>    $H$ the stabilizer of $F$ in $G$ (i.e. the permutations $\sigma$ such that 
+<a name="l52"><span class="ln">52   </span></a>    $F(X_{\sigma(1)}, \ldots, X_{\sigma(n)}) = F(X_1, \ldots, X_n)$), and $s$ 
+<a name="l53"><span class="ln">53   </span></a>    a set of left coset representatives of $H$ in $G$, then the resolvent 
+<a name="l54"><span class="ln">54   </span></a>    polynomial $R(Y)$ is the product over $\sigma \in s$ of 
+<a name="l55"><span class="ln">55   </span></a>    $Y - F(X_{\sigma(1)}, \ldots, X_{\sigma(n)})$. 
+<a name="l56"><span class="ln">56   </span></a> 
+<a name="l57"><span class="ln">57   </span></a>    For example, consider the resolvent for the form 
+<a name="l58"><span class="ln">58   </span></a>    $$F = X_0 X_2 + X_1 X_3$$ 
+<a name="l59"><span class="ln">59   </span></a>    and the group $G = S_4$. In this case, the stabilizer $H$ is the dihedral 
+<a name="l60"><span class="ln">60   </span></a>    group $D4 = &lt; (0123), (02) &gt;$, and a set of representatives of $G/H$ is 
+<a name="l61"><span class="ln">61   </span></a>    $\{I, (01), (03)\}$. The resolvent can be constructed as follows: 
+<a name="l62"><span class="ln">62   </span></a> 
+<a name="l63"><span class="ln">63   </span></a>    &gt;&gt;&gt; from sympy.combinatorics.permutations import Permutation 
+<a name="l64"><span class="ln">64   </span></a>    &gt;&gt;&gt; from sympy.core.symbol import symbols 
+<a name="l65"><span class="ln">65   </span></a>    &gt;&gt;&gt; from sympy.polys.numberfields.galoisgroups import Resolvent 
+<a name="l66"><span class="ln">66   </span></a>    &gt;&gt;&gt; X = symbols('X0 X1 X2 X3') 
+<a name="l67"><span class="ln">67   </span></a>    &gt;&gt;&gt; F = X[0]*X[2] + X[1]*X[3] 
+<a name="l68"><span class="ln">68   </span></a>    &gt;&gt;&gt; s = [Permutation([0, 1, 2, 3]), Permutation([1, 0, 2, 3]), 
+<a name="l69"><span class="ln">69   </span></a>    ... Permutation([3, 1, 2, 0])] 
+<a name="l70"><span class="ln">70   </span></a>    &gt;&gt;&gt; R = Resolvent(F, X, s) 
+<a name="l71"><span class="ln">71   </span></a> 
+<a name="l72"><span class="ln">72   </span></a>    This resolvent has three roots, which are the conjugates of ``F`` under the 
+<a name="l73"><span class="ln">73   </span></a>    three permutations in ``s``: 
+<a name="l74"><span class="ln">74   </span></a> 
+<a name="l75"><span class="ln">75   </span></a>    &gt;&gt;&gt; R.root_lambdas[0](*X) 
+<a name="l76"><span class="ln">76   </span></a>    X0*X2 + X1*X3 
+<a name="l77"><span class="ln">77   </span></a>    &gt;&gt;&gt; R.root_lambdas[1](*X) 
+<a name="l78"><span class="ln">78   </span></a>    X0*X3 + X1*X2 
+<a name="l79"><span class="ln">79   </span></a>    &gt;&gt;&gt; R.root_lambdas[2](*X) 
+<a name="l80"><span class="ln">80   </span></a>    X0*X1 + X2*X3 
+<a name="l81"><span class="ln">81   </span></a> 
+<a name="l82"><span class="ln">82   </span></a>    Resolvents are useful for computing Galois groups. Given a polynomial $T$ 
+<a name="l83"><span class="ln">83   </span></a>    of degree $n$, we will use a resolvent $R$ where $Gal(T) \leq G \leq S_n$. 
+<a name="l84"><span class="ln">84   </span></a>    We will then want to substitute the roots of $T$ for the variables $X_i$ 
+<a name="l85"><span class="ln">85   </span></a>    in $R$, and study things like the discriminant of $R$, and the way $R$ 
+<a name="l86"><span class="ln">86   </span></a>    factors over $\mathbb{Q}$. 
+<a name="l87"><span class="ln">87   </span></a> 
+<a name="l88"><span class="ln">88   </span></a>    From the symmetry in $R$'s construction, and since $Gal(T) \leq G$, we know 
+<a name="l89"><span class="ln">89   </span></a>    from Galois theory that the coefficients of $R$ must lie in $\mathbb{Z}$. 
+<a name="l90"><span class="ln">90   </span></a>    This allows us to compute the coefficients of $R$ by approximating the 
+<a name="l91"><span class="ln">91   </span></a>    roots of $T$ to sufficient precision, plugging these values in for the 
+<a name="l92"><span class="ln">92   </span></a>    variables $X_i$ in the coefficient expressions of $R$, and then simply 
+<a name="l93"><span class="ln">93   </span></a>    rounding to the nearest integer. 
+<a name="l94"><span class="ln">94   </span></a> 
+<a name="l95"><span class="ln">95   </span></a>    In order to determine a sufficient precision for the roots of $T$, this 
+<a name="l96"><span class="ln">96   </span></a>    ``Resolvent`` class imposes certain requirements on the form ``F``. It 
+<a name="l97"><span class="ln">97   </span></a>    could be possible to design a different ``Resolvent`` class, that made 
+<a name="l98"><span class="ln">98   </span></a>    different precision estimates, and different assumptions about ``F``. 
+<a name="l99"><span class="ln">99   </span></a> 
+<a name="l100"><span class="ln">100  </span></a>    ``F`` must be homogeneous, and all terms must have unit coefficient. 
+<a name="l101"><span class="ln">101  </span></a>    Furthermore, if $r$ is the number of terms in ``F``, and $t$ the total 
+<a name="l102"><span class="ln">102  </span></a>    degree, and if $m$ is the number of conjugates of ``F``, i.e. the number 
+<a name="l103"><span class="ln">103  </span></a>    of permutations in ``s``, then we require that $m &lt; r 2^t$. Again, it is 
+<a name="l104"><span class="ln">104  </span></a>    not impossible to work with forms ``F`` that violate these assumptions, but 
+<a name="l105"><span class="ln">105  </span></a>    this ``Resolvent`` class requires them. 
+<a name="l106"><span class="ln">106  </span></a> 
+<a name="l107"><span class="ln">107  </span></a>    Since determining the integer coefficients of the resolvent for a given 
+<a name="l108"><span class="ln">108  </span></a>    polynomial $T$ is one of the main problems this class solves, we take some 
+<a name="l109"><span class="ln">109  </span></a>    time to explain the precision bounds it uses. 
+<a name="l110"><span class="ln">110  </span></a> 
+<a name="l111"><span class="ln">111  </span></a>    The general problem is: 
+<a name="l112"><span class="ln">112  </span></a>    Given a multivariate polynomial $P \in \mathbb{Z}[X_1, \ldots, X_n]$, and a 
+<a name="l113"><span class="ln">113  </span></a>    bound $M \in \mathbb{R}_+$, compute an $\varepsilon &gt; 0$ such that for any 
+<a name="l114"><span class="ln">114  </span></a>    complex numbers $a_1, \ldots, a_n$ with $|a_i| &lt; M$, if the $a_i$ are 
+<a name="l115"><span class="ln">115  </span></a>    approximated to within an accuracy of $\varepsilon$ by $b_i$, that is, 
+<a name="l116"><span class="ln">116  </span></a>    $|a_i - b_i| &lt; \varepsilon$ for $i = 1, \ldots, n$, then 
+<a name="l117"><span class="ln">117  </span></a>    $|P(a_1, \ldots, a_n) - P(b_1, \ldots, b_n)| &lt; 1/2$. In other words, if it 
+<a name="l118"><span class="ln">118  </span></a>    is known that $P(a_1, \ldots, a_n) = c$ for some $c \in \mathbb{Z}$, then 
+<a name="l119"><span class="ln">119  </span></a>    $P(b_1, \ldots, b_n)$ can be rounded to the nearest integer in order to 
+<a name="l120"><span class="ln">120  </span></a>    determine $c$. 
+<a name="l121"><span class="ln">121  </span></a> 
+<a name="l122"><span class="ln">122  </span></a>    To derive our error bound, consider the monomial $xyz$. Defining 
+<a name="l123"><span class="ln">123  </span></a>    $d_i = b_i - a_i$, our error is 
+<a name="l124"><span class="ln">124  </span></a>    $|(a_1 + d_1)(a_2 + d_2)(a_3 + d_3) - a_1 a_2 a_3|$, which is bounded 
+<a name="l125"><span class="ln">125  </span></a>    above by $|(M + \varepsilon)^3 - M^3|$. Passing to a general monomial of 
+<a name="l126"><span class="ln">126  </span></a>    total degree $t$, this expression is bounded by 
+<a name="l127"><span class="ln">127  </span></a>    $M^{t-1}\varepsilon(t + 2^t\varepsilon/M)$ provided $\varepsilon &lt; M$, 
+<a name="l128"><span class="ln">128  </span></a>    and by $(t+1)M^{t-1}\varepsilon$ provided $\varepsilon &lt; M/2^t$. 
+<a name="l129"><span class="ln">129  </span></a>    But since our goal is to make the error less than $1/2$, we will choose 
+<a name="l130"><span class="ln">130  </span></a>    $\varepsilon &lt; 1/(2(t+1)M^{t-1})$, which implies the condition that 
+<a name="l131"><span class="ln">131  </span></a>    $\varepsilon &lt; M/2^t$, as long as $M \geq 2$. 
+<a name="l132"><span class="ln">132  </span></a> 
+<a name="l133"><span class="ln">133  </span></a>    Passing from the general monomial to the general polynomial is easy, by 
+<a name="l134"><span class="ln">134  </span></a>    scaling and summing error bounds. 
+<a name="l135"><span class="ln">135  </span></a> 
+<a name="l136"><span class="ln">136  </span></a>    In our specific case, we are given a homogeneous polynomial $F$ of 
+<a name="l137"><span class="ln">137  </span></a>    $r$ terms and total degree $t$, all of whose coefficients are $\pm 1$. We 
+<a name="l138"><span class="ln">138  </span></a>    are given the $m$ permutations that make the conjugates of $F$, and 
+<a name="l139"><span class="ln">139  </span></a>    we want to bound the error in the coefficients of the monic polynomial 
+<a name="l140"><span class="ln">140  </span></a>    $R(Y)$ having $F$ and its conjugates as roots (i.e. the resolvent). 
+<a name="l141"><span class="ln">141  </span></a> 
+<a name="l142"><span class="ln">142  </span></a>    For $j$ from $1$ to $m$, the coefficient of $Y^{m-j}$ in $R(Y)$ is the 
+<a name="l143"><span class="ln">143  </span></a>    $j$th elementary symmetric polynomial in the conjugates of $F$. This sums 
+<a name="l144"><span class="ln">144  </span></a>    the products of these conjugates, taken $j$ at a time, in all possible 
+<a name="l145"><span class="ln">145  </span></a>    combinations. There are $\binom{m}{j}$ such combinations, and each product 
+<a name="l146"><span class="ln">146  </span></a>    of $j$ conjugates of $F$ expands to a sum of $r^j$ terms, each of unit 
+<a name="l147"><span class="ln">147  </span></a>    coefficient, and total degree $jt$. An error bound for the $j$th coeff of 
+<a name="l148"><span class="ln">148  </span></a>    $R$ is therefore 
+<a name="l149"><span class="ln">149  </span></a>    $$\binom{m}{j} r^j (jt + 1) M^{jt - 1} \varepsilon$$ 
+<a name="l150"><span class="ln">150  </span></a>    When our goal is to evaluate all the coefficients of $R$, we will want to 
+<a name="l151"><span class="ln">151  </span></a>    use the maximum of these error bounds. It is clear that this bound is 
+<a name="l152"><span class="ln">152  </span></a>    strictly increasing for $j$ up to the ceiling of $m/2$. After that point, 
+<a name="l153"><span class="ln">153  </span></a>    the first factor $\binom{m}{j}$ begins to decrease, while the others 
+<a name="l154"><span class="ln">154  </span></a>    continue to increase. However, the binomial coefficient never falls by more 
+<a name="l155"><span class="ln">155  </span></a>    than a factor of $1/m$ at a time, so our assumptions that $M \geq 2$ and 
+<a name="l156"><span class="ln">156  </span></a>    $m &lt; r 2^t$ are enough to tell us that the constant coefficient of $R$, 
+<a name="l157"><span class="ln">157  </span></a>    i.e. that where $j = m$, has the largest error bound. Therefore we can use 
+<a name="l158"><span class="ln">158  </span></a>    $$r^m (mt + 1) M^{mt - 1} \varepsilon$$ 
+<a name="l159"><span class="ln">159  </span></a>    as our error bound for all the coefficients. 
+<a name="l160"><span class="ln">160  </span></a> 
+<a name="l161"><span class="ln">161  </span></a>    Note that this bound is also (more than) adequate to determine whether any 
+<a name="l162"><span class="ln">162  </span></a>    of the roots of $R$ is an integer. Each of these roots is a single 
+<a name="l163"><span class="ln">163  </span></a>    conjugate of $F$, which contains less error than the trace, i.e. the 
+<a name="l164"><span class="ln">164  </span></a>    coefficient of $Y^{m - 1}$. By rounding the roots of $R$ to the nearest 
+<a name="l165"><span class="ln">165  </span></a>    integers, we therefore get all the candidates for integer roots of $R$. By 
+<a name="l166"><span class="ln">166  </span></a>    plugging these candidates into $R$, we can check whether any of them 
+<a name="l167"><span class="ln">167  </span></a>    actually is a root. 
+<a name="l168"><span class="ln">168  </span></a> 
+<a name="l169"><span class="ln">169  </span></a>    Note: We take the definition of resolvent from Cohen, but the error bound 
+<a name="l170"><span class="ln">170  </span></a>    is ours. 
+<a name="l171"><span class="ln">171  </span></a> 
+<a name="l172"><span class="ln">172  </span></a>    References 
+<a name="l173"><span class="ln">173  </span></a>    ========== 
+<a name="l174"><span class="ln">174  </span></a> 
+<a name="l175"><span class="ln">175  </span></a>    .. [1] Cohen, H. *A Course in Computational Algebraic Number Theory*. 
+<a name="l176"><span class="ln">176  </span></a>       (Def 6.3.2) 
+<a name="l177"><span class="ln">177  </span></a> 
+<a name="l178"><span class="ln">178  </span></a>    &quot;&quot;&quot;</span>
+<a name="l179"><span class="ln">179  </span></a>
+<a name="l180"><span class="ln">180  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">F</span><span class="s3">, </span><span class="s1">X</span><span class="s3">, </span><span class="s1">s</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l181"><span class="ln">181  </span></a>        <span class="s0">r&quot;&quot;&quot; 
+<a name="l182"><span class="ln">182  </span></a>        Parameters 
+<a name="l183"><span class="ln">183  </span></a>        ========== 
+<a name="l184"><span class="ln">184  </span></a> 
+<a name="l185"><span class="ln">185  </span></a>        F : :py:class:`~.Expr` 
+<a name="l186"><span class="ln">186  </span></a>            polynomial in the symbols in *X* 
+<a name="l187"><span class="ln">187  </span></a>        X : list of :py:class:`~.Symbol` 
+<a name="l188"><span class="ln">188  </span></a>        s : list of :py:class:`~.Permutation` 
+<a name="l189"><span class="ln">189  </span></a>            representing the cosets of the stabilizer of *F* in 
+<a name="l190"><span class="ln">190  </span></a>            some subgroup $G$ of $S_n$, where $n$ is the length of *X*. 
+<a name="l191"><span class="ln">191  </span></a>        &quot;&quot;&quot;</span>
+<a name="l192"><span class="ln">192  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">F </span><span class="s2">= </span><span class="s1">F</span>
+<a name="l193"><span class="ln">193  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">X </span><span class="s2">= </span><span class="s1">X</span>
+<a name="l194"><span class="ln">194  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">s </span><span class="s2">= </span><span class="s1">s</span>
+<a name="l195"><span class="ln">195  </span></a>
+<a name="l196"><span class="ln">196  </span></a>        <span class="s0"># Number of conjugates:</span>
+<a name="l197"><span class="ln">197  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">m </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">s</span><span class="s3">)</span>
+<a name="l198"><span class="ln">198  </span></a>        <span class="s0"># Total degree of F (computed below):</span>
+<a name="l199"><span class="ln">199  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">t </span><span class="s2">= None</span>
+<a name="l200"><span class="ln">200  </span></a>        <span class="s0"># Number of terms in F (computed below):</span>
+<a name="l201"><span class="ln">201  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">r </span><span class="s2">= </span><span class="s4">0</span>
+<a name="l202"><span class="ln">202  </span></a>
+<a name="l203"><span class="ln">203  </span></a>        <span class="s2">for </span><span class="s1">monom</span><span class="s3">, </span><span class="s1">coeff </span><span class="s2">in </span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">F</span><span class="s3">).</span><span class="s1">terms</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l204"><span class="ln">204  </span></a>            <span class="s2">if </span><span class="s1">abs</span><span class="s3">(</span><span class="s1">coeff</span><span class="s3">) </span><span class="s2">!= </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l205"><span class="ln">205  </span></a>                <span class="s2">raise </span><span class="s1">ResolventException</span><span class="s3">(</span><span class="s5">'Resolvent class expects forms with unit coeffs'</span><span class="s3">)</span>
+<a name="l206"><span class="ln">206  </span></a>            <span class="s1">t </span><span class="s2">= </span><span class="s1">sum</span><span class="s3">(</span><span class="s1">monom</span><span class="s3">)</span>
+<a name="l207"><span class="ln">207  </span></a>            <span class="s2">if </span><span class="s1">t </span><span class="s2">!= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">t </span><span class="s2">and </span><span class="s1">self</span><span class="s3">.</span><span class="s1">t </span><span class="s2">is not None:</span>
+<a name="l208"><span class="ln">208  </span></a>                <span class="s2">raise </span><span class="s1">ResolventException</span><span class="s3">(</span><span class="s5">'Resolvent class expects homogeneous forms'</span><span class="s3">)</span>
+<a name="l209"><span class="ln">209  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">t </span><span class="s2">= </span><span class="s1">t</span>
+<a name="l210"><span class="ln">210  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">r </span><span class="s2">+= </span><span class="s4">1</span>
+<a name="l211"><span class="ln">211  </span></a>
+<a name="l212"><span class="ln">212  </span></a>        <span class="s1">m</span><span class="s3">, </span><span class="s1">t</span><span class="s3">, </span><span class="s1">r </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">m</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">t</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">r</span>
+<a name="l213"><span class="ln">213  </span></a>        <span class="s2">if not </span><span class="s1">m </span><span class="s2">&lt; </span><span class="s1">r </span><span class="s2">* </span><span class="s4">2</span><span class="s2">**</span><span class="s1">t</span><span class="s2">:</span>
+<a name="l214"><span class="ln">214  </span></a>            <span class="s2">raise </span><span class="s1">ResolventException</span><span class="s3">(</span><span class="s5">'Resolvent class expects m &lt; r*2^t'</span><span class="s3">)</span>
+<a name="l215"><span class="ln">215  </span></a>        <span class="s1">M </span><span class="s2">= </span><span class="s1">symbols</span><span class="s3">(</span><span class="s5">'M'</span><span class="s3">)</span>
+<a name="l216"><span class="ln">216  </span></a>        <span class="s0"># Precision sufficient for computing the coeffs of the resolvent:</span>
+<a name="l217"><span class="ln">217  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">coeff_prec_func </span><span class="s2">= </span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">r</span><span class="s2">**</span><span class="s1">m</span><span class="s2">*</span><span class="s3">(</span><span class="s1">m</span><span class="s2">*</span><span class="s1">t </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">)</span><span class="s2">*</span><span class="s1">M</span><span class="s2">**</span><span class="s3">(</span><span class="s1">m</span><span class="s2">*</span><span class="s1">t </span><span class="s2">- </span><span class="s4">1</span><span class="s3">))</span>
+<a name="l218"><span class="ln">218  </span></a>        <span class="s0"># Precision sufficient for checking whether any of the roots of the</span>
+<a name="l219"><span class="ln">219  </span></a>        <span class="s0"># resolvent are integers:</span>
+<a name="l220"><span class="ln">220  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">root_prec_func </span><span class="s2">= </span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">r</span><span class="s2">*</span><span class="s3">(</span><span class="s1">t </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">)</span><span class="s2">*</span><span class="s1">M</span><span class="s2">**</span><span class="s3">(</span><span class="s1">t </span><span class="s2">- </span><span class="s4">1</span><span class="s3">))</span>
+<a name="l221"><span class="ln">221  </span></a>
+<a name="l222"><span class="ln">222  </span></a>        <span class="s0"># The conjugates of F are the roots of the resolvent.</span>
+<a name="l223"><span class="ln">223  </span></a>        <span class="s0"># For evaluating these to required numerical precisions, we need</span>
+<a name="l224"><span class="ln">224  </span></a>        <span class="s0"># lambdified versions.</span>
+<a name="l225"><span class="ln">225  </span></a>        <span class="s0"># Note: for a given permutation sigma, the conjugate (sigma F) is</span>
+<a name="l226"><span class="ln">226  </span></a>        <span class="s0"># equivalent to lambda [sigma^(-1) X]: F.</span>
+<a name="l227"><span class="ln">227  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">root_lambdas </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l228"><span class="ln">228  </span></a>            <span class="s1">lambdify</span><span class="s3">((</span><span class="s2">~</span><span class="s1">s</span><span class="s3">[</span><span class="s1">j</span><span class="s3">])(</span><span class="s1">X</span><span class="s3">), </span><span class="s1">F</span><span class="s3">)</span>
+<a name="l229"><span class="ln">229  </span></a>            <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">m</span><span class="s3">)</span>
+<a name="l230"><span class="ln">230  </span></a>        <span class="s3">]</span>
+<a name="l231"><span class="ln">231  </span></a>
+<a name="l232"><span class="ln">232  </span></a>        <span class="s0"># For evaluating the coeffs, we'll also need lambdified versions of</span>
+<a name="l233"><span class="ln">233  </span></a>        <span class="s0"># the elementary symmetric functions for degree m.</span>
+<a name="l234"><span class="ln">234  </span></a>        <span class="s1">Y </span><span class="s2">= </span><span class="s1">symbols</span><span class="s3">(</span><span class="s5">'Y'</span><span class="s3">)</span>
+<a name="l235"><span class="ln">235  </span></a>        <span class="s1">R </span><span class="s2">= </span><span class="s1">symbols</span><span class="s3">(</span><span class="s5">' '</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s5">f'R{</span><span class="s1">i</span><span class="s5">}' </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">m</span><span class="s3">)))</span>
+<a name="l236"><span class="ln">236  </span></a>        <span class="s1">f </span><span class="s2">= </span><span class="s4">1</span>
+<a name="l237"><span class="ln">237  </span></a>        <span class="s2">for </span><span class="s1">r </span><span class="s2">in </span><span class="s1">R</span><span class="s2">:</span>
+<a name="l238"><span class="ln">238  </span></a>            <span class="s1">f </span><span class="s2">*= </span><span class="s3">(</span><span class="s1">Y </span><span class="s2">- </span><span class="s1">r</span><span class="s3">)</span>
+<a name="l239"><span class="ln">239  </span></a>        <span class="s1">C </span><span class="s2">= </span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">f</span><span class="s3">, </span><span class="s1">Y</span><span class="s3">).</span><span class="s1">coeffs</span><span class="s3">()</span>
+<a name="l240"><span class="ln">240  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">esf_lambdas </span><span class="s2">= </span><span class="s3">[</span><span class="s1">lambdify</span><span class="s3">(</span><span class="s1">R</span><span class="s3">, </span><span class="s1">c</span><span class="s3">) </span><span class="s2">for </span><span class="s1">c </span><span class="s2">in </span><span class="s1">C</span><span class="s3">]</span>
+<a name="l241"><span class="ln">241  </span></a>
+<a name="l242"><span class="ln">242  </span></a>    <span class="s2">def </span><span class="s1">get_prec</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">M</span><span class="s3">, </span><span class="s1">target</span><span class="s2">=</span><span class="s5">'coeffs'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l243"><span class="ln">243  </span></a>        <span class="s0">r&quot;&quot;&quot; 
+<a name="l244"><span class="ln">244  </span></a>        For a given upper bound *M* on the magnitude of the complex numbers to 
+<a name="l245"><span class="ln">245  </span></a>        be plugged in for this resolvent's symbols, compute a sufficient 
+<a name="l246"><span class="ln">246  </span></a>        precision for evaluating those complex numbers, such that the 
+<a name="l247"><span class="ln">247  </span></a>        coefficients, or the integer roots, of the resolvent can be determined. 
+<a name="l248"><span class="ln">248  </span></a> 
+<a name="l249"><span class="ln">249  </span></a>        Parameters 
+<a name="l250"><span class="ln">250  </span></a>        ========== 
+<a name="l251"><span class="ln">251  </span></a> 
+<a name="l252"><span class="ln">252  </span></a>        M : real number 
+<a name="l253"><span class="ln">253  </span></a>            Upper bound on magnitude of the complex numbers to be plugged in. 
+<a name="l254"><span class="ln">254  </span></a> 
+<a name="l255"><span class="ln">255  </span></a>        target : str, 'coeffs' or 'roots', default='coeffs' 
+<a name="l256"><span class="ln">256  </span></a>            Name the task for which a sufficient precision is desired. 
+<a name="l257"><span class="ln">257  </span></a>            This is either determining the coefficients of the resolvent 
+<a name="l258"><span class="ln">258  </span></a>            ('coeffs') or determining its possible integer roots ('roots'). 
+<a name="l259"><span class="ln">259  </span></a>            The latter may require significantly lower precision. 
+<a name="l260"><span class="ln">260  </span></a> 
+<a name="l261"><span class="ln">261  </span></a>        Returns 
+<a name="l262"><span class="ln">262  </span></a>        ======= 
+<a name="l263"><span class="ln">263  </span></a> 
+<a name="l264"><span class="ln">264  </span></a>        int $m$ 
+<a name="l265"><span class="ln">265  </span></a>            such that $2^{-m}$ is a sufficient upper bound on the 
+<a name="l266"><span class="ln">266  </span></a>            error in approximating the complex numbers to be plugged in. 
+<a name="l267"><span class="ln">267  </span></a> 
+<a name="l268"><span class="ln">268  </span></a>        &quot;&quot;&quot;</span>
+<a name="l269"><span class="ln">269  </span></a>        <span class="s0"># As explained in the docstring for this class, our precision estimates</span>
+<a name="l270"><span class="ln">270  </span></a>        <span class="s0"># require that M be at least 2.</span>
+<a name="l271"><span class="ln">271  </span></a>        <span class="s1">M </span><span class="s2">= </span><span class="s1">max</span><span class="s3">(</span><span class="s1">M</span><span class="s3">, </span><span class="s4">2</span><span class="s3">)</span>
+<a name="l272"><span class="ln">272  </span></a>        <span class="s1">f </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">coeff_prec_func </span><span class="s2">if </span><span class="s1">target </span><span class="s2">== </span><span class="s5">'coeffs' </span><span class="s2">else </span><span class="s1">self</span><span class="s3">.</span><span class="s1">root_prec_func</span>
+<a name="l273"><span class="ln">273  </span></a>        <span class="s1">r</span><span class="s3">, </span><span class="s1">_</span><span class="s3">, </span><span class="s1">_</span><span class="s3">, </span><span class="s1">_ </span><span class="s2">= </span><span class="s1">evalf</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">f</span><span class="s3">(</span><span class="s1">M</span><span class="s3">), </span><span class="s4">1</span><span class="s3">, {})</span>
+<a name="l274"><span class="ln">274  </span></a>        <span class="s2">return </span><span class="s1">fastlog</span><span class="s3">(</span><span class="s1">r</span><span class="s3">) </span><span class="s2">+ </span><span class="s4">1</span>
+<a name="l275"><span class="ln">275  </span></a>
+<a name="l276"><span class="ln">276  </span></a>    <span class="s2">def </span><span class="s1">approximate_roots_of_poly</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">T</span><span class="s3">, </span><span class="s1">target</span><span class="s2">=</span><span class="s5">'coeffs'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l277"><span class="ln">277  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l278"><span class="ln">278  </span></a>        Approximate the roots of a given polynomial *T* to sufficient precision 
+<a name="l279"><span class="ln">279  </span></a>        in order to evaluate this resolvent's coefficients, or determine 
+<a name="l280"><span class="ln">280  </span></a>        whether the resolvent has an integer root. 
+<a name="l281"><span class="ln">281  </span></a> 
+<a name="l282"><span class="ln">282  </span></a>        Parameters 
+<a name="l283"><span class="ln">283  </span></a>        ========== 
+<a name="l284"><span class="ln">284  </span></a> 
+<a name="l285"><span class="ln">285  </span></a>        T : :py:class:`~.Poly` 
+<a name="l286"><span class="ln">286  </span></a> 
+<a name="l287"><span class="ln">287  </span></a>        target : str, 'coeffs' or 'roots', default='coeffs' 
+<a name="l288"><span class="ln">288  </span></a>            Set the approximation precision to be sufficient for the desired 
+<a name="l289"><span class="ln">289  </span></a>            task, which is either determining the coefficients of the resolvent 
+<a name="l290"><span class="ln">290  </span></a>            ('coeffs') or determining its possible integer roots ('roots'). 
+<a name="l291"><span class="ln">291  </span></a>            The latter may require significantly lower precision. 
+<a name="l292"><span class="ln">292  </span></a> 
+<a name="l293"><span class="ln">293  </span></a>        Returns 
+<a name="l294"><span class="ln">294  </span></a>        ======= 
+<a name="l295"><span class="ln">295  </span></a> 
+<a name="l296"><span class="ln">296  </span></a>        list of elements of :ref:`CC` 
+<a name="l297"><span class="ln">297  </span></a> 
+<a name="l298"><span class="ln">298  </span></a>        &quot;&quot;&quot;</span>
+<a name="l299"><span class="ln">299  </span></a>        <span class="s1">ctx </span><span class="s2">= </span><span class="s1">MPContext</span><span class="s3">()</span>
+<a name="l300"><span class="ln">300  </span></a>        <span class="s0"># Because sympy.polys.polyroots._integer_basis() is called when a CRootOf</span>
+<a name="l301"><span class="ln">301  </span></a>        <span class="s0"># is formed, we proactively extract the integer basis now. This means that</span>
+<a name="l302"><span class="ln">302  </span></a>        <span class="s0"># when we call T.all_roots(), every root will be a CRootOf, not a Mul</span>
+<a name="l303"><span class="ln">303  </span></a>        <span class="s0"># of Integer*CRootOf.</span>
+<a name="l304"><span class="ln">304  </span></a>        <span class="s1">coeff</span><span class="s3">, </span><span class="s1">T </span><span class="s2">= </span><span class="s1">preprocess_roots</span><span class="s3">(</span><span class="s1">T</span><span class="s3">)</span>
+<a name="l305"><span class="ln">305  </span></a>        <span class="s1">coeff </span><span class="s2">= </span><span class="s1">ctx</span><span class="s3">.</span><span class="s1">mpf</span><span class="s3">(</span><span class="s1">str</span><span class="s3">(</span><span class="s1">coeff</span><span class="s3">))</span>
+<a name="l306"><span class="ln">306  </span></a>
+<a name="l307"><span class="ln">307  </span></a>        <span class="s1">scaled_roots </span><span class="s2">= </span><span class="s1">T</span><span class="s3">.</span><span class="s1">all_roots</span><span class="s3">(</span><span class="s1">radicals</span><span class="s2">=False</span><span class="s3">)</span>
+<a name="l308"><span class="ln">308  </span></a>
+<a name="l309"><span class="ln">309  </span></a>        <span class="s0"># Since we're going to be approximating the roots of T anyway, we can</span>
+<a name="l310"><span class="ln">310  </span></a>        <span class="s0"># get a good upper bound on the magnitude of the roots by starting with</span>
+<a name="l311"><span class="ln">311  </span></a>        <span class="s0"># a very low precision approx.</span>
+<a name="l312"><span class="ln">312  </span></a>        <span class="s1">approx0 </span><span class="s2">= </span><span class="s3">[</span><span class="s1">coeff </span><span class="s2">* </span><span class="s1">quad_to_mpmath</span><span class="s3">(</span><span class="s1">_evalf_with_bounded_error</span><span class="s3">(</span><span class="s1">r</span><span class="s3">, </span><span class="s1">m</span><span class="s2">=</span><span class="s4">0</span><span class="s3">)) </span><span class="s2">for </span><span class="s1">r </span><span class="s2">in </span><span class="s1">scaled_roots</span><span class="s3">]</span>
+<a name="l313"><span class="ln">313  </span></a>        <span class="s0"># Here we add 1 to account for the possible error in our initial approximation.</span>
+<a name="l314"><span class="ln">314  </span></a>        <span class="s1">M </span><span class="s2">= </span><span class="s1">max</span><span class="s3">(</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">b</span><span class="s3">) </span><span class="s2">for </span><span class="s1">b </span><span class="s2">in </span><span class="s1">approx0</span><span class="s3">) </span><span class="s2">+ </span><span class="s4">1</span>
+<a name="l315"><span class="ln">315  </span></a>        <span class="s1">m </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">get_prec</span><span class="s3">(</span><span class="s1">M</span><span class="s3">, </span><span class="s1">target</span><span class="s2">=</span><span class="s1">target</span><span class="s3">)</span>
+<a name="l316"><span class="ln">316  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">fastlog</span><span class="s3">(</span><span class="s1">M</span><span class="s3">.</span><span class="s1">_mpf_</span><span class="s3">) </span><span class="s2">+ </span><span class="s4">1</span>
+<a name="l317"><span class="ln">317  </span></a>        <span class="s1">p </span><span class="s2">= </span><span class="s1">m </span><span class="s2">+ </span><span class="s1">n </span><span class="s2">+ </span><span class="s4">1</span>
+<a name="l318"><span class="ln">318  </span></a>        <span class="s1">ctx</span><span class="s3">.</span><span class="s1">prec </span><span class="s2">= </span><span class="s1">p</span>
+<a name="l319"><span class="ln">319  </span></a>        <span class="s1">d </span><span class="s2">= </span><span class="s1">prec_to_dps</span><span class="s3">(</span><span class="s1">p</span><span class="s3">)</span>
+<a name="l320"><span class="ln">320  </span></a>
+<a name="l321"><span class="ln">321  </span></a>        <span class="s1">approx1 </span><span class="s2">= </span><span class="s3">[</span><span class="s1">r</span><span class="s3">.</span><span class="s1">eval_approx</span><span class="s3">(</span><span class="s1">d</span><span class="s3">, </span><span class="s1">return_mpmath</span><span class="s2">=True</span><span class="s3">) </span><span class="s2">for </span><span class="s1">r </span><span class="s2">in </span><span class="s1">scaled_roots</span><span class="s3">]</span>
+<a name="l322"><span class="ln">322  </span></a>        <span class="s1">approx1 </span><span class="s2">= </span><span class="s3">[</span><span class="s1">coeff</span><span class="s2">*</span><span class="s1">ctx</span><span class="s3">.</span><span class="s1">mpc</span><span class="s3">(</span><span class="s1">r</span><span class="s3">) </span><span class="s2">for </span><span class="s1">r </span><span class="s2">in </span><span class="s1">approx1</span><span class="s3">]</span>
+<a name="l323"><span class="ln">323  </span></a>
+<a name="l324"><span class="ln">324  </span></a>        <span class="s2">return </span><span class="s1">approx1</span>
+<a name="l325"><span class="ln">325  </span></a>
+<a name="l326"><span class="ln">326  </span></a>    <span class="s2">@</span><span class="s1">staticmethod</span>
+<a name="l327"><span class="ln">327  </span></a>    <span class="s2">def </span><span class="s1">round_mpf</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l328"><span class="ln">328  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">int</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l329"><span class="ln">329  </span></a>            <span class="s2">return </span><span class="s1">a</span>
+<a name="l330"><span class="ln">330  </span></a>        <span class="s0"># If we use python's built-in `round()`, we lose precision.</span>
+<a name="l331"><span class="ln">331  </span></a>        <span class="s0"># If we use `ZZ` directly, we may add or subtract 1.</span>
+<a name="l332"><span class="ln">332  </span></a>        <span class="s0">#</span>
+<a name="l333"><span class="ln">333  </span></a>        <span class="s0"># XXX: We have to convert to int before converting to ZZ because</span>
+<a name="l334"><span class="ln">334  </span></a>        <span class="s0"># flint.fmpz cannot convert a mpmath mpf.</span>
+<a name="l335"><span class="ln">335  </span></a>        <span class="s2">return </span><span class="s1">ZZ</span><span class="s3">(</span><span class="s1">int</span><span class="s3">(</span><span class="s1">a</span><span class="s3">.</span><span class="s1">context</span><span class="s3">.</span><span class="s1">nint</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)))</span>
+<a name="l336"><span class="ln">336  </span></a>
+<a name="l337"><span class="ln">337  </span></a>    <span class="s2">def </span><span class="s1">round_roots_to_integers_for_poly</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">T</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l338"><span class="ln">338  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l339"><span class="ln">339  </span></a>        For a given polynomial *T*, round the roots of this resolvent to the 
+<a name="l340"><span class="ln">340  </span></a>        nearest integers. 
+<a name="l341"><span class="ln">341  </span></a> 
+<a name="l342"><span class="ln">342  </span></a>        Explanation 
+<a name="l343"><span class="ln">343  </span></a>        =========== 
+<a name="l344"><span class="ln">344  </span></a> 
+<a name="l345"><span class="ln">345  </span></a>        None of the integers returned by this method is guaranteed to be a 
+<a name="l346"><span class="ln">346  </span></a>        root of the resolvent; however, if the resolvent has any integer roots 
+<a name="l347"><span class="ln">347  </span></a>        (for the given polynomial *T*), then they must be among these. 
+<a name="l348"><span class="ln">348  </span></a> 
+<a name="l349"><span class="ln">349  </span></a>        If the coefficients of the resolvent are also desired, then this method 
+<a name="l350"><span class="ln">350  </span></a>        should not be used. Instead, use the ``eval_for_poly`` method. This 
+<a name="l351"><span class="ln">351  </span></a>        method may be significantly faster than ``eval_for_poly``. 
+<a name="l352"><span class="ln">352  </span></a> 
+<a name="l353"><span class="ln">353  </span></a>        Parameters 
+<a name="l354"><span class="ln">354  </span></a>        ========== 
+<a name="l355"><span class="ln">355  </span></a> 
+<a name="l356"><span class="ln">356  </span></a>        T : :py:class:`~.Poly` 
+<a name="l357"><span class="ln">357  </span></a> 
+<a name="l358"><span class="ln">358  </span></a>        Returns 
+<a name="l359"><span class="ln">359  </span></a>        ======= 
+<a name="l360"><span class="ln">360  </span></a> 
+<a name="l361"><span class="ln">361  </span></a>        dict 
+<a name="l362"><span class="ln">362  </span></a>            Keys are the indices of those permutations in ``self.s`` such that 
+<a name="l363"><span class="ln">363  </span></a>            the corresponding root did round to a rational integer. 
+<a name="l364"><span class="ln">364  </span></a> 
+<a name="l365"><span class="ln">365  </span></a>            Values are :ref:`ZZ`. 
+<a name="l366"><span class="ln">366  </span></a> 
+<a name="l367"><span class="ln">367  </span></a> 
+<a name="l368"><span class="ln">368  </span></a>        &quot;&quot;&quot;</span>
+<a name="l369"><span class="ln">369  </span></a>        <span class="s1">approx_roots_of_T </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">approximate_roots_of_poly</span><span class="s3">(</span><span class="s1">T</span><span class="s3">, </span><span class="s1">target</span><span class="s2">=</span><span class="s5">'roots'</span><span class="s3">)</span>
+<a name="l370"><span class="ln">370  </span></a>        <span class="s1">approx_roots_of_self </span><span class="s2">= </span><span class="s3">[</span><span class="s1">r</span><span class="s3">(</span><span class="s2">*</span><span class="s1">approx_roots_of_T</span><span class="s3">) </span><span class="s2">for </span><span class="s1">r </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">root_lambdas</span><span class="s3">]</span>
+<a name="l371"><span class="ln">371  </span></a>        <span class="s2">return </span><span class="s3">{</span>
+<a name="l372"><span class="ln">372  </span></a>            <span class="s1">i</span><span class="s2">: </span><span class="s1">self</span><span class="s3">.</span><span class="s1">round_mpf</span><span class="s3">(</span><span class="s1">r</span><span class="s3">.</span><span class="s1">real</span><span class="s3">)</span>
+<a name="l373"><span class="ln">373  </span></a>            <span class="s2">for </span><span class="s1">i</span><span class="s3">, </span><span class="s1">r </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">approx_roots_of_self</span><span class="s3">)</span>
+<a name="l374"><span class="ln">374  </span></a>            <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">round_mpf</span><span class="s3">(</span><span class="s1">r</span><span class="s3">.</span><span class="s1">imag</span><span class="s3">) </span><span class="s2">== </span><span class="s4">0</span>
+<a name="l375"><span class="ln">375  </span></a>        <span class="s3">}</span>
+<a name="l376"><span class="ln">376  </span></a>
+<a name="l377"><span class="ln">377  </span></a>    <span class="s2">def </span><span class="s1">eval_for_poly</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">T</span><span class="s3">, </span><span class="s1">find_integer_root</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l378"><span class="ln">378  </span></a>        <span class="s0">r&quot;&quot;&quot; 
+<a name="l379"><span class="ln">379  </span></a>        Compute the integer values of the coefficients of this resolvent, when 
+<a name="l380"><span class="ln">380  </span></a>        plugging in the roots of a given polynomial. 
+<a name="l381"><span class="ln">381  </span></a> 
+<a name="l382"><span class="ln">382  </span></a>        Parameters 
+<a name="l383"><span class="ln">383  </span></a>        ========== 
+<a name="l384"><span class="ln">384  </span></a> 
+<a name="l385"><span class="ln">385  </span></a>        T : :py:class:`~.Poly` 
+<a name="l386"><span class="ln">386  </span></a> 
+<a name="l387"><span class="ln">387  </span></a>        find_integer_root : ``bool``, default ``False`` 
+<a name="l388"><span class="ln">388  </span></a>            If ``True``, then also determine whether the resolvent has an 
+<a name="l389"><span class="ln">389  </span></a>            integer root, and return the first one found, along with its 
+<a name="l390"><span class="ln">390  </span></a>            index, i.e. the index of the permutation ``self.s[i]`` it 
+<a name="l391"><span class="ln">391  </span></a>            corresponds to. 
+<a name="l392"><span class="ln">392  </span></a> 
+<a name="l393"><span class="ln">393  </span></a>        Returns 
+<a name="l394"><span class="ln">394  </span></a>        ======= 
+<a name="l395"><span class="ln">395  </span></a> 
+<a name="l396"><span class="ln">396  </span></a>        Tuple ``(R, a, i)`` 
+<a name="l397"><span class="ln">397  </span></a> 
+<a name="l398"><span class="ln">398  </span></a>            ``R`` is this resolvent as a dense univariate polynomial over 
+<a name="l399"><span class="ln">399  </span></a>            :ref:`ZZ`, i.e. a list of :ref:`ZZ`. 
+<a name="l400"><span class="ln">400  </span></a> 
+<a name="l401"><span class="ln">401  </span></a>            If *find_integer_root* was ``True``, then ``a`` and ``i`` are the 
+<a name="l402"><span class="ln">402  </span></a>            first integer root found, and its index, if one exists. 
+<a name="l403"><span class="ln">403  </span></a>            Otherwise ``a`` and ``i`` are both ``None``. 
+<a name="l404"><span class="ln">404  </span></a> 
+<a name="l405"><span class="ln">405  </span></a>        &quot;&quot;&quot;</span>
+<a name="l406"><span class="ln">406  </span></a>        <span class="s1">approx_roots_of_T </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">approximate_roots_of_poly</span><span class="s3">(</span><span class="s1">T</span><span class="s3">, </span><span class="s1">target</span><span class="s2">=</span><span class="s5">'coeffs'</span><span class="s3">)</span>
+<a name="l407"><span class="ln">407  </span></a>        <span class="s1">approx_roots_of_self </span><span class="s2">= </span><span class="s3">[</span><span class="s1">r</span><span class="s3">(</span><span class="s2">*</span><span class="s1">approx_roots_of_T</span><span class="s3">) </span><span class="s2">for </span><span class="s1">r </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">root_lambdas</span><span class="s3">]</span>
+<a name="l408"><span class="ln">408  </span></a>        <span class="s1">approx_coeffs_of_self </span><span class="s2">= </span><span class="s3">[</span><span class="s1">c</span><span class="s3">(</span><span class="s2">*</span><span class="s1">approx_roots_of_self</span><span class="s3">) </span><span class="s2">for </span><span class="s1">c </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">esf_lambdas</span><span class="s3">]</span>
+<a name="l409"><span class="ln">409  </span></a>
+<a name="l410"><span class="ln">410  </span></a>        <span class="s1">R </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l411"><span class="ln">411  </span></a>        <span class="s2">for </span><span class="s1">c </span><span class="s2">in </span><span class="s1">approx_coeffs_of_self</span><span class="s2">:</span>
+<a name="l412"><span class="ln">412  </span></a>            <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">round_mpf</span><span class="s3">(</span><span class="s1">c</span><span class="s3">.</span><span class="s1">imag</span><span class="s3">) </span><span class="s2">!= </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l413"><span class="ln">413  </span></a>                <span class="s0"># If precision was enough, this should never happen.</span>
+<a name="l414"><span class="ln">414  </span></a>                <span class="s2">raise </span><span class="s1">ResolventException</span><span class="s3">(</span><span class="s5">f&quot;Got non-integer coeff for resolvent: {</span><span class="s1">c</span><span class="s5">}&quot;</span><span class="s3">)</span>
+<a name="l415"><span class="ln">415  </span></a>            <span class="s1">R</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">round_mpf</span><span class="s3">(</span><span class="s1">c</span><span class="s3">.</span><span class="s1">real</span><span class="s3">))</span>
+<a name="l416"><span class="ln">416  </span></a>
+<a name="l417"><span class="ln">417  </span></a>        <span class="s1">a0</span><span class="s3">, </span><span class="s1">i0 </span><span class="s2">= None</span><span class="s3">, </span><span class="s2">None</span>
+<a name="l418"><span class="ln">418  </span></a>
+<a name="l419"><span class="ln">419  </span></a>        <span class="s2">if </span><span class="s1">find_integer_root</span><span class="s2">:</span>
+<a name="l420"><span class="ln">420  </span></a>            <span class="s2">for </span><span class="s1">i</span><span class="s3">, </span><span class="s1">r </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">approx_roots_of_self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l421"><span class="ln">421  </span></a>                <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">round_mpf</span><span class="s3">(</span><span class="s1">r</span><span class="s3">.</span><span class="s1">imag</span><span class="s3">) </span><span class="s2">!= </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l422"><span class="ln">422  </span></a>                    <span class="s2">continue</span>
+<a name="l423"><span class="ln">423  </span></a>                <span class="s2">if not </span><span class="s1">dup_eval</span><span class="s3">(</span><span class="s1">R</span><span class="s3">, (</span><span class="s1">a </span><span class="s2">:= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">round_mpf</span><span class="s3">(</span><span class="s1">r</span><span class="s3">.</span><span class="s1">real</span><span class="s3">)), </span><span class="s1">ZZ</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l424"><span class="ln">424  </span></a>                    <span class="s1">a0</span><span class="s3">, </span><span class="s1">i0 </span><span class="s2">= </span><span class="s1">a</span><span class="s3">, </span><span class="s1">i</span>
+<a name="l425"><span class="ln">425  </span></a>                    <span class="s2">break</span>
+<a name="l426"><span class="ln">426  </span></a>
+<a name="l427"><span class="ln">427  </span></a>        <span class="s2">return </span><span class="s1">R</span><span class="s3">, </span><span class="s1">a0</span><span class="s3">, </span><span class="s1">i0</span>
+<a name="l428"><span class="ln">428  </span></a>
+<a name="l429"><span class="ln">429  </span></a>
+<a name="l430"><span class="ln">430  </span></a><span class="s2">def </span><span class="s1">wrap</span><span class="s3">(</span><span class="s1">text</span><span class="s3">, </span><span class="s1">width</span><span class="s2">=</span><span class="s4">80</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l431"><span class="ln">431  </span></a>    <span class="s0">&quot;&quot;&quot;Line wrap a polynomial expression. &quot;&quot;&quot;</span>
+<a name="l432"><span class="ln">432  </span></a>    <span class="s1">out </span><span class="s2">= </span><span class="s5">''</span>
+<a name="l433"><span class="ln">433  </span></a>    <span class="s1">col </span><span class="s2">= </span><span class="s4">0</span>
+<a name="l434"><span class="ln">434  </span></a>    <span class="s2">for </span><span class="s1">c </span><span class="s2">in </span><span class="s1">text</span><span class="s2">:</span>
+<a name="l435"><span class="ln">435  </span></a>        <span class="s2">if </span><span class="s1">c </span><span class="s2">== </span><span class="s5">' ' </span><span class="s2">and </span><span class="s1">col </span><span class="s2">&gt; </span><span class="s1">width</span><span class="s2">:</span>
+<a name="l436"><span class="ln">436  </span></a>            <span class="s1">c</span><span class="s3">, </span><span class="s1">col </span><span class="s2">= </span><span class="s5">'\n'</span><span class="s3">, </span><span class="s4">0</span>
+<a name="l437"><span class="ln">437  </span></a>        <span class="s2">else:</span>
+<a name="l438"><span class="ln">438  </span></a>            <span class="s1">col </span><span class="s2">+= </span><span class="s4">1</span>
+<a name="l439"><span class="ln">439  </span></a>        <span class="s1">out </span><span class="s2">+= </span><span class="s1">c</span>
+<a name="l440"><span class="ln">440  </span></a>    <span class="s2">return </span><span class="s1">out</span>
+<a name="l441"><span class="ln">441  </span></a>
+<a name="l442"><span class="ln">442  </span></a>
+<a name="l443"><span class="ln">443  </span></a><span class="s2">def </span><span class="s1">s_vars</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l444"><span class="ln">444  </span></a>    <span class="s0">&quot;&quot;&quot;Form the symbols s1, s2, ..., sn to stand for elem. symm. polys. &quot;&quot;&quot;</span>
+<a name="l445"><span class="ln">445  </span></a>    <span class="s2">return </span><span class="s1">symbols</span><span class="s3">([</span><span class="s5">f's{</span><span class="s1">i </span><span class="s2">+ </span><span class="s4">1</span><span class="s5">}' </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)])</span>
+<a name="l446"><span class="ln">446  </span></a>
+<a name="l447"><span class="ln">447  </span></a>
+<a name="l448"><span class="ln">448  </span></a><span class="s2">def </span><span class="s1">sparse_symmetrize_resolvent_coeffs</span><span class="s3">(</span><span class="s1">F</span><span class="s3">, </span><span class="s1">X</span><span class="s3">, </span><span class="s1">s</span><span class="s3">, </span><span class="s1">verbose</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l449"><span class="ln">449  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l450"><span class="ln">450  </span></a>    Compute the coefficients of a resolvent as functions of the coefficients of 
+<a name="l451"><span class="ln">451  </span></a>    the associated polynomial. 
+<a name="l452"><span class="ln">452  </span></a> 
+<a name="l453"><span class="ln">453  </span></a>    F must be a sparse polynomial. 
+<a name="l454"><span class="ln">454  </span></a>    &quot;&quot;&quot;</span>
+<a name="l455"><span class="ln">455  </span></a>    <span class="s2">import </span><span class="s1">time</span><span class="s3">, </span><span class="s1">sys</span>
+<a name="l456"><span class="ln">456  </span></a>    <span class="s0"># Roots of resolvent as multivariate forms over vars X:</span>
+<a name="l457"><span class="ln">457  </span></a>    <span class="s1">root_forms </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l458"><span class="ln">458  </span></a>        <span class="s1">F</span><span class="s3">.</span><span class="s1">compose</span><span class="s3">(</span><span class="s1">list</span><span class="s3">(</span><span class="s1">zip</span><span class="s3">(</span><span class="s1">X</span><span class="s3">, </span><span class="s1">sigma</span><span class="s3">(</span><span class="s1">X</span><span class="s3">))))</span>
+<a name="l459"><span class="ln">459  </span></a>        <span class="s2">for </span><span class="s1">sigma </span><span class="s2">in </span><span class="s1">s</span>
+<a name="l460"><span class="ln">460  </span></a>    <span class="s3">]</span>
+<a name="l461"><span class="ln">461  </span></a>
+<a name="l462"><span class="ln">462  </span></a>    <span class="s0"># Coeffs of resolvent (besides lead coeff of 1) as symmetric forms over vars X:</span>
+<a name="l463"><span class="ln">463  </span></a>    <span class="s1">Y </span><span class="s2">= </span><span class="s3">[</span><span class="s1">Dummy</span><span class="s3">(</span><span class="s5">f'Y{</span><span class="s1">i</span><span class="s5">}'</span><span class="s3">) </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">s</span><span class="s3">))]</span>
+<a name="l464"><span class="ln">464  </span></a>    <span class="s1">coeff_forms </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l465"><span class="ln">465  </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s4">1</span><span class="s3">, </span><span class="s1">len</span><span class="s3">(</span><span class="s1">s</span><span class="s3">) </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l466"><span class="ln">466  </span></a>        <span class="s2">if </span><span class="s1">verbose</span><span class="s2">:</span>
+<a name="l467"><span class="ln">467  </span></a>            <span class="s1">print</span><span class="s3">(</span><span class="s5">'----'</span><span class="s3">)</span>
+<a name="l468"><span class="ln">468  </span></a>            <span class="s1">print</span><span class="s3">(</span><span class="s5">f'Computing symmetric poly of degree {</span><span class="s1">i</span><span class="s5">}...'</span><span class="s3">)</span>
+<a name="l469"><span class="ln">469  </span></a>            <span class="s1">sys</span><span class="s3">.</span><span class="s1">stdout</span><span class="s3">.</span><span class="s1">flush</span><span class="s3">()</span>
+<a name="l470"><span class="ln">470  </span></a>        <span class="s1">t0 </span><span class="s2">= </span><span class="s1">time</span><span class="s3">.</span><span class="s1">time</span><span class="s3">()</span>
+<a name="l471"><span class="ln">471  </span></a>        <span class="s1">G </span><span class="s2">= </span><span class="s1">symmetric_poly</span><span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s2">*</span><span class="s1">Y</span><span class="s3">)</span>
+<a name="l472"><span class="ln">472  </span></a>        <span class="s1">t1 </span><span class="s2">= </span><span class="s1">time</span><span class="s3">.</span><span class="s1">time</span><span class="s3">()</span>
+<a name="l473"><span class="ln">473  </span></a>        <span class="s2">if </span><span class="s1">verbose</span><span class="s2">:</span>
+<a name="l474"><span class="ln">474  </span></a>            <span class="s1">print</span><span class="s3">(</span><span class="s5">f'took {</span><span class="s1">t1 </span><span class="s2">- </span><span class="s1">t0</span><span class="s5">} seconds'</span><span class="s3">)</span>
+<a name="l475"><span class="ln">475  </span></a>            <span class="s1">print</span><span class="s3">(</span><span class="s5">'lambdifying...'</span><span class="s3">)</span>
+<a name="l476"><span class="ln">476  </span></a>            <span class="s1">sys</span><span class="s3">.</span><span class="s1">stdout</span><span class="s3">.</span><span class="s1">flush</span><span class="s3">()</span>
+<a name="l477"><span class="ln">477  </span></a>        <span class="s1">t0 </span><span class="s2">= </span><span class="s1">time</span><span class="s3">.</span><span class="s1">time</span><span class="s3">()</span>
+<a name="l478"><span class="ln">478  </span></a>        <span class="s1">C </span><span class="s2">= </span><span class="s1">lambdify</span><span class="s3">(</span><span class="s1">Y</span><span class="s3">, (</span><span class="s2">-</span><span class="s4">1</span><span class="s3">)</span><span class="s2">**</span><span class="s1">i</span><span class="s2">*</span><span class="s1">G</span><span class="s3">)</span>
+<a name="l479"><span class="ln">479  </span></a>        <span class="s1">t1 </span><span class="s2">= </span><span class="s1">time</span><span class="s3">.</span><span class="s1">time</span><span class="s3">()</span>
+<a name="l480"><span class="ln">480  </span></a>        <span class="s2">if </span><span class="s1">verbose</span><span class="s2">:</span>
+<a name="l481"><span class="ln">481  </span></a>            <span class="s1">print</span><span class="s3">(</span><span class="s5">f'took {</span><span class="s1">t1 </span><span class="s2">- </span><span class="s1">t0</span><span class="s5">} seconds'</span><span class="s3">)</span>
+<a name="l482"><span class="ln">482  </span></a>            <span class="s1">sys</span><span class="s3">.</span><span class="s1">stdout</span><span class="s3">.</span><span class="s1">flush</span><span class="s3">()</span>
+<a name="l483"><span class="ln">483  </span></a>        <span class="s1">coeff_forms</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">C</span><span class="s3">)</span>
+<a name="l484"><span class="ln">484  </span></a>
+<a name="l485"><span class="ln">485  </span></a>    <span class="s1">coeffs </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l486"><span class="ln">486  </span></a>    <span class="s2">for </span><span class="s1">i</span><span class="s3">, </span><span class="s1">f </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">coeff_forms</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l487"><span class="ln">487  </span></a>        <span class="s2">if </span><span class="s1">verbose</span><span class="s2">:</span>
+<a name="l488"><span class="ln">488  </span></a>            <span class="s1">print</span><span class="s3">(</span><span class="s5">'----'</span><span class="s3">)</span>
+<a name="l489"><span class="ln">489  </span></a>            <span class="s1">print</span><span class="s3">(</span><span class="s5">f'Plugging root forms into elem symm poly {</span><span class="s1">i</span><span class="s2">+</span><span class="s4">1</span><span class="s5">}...'</span><span class="s3">)</span>
+<a name="l490"><span class="ln">490  </span></a>            <span class="s1">sys</span><span class="s3">.</span><span class="s1">stdout</span><span class="s3">.</span><span class="s1">flush</span><span class="s3">()</span>
+<a name="l491"><span class="ln">491  </span></a>        <span class="s1">t0 </span><span class="s2">= </span><span class="s1">time</span><span class="s3">.</span><span class="s1">time</span><span class="s3">()</span>
+<a name="l492"><span class="ln">492  </span></a>        <span class="s1">g </span><span class="s2">= </span><span class="s1">f</span><span class="s3">(</span><span class="s2">*</span><span class="s1">root_forms</span><span class="s3">)</span>
+<a name="l493"><span class="ln">493  </span></a>        <span class="s1">t1 </span><span class="s2">= </span><span class="s1">time</span><span class="s3">.</span><span class="s1">time</span><span class="s3">()</span>
+<a name="l494"><span class="ln">494  </span></a>        <span class="s1">coeffs</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">g</span><span class="s3">)</span>
+<a name="l495"><span class="ln">495  </span></a>        <span class="s2">if </span><span class="s1">verbose</span><span class="s2">:</span>
+<a name="l496"><span class="ln">496  </span></a>            <span class="s1">print</span><span class="s3">(</span><span class="s5">f'took {</span><span class="s1">t1 </span><span class="s2">- </span><span class="s1">t0</span><span class="s5">} seconds'</span><span class="s3">)</span>
+<a name="l497"><span class="ln">497  </span></a>            <span class="s1">sys</span><span class="s3">.</span><span class="s1">stdout</span><span class="s3">.</span><span class="s1">flush</span><span class="s3">()</span>
+<a name="l498"><span class="ln">498  </span></a>
+<a name="l499"><span class="ln">499  </span></a>    <span class="s0"># Now symmetrize these coeffs. This means recasting them as polynomials in</span>
+<a name="l500"><span class="ln">500  </span></a>    <span class="s0"># the elementary symmetric polys over X.</span>
+<a name="l501"><span class="ln">501  </span></a>    <span class="s1">symmetrized </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l502"><span class="ln">502  </span></a>    <span class="s1">symmetrization_times </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l503"><span class="ln">503  </span></a>    <span class="s1">ss </span><span class="s2">= </span><span class="s1">s_vars</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">X</span><span class="s3">))</span>
+<a name="l504"><span class="ln">504  </span></a>    <span class="s2">for </span><span class="s1">i</span><span class="s3">, </span><span class="s1">A </span><span class="s2">in </span><span class="s1">list</span><span class="s3">(</span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">coeffs</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l505"><span class="ln">505  </span></a>        <span class="s2">if </span><span class="s1">verbose</span><span class="s2">:</span>
+<a name="l506"><span class="ln">506  </span></a>            <span class="s1">print</span><span class="s3">(</span><span class="s5">'-----'</span><span class="s3">)</span>
+<a name="l507"><span class="ln">507  </span></a>            <span class="s1">print</span><span class="s3">(</span><span class="s5">f'Coeff {</span><span class="s1">i</span><span class="s2">+</span><span class="s4">1</span><span class="s5">}...'</span><span class="s3">)</span>
+<a name="l508"><span class="ln">508  </span></a>            <span class="s1">sys</span><span class="s3">.</span><span class="s1">stdout</span><span class="s3">.</span><span class="s1">flush</span><span class="s3">()</span>
+<a name="l509"><span class="ln">509  </span></a>        <span class="s1">t0 </span><span class="s2">= </span><span class="s1">time</span><span class="s3">.</span><span class="s1">time</span><span class="s3">()</span>
+<a name="l510"><span class="ln">510  </span></a>        <span class="s1">B</span><span class="s3">, </span><span class="s1">rem</span><span class="s3">, </span><span class="s1">_ </span><span class="s2">= </span><span class="s1">A</span><span class="s3">.</span><span class="s1">symmetrize</span><span class="s3">()</span>
+<a name="l511"><span class="ln">511  </span></a>        <span class="s1">t1 </span><span class="s2">= </span><span class="s1">time</span><span class="s3">.</span><span class="s1">time</span><span class="s3">()</span>
+<a name="l512"><span class="ln">512  </span></a>        <span class="s2">if </span><span class="s1">rem </span><span class="s2">!= </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l513"><span class="ln">513  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s5">f&quot;Got nonzero remainder {</span><span class="s1">rem</span><span class="s5">} for resolvent (F, X, s) = ({</span><span class="s1">F</span><span class="s5">}, {</span><span class="s1">X</span><span class="s5">}, {</span><span class="s1">s</span><span class="s5">})&quot;</span>
+<a name="l514"><span class="ln">514  </span></a>            <span class="s2">raise </span><span class="s1">ResolventException</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l515"><span class="ln">515  </span></a>        <span class="s1">B_str </span><span class="s2">= </span><span class="s1">str</span><span class="s3">(</span><span class="s1">B</span><span class="s3">.</span><span class="s1">as_expr</span><span class="s3">(</span><span class="s2">*</span><span class="s1">ss</span><span class="s3">))</span>
+<a name="l516"><span class="ln">516  </span></a>        <span class="s1">symmetrized</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">B_str</span><span class="s3">)</span>
+<a name="l517"><span class="ln">517  </span></a>        <span class="s1">symmetrization_times</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">t1 </span><span class="s2">- </span><span class="s1">t0</span><span class="s3">)</span>
+<a name="l518"><span class="ln">518  </span></a>        <span class="s2">if </span><span class="s1">verbose</span><span class="s2">:</span>
+<a name="l519"><span class="ln">519  </span></a>            <span class="s1">print</span><span class="s3">(</span><span class="s1">wrap</span><span class="s3">(</span><span class="s1">B_str</span><span class="s3">))</span>
+<a name="l520"><span class="ln">520  </span></a>            <span class="s1">print</span><span class="s3">(</span><span class="s5">f'took {</span><span class="s1">t1 </span><span class="s2">- </span><span class="s1">t0</span><span class="s5">} seconds'</span><span class="s3">)</span>
+<a name="l521"><span class="ln">521  </span></a>            <span class="s1">sys</span><span class="s3">.</span><span class="s1">stdout</span><span class="s3">.</span><span class="s1">flush</span><span class="s3">()</span>
+<a name="l522"><span class="ln">522  </span></a>
+<a name="l523"><span class="ln">523  </span></a>    <span class="s2">return </span><span class="s1">symmetrized</span><span class="s3">, </span><span class="s1">symmetrization_times</span>
+<a name="l524"><span class="ln">524  </span></a>
+<a name="l525"><span class="ln">525  </span></a>
+<a name="l526"><span class="ln">526  </span></a><span class="s2">def </span><span class="s1">define_resolvents</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l527"><span class="ln">527  </span></a>    <span class="s0">&quot;&quot;&quot;Define all the resolvents for polys T of degree 4 through 6. &quot;&quot;&quot;</span>
+<a name="l528"><span class="ln">528  </span></a>    <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">combinatorics</span><span class="s3">.</span><span class="s1">galois </span><span class="s2">import </span><span class="s1">PGL2F5</span>
+<a name="l529"><span class="ln">529  </span></a>    <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">combinatorics</span><span class="s3">.</span><span class="s1">permutations </span><span class="s2">import </span><span class="s1">Permutation</span>
+<a name="l530"><span class="ln">530  </span></a>
+<a name="l531"><span class="ln">531  </span></a>    <span class="s1">R4</span><span class="s3">, </span><span class="s1">X4 </span><span class="s2">= </span><span class="s1">xring</span><span class="s3">(</span><span class="s5">&quot;X0,X1,X2,X3&quot;</span><span class="s3">, </span><span class="s1">ZZ</span><span class="s3">, </span><span class="s1">lex</span><span class="s3">)</span>
+<a name="l532"><span class="ln">532  </span></a>    <span class="s1">X </span><span class="s2">= </span><span class="s1">X4</span>
+<a name="l533"><span class="ln">533  </span></a>
+<a name="l534"><span class="ln">534  </span></a>    <span class="s0"># The one resolvent used in `_galois_group_degree_4_lookup()`:</span>
+<a name="l535"><span class="ln">535  </span></a>    <span class="s1">F40 </span><span class="s2">= </span><span class="s1">X</span><span class="s3">[</span><span class="s4">0</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">1</span><span class="s3">]</span><span class="s2">**</span><span class="s4">2 </span><span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">1</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">2</span><span class="s3">]</span><span class="s2">**</span><span class="s4">2 </span><span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">2</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">3</span><span class="s3">]</span><span class="s2">**</span><span class="s4">2 </span><span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">3</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">0</span><span class="s3">]</span><span class="s2">**</span><span class="s4">2</span>
+<a name="l536"><span class="ln">536  </span></a>    <span class="s1">s40 </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l537"><span class="ln">537  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">3</span><span class="s3">),</span>
+<a name="l538"><span class="ln">538  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">3</span><span class="s3">)(</span><span class="s4">0</span><span class="s3">, </span><span class="s4">1</span><span class="s3">),</span>
+<a name="l539"><span class="ln">539  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">3</span><span class="s3">)(</span><span class="s4">0</span><span class="s3">, </span><span class="s4">2</span><span class="s3">),</span>
+<a name="l540"><span class="ln">540  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">3</span><span class="s3">)(</span><span class="s4">0</span><span class="s3">, </span><span class="s4">3</span><span class="s3">),</span>
+<a name="l541"><span class="ln">541  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">3</span><span class="s3">)(</span><span class="s4">1</span><span class="s3">, </span><span class="s4">2</span><span class="s3">),</span>
+<a name="l542"><span class="ln">542  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">3</span><span class="s3">)(</span><span class="s4">2</span><span class="s3">, </span><span class="s4">3</span><span class="s3">),</span>
+<a name="l543"><span class="ln">543  </span></a>    <span class="s3">]</span>
+<a name="l544"><span class="ln">544  </span></a>
+<a name="l545"><span class="ln">545  </span></a>    <span class="s0"># First resolvent used in `_galois_group_degree_4_root_approx()`:</span>
+<a name="l546"><span class="ln">546  </span></a>    <span class="s1">F41 </span><span class="s2">= </span><span class="s1">X</span><span class="s3">[</span><span class="s4">0</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">2</span><span class="s3">] </span><span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">1</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">3</span><span class="s3">]</span>
+<a name="l547"><span class="ln">547  </span></a>    <span class="s1">s41 </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l548"><span class="ln">548  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">3</span><span class="s3">),</span>
+<a name="l549"><span class="ln">549  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">3</span><span class="s3">)(</span><span class="s4">0</span><span class="s3">, </span><span class="s4">1</span><span class="s3">),</span>
+<a name="l550"><span class="ln">550  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">3</span><span class="s3">)(</span><span class="s4">0</span><span class="s3">, </span><span class="s4">3</span><span class="s3">)</span>
+<a name="l551"><span class="ln">551  </span></a>    <span class="s3">]</span>
+<a name="l552"><span class="ln">552  </span></a>
+<a name="l553"><span class="ln">553  </span></a>    <span class="s1">R5</span><span class="s3">, </span><span class="s1">X5 </span><span class="s2">= </span><span class="s1">xring</span><span class="s3">(</span><span class="s5">&quot;X0,X1,X2,X3,X4&quot;</span><span class="s3">, </span><span class="s1">ZZ</span><span class="s3">, </span><span class="s1">lex</span><span class="s3">)</span>
+<a name="l554"><span class="ln">554  </span></a>    <span class="s1">X </span><span class="s2">= </span><span class="s1">X5</span>
+<a name="l555"><span class="ln">555  </span></a>
+<a name="l556"><span class="ln">556  </span></a>    <span class="s0"># First resolvent used in `_galois_group_degree_5_hybrid()`,</span>
+<a name="l557"><span class="ln">557  </span></a>    <span class="s0"># and only one used in `_galois_group_degree_5_lookup_ext_factor()`:</span>
+<a name="l558"><span class="ln">558  </span></a>    <span class="s1">F51 </span><span class="s2">= </span><span class="s3">(  </span><span class="s1">X</span><span class="s3">[</span><span class="s4">0</span><span class="s3">]</span><span class="s2">**</span><span class="s4">2</span><span class="s2">*</span><span class="s3">(</span><span class="s1">X</span><span class="s3">[</span><span class="s4">1</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">4</span><span class="s3">] </span><span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">2</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">3</span><span class="s3">])</span>
+<a name="l559"><span class="ln">559  </span></a>           <span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">1</span><span class="s3">]</span><span class="s2">**</span><span class="s4">2</span><span class="s2">*</span><span class="s3">(</span><span class="s1">X</span><span class="s3">[</span><span class="s4">2</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">0</span><span class="s3">] </span><span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">3</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">4</span><span class="s3">])</span>
+<a name="l560"><span class="ln">560  </span></a>           <span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">2</span><span class="s3">]</span><span class="s2">**</span><span class="s4">2</span><span class="s2">*</span><span class="s3">(</span><span class="s1">X</span><span class="s3">[</span><span class="s4">3</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">1</span><span class="s3">] </span><span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">4</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">0</span><span class="s3">])</span>
+<a name="l561"><span class="ln">561  </span></a>           <span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">3</span><span class="s3">]</span><span class="s2">**</span><span class="s4">2</span><span class="s2">*</span><span class="s3">(</span><span class="s1">X</span><span class="s3">[</span><span class="s4">4</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">2</span><span class="s3">] </span><span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">0</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">1</span><span class="s3">])</span>
+<a name="l562"><span class="ln">562  </span></a>           <span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">4</span><span class="s3">]</span><span class="s2">**</span><span class="s4">2</span><span class="s2">*</span><span class="s3">(</span><span class="s1">X</span><span class="s3">[</span><span class="s4">0</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">3</span><span class="s3">] </span><span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">1</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">2</span><span class="s3">]))</span>
+<a name="l563"><span class="ln">563  </span></a>    <span class="s1">s51 </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l564"><span class="ln">564  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">4</span><span class="s3">),</span>
+<a name="l565"><span class="ln">565  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">4</span><span class="s3">)(</span><span class="s4">0</span><span class="s3">, </span><span class="s4">1</span><span class="s3">),</span>
+<a name="l566"><span class="ln">566  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">4</span><span class="s3">)(</span><span class="s4">0</span><span class="s3">, </span><span class="s4">2</span><span class="s3">),</span>
+<a name="l567"><span class="ln">567  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">4</span><span class="s3">)(</span><span class="s4">0</span><span class="s3">, </span><span class="s4">3</span><span class="s3">),</span>
+<a name="l568"><span class="ln">568  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">4</span><span class="s3">)(</span><span class="s4">0</span><span class="s3">, </span><span class="s4">4</span><span class="s3">),</span>
+<a name="l569"><span class="ln">569  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">4</span><span class="s3">)(</span><span class="s4">1</span><span class="s3">, </span><span class="s4">4</span><span class="s3">)</span>
+<a name="l570"><span class="ln">570  </span></a>    <span class="s3">]</span>
+<a name="l571"><span class="ln">571  </span></a>
+<a name="l572"><span class="ln">572  </span></a>    <span class="s1">R6</span><span class="s3">, </span><span class="s1">X6 </span><span class="s2">= </span><span class="s1">xring</span><span class="s3">(</span><span class="s5">&quot;X0,X1,X2,X3,X4,X5&quot;</span><span class="s3">, </span><span class="s1">ZZ</span><span class="s3">, </span><span class="s1">lex</span><span class="s3">)</span>
+<a name="l573"><span class="ln">573  </span></a>    <span class="s1">X </span><span class="s2">= </span><span class="s1">X6</span>
+<a name="l574"><span class="ln">574  </span></a>
+<a name="l575"><span class="ln">575  </span></a>    <span class="s0"># First resolvent used in `_galois_group_degree_6_lookup()`:</span>
+<a name="l576"><span class="ln">576  </span></a>    <span class="s1">H </span><span class="s2">= </span><span class="s1">PGL2F5</span><span class="s3">()</span>
+<a name="l577"><span class="ln">577  </span></a>    <span class="s1">term0 </span><span class="s2">= </span><span class="s1">X</span><span class="s3">[</span><span class="s4">0</span><span class="s3">]</span><span class="s2">**</span><span class="s4">2</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">5</span><span class="s3">]</span><span class="s2">**</span><span class="s4">2</span><span class="s2">*</span><span class="s3">(</span><span class="s1">X</span><span class="s3">[</span><span class="s4">1</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">4</span><span class="s3">] </span><span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">2</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">3</span><span class="s3">])</span>
+<a name="l578"><span class="ln">578  </span></a>    <span class="s1">terms </span><span class="s2">= </span><span class="s3">{</span><span class="s1">term0</span><span class="s3">.</span><span class="s1">compose</span><span class="s3">(</span><span class="s1">list</span><span class="s3">(</span><span class="s1">zip</span><span class="s3">(</span><span class="s1">X</span><span class="s3">, </span><span class="s1">s</span><span class="s3">(</span><span class="s1">X</span><span class="s3">)))) </span><span class="s2">for </span><span class="s1">s </span><span class="s2">in </span><span class="s1">H</span><span class="s3">.</span><span class="s1">elements</span><span class="s3">}</span>
+<a name="l579"><span class="ln">579  </span></a>    <span class="s1">F61 </span><span class="s2">= </span><span class="s1">sum</span><span class="s3">(</span><span class="s1">terms</span><span class="s3">)</span>
+<a name="l580"><span class="ln">580  </span></a>    <span class="s1">s61 </span><span class="s2">= </span><span class="s3">[</span><span class="s1">Permutation</span><span class="s3">(</span><span class="s4">5</span><span class="s3">)] </span><span class="s2">+ </span><span class="s3">[</span><span class="s1">Permutation</span><span class="s3">(</span><span class="s4">5</span><span class="s3">)(</span><span class="s4">0</span><span class="s3">, </span><span class="s1">n</span><span class="s3">) </span><span class="s2">for </span><span class="s1">n </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s4">1</span><span class="s3">, </span><span class="s4">6</span><span class="s3">)]</span>
+<a name="l581"><span class="ln">581  </span></a>
+<a name="l582"><span class="ln">582  </span></a>    <span class="s0"># Second resolvent used in `_galois_group_degree_6_lookup()`:</span>
+<a name="l583"><span class="ln">583  </span></a>    <span class="s1">F62 </span><span class="s2">= </span><span class="s1">X</span><span class="s3">[</span><span class="s4">0</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">1</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">2</span><span class="s3">] </span><span class="s2">+ </span><span class="s1">X</span><span class="s3">[</span><span class="s4">3</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">4</span><span class="s3">]</span><span class="s2">*</span><span class="s1">X</span><span class="s3">[</span><span class="s4">5</span><span class="s3">]</span>
+<a name="l584"><span class="ln">584  </span></a>    <span class="s1">s62 </span><span class="s2">= </span><span class="s3">[</span><span class="s1">Permutation</span><span class="s3">(</span><span class="s4">5</span><span class="s3">)] </span><span class="s2">+ </span><span class="s3">[</span>
+<a name="l585"><span class="ln">585  </span></a>        <span class="s1">Permutation</span><span class="s3">(</span><span class="s4">5</span><span class="s3">)(</span><span class="s1">i</span><span class="s3">, </span><span class="s1">j </span><span class="s2">+ </span><span class="s4">3</span><span class="s3">) </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s4">3</span><span class="s3">) </span><span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s4">3</span><span class="s3">)</span>
+<a name="l586"><span class="ln">586  </span></a>    <span class="s3">]</span>
+<a name="l587"><span class="ln">587  </span></a>
+<a name="l588"><span class="ln">588  </span></a>    <span class="s2">return </span><span class="s3">{</span>
+<a name="l589"><span class="ln">589  </span></a>        <span class="s3">(</span><span class="s4">4</span><span class="s3">, </span><span class="s4">0</span><span class="s3">)</span><span class="s2">: </span><span class="s3">(</span><span class="s1">F40</span><span class="s3">, </span><span class="s1">X4</span><span class="s3">, </span><span class="s1">s40</span><span class="s3">),</span>
+<a name="l590"><span class="ln">590  </span></a>        <span class="s3">(</span><span class="s4">4</span><span class="s3">, </span><span class="s4">1</span><span class="s3">)</span><span class="s2">: </span><span class="s3">(</span><span class="s1">F41</span><span class="s3">, </span><span class="s1">X4</span><span class="s3">, </span><span class="s1">s41</span><span class="s3">),</span>
+<a name="l591"><span class="ln">591  </span></a>        <span class="s3">(</span><span class="s4">5</span><span class="s3">, </span><span class="s4">1</span><span class="s3">)</span><span class="s2">: </span><span class="s3">(</span><span class="s1">F51</span><span class="s3">, </span><span class="s1">X5</span><span class="s3">, </span><span class="s1">s51</span><span class="s3">),</span>
+<a name="l592"><span class="ln">592  </span></a>        <span class="s3">(</span><span class="s4">6</span><span class="s3">, </span><span class="s4">1</span><span class="s3">)</span><span class="s2">: </span><span class="s3">(</span><span class="s1">F61</span><span class="s3">, </span><span class="s1">X6</span><span class="s3">, </span><span class="s1">s61</span><span class="s3">),</span>
+<a name="l593"><span class="ln">593  </span></a>        <span class="s3">(</span><span class="s4">6</span><span class="s3">, </span><span class="s4">2</span><span class="s3">)</span><span class="s2">: </span><span class="s3">(</span><span class="s1">F62</span><span class="s3">, </span><span class="s1">X6</span><span class="s3">, </span><span class="s1">s62</span><span class="s3">),</span>
+<a name="l594"><span class="ln">594  </span></a>    <span class="s3">}</span>
+<a name="l595"><span class="ln">595  </span></a>
+<a name="l596"><span class="ln">596  </span></a>
+<a name="l597"><span class="ln">597  </span></a><span class="s2">def </span><span class="s1">generate_lambda_lookup</span><span class="s3">(</span><span class="s1">verbose</span><span class="s2">=False</span><span class="s3">, </span><span class="s1">trial_run</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l598"><span class="ln">598  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l599"><span class="ln">599  </span></a>    Generate the whole lookup table of coeff lambdas, for all resolvents. 
+<a name="l600"><span class="ln">600  </span></a>    &quot;&quot;&quot;</span>
+<a name="l601"><span class="ln">601  </span></a>    <span class="s1">jobs </span><span class="s2">= </span><span class="s1">define_resolvents</span><span class="s3">()</span>
+<a name="l602"><span class="ln">602  </span></a>    <span class="s1">lambda_lists </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l603"><span class="ln">603  </span></a>    <span class="s1">total_time </span><span class="s2">= </span><span class="s4">0</span>
+<a name="l604"><span class="ln">604  </span></a>    <span class="s1">time_for_61 </span><span class="s2">= </span><span class="s4">0</span>
+<a name="l605"><span class="ln">605  </span></a>    <span class="s1">time_for_61_last </span><span class="s2">= </span><span class="s4">0</span>
+<a name="l606"><span class="ln">606  </span></a>    <span class="s2">for </span><span class="s1">k</span><span class="s3">, (</span><span class="s1">F</span><span class="s3">, </span><span class="s1">X</span><span class="s3">, </span><span class="s1">s</span><span class="s3">) </span><span class="s2">in </span><span class="s1">jobs</span><span class="s3">.</span><span class="s1">items</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l607"><span class="ln">607  </span></a>        <span class="s1">symmetrized</span><span class="s3">, </span><span class="s1">times </span><span class="s2">= </span><span class="s1">sparse_symmetrize_resolvent_coeffs</span><span class="s3">(</span><span class="s1">F</span><span class="s3">, </span><span class="s1">X</span><span class="s3">, </span><span class="s1">s</span><span class="s3">, </span><span class="s1">verbose</span><span class="s2">=</span><span class="s1">verbose</span><span class="s3">)</span>
+<a name="l608"><span class="ln">608  </span></a>
+<a name="l609"><span class="ln">609  </span></a>        <span class="s1">total_time </span><span class="s2">+= </span><span class="s1">sum</span><span class="s3">(</span><span class="s1">times</span><span class="s3">)</span>
+<a name="l610"><span class="ln">610  </span></a>        <span class="s2">if </span><span class="s1">k </span><span class="s2">== </span><span class="s3">(</span><span class="s4">6</span><span class="s3">, </span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l611"><span class="ln">611  </span></a>            <span class="s1">time_for_61 </span><span class="s2">= </span><span class="s1">sum</span><span class="s3">(</span><span class="s1">times</span><span class="s3">)</span>
+<a name="l612"><span class="ln">612  </span></a>            <span class="s1">time_for_61_last </span><span class="s2">= </span><span class="s1">times</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">]</span>
+<a name="l613"><span class="ln">613  </span></a>
+<a name="l614"><span class="ln">614  </span></a>        <span class="s1">sv </span><span class="s2">= </span><span class="s1">s_vars</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">X</span><span class="s3">))</span>
+<a name="l615"><span class="ln">615  </span></a>        <span class="s1">head </span><span class="s2">= </span><span class="s5">f'lambda {&quot;, &quot;</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">str</span><span class="s3">(</span><span class="s1">v</span><span class="s3">) </span><span class="s2">for </span><span class="s1">v </span><span class="s2">in </span><span class="s1">sv</span><span class="s3">)</span><span class="s5">}:'</span>
+<a name="l616"><span class="ln">616  </span></a>        <span class="s1">lambda_lists</span><span class="s3">[</span><span class="s1">k</span><span class="s3">] </span><span class="s2">= </span><span class="s5">',\n        '</span><span class="s3">.</span><span class="s1">join</span><span class="s3">([</span>
+<a name="l617"><span class="ln">617  </span></a>            <span class="s5">f'{</span><span class="s1">head</span><span class="s5">} ({</span><span class="s1">wrap</span><span class="s3">(</span><span class="s1">f</span><span class="s3">)</span><span class="s5">})'</span>
+<a name="l618"><span class="ln">618  </span></a>            <span class="s2">for </span><span class="s1">f </span><span class="s2">in </span><span class="s1">symmetrized</span>
+<a name="l619"><span class="ln">619  </span></a>        <span class="s3">])</span>
+<a name="l620"><span class="ln">620  </span></a>
+<a name="l621"><span class="ln">621  </span></a>        <span class="s2">if </span><span class="s1">trial_run</span><span class="s2">:</span>
+<a name="l622"><span class="ln">622  </span></a>            <span class="s2">break</span>
+<a name="l623"><span class="ln">623  </span></a>
+<a name="l624"><span class="ln">624  </span></a>    <span class="s1">table </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l625"><span class="ln">625  </span></a>         <span class="s5">&quot;# This table was generated by a call to\n&quot;</span>
+<a name="l626"><span class="ln">626  </span></a>         <span class="s5">&quot;# `sympy.polys.numberfields.galois_resolvents.generate_lambda_lookup()`.\n&quot;</span>
+<a name="l627"><span class="ln">627  </span></a>        <span class="s5">f&quot;# The entire job took {</span><span class="s1">total_time</span><span class="s5">:.2f}s.\n&quot;</span>
+<a name="l628"><span class="ln">628  </span></a>        <span class="s5">f&quot;# Of this, Case (6, 1) took {</span><span class="s1">time_for_61</span><span class="s5">:.2f}s.\n&quot;</span>
+<a name="l629"><span class="ln">629  </span></a>        <span class="s5">f&quot;# The final polynomial of Case (6, 1) alone took {</span><span class="s1">time_for_61_last</span><span class="s5">:.2f}s.\n&quot;</span>
+<a name="l630"><span class="ln">630  </span></a>         <span class="s5">&quot;resolvent_coeff_lambdas = {\n&quot;</span><span class="s3">)</span>
+<a name="l631"><span class="ln">631  </span></a>
+<a name="l632"><span class="ln">632  </span></a>    <span class="s2">for </span><span class="s1">k</span><span class="s3">, </span><span class="s1">L </span><span class="s2">in </span><span class="s1">lambda_lists</span><span class="s3">.</span><span class="s1">items</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l633"><span class="ln">633  </span></a>        <span class="s1">table </span><span class="s2">+= </span><span class="s5">f&quot;    {</span><span class="s1">k</span><span class="s5">}: [\n&quot;</span>
+<a name="l634"><span class="ln">634  </span></a>        <span class="s1">table </span><span class="s2">+=  </span><span class="s5">&quot;        &quot; </span><span class="s2">+ </span><span class="s1">L </span><span class="s2">+ </span><span class="s5">'\n'</span>
+<a name="l635"><span class="ln">635  </span></a>        <span class="s1">table </span><span class="s2">+=  </span><span class="s5">&quot;    ],\n&quot;</span>
+<a name="l636"><span class="ln">636  </span></a>    <span class="s1">table </span><span class="s2">+= </span><span class="s5">&quot;}\n&quot;</span>
+<a name="l637"><span class="ln">637  </span></a>    <span class="s2">return </span><span class="s1">table</span>
+<a name="l638"><span class="ln">638  </span></a>
+<a name="l639"><span class="ln">639  </span></a>
+<a name="l640"><span class="ln">640  </span></a><span class="s2">def </span><span class="s1">get_resolvent_by_lookup</span><span class="s3">(</span><span class="s1">T</span><span class="s3">, </span><span class="s1">number</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l641"><span class="ln">641  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l642"><span class="ln">642  </span></a>    Use the lookup table, to return a resolvent (as dup) for a given 
+<a name="l643"><span class="ln">643  </span></a>    polynomial *T*. 
+<a name="l644"><span class="ln">644  </span></a> 
+<a name="l645"><span class="ln">645  </span></a>    Parameters 
+<a name="l646"><span class="ln">646  </span></a>    ========== 
+<a name="l647"><span class="ln">647  </span></a> 
+<a name="l648"><span class="ln">648  </span></a>    T : Poly 
+<a name="l649"><span class="ln">649  </span></a>        The polynomial whose resolvent is needed 
+<a name="l650"><span class="ln">650  </span></a> 
+<a name="l651"><span class="ln">651  </span></a>    number : int 
+<a name="l652"><span class="ln">652  </span></a>        For some degrees, there are multiple resolvents. 
+<a name="l653"><span class="ln">653  </span></a>        Use this to indicate which one you want. 
+<a name="l654"><span class="ln">654  </span></a> 
+<a name="l655"><span class="ln">655  </span></a>    Returns 
+<a name="l656"><span class="ln">656  </span></a>    ======= 
+<a name="l657"><span class="ln">657  </span></a> 
+<a name="l658"><span class="ln">658  </span></a>    dup 
+<a name="l659"><span class="ln">659  </span></a> 
+<a name="l660"><span class="ln">660  </span></a>    &quot;&quot;&quot;</span>
+<a name="l661"><span class="ln">661  </span></a>    <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">numberfields</span><span class="s3">.</span><span class="s1">resolvent_lookup </span><span class="s2">import </span><span class="s1">resolvent_coeff_lambdas</span>
+<a name="l662"><span class="ln">662  </span></a>    <span class="s1">degree </span><span class="s2">= </span><span class="s1">T</span><span class="s3">.</span><span class="s1">degree</span><span class="s3">()</span>
+<a name="l663"><span class="ln">663  </span></a>    <span class="s1">L </span><span class="s2">= </span><span class="s1">resolvent_coeff_lambdas</span><span class="s3">[(</span><span class="s1">degree</span><span class="s3">, </span><span class="s1">number</span><span class="s3">)]</span>
+<a name="l664"><span class="ln">664  </span></a>    <span class="s1">T_coeffs </span><span class="s2">= </span><span class="s1">T</span><span class="s3">.</span><span class="s1">rep</span><span class="s3">.</span><span class="s1">to_list</span><span class="s3">()[</span><span class="s4">1</span><span class="s2">:</span><span class="s3">]</span>
+<a name="l665"><span class="ln">665  </span></a>    <span class="s2">return </span><span class="s3">[</span><span class="s1">ZZ</span><span class="s3">(</span><span class="s4">1</span><span class="s3">)] </span><span class="s2">+ </span><span class="s3">[</span><span class="s1">c</span><span class="s3">(</span><span class="s2">*</span><span class="s1">T_coeffs</span><span class="s3">) </span><span class="s2">for </span><span class="s1">c </span><span class="s2">in </span><span class="s1">L</span><span class="s3">]</span>
+<a name="l666"><span class="ln">666  </span></a>
+<a name="l667"><span class="ln">667  </span></a>
+<a name="l668"><span class="ln">668  </span></a><span class="s0"># Use</span>
+<a name="l669"><span class="ln">669  </span></a><span class="s0">#   (.venv) $ python -m sympy.polys.numberfields.galois_resolvents</span>
+<a name="l670"><span class="ln">670  </span></a><span class="s0"># to reproduce the table found in resolvent_lookup.py</span>
+<a name="l671"><span class="ln">671  </span></a><span class="s2">if </span><span class="s1">__name__ </span><span class="s2">== </span><span class="s5">&quot;__main__&quot;</span><span class="s2">:</span>
+<a name="l672"><span class="ln">672  </span></a>    <span class="s2">import </span><span class="s1">sys</span>
+<a name="l673"><span class="ln">673  </span></a>    <span class="s1">verbose </span><span class="s2">= </span><span class="s5">'-v' </span><span class="s2">in </span><span class="s1">sys</span><span class="s3">.</span><span class="s1">argv</span><span class="s3">[</span><span class="s4">1</span><span class="s2">:</span><span class="s3">]</span>
+<a name="l674"><span class="ln">674  </span></a>    <span class="s1">trial_run </span><span class="s2">= </span><span class="s5">'-t' </span><span class="s2">in </span><span class="s1">sys</span><span class="s3">.</span><span class="s1">argv</span><span class="s3">[</span><span class="s4">1</span><span class="s2">:</span><span class="s3">]</span>
+<a name="l675"><span class="ln">675  </span></a>    <span class="s1">table </span><span class="s2">= </span><span class="s1">generate_lambda_lookup</span><span class="s3">(</span><span class="s1">verbose</span><span class="s2">=</span><span class="s1">verbose</span><span class="s3">, </span><span class="s1">trial_run</span><span class="s2">=</span><span class="s1">trial_run</span><span class="s3">)</span>
+<a name="l676"><span class="ln">676  </span></a>    <span class="s1">print</span><span class="s3">(</span><span class="s1">table</span><span class="s3">)</span>
+<a name="l677"><span class="ln">677  </span></a></pre>
+</body>
+</html>

@@ -1,0 +1,193 @@
+<html>
+<head>
+    <title>cbrt.h</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <style type="text/css">
+        .s0 { color: #969896; font-style: italic;}
+        .s1 { color: #333333;}
+        .s2 { color: #000080; font-weight: bold;}
+        .s3 { color: #183691; font-weight: bold;}
+        .s4 { color: #660e7a; font-weight: bold;}
+        .s5 { color: #0086b3;}
+        .ln { color: #333333; font-weight: normal; font-style: normal; }
+    </style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0">
+    <tr>
+        <td>
+            <center>
+                <font face="Arial, Helvetica" color="#000000">
+                    cbrt.h</font>
+            </center>
+        </td>
+    </tr>
+</table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">/* Translated into C++ by SciPy developers in 2024. 
+<a name="l2"><span class="ln">2    </span></a> * Original header with Copyright information appears below. 
+<a name="l3"><span class="ln">3    </span></a> */</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">/*                                                     cbrt.c 
+<a name="l6"><span class="ln">6    </span></a> * 
+<a name="l7"><span class="ln">7    </span></a> *     Cube root 
+<a name="l8"><span class="ln">8    </span></a> * 
+<a name="l9"><span class="ln">9    </span></a> * 
+<a name="l10"><span class="ln">10   </span></a> * 
+<a name="l11"><span class="ln">11   </span></a> * SYNOPSIS: 
+<a name="l12"><span class="ln">12   </span></a> * 
+<a name="l13"><span class="ln">13   </span></a> * double x, y, cbrt(); 
+<a name="l14"><span class="ln">14   </span></a> * 
+<a name="l15"><span class="ln">15   </span></a> * y = cbrt( x ); 
+<a name="l16"><span class="ln">16   </span></a> * 
+<a name="l17"><span class="ln">17   </span></a> * 
+<a name="l18"><span class="ln">18   </span></a> * 
+<a name="l19"><span class="ln">19   </span></a> * DESCRIPTION: 
+<a name="l20"><span class="ln">20   </span></a> * 
+<a name="l21"><span class="ln">21   </span></a> * Returns the cube root of the argument, which may be negative. 
+<a name="l22"><span class="ln">22   </span></a> * 
+<a name="l23"><span class="ln">23   </span></a> * Range reduction involves determining the power of 2 of 
+<a name="l24"><span class="ln">24   </span></a> * the argument.  A polynomial of degree 2 applied to the 
+<a name="l25"><span class="ln">25   </span></a> * mantissa, and multiplication by the cube root of 1, 2, or 4 
+<a name="l26"><span class="ln">26   </span></a> * approximates the root to within about 0.1%.  Then Newton's 
+<a name="l27"><span class="ln">27   </span></a> * iteration is used three times to converge to an accurate 
+<a name="l28"><span class="ln">28   </span></a> * result. 
+<a name="l29"><span class="ln">29   </span></a> * 
+<a name="l30"><span class="ln">30   </span></a> * 
+<a name="l31"><span class="ln">31   </span></a> * 
+<a name="l32"><span class="ln">32   </span></a> * ACCURACY: 
+<a name="l33"><span class="ln">33   </span></a> * 
+<a name="l34"><span class="ln">34   </span></a> *                      Relative error: 
+<a name="l35"><span class="ln">35   </span></a> * arithmetic   domain     # trials      peak         rms 
+<a name="l36"><span class="ln">36   </span></a> *    IEEE       0,1e308     30000      1.5e-16     5.0e-17 
+<a name="l37"><span class="ln">37   </span></a> * 
+<a name="l38"><span class="ln">38   </span></a> */</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s0">/*                          cbrt.c  */</span>
+<a name="l40"><span class="ln">40   </span></a>
+<a name="l41"><span class="ln">41   </span></a><span class="s0">/* 
+<a name="l42"><span class="ln">42   </span></a> * Cephes Math Library Release 2.2:  January, 1991 
+<a name="l43"><span class="ln">43   </span></a> * Copyright 1984, 1991 by Stephen L. Moshier 
+<a name="l44"><span class="ln">44   </span></a> * Direct inquiries to 30 Frost Street, Cambridge, MA 02140 
+<a name="l45"><span class="ln">45   </span></a> */</span>
+<a name="l46"><span class="ln">46   </span></a><span class="s1">#pragma once</span>
+<a name="l47"><span class="ln">47   </span></a>
+<a name="l48"><span class="ln">48   </span></a><span class="s2">#include </span><span
+            class="s3">&quot;../config.h&quot;</span>
+<a name="l49"><span class="ln">49   </span></a>
+<a name="l50"><span class="ln">50   </span></a><span class="s4">namespace </span><span class="s1">xsf {</span>
+<a name="l51"><span class="ln">51   </span></a><span class="s4">namespace </span><span class="s1">cephes {</span>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a>    <span class="s4">namespace </span><span class="s1">detail {</span>
+<a name="l54"><span class="ln">54   </span></a>
+<a name="l55"><span class="ln">55   </span></a>        <span class="s1">constexpr </span><span class="s2">double </span><span
+            class="s1">CBRT2 = </span><span class="s5">1.2599210498948731647672</span><span class="s1">;</span>
+<a name="l56"><span class="ln">56   </span></a>        <span class="s1">constexpr </span><span class="s2">double </span><span
+            class="s1">CBRT4 = </span><span class="s5">1.5874010519681994747517</span><span class="s1">;</span>
+<a name="l57"><span class="ln">57   </span></a>        <span class="s1">constexpr </span><span class="s2">double </span><span
+            class="s1">CBRT2I = </span><span class="s5">0.79370052598409973737585</span><span class="s1">;</span>
+<a name="l58"><span class="ln">58   </span></a>        <span class="s1">constexpr </span><span class="s2">double </span><span
+            class="s1">CBRT4I = </span><span class="s5">0.62996052494743658238361</span><span class="s1">;</span>
+<a name="l59"><span class="ln">59   </span></a>
+<a name="l60"><span class="ln">60   </span></a>        <span class="s1">XSF_HOST_DEVICE </span><span
+            class="s4">inline </span><span class="s2">double </span><span class="s1">cbrt(</span><span
+            class="s2">double </span><span class="s1">x) {</span>
+<a name="l61"><span class="ln">61   </span></a>            <span class="s2">int </span><span
+            class="s1">e, rem, sign;</span>
+<a name="l62"><span class="ln">62   </span></a>            <span class="s2">double </span><span class="s1">z;</span>
+<a name="l63"><span class="ln">63   </span></a>
+<a name="l64"><span class="ln">64   </span></a>            <span class="s2">if </span><span class="s1">(!std::isfinite(x)) {</span>
+<a name="l65"><span class="ln">65   </span></a>                <span class="s2">return </span><span class="s1">x;</span>
+<a name="l66"><span class="ln">66   </span></a>            <span class="s1">}</span>
+<a name="l67"><span class="ln">67   </span></a>            <span class="s2">if </span><span
+            class="s1">(x == </span><span class="s5">0</span><span class="s1">) {</span>
+<a name="l68"><span class="ln">68   </span></a>                <span class="s2">return </span><span
+            class="s1">(x);</span>
+<a name="l69"><span class="ln">69   </span></a>            <span class="s1">}</span>
+<a name="l70"><span class="ln">70   </span></a>            <span class="s2">if </span><span
+            class="s1">(x &gt; </span><span class="s5">0</span><span class="s1">) {</span>
+<a name="l71"><span class="ln">71   </span></a>                <span class="s1">sign = </span><span
+            class="s5">1</span><span class="s1">;</span>
+<a name="l72"><span class="ln">72   </span></a>            <span class="s1">} </span><span class="s2">else </span><span
+            class="s1">{</span>
+<a name="l73"><span class="ln">73   </span></a>                <span class="s1">sign = -</span><span class="s5">1</span><span
+            class="s1">;</span>
+<a name="l74"><span class="ln">74   </span></a>                <span class="s1">x = -x;</span>
+<a name="l75"><span class="ln">75   </span></a>            <span class="s1">}</span>
+<a name="l76"><span class="ln">76   </span></a>
+<a name="l77"><span class="ln">77   </span></a>            <span class="s1">z = x;</span>
+<a name="l78"><span class="ln">78   </span></a>            <span class="s0">/* extract power of 2, leaving 
+<a name="l79"><span class="ln">79   </span></a>             * mantissa between 0.5 and 1 
+<a name="l80"><span class="ln">80   </span></a>             */</span>
+<a name="l81"><span class="ln">81   </span></a>            <span class="s1">x = std::frexp(x, &amp;e);</span>
+<a name="l82"><span class="ln">82   </span></a>
+<a name="l83"><span class="ln">83   </span></a>            <span class="s0">/* Approximate cube root of number between .5 and 1, 
+<a name="l84"><span class="ln">84   </span></a>             * peak relative error = 9.2e-6 
+<a name="l85"><span class="ln">85   </span></a>             */</span>
+<a name="l86"><span class="ln">86   </span></a>            <span class="s1">x = (((-</span><span
+            class="s5">1</span><span class="s1">.</span><span class="s5">3466110473359520655053</span><span class="s1">e-1 * x + </span><span
+            class="s5">5</span><span class="s1">.</span><span class="s5">4664601366395524503440</span><span class="s1">e-1) * x - </span><span
+            class="s5">9</span><span class="s1">.</span><span class="s5">5438224771509446525043</span><span class="s1">e-1) *</span>
+<a name="l87"><span class="ln">87   </span></a>                     <span class="s1">x +</span>
+<a name="l88"><span class="ln">88   </span></a>                 <span class="s5">1</span><span class="s1">.</span><span
+            class="s5">1399983354717293273738</span><span class="s1">e0) *</span>
+<a name="l89"><span class="ln">89   </span></a>                    <span class="s1">x +</span>
+<a name="l90"><span class="ln">90   </span></a>                <span class="s5">4</span><span class="s1">.</span><span
+            class="s5">0238979564544752126924</span><span class="s1">e-1;</span>
+<a name="l91"><span class="ln">91   </span></a>
+<a name="l92"><span class="ln">92   </span></a>            <span class="s0">/* exponent divided by 3 */</span>
+<a name="l93"><span class="ln">93   </span></a>            <span class="s2">if </span><span
+            class="s1">(e &gt;= </span><span class="s5">0</span><span class="s1">) {</span>
+<a name="l94"><span class="ln">94   </span></a>                <span class="s1">rem = e;</span>
+<a name="l95"><span class="ln">95   </span></a>                <span class="s1">e /= </span><span
+            class="s5">3</span><span class="s1">;</span>
+<a name="l96"><span class="ln">96   </span></a>                <span class="s1">rem -= </span><span class="s5">3 </span><span
+            class="s1">* e;</span>
+<a name="l97"><span class="ln">97   </span></a>                <span class="s2">if </span><span
+            class="s1">(rem == </span><span class="s5">1</span><span class="s1">) {</span>
+<a name="l98"><span class="ln">98   </span></a>                    <span class="s1">x *= CBRT2;</span>
+<a name="l99"><span class="ln">99   </span></a>                <span class="s1">} </span><span
+            class="s2">else if </span><span class="s1">(rem == </span><span class="s5">2</span><span
+            class="s1">) {</span>
+<a name="l100"><span class="ln">100  </span></a>                    <span class="s1">x *= CBRT4;</span>
+<a name="l101"><span class="ln">101  </span></a>                <span class="s1">}</span>
+<a name="l102"><span class="ln">102  </span></a>            <span class="s1">}</span>
+<a name="l103"><span class="ln">103  </span></a>            <span class="s0">/* argument less than 1 */</span>
+<a name="l104"><span class="ln">104  </span></a>            <span class="s2">else </span><span class="s1">{</span>
+<a name="l105"><span class="ln">105  </span></a>                <span class="s1">e = -e;</span>
+<a name="l106"><span class="ln">106  </span></a>                <span class="s1">rem = e;</span>
+<a name="l107"><span class="ln">107  </span></a>                <span class="s1">e /= </span><span
+            class="s5">3</span><span class="s1">;</span>
+<a name="l108"><span class="ln">108  </span></a>                <span class="s1">rem -= </span><span
+            class="s5">3 </span><span class="s1">* e;</span>
+<a name="l109"><span class="ln">109  </span></a>                <span class="s2">if </span><span
+            class="s1">(rem == </span><span class="s5">1</span><span class="s1">) {</span>
+<a name="l110"><span class="ln">110  </span></a>                    <span class="s1">x *= CBRT2I;</span>
+<a name="l111"><span class="ln">111  </span></a>                <span class="s1">} </span><span
+            class="s2">else if </span><span class="s1">(rem == </span><span class="s5">2</span><span
+            class="s1">) {</span>
+<a name="l112"><span class="ln">112  </span></a>                    <span class="s1">x *= CBRT4I;</span>
+<a name="l113"><span class="ln">113  </span></a>                <span class="s1">}</span>
+<a name="l114"><span class="ln">114  </span></a>                <span class="s1">e = -e;</span>
+<a name="l115"><span class="ln">115  </span></a>            <span class="s1">}</span>
+<a name="l116"><span class="ln">116  </span></a>
+<a name="l117"><span class="ln">117  </span></a>            <span class="s0">/* multiply by power of 2 */</span>
+<a name="l118"><span class="ln">118  </span></a>            <span class="s1">x = std::ldexp(x, e);</span>
+<a name="l119"><span class="ln">119  </span></a>
+<a name="l120"><span class="ln">120  </span></a>            <span class="s0">/* Newton iteration */</span>
+<a name="l121"><span class="ln">121  </span></a>            <span class="s1">x -= (x - (z / (x * x))) * </span><span
+            class="s5">0.33333333333333333333</span><span class="s1">;</span>
+<a name="l122"><span class="ln">122  </span></a>            <span class="s1">x -= (x - (z / (x * x))) * </span><span
+            class="s5">0.33333333333333333333</span><span class="s1">;</span>
+<a name="l123"><span class="ln">123  </span></a>
+<a name="l124"><span class="ln">124  </span></a>            <span class="s2">if </span><span
+            class="s1">(sign &lt; </span><span class="s5">0</span><span class="s1">)</span>
+<a name="l125"><span class="ln">125  </span></a>                <span class="s1">x = -x;</span>
+<a name="l126"><span class="ln">126  </span></a>            <span class="s2">return </span><span class="s1">(x);</span>
+<a name="l127"><span class="ln">127  </span></a>        <span class="s1">}</span>
+<a name="l128"><span class="ln">128  </span></a>    <span class="s1">} </span><span
+            class="s0">// namespace detail</span>
+<a name="l129"><span class="ln">129  </span></a>
+<a name="l130"><span class="ln">130  </span></a><span class="s1">} </span><span class="s0">// namespace cephes</span>
+<a name="l131"><span class="ln">131  </span></a><span class="s1">} </span><span class="s0">// namespace xsf</span>
+<a name="l132"><span class="ln">132  </span></a></pre>
+</body>
+</html>

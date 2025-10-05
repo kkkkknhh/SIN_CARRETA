@@ -1,0 +1,492 @@
+<html>
+<head>
+<title>index_methods.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #0086b3;}
+.s5 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+index_methods.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot;Module with functions operating on IndexedBase, Indexed and Idx objects 
+<a name="l2"><span class="ln">2    </span></a> 
+<a name="l3"><span class="ln">3    </span></a>    - Check shape conformance 
+<a name="l4"><span class="ln">4    </span></a>    - Determine indices in resulting expression 
+<a name="l5"><span class="ln">5    </span></a> 
+<a name="l6"><span class="ln">6    </span></a>    etc. 
+<a name="l7"><span class="ln">7    </span></a> 
+<a name="l8"><span class="ln">8    </span></a>    Methods in this module could be implemented by calling methods on Expr 
+<a name="l9"><span class="ln">9    </span></a>    objects instead.  When things stabilize this could be a useful 
+<a name="l10"><span class="ln">10   </span></a>    refactoring. 
+<a name="l11"><span class="ln">11   </span></a>&quot;&quot;&quot;</span>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">from </span><span class="s1">functools </span><span class="s2">import </span><span class="s1">reduce</span>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">function </span><span class="s2">import </span><span class="s1">Function</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">functions </span><span class="s2">import </span><span class="s1">exp</span><span class="s3">, </span><span class="s1">Piecewise</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">tensor</span><span class="s3">.</span><span class="s1">indexed </span><span class="s2">import </span><span class="s1">Idx</span><span class="s3">, </span><span class="s1">Indexed</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities </span><span class="s2">import </span><span class="s1">sift</span>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a><span class="s2">from </span><span class="s1">collections </span><span class="s2">import </span><span class="s1">OrderedDict</span>
+<a name="l21"><span class="ln">21   </span></a>
+<a name="l22"><span class="ln">22   </span></a><span class="s2">class </span><span class="s1">IndexConformanceException</span><span class="s3">(</span><span class="s1">Exception</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s2">pass</span>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a><span class="s2">def </span><span class="s1">_unique_and_repeated</span><span class="s3">(</span><span class="s1">inds</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l26"><span class="ln">26   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l27"><span class="ln">27   </span></a>    Returns the unique and repeated indices. Also note, from the examples given below 
+<a name="l28"><span class="ln">28   </span></a>    that the order of indices is maintained as given in the input. 
+<a name="l29"><span class="ln">29   </span></a> 
+<a name="l30"><span class="ln">30   </span></a>    Examples 
+<a name="l31"><span class="ln">31   </span></a>    ======== 
+<a name="l32"><span class="ln">32   </span></a> 
+<a name="l33"><span class="ln">33   </span></a>    &gt;&gt;&gt; from sympy.tensor.index_methods import _unique_and_repeated 
+<a name="l34"><span class="ln">34   </span></a>    &gt;&gt;&gt; _unique_and_repeated([2, 3, 1, 3, 0, 4, 0]) 
+<a name="l35"><span class="ln">35   </span></a>    ([2, 1, 4], [3, 0]) 
+<a name="l36"><span class="ln">36   </span></a>    &quot;&quot;&quot;</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s1">uniq </span><span class="s2">= </span><span class="s1">OrderedDict</span><span class="s3">()</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">inds</span><span class="s2">:</span>
+<a name="l39"><span class="ln">39   </span></a>        <span class="s2">if </span><span class="s1">i </span><span class="s2">in </span><span class="s1">uniq</span><span class="s2">:</span>
+<a name="l40"><span class="ln">40   </span></a>            <span class="s1">uniq</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] </span><span class="s2">= </span><span class="s4">0</span>
+<a name="l41"><span class="ln">41   </span></a>        <span class="s2">else:</span>
+<a name="l42"><span class="ln">42   </span></a>            <span class="s1">uniq</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] </span><span class="s2">= </span><span class="s4">1</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s2">return </span><span class="s1">sift</span><span class="s3">(</span><span class="s1">uniq</span><span class="s3">, </span><span class="s2">lambda </span><span class="s1">x</span><span class="s2">: </span><span class="s1">uniq</span><span class="s3">[</span><span class="s1">x</span><span class="s3">], </span><span class="s1">binary</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l44"><span class="ln">44   </span></a>
+<a name="l45"><span class="ln">45   </span></a><span class="s2">def </span><span class="s1">_remove_repeated</span><span class="s3">(</span><span class="s1">inds</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l46"><span class="ln">46   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l47"><span class="ln">47   </span></a>    Removes repeated objects from sequences 
+<a name="l48"><span class="ln">48   </span></a> 
+<a name="l49"><span class="ln">49   </span></a>    Returns a set of the unique objects and a tuple of all that have been 
+<a name="l50"><span class="ln">50   </span></a>    removed. 
+<a name="l51"><span class="ln">51   </span></a> 
+<a name="l52"><span class="ln">52   </span></a>    Examples 
+<a name="l53"><span class="ln">53   </span></a>    ======== 
+<a name="l54"><span class="ln">54   </span></a> 
+<a name="l55"><span class="ln">55   </span></a>    &gt;&gt;&gt; from sympy.tensor.index_methods import _remove_repeated 
+<a name="l56"><span class="ln">56   </span></a>    &gt;&gt;&gt; l1 = [1, 2, 3, 2] 
+<a name="l57"><span class="ln">57   </span></a>    &gt;&gt;&gt; _remove_repeated(l1) 
+<a name="l58"><span class="ln">58   </span></a>    ({1, 3}, (2,)) 
+<a name="l59"><span class="ln">59   </span></a> 
+<a name="l60"><span class="ln">60   </span></a>    &quot;&quot;&quot;</span>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s1">u</span><span class="s3">, </span><span class="s1">r </span><span class="s2">= </span><span class="s1">_unique_and_repeated</span><span class="s3">(</span><span class="s1">inds</span><span class="s3">)</span>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s2">return </span><span class="s1">set</span><span class="s3">(</span><span class="s1">u</span><span class="s3">), </span><span class="s1">tuple</span><span class="s3">(</span><span class="s1">r</span><span class="s3">)</span>
+<a name="l63"><span class="ln">63   </span></a>
+<a name="l64"><span class="ln">64   </span></a>
+<a name="l65"><span class="ln">65   </span></a><span class="s2">def </span><span class="s1">_get_indices_Mul</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">return_dummies</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>    <span class="s0">&quot;&quot;&quot;Determine the outer indices of a Mul object. 
+<a name="l67"><span class="ln">67   </span></a> 
+<a name="l68"><span class="ln">68   </span></a>    Examples 
+<a name="l69"><span class="ln">69   </span></a>    ======== 
+<a name="l70"><span class="ln">70   </span></a> 
+<a name="l71"><span class="ln">71   </span></a>    &gt;&gt;&gt; from sympy.tensor.index_methods import _get_indices_Mul 
+<a name="l72"><span class="ln">72   </span></a>    &gt;&gt;&gt; from sympy.tensor.indexed import IndexedBase, Idx 
+<a name="l73"><span class="ln">73   </span></a>    &gt;&gt;&gt; i, j, k = map(Idx, ['i', 'j', 'k']) 
+<a name="l74"><span class="ln">74   </span></a>    &gt;&gt;&gt; x = IndexedBase('x') 
+<a name="l75"><span class="ln">75   </span></a>    &gt;&gt;&gt; y = IndexedBase('y') 
+<a name="l76"><span class="ln">76   </span></a>    &gt;&gt;&gt; _get_indices_Mul(x[i, k]*y[j, k]) 
+<a name="l77"><span class="ln">77   </span></a>    ({i, j}, {}) 
+<a name="l78"><span class="ln">78   </span></a>    &gt;&gt;&gt; _get_indices_Mul(x[i, k]*y[j, k], return_dummies=True) 
+<a name="l79"><span class="ln">79   </span></a>    ({i, j}, {}, (k,)) 
+<a name="l80"><span class="ln">80   </span></a> 
+<a name="l81"><span class="ln">81   </span></a>    &quot;&quot;&quot;</span>
+<a name="l82"><span class="ln">82   </span></a>
+<a name="l83"><span class="ln">83   </span></a>    <span class="s1">inds </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">map</span><span class="s3">(</span><span class="s1">get_indices</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">args</span><span class="s3">))</span>
+<a name="l84"><span class="ln">84   </span></a>    <span class="s1">inds</span><span class="s3">, </span><span class="s1">syms </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">zip</span><span class="s3">(</span><span class="s2">*</span><span class="s1">inds</span><span class="s3">))</span>
+<a name="l85"><span class="ln">85   </span></a>
+<a name="l86"><span class="ln">86   </span></a>    <span class="s1">inds </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">map</span><span class="s3">(</span><span class="s1">list</span><span class="s3">, </span><span class="s1">inds</span><span class="s3">))</span>
+<a name="l87"><span class="ln">87   </span></a>    <span class="s1">inds </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">reduce</span><span class="s3">(</span><span class="s2">lambda </span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s2">: </span><span class="s1">x </span><span class="s2">+ </span><span class="s1">y</span><span class="s3">, </span><span class="s1">inds</span><span class="s3">))</span>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s1">inds</span><span class="s3">, </span><span class="s1">dummies </span><span class="s2">= </span><span class="s1">_remove_repeated</span><span class="s3">(</span><span class="s1">inds</span><span class="s3">)</span>
+<a name="l89"><span class="ln">89   </span></a>
+<a name="l90"><span class="ln">90   </span></a>    <span class="s1">symmetry </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s2">for </span><span class="s1">s </span><span class="s2">in </span><span class="s1">syms</span><span class="s2">:</span>
+<a name="l92"><span class="ln">92   </span></a>        <span class="s2">for </span><span class="s1">pair </span><span class="s2">in </span><span class="s1">s</span><span class="s2">:</span>
+<a name="l93"><span class="ln">93   </span></a>            <span class="s2">if </span><span class="s1">pair </span><span class="s2">in </span><span class="s1">symmetry</span><span class="s2">:</span>
+<a name="l94"><span class="ln">94   </span></a>                <span class="s1">symmetry</span><span class="s3">[</span><span class="s1">pair</span><span class="s3">] </span><span class="s2">*= </span><span class="s1">s</span><span class="s3">[</span><span class="s1">pair</span><span class="s3">]</span>
+<a name="l95"><span class="ln">95   </span></a>            <span class="s2">else:</span>
+<a name="l96"><span class="ln">96   </span></a>                <span class="s1">symmetry</span><span class="s3">[</span><span class="s1">pair</span><span class="s3">] </span><span class="s2">= </span><span class="s1">s</span><span class="s3">[</span><span class="s1">pair</span><span class="s3">]</span>
+<a name="l97"><span class="ln">97   </span></a>
+<a name="l98"><span class="ln">98   </span></a>    <span class="s2">if </span><span class="s1">return_dummies</span><span class="s2">:</span>
+<a name="l99"><span class="ln">99   </span></a>        <span class="s2">return </span><span class="s1">inds</span><span class="s3">, </span><span class="s1">symmetry</span><span class="s3">, </span><span class="s1">dummies</span>
+<a name="l100"><span class="ln">100  </span></a>    <span class="s2">else:</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s2">return </span><span class="s1">inds</span><span class="s3">, </span><span class="s1">symmetry</span>
+<a name="l102"><span class="ln">102  </span></a>
+<a name="l103"><span class="ln">103  </span></a>
+<a name="l104"><span class="ln">104  </span></a><span class="s2">def </span><span class="s1">_get_indices_Pow</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l105"><span class="ln">105  </span></a>    <span class="s0">&quot;&quot;&quot;Determine outer indices of a power or an exponential. 
+<a name="l106"><span class="ln">106  </span></a> 
+<a name="l107"><span class="ln">107  </span></a>    A power is considered a universal function, so that the indices of a Pow is 
+<a name="l108"><span class="ln">108  </span></a>    just the collection of indices present in the expression.  This may be 
+<a name="l109"><span class="ln">109  </span></a>    viewed as a bit inconsistent in the special case: 
+<a name="l110"><span class="ln">110  </span></a> 
+<a name="l111"><span class="ln">111  </span></a>        x[i]**2 = x[i]*x[i]                                                      (1) 
+<a name="l112"><span class="ln">112  </span></a> 
+<a name="l113"><span class="ln">113  </span></a>    The above expression could have been interpreted as the contraction of x[i] 
+<a name="l114"><span class="ln">114  </span></a>    with itself, but we choose instead to interpret it as a function 
+<a name="l115"><span class="ln">115  </span></a> 
+<a name="l116"><span class="ln">116  </span></a>        lambda y: y**2 
+<a name="l117"><span class="ln">117  </span></a> 
+<a name="l118"><span class="ln">118  </span></a>    applied to each element of x (a universal function in numpy terms).  In 
+<a name="l119"><span class="ln">119  </span></a>    order to allow an interpretation of (1) as a contraction, we need 
+<a name="l120"><span class="ln">120  </span></a>    contravariant and covariant Idx subclasses.  (FIXME: this is not yet 
+<a name="l121"><span class="ln">121  </span></a>    implemented) 
+<a name="l122"><span class="ln">122  </span></a> 
+<a name="l123"><span class="ln">123  </span></a>    Expressions in the base or exponent are subject to contraction as usual, 
+<a name="l124"><span class="ln">124  </span></a>    but an index that is present in the exponent, will not be considered 
+<a name="l125"><span class="ln">125  </span></a>    contractable with its own base.  Note however, that indices in the same 
+<a name="l126"><span class="ln">126  </span></a>    exponent can be contracted with each other. 
+<a name="l127"><span class="ln">127  </span></a> 
+<a name="l128"><span class="ln">128  </span></a>    Examples 
+<a name="l129"><span class="ln">129  </span></a>    ======== 
+<a name="l130"><span class="ln">130  </span></a> 
+<a name="l131"><span class="ln">131  </span></a>    &gt;&gt;&gt; from sympy.tensor.index_methods import _get_indices_Pow 
+<a name="l132"><span class="ln">132  </span></a>    &gt;&gt;&gt; from sympy import Pow, exp, IndexedBase, Idx 
+<a name="l133"><span class="ln">133  </span></a>    &gt;&gt;&gt; A = IndexedBase('A') 
+<a name="l134"><span class="ln">134  </span></a>    &gt;&gt;&gt; x = IndexedBase('x') 
+<a name="l135"><span class="ln">135  </span></a>    &gt;&gt;&gt; i, j, k = map(Idx, ['i', 'j', 'k']) 
+<a name="l136"><span class="ln">136  </span></a>    &gt;&gt;&gt; _get_indices_Pow(exp(A[i, j]*x[j])) 
+<a name="l137"><span class="ln">137  </span></a>    ({i}, {}) 
+<a name="l138"><span class="ln">138  </span></a>    &gt;&gt;&gt; _get_indices_Pow(Pow(x[i], x[i])) 
+<a name="l139"><span class="ln">139  </span></a>    ({i}, {}) 
+<a name="l140"><span class="ln">140  </span></a>    &gt;&gt;&gt; _get_indices_Pow(Pow(A[i, j]*x[j], x[i])) 
+<a name="l141"><span class="ln">141  </span></a>    ({i}, {}) 
+<a name="l142"><span class="ln">142  </span></a> 
+<a name="l143"><span class="ln">143  </span></a>    &quot;&quot;&quot;</span>
+<a name="l144"><span class="ln">144  </span></a>    <span class="s1">base</span><span class="s3">, </span><span class="s1">exp </span><span class="s2">= </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">as_base_exp</span><span class="s3">()</span>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s1">binds</span><span class="s3">, </span><span class="s1">bsyms </span><span class="s2">= </span><span class="s1">get_indices</span><span class="s3">(</span><span class="s1">base</span><span class="s3">)</span>
+<a name="l146"><span class="ln">146  </span></a>    <span class="s1">einds</span><span class="s3">, </span><span class="s1">esyms </span><span class="s2">= </span><span class="s1">get_indices</span><span class="s3">(</span><span class="s1">exp</span><span class="s3">)</span>
+<a name="l147"><span class="ln">147  </span></a>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s1">inds </span><span class="s2">= </span><span class="s1">binds </span><span class="s2">| </span><span class="s1">einds</span>
+<a name="l149"><span class="ln">149  </span></a>
+<a name="l150"><span class="ln">150  </span></a>    <span class="s0"># FIXME: symmetries from power needs to check special cases, else nothing</span>
+<a name="l151"><span class="ln">151  </span></a>    <span class="s1">symmetries </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l152"><span class="ln">152  </span></a>
+<a name="l153"><span class="ln">153  </span></a>    <span class="s2">return </span><span class="s1">inds</span><span class="s3">, </span><span class="s1">symmetries</span>
+<a name="l154"><span class="ln">154  </span></a>
+<a name="l155"><span class="ln">155  </span></a>
+<a name="l156"><span class="ln">156  </span></a><span class="s2">def </span><span class="s1">_get_indices_Add</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s0">&quot;&quot;&quot;Determine outer indices of an Add object. 
+<a name="l158"><span class="ln">158  </span></a> 
+<a name="l159"><span class="ln">159  </span></a>    In a sum, each term must have the same set of outer indices.  A valid 
+<a name="l160"><span class="ln">160  </span></a>    expression could be 
+<a name="l161"><span class="ln">161  </span></a> 
+<a name="l162"><span class="ln">162  </span></a>        x(i)*y(j) - x(j)*y(i) 
+<a name="l163"><span class="ln">163  </span></a> 
+<a name="l164"><span class="ln">164  </span></a>    But we do not allow expressions like: 
+<a name="l165"><span class="ln">165  </span></a> 
+<a name="l166"><span class="ln">166  </span></a>        x(i)*y(j) - z(j)*z(j) 
+<a name="l167"><span class="ln">167  </span></a> 
+<a name="l168"><span class="ln">168  </span></a>    FIXME: Add support for Numpy broadcasting 
+<a name="l169"><span class="ln">169  </span></a> 
+<a name="l170"><span class="ln">170  </span></a>    Examples 
+<a name="l171"><span class="ln">171  </span></a>    ======== 
+<a name="l172"><span class="ln">172  </span></a> 
+<a name="l173"><span class="ln">173  </span></a>    &gt;&gt;&gt; from sympy.tensor.index_methods import _get_indices_Add 
+<a name="l174"><span class="ln">174  </span></a>    &gt;&gt;&gt; from sympy.tensor.indexed import IndexedBase, Idx 
+<a name="l175"><span class="ln">175  </span></a>    &gt;&gt;&gt; i, j, k = map(Idx, ['i', 'j', 'k']) 
+<a name="l176"><span class="ln">176  </span></a>    &gt;&gt;&gt; x = IndexedBase('x') 
+<a name="l177"><span class="ln">177  </span></a>    &gt;&gt;&gt; y = IndexedBase('y') 
+<a name="l178"><span class="ln">178  </span></a>    &gt;&gt;&gt; _get_indices_Add(x[i] + x[k]*y[i, k]) 
+<a name="l179"><span class="ln">179  </span></a>    ({i}, {}) 
+<a name="l180"><span class="ln">180  </span></a> 
+<a name="l181"><span class="ln">181  </span></a>    &quot;&quot;&quot;</span>
+<a name="l182"><span class="ln">182  </span></a>
+<a name="l183"><span class="ln">183  </span></a>    <span class="s1">inds </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">map</span><span class="s3">(</span><span class="s1">get_indices</span><span class="s3">, </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">args</span><span class="s3">))</span>
+<a name="l184"><span class="ln">184  </span></a>    <span class="s1">inds</span><span class="s3">, </span><span class="s1">syms </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">zip</span><span class="s3">(</span><span class="s2">*</span><span class="s1">inds</span><span class="s3">))</span>
+<a name="l185"><span class="ln">185  </span></a>
+<a name="l186"><span class="ln">186  </span></a>    <span class="s0"># allow broadcast of scalars</span>
+<a name="l187"><span class="ln">187  </span></a>    <span class="s1">non_scalars </span><span class="s2">= </span><span class="s3">[</span><span class="s1">x </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">inds </span><span class="s2">if </span><span class="s1">x </span><span class="s2">!= </span><span class="s1">set</span><span class="s3">()]</span>
+<a name="l188"><span class="ln">188  </span></a>    <span class="s2">if not </span><span class="s1">non_scalars</span><span class="s2">:</span>
+<a name="l189"><span class="ln">189  </span></a>        <span class="s2">return </span><span class="s1">set</span><span class="s3">(), {}</span>
+<a name="l190"><span class="ln">190  </span></a>
+<a name="l191"><span class="ln">191  </span></a>    <span class="s2">if not </span><span class="s1">all</span><span class="s3">(</span><span class="s1">x </span><span class="s2">== </span><span class="s1">non_scalars</span><span class="s3">[</span><span class="s4">0</span><span class="s3">] </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">non_scalars</span><span class="s3">[</span><span class="s4">1</span><span class="s2">:</span><span class="s3">])</span><span class="s2">:</span>
+<a name="l192"><span class="ln">192  </span></a>        <span class="s2">raise </span><span class="s1">IndexConformanceException</span><span class="s3">(</span><span class="s5">&quot;Indices are not consistent: %s&quot; </span><span class="s2">% </span><span class="s1">expr</span><span class="s3">)</span>
+<a name="l193"><span class="ln">193  </span></a>    <span class="s2">if not </span><span class="s1">reduce</span><span class="s3">(</span><span class="s2">lambda </span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s2">: </span><span class="s1">x </span><span class="s2">!= </span><span class="s1">y </span><span class="s2">or </span><span class="s1">y</span><span class="s3">, </span><span class="s1">syms</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l194"><span class="ln">194  </span></a>        <span class="s1">symmetries </span><span class="s2">= </span><span class="s1">syms</span><span class="s3">[</span><span class="s4">0</span><span class="s3">]</span>
+<a name="l195"><span class="ln">195  </span></a>    <span class="s2">else:</span>
+<a name="l196"><span class="ln">196  </span></a>        <span class="s0"># FIXME: search for symmetries</span>
+<a name="l197"><span class="ln">197  </span></a>        <span class="s1">symmetries </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l198"><span class="ln">198  </span></a>
+<a name="l199"><span class="ln">199  </span></a>    <span class="s2">return </span><span class="s1">non_scalars</span><span class="s3">[</span><span class="s4">0</span><span class="s3">], </span><span class="s1">symmetries</span>
+<a name="l200"><span class="ln">200  </span></a>
+<a name="l201"><span class="ln">201  </span></a>
+<a name="l202"><span class="ln">202  </span></a><span class="s2">def </span><span class="s1">get_indices</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l203"><span class="ln">203  </span></a>    <span class="s0">&quot;&quot;&quot;Determine the outer indices of expression ``expr`` 
+<a name="l204"><span class="ln">204  </span></a> 
+<a name="l205"><span class="ln">205  </span></a>    By *outer* we mean indices that are not summation indices.  Returns a set 
+<a name="l206"><span class="ln">206  </span></a>    and a dict.  The set contains outer indices and the dict contains 
+<a name="l207"><span class="ln">207  </span></a>    information about index symmetries. 
+<a name="l208"><span class="ln">208  </span></a> 
+<a name="l209"><span class="ln">209  </span></a>    Examples 
+<a name="l210"><span class="ln">210  </span></a>    ======== 
+<a name="l211"><span class="ln">211  </span></a> 
+<a name="l212"><span class="ln">212  </span></a>    &gt;&gt;&gt; from sympy.tensor.index_methods import get_indices 
+<a name="l213"><span class="ln">213  </span></a>    &gt;&gt;&gt; from sympy import symbols 
+<a name="l214"><span class="ln">214  </span></a>    &gt;&gt;&gt; from sympy.tensor import IndexedBase 
+<a name="l215"><span class="ln">215  </span></a>    &gt;&gt;&gt; x, y, A = map(IndexedBase, ['x', 'y', 'A']) 
+<a name="l216"><span class="ln">216  </span></a>    &gt;&gt;&gt; i, j, a, z = symbols('i j a z', integer=True) 
+<a name="l217"><span class="ln">217  </span></a> 
+<a name="l218"><span class="ln">218  </span></a>    The indices of the total expression is determined, Repeated indices imply a 
+<a name="l219"><span class="ln">219  </span></a>    summation, for instance the trace of a matrix A: 
+<a name="l220"><span class="ln">220  </span></a> 
+<a name="l221"><span class="ln">221  </span></a>    &gt;&gt;&gt; get_indices(A[i, i]) 
+<a name="l222"><span class="ln">222  </span></a>    (set(), {}) 
+<a name="l223"><span class="ln">223  </span></a> 
+<a name="l224"><span class="ln">224  </span></a>    In the case of many terms, the terms are required to have identical 
+<a name="l225"><span class="ln">225  </span></a>    outer indices.  Else an IndexConformanceException is raised. 
+<a name="l226"><span class="ln">226  </span></a> 
+<a name="l227"><span class="ln">227  </span></a>    &gt;&gt;&gt; get_indices(x[i] + A[i, j]*y[j]) 
+<a name="l228"><span class="ln">228  </span></a>    ({i}, {}) 
+<a name="l229"><span class="ln">229  </span></a> 
+<a name="l230"><span class="ln">230  </span></a>    :Exceptions: 
+<a name="l231"><span class="ln">231  </span></a> 
+<a name="l232"><span class="ln">232  </span></a>    An IndexConformanceException means that the terms ar not compatible, e.g. 
+<a name="l233"><span class="ln">233  </span></a> 
+<a name="l234"><span class="ln">234  </span></a>    &gt;&gt;&gt; get_indices(x[i] + y[j])                #doctest: +SKIP 
+<a name="l235"><span class="ln">235  </span></a>            (...) 
+<a name="l236"><span class="ln">236  </span></a>    IndexConformanceException: Indices are not consistent: x(i) + y(j) 
+<a name="l237"><span class="ln">237  </span></a> 
+<a name="l238"><span class="ln">238  </span></a>    .. warning:: 
+<a name="l239"><span class="ln">239  </span></a>       The concept of *outer* indices applies recursively, starting on the deepest 
+<a name="l240"><span class="ln">240  </span></a>       level.  This implies that dummies inside parenthesis are assumed to be 
+<a name="l241"><span class="ln">241  </span></a>       summed first, so that the following expression is handled gracefully: 
+<a name="l242"><span class="ln">242  </span></a> 
+<a name="l243"><span class="ln">243  </span></a>       &gt;&gt;&gt; get_indices((x[i] + A[i, j]*y[j])*x[j]) 
+<a name="l244"><span class="ln">244  </span></a>       ({i, j}, {}) 
+<a name="l245"><span class="ln">245  </span></a> 
+<a name="l246"><span class="ln">246  </span></a>       This is correct and may appear convenient, but you need to be careful 
+<a name="l247"><span class="ln">247  </span></a>       with this as SymPy will happily .expand() the product, if requested.  The 
+<a name="l248"><span class="ln">248  </span></a>       resulting expression would mix the outer ``j`` with the dummies inside 
+<a name="l249"><span class="ln">249  </span></a>       the parenthesis, which makes it a different expression.  To be on the 
+<a name="l250"><span class="ln">250  </span></a>       safe side, it is best to avoid such ambiguities by using unique indices 
+<a name="l251"><span class="ln">251  </span></a>       for all contractions that should be held separate. 
+<a name="l252"><span class="ln">252  </span></a> 
+<a name="l253"><span class="ln">253  </span></a>    &quot;&quot;&quot;</span>
+<a name="l254"><span class="ln">254  </span></a>    <span class="s0"># We call ourself recursively to determine indices of sub expressions.</span>
+<a name="l255"><span class="ln">255  </span></a>
+<a name="l256"><span class="ln">256  </span></a>    <span class="s0"># break recursion</span>
+<a name="l257"><span class="ln">257  </span></a>    <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">Indexed</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l258"><span class="ln">258  </span></a>        <span class="s1">c </span><span class="s2">= </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">indices</span>
+<a name="l259"><span class="ln">259  </span></a>        <span class="s1">inds</span><span class="s3">, </span><span class="s1">dummies </span><span class="s2">= </span><span class="s1">_remove_repeated</span><span class="s3">(</span><span class="s1">c</span><span class="s3">)</span>
+<a name="l260"><span class="ln">260  </span></a>        <span class="s2">return </span><span class="s1">inds</span><span class="s3">, {}</span>
+<a name="l261"><span class="ln">261  </span></a>    <span class="s2">elif </span><span class="s1">expr </span><span class="s2">is None:</span>
+<a name="l262"><span class="ln">262  </span></a>        <span class="s2">return </span><span class="s1">set</span><span class="s3">(), {}</span>
+<a name="l263"><span class="ln">263  </span></a>    <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">Idx</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l264"><span class="ln">264  </span></a>        <span class="s2">return </span><span class="s3">{</span><span class="s1">expr</span><span class="s3">}, {}</span>
+<a name="l265"><span class="ln">265  </span></a>    <span class="s2">elif </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">is_Atom</span><span class="s2">:</span>
+<a name="l266"><span class="ln">266  </span></a>        <span class="s2">return </span><span class="s1">set</span><span class="s3">(), {}</span>
+<a name="l267"><span class="ln">267  </span></a>
+<a name="l268"><span class="ln">268  </span></a>
+<a name="l269"><span class="ln">269  </span></a>    <span class="s0"># recurse via specialized functions</span>
+<a name="l270"><span class="ln">270  </span></a>    <span class="s2">else:</span>
+<a name="l271"><span class="ln">271  </span></a>        <span class="s2">if </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">is_Mul</span><span class="s2">:</span>
+<a name="l272"><span class="ln">272  </span></a>            <span class="s2">return </span><span class="s1">_get_indices_Mul</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">)</span>
+<a name="l273"><span class="ln">273  </span></a>        <span class="s2">elif </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">is_Add</span><span class="s2">:</span>
+<a name="l274"><span class="ln">274  </span></a>            <span class="s2">return </span><span class="s1">_get_indices_Add</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">)</span>
+<a name="l275"><span class="ln">275  </span></a>        <span class="s2">elif </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">is_Pow </span><span class="s2">or </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">exp</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l276"><span class="ln">276  </span></a>            <span class="s2">return </span><span class="s1">_get_indices_Pow</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">)</span>
+<a name="l277"><span class="ln">277  </span></a>
+<a name="l278"><span class="ln">278  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">Piecewise</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l279"><span class="ln">279  </span></a>            <span class="s0"># FIXME:  No support for Piecewise yet</span>
+<a name="l280"><span class="ln">280  </span></a>            <span class="s2">return </span><span class="s1">set</span><span class="s3">(), {}</span>
+<a name="l281"><span class="ln">281  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">Function</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l282"><span class="ln">282  </span></a>            <span class="s0"># Support ufunc like behaviour by returning indices from arguments.</span>
+<a name="l283"><span class="ln">283  </span></a>            <span class="s0"># Functions do not interpret repeated indices across arguments</span>
+<a name="l284"><span class="ln">284  </span></a>            <span class="s0"># as summation</span>
+<a name="l285"><span class="ln">285  </span></a>            <span class="s1">ind0 </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l286"><span class="ln">286  </span></a>            <span class="s2">for </span><span class="s1">arg </span><span class="s2">in </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">args</span><span class="s2">:</span>
+<a name="l287"><span class="ln">287  </span></a>                <span class="s1">ind</span><span class="s3">, </span><span class="s1">sym </span><span class="s2">= </span><span class="s1">get_indices</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">)</span>
+<a name="l288"><span class="ln">288  </span></a>                <span class="s1">ind0 </span><span class="s2">|= </span><span class="s1">ind</span>
+<a name="l289"><span class="ln">289  </span></a>            <span class="s2">return </span><span class="s1">ind0</span><span class="s3">, </span><span class="s1">sym</span>
+<a name="l290"><span class="ln">290  </span></a>
+<a name="l291"><span class="ln">291  </span></a>        <span class="s0"># this test is expensive, so it should be at the end</span>
+<a name="l292"><span class="ln">292  </span></a>        <span class="s2">elif not </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">Indexed</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l293"><span class="ln">293  </span></a>            <span class="s2">return </span><span class="s1">set</span><span class="s3">(), {}</span>
+<a name="l294"><span class="ln">294  </span></a>        <span class="s2">raise </span><span class="s1">NotImplementedError</span><span class="s3">(</span>
+<a name="l295"><span class="ln">295  </span></a>            <span class="s5">&quot;FIXME: No specialized handling of type %s&quot; </span><span class="s2">% </span><span class="s1">type</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">))</span>
+<a name="l296"><span class="ln">296  </span></a>
+<a name="l297"><span class="ln">297  </span></a>
+<a name="l298"><span class="ln">298  </span></a><span class="s2">def </span><span class="s1">get_contraction_structure</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l299"><span class="ln">299  </span></a>    <span class="s0">&quot;&quot;&quot;Determine dummy indices of ``expr`` and describe its structure 
+<a name="l300"><span class="ln">300  </span></a> 
+<a name="l301"><span class="ln">301  </span></a>    By *dummy* we mean indices that are summation indices. 
+<a name="l302"><span class="ln">302  </span></a> 
+<a name="l303"><span class="ln">303  </span></a>    The structure of the expression is determined and described as follows: 
+<a name="l304"><span class="ln">304  </span></a> 
+<a name="l305"><span class="ln">305  </span></a>    1) A conforming summation of Indexed objects is described with a dict where 
+<a name="l306"><span class="ln">306  </span></a>       the keys are summation indices and the corresponding values are sets 
+<a name="l307"><span class="ln">307  </span></a>       containing all terms for which the summation applies.  All Add objects 
+<a name="l308"><span class="ln">308  </span></a>       in the SymPy expression tree are described like this. 
+<a name="l309"><span class="ln">309  </span></a> 
+<a name="l310"><span class="ln">310  </span></a>    2) For all nodes in the SymPy expression tree that are *not* of type Add, the 
+<a name="l311"><span class="ln">311  </span></a>       following applies: 
+<a name="l312"><span class="ln">312  </span></a> 
+<a name="l313"><span class="ln">313  </span></a>       If a node discovers contractions in one of its arguments, the node 
+<a name="l314"><span class="ln">314  </span></a>       itself will be stored as a key in the dict.  For that key, the 
+<a name="l315"><span class="ln">315  </span></a>       corresponding value is a list of dicts, each of which is the result of a 
+<a name="l316"><span class="ln">316  </span></a>       recursive call to get_contraction_structure().  The list contains only 
+<a name="l317"><span class="ln">317  </span></a>       dicts for the non-trivial deeper contractions, omitting dicts with None 
+<a name="l318"><span class="ln">318  </span></a>       as the one and only key. 
+<a name="l319"><span class="ln">319  </span></a> 
+<a name="l320"><span class="ln">320  </span></a>    .. Note:: The presence of expressions among the dictionary keys indicates 
+<a name="l321"><span class="ln">321  </span></a>       multiple levels of index contractions.  A nested dict displays nested 
+<a name="l322"><span class="ln">322  </span></a>       contractions and may itself contain dicts from a deeper level.  In 
+<a name="l323"><span class="ln">323  </span></a>       practical calculations the summation in the deepest nested level must be 
+<a name="l324"><span class="ln">324  </span></a>       calculated first so that the outer expression can access the resulting 
+<a name="l325"><span class="ln">325  </span></a>       indexed object. 
+<a name="l326"><span class="ln">326  </span></a> 
+<a name="l327"><span class="ln">327  </span></a>    Examples 
+<a name="l328"><span class="ln">328  </span></a>    ======== 
+<a name="l329"><span class="ln">329  </span></a> 
+<a name="l330"><span class="ln">330  </span></a>    &gt;&gt;&gt; from sympy.tensor.index_methods import get_contraction_structure 
+<a name="l331"><span class="ln">331  </span></a>    &gt;&gt;&gt; from sympy import default_sort_key 
+<a name="l332"><span class="ln">332  </span></a>    &gt;&gt;&gt; from sympy.tensor import IndexedBase, Idx 
+<a name="l333"><span class="ln">333  </span></a>    &gt;&gt;&gt; x, y, A = map(IndexedBase, ['x', 'y', 'A']) 
+<a name="l334"><span class="ln">334  </span></a>    &gt;&gt;&gt; i, j, k, l = map(Idx, ['i', 'j', 'k', 'l']) 
+<a name="l335"><span class="ln">335  </span></a>    &gt;&gt;&gt; get_contraction_structure(x[i]*y[i] + A[j, j]) 
+<a name="l336"><span class="ln">336  </span></a>    {(i,): {x[i]*y[i]}, (j,): {A[j, j]}} 
+<a name="l337"><span class="ln">337  </span></a>    &gt;&gt;&gt; get_contraction_structure(x[i]*y[j]) 
+<a name="l338"><span class="ln">338  </span></a>    {None: {x[i]*y[j]}} 
+<a name="l339"><span class="ln">339  </span></a> 
+<a name="l340"><span class="ln">340  </span></a>    A multiplication of contracted factors results in nested dicts representing 
+<a name="l341"><span class="ln">341  </span></a>    the internal contractions. 
+<a name="l342"><span class="ln">342  </span></a> 
+<a name="l343"><span class="ln">343  </span></a>    &gt;&gt;&gt; d = get_contraction_structure(x[i, i]*y[j, j]) 
+<a name="l344"><span class="ln">344  </span></a>    &gt;&gt;&gt; sorted(d.keys(), key=default_sort_key) 
+<a name="l345"><span class="ln">345  </span></a>    [None, x[i, i]*y[j, j]] 
+<a name="l346"><span class="ln">346  </span></a> 
+<a name="l347"><span class="ln">347  </span></a>    In this case, the product has no contractions: 
+<a name="l348"><span class="ln">348  </span></a> 
+<a name="l349"><span class="ln">349  </span></a>    &gt;&gt;&gt; d[None] 
+<a name="l350"><span class="ln">350  </span></a>    {x[i, i]*y[j, j]} 
+<a name="l351"><span class="ln">351  </span></a> 
+<a name="l352"><span class="ln">352  </span></a>    Factors are contracted &quot;first&quot;: 
+<a name="l353"><span class="ln">353  </span></a> 
+<a name="l354"><span class="ln">354  </span></a>    &gt;&gt;&gt; sorted(d[x[i, i]*y[j, j]], key=default_sort_key) 
+<a name="l355"><span class="ln">355  </span></a>    [{(i,): {x[i, i]}}, {(j,): {y[j, j]}}] 
+<a name="l356"><span class="ln">356  </span></a> 
+<a name="l357"><span class="ln">357  </span></a>    A parenthesized Add object is also returned as a nested dictionary.  The 
+<a name="l358"><span class="ln">358  </span></a>    term containing the parenthesis is a Mul with a contraction among the 
+<a name="l359"><span class="ln">359  </span></a>    arguments, so it will be found as a key in the result.  It stores the 
+<a name="l360"><span class="ln">360  </span></a>    dictionary resulting from a recursive call on the Add expression. 
+<a name="l361"><span class="ln">361  </span></a> 
+<a name="l362"><span class="ln">362  </span></a>    &gt;&gt;&gt; d = get_contraction_structure(x[i]*(y[i] + A[i, j]*x[j])) 
+<a name="l363"><span class="ln">363  </span></a>    &gt;&gt;&gt; sorted(d.keys(), key=default_sort_key) 
+<a name="l364"><span class="ln">364  </span></a>    [(A[i, j]*x[j] + y[i])*x[i], (i,)] 
+<a name="l365"><span class="ln">365  </span></a>    &gt;&gt;&gt; d[(i,)] 
+<a name="l366"><span class="ln">366  </span></a>    {(A[i, j]*x[j] + y[i])*x[i]} 
+<a name="l367"><span class="ln">367  </span></a>    &gt;&gt;&gt; d[x[i]*(A[i, j]*x[j] + y[i])] 
+<a name="l368"><span class="ln">368  </span></a>    [{None: {y[i]}, (j,): {A[i, j]*x[j]}}] 
+<a name="l369"><span class="ln">369  </span></a> 
+<a name="l370"><span class="ln">370  </span></a>    Powers with contractions in either base or exponent will also be found as 
+<a name="l371"><span class="ln">371  </span></a>    keys in the dictionary, mapping to a list of results from recursive calls: 
+<a name="l372"><span class="ln">372  </span></a> 
+<a name="l373"><span class="ln">373  </span></a>    &gt;&gt;&gt; d = get_contraction_structure(A[j, j]**A[i, i]) 
+<a name="l374"><span class="ln">374  </span></a>    &gt;&gt;&gt; d[None] 
+<a name="l375"><span class="ln">375  </span></a>    {A[j, j]**A[i, i]} 
+<a name="l376"><span class="ln">376  </span></a>    &gt;&gt;&gt; nested_contractions = d[A[j, j]**A[i, i]] 
+<a name="l377"><span class="ln">377  </span></a>    &gt;&gt;&gt; nested_contractions[0] 
+<a name="l378"><span class="ln">378  </span></a>    {(j,): {A[j, j]}} 
+<a name="l379"><span class="ln">379  </span></a>    &gt;&gt;&gt; nested_contractions[1] 
+<a name="l380"><span class="ln">380  </span></a>    {(i,): {A[i, i]}} 
+<a name="l381"><span class="ln">381  </span></a> 
+<a name="l382"><span class="ln">382  </span></a>    The description of the contraction structure may appear complicated when 
+<a name="l383"><span class="ln">383  </span></a>    represented with a string in the above examples, but it is easy to iterate 
+<a name="l384"><span class="ln">384  </span></a>    over: 
+<a name="l385"><span class="ln">385  </span></a> 
+<a name="l386"><span class="ln">386  </span></a>    &gt;&gt;&gt; from sympy import Expr 
+<a name="l387"><span class="ln">387  </span></a>    &gt;&gt;&gt; for key in d: 
+<a name="l388"><span class="ln">388  </span></a>    ...     if isinstance(key, Expr): 
+<a name="l389"><span class="ln">389  </span></a>    ...         continue 
+<a name="l390"><span class="ln">390  </span></a>    ...     for term in d[key]: 
+<a name="l391"><span class="ln">391  </span></a>    ...         if term in d: 
+<a name="l392"><span class="ln">392  </span></a>    ...             # treat deepest contraction first 
+<a name="l393"><span class="ln">393  </span></a>    ...             pass 
+<a name="l394"><span class="ln">394  </span></a>    ...     # treat outermost contactions here 
+<a name="l395"><span class="ln">395  </span></a> 
+<a name="l396"><span class="ln">396  </span></a>    &quot;&quot;&quot;</span>
+<a name="l397"><span class="ln">397  </span></a>
+<a name="l398"><span class="ln">398  </span></a>    <span class="s0"># We call ourself recursively to inspect sub expressions.</span>
+<a name="l399"><span class="ln">399  </span></a>
+<a name="l400"><span class="ln">400  </span></a>    <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">Indexed</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l401"><span class="ln">401  </span></a>        <span class="s1">junk</span><span class="s3">, </span><span class="s1">key </span><span class="s2">= </span><span class="s1">_remove_repeated</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">.</span><span class="s1">indices</span><span class="s3">)</span>
+<a name="l402"><span class="ln">402  </span></a>        <span class="s2">return </span><span class="s3">{</span><span class="s1">key </span><span class="s2">or None: </span><span class="s3">{</span><span class="s1">expr</span><span class="s3">}}</span>
+<a name="l403"><span class="ln">403  </span></a>    <span class="s2">elif </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">is_Atom</span><span class="s2">:</span>
+<a name="l404"><span class="ln">404  </span></a>        <span class="s2">return </span><span class="s3">{</span><span class="s2">None: </span><span class="s3">{</span><span class="s1">expr</span><span class="s3">}}</span>
+<a name="l405"><span class="ln">405  </span></a>    <span class="s2">elif </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">is_Mul</span><span class="s2">:</span>
+<a name="l406"><span class="ln">406  </span></a>        <span class="s1">junk</span><span class="s3">, </span><span class="s1">junk</span><span class="s3">, </span><span class="s1">key </span><span class="s2">= </span><span class="s1">_get_indices_Mul</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">return_dummies</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l407"><span class="ln">407  </span></a>        <span class="s1">result </span><span class="s2">= </span><span class="s3">{</span><span class="s1">key </span><span class="s2">or None: </span><span class="s3">{</span><span class="s1">expr</span><span class="s3">}}</span>
+<a name="l408"><span class="ln">408  </span></a>        <span class="s0"># recurse on every factor</span>
+<a name="l409"><span class="ln">409  </span></a>        <span class="s1">nested </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l410"><span class="ln">410  </span></a>        <span class="s2">for </span><span class="s1">fac </span><span class="s2">in </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">args</span><span class="s2">:</span>
+<a name="l411"><span class="ln">411  </span></a>            <span class="s1">facd </span><span class="s2">= </span><span class="s1">get_contraction_structure</span><span class="s3">(</span><span class="s1">fac</span><span class="s3">)</span>
+<a name="l412"><span class="ln">412  </span></a>            <span class="s2">if not </span><span class="s3">(</span><span class="s2">None in </span><span class="s1">facd </span><span class="s2">and </span><span class="s1">len</span><span class="s3">(</span><span class="s1">facd</span><span class="s3">) </span><span class="s2">== </span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l413"><span class="ln">413  </span></a>                <span class="s1">nested</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">facd</span><span class="s3">)</span>
+<a name="l414"><span class="ln">414  </span></a>        <span class="s2">if </span><span class="s1">nested</span><span class="s2">:</span>
+<a name="l415"><span class="ln">415  </span></a>            <span class="s1">result</span><span class="s3">[</span><span class="s1">expr</span><span class="s3">] </span><span class="s2">= </span><span class="s1">nested</span>
+<a name="l416"><span class="ln">416  </span></a>        <span class="s2">return </span><span class="s1">result</span>
+<a name="l417"><span class="ln">417  </span></a>    <span class="s2">elif </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">is_Pow </span><span class="s2">or </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">exp</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l418"><span class="ln">418  </span></a>        <span class="s0"># recurse in base and exp separately.  If either has internal</span>
+<a name="l419"><span class="ln">419  </span></a>        <span class="s0"># contractions we must include ourselves as a key in the returned dict</span>
+<a name="l420"><span class="ln">420  </span></a>        <span class="s1">b</span><span class="s3">, </span><span class="s1">e </span><span class="s2">= </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">as_base_exp</span><span class="s3">()</span>
+<a name="l421"><span class="ln">421  </span></a>        <span class="s1">dbase </span><span class="s2">= </span><span class="s1">get_contraction_structure</span><span class="s3">(</span><span class="s1">b</span><span class="s3">)</span>
+<a name="l422"><span class="ln">422  </span></a>        <span class="s1">dexp </span><span class="s2">= </span><span class="s1">get_contraction_structure</span><span class="s3">(</span><span class="s1">e</span><span class="s3">)</span>
+<a name="l423"><span class="ln">423  </span></a>
+<a name="l424"><span class="ln">424  </span></a>        <span class="s1">dicts </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l425"><span class="ln">425  </span></a>        <span class="s2">for </span><span class="s1">d </span><span class="s2">in </span><span class="s1">dbase</span><span class="s3">, </span><span class="s1">dexp</span><span class="s2">:</span>
+<a name="l426"><span class="ln">426  </span></a>            <span class="s2">if not </span><span class="s3">(</span><span class="s2">None in </span><span class="s1">d </span><span class="s2">and </span><span class="s1">len</span><span class="s3">(</span><span class="s1">d</span><span class="s3">) </span><span class="s2">== </span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l427"><span class="ln">427  </span></a>                <span class="s1">dicts</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">d</span><span class="s3">)</span>
+<a name="l428"><span class="ln">428  </span></a>        <span class="s1">result </span><span class="s2">= </span><span class="s3">{</span><span class="s2">None: </span><span class="s3">{</span><span class="s1">expr</span><span class="s3">}}</span>
+<a name="l429"><span class="ln">429  </span></a>        <span class="s2">if </span><span class="s1">dicts</span><span class="s2">:</span>
+<a name="l430"><span class="ln">430  </span></a>            <span class="s1">result</span><span class="s3">[</span><span class="s1">expr</span><span class="s3">] </span><span class="s2">= </span><span class="s1">dicts</span>
+<a name="l431"><span class="ln">431  </span></a>        <span class="s2">return </span><span class="s1">result</span>
+<a name="l432"><span class="ln">432  </span></a>    <span class="s2">elif </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">is_Add</span><span class="s2">:</span>
+<a name="l433"><span class="ln">433  </span></a>        <span class="s0"># Note: we just collect all terms with identical summation indices, We</span>
+<a name="l434"><span class="ln">434  </span></a>        <span class="s0"># do nothing to identify equivalent terms here, as this would require</span>
+<a name="l435"><span class="ln">435  </span></a>        <span class="s0"># substitutions or pattern matching in expressions of unknown</span>
+<a name="l436"><span class="ln">436  </span></a>        <span class="s0"># complexity.</span>
+<a name="l437"><span class="ln">437  </span></a>        <span class="s1">result </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l438"><span class="ln">438  </span></a>        <span class="s2">for </span><span class="s1">term </span><span class="s2">in </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">args</span><span class="s2">:</span>
+<a name="l439"><span class="ln">439  </span></a>            <span class="s0"># recurse on every term</span>
+<a name="l440"><span class="ln">440  </span></a>            <span class="s1">d </span><span class="s2">= </span><span class="s1">get_contraction_structure</span><span class="s3">(</span><span class="s1">term</span><span class="s3">)</span>
+<a name="l441"><span class="ln">441  </span></a>            <span class="s2">for </span><span class="s1">key </span><span class="s2">in </span><span class="s1">d</span><span class="s2">:</span>
+<a name="l442"><span class="ln">442  </span></a>                <span class="s2">if </span><span class="s1">key </span><span class="s2">in </span><span class="s1">result</span><span class="s2">:</span>
+<a name="l443"><span class="ln">443  </span></a>                    <span class="s1">result</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] </span><span class="s2">|= </span><span class="s1">d</span><span class="s3">[</span><span class="s1">key</span><span class="s3">]</span>
+<a name="l444"><span class="ln">444  </span></a>                <span class="s2">else:</span>
+<a name="l445"><span class="ln">445  </span></a>                    <span class="s1">result</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] </span><span class="s2">= </span><span class="s1">d</span><span class="s3">[</span><span class="s1">key</span><span class="s3">]</span>
+<a name="l446"><span class="ln">446  </span></a>        <span class="s2">return </span><span class="s1">result</span>
+<a name="l447"><span class="ln">447  </span></a>
+<a name="l448"><span class="ln">448  </span></a>    <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">Piecewise</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l449"><span class="ln">449  </span></a>        <span class="s0"># FIXME:  No support for Piecewise yet</span>
+<a name="l450"><span class="ln">450  </span></a>        <span class="s2">return </span><span class="s3">{</span><span class="s2">None: </span><span class="s1">expr</span><span class="s3">}</span>
+<a name="l451"><span class="ln">451  </span></a>    <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">Function</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l452"><span class="ln">452  </span></a>        <span class="s0"># Collect non-trivial contraction structures in each argument</span>
+<a name="l453"><span class="ln">453  </span></a>        <span class="s0"># We do not report repeated indices in separate arguments as a</span>
+<a name="l454"><span class="ln">454  </span></a>        <span class="s0"># contraction</span>
+<a name="l455"><span class="ln">455  </span></a>        <span class="s1">deeplist </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l456"><span class="ln">456  </span></a>        <span class="s2">for </span><span class="s1">arg </span><span class="s2">in </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">args</span><span class="s2">:</span>
+<a name="l457"><span class="ln">457  </span></a>            <span class="s1">deep </span><span class="s2">= </span><span class="s1">get_contraction_structure</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">)</span>
+<a name="l458"><span class="ln">458  </span></a>            <span class="s2">if not </span><span class="s3">(</span><span class="s2">None in </span><span class="s1">deep </span><span class="s2">and </span><span class="s1">len</span><span class="s3">(</span><span class="s1">deep</span><span class="s3">) </span><span class="s2">== </span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l459"><span class="ln">459  </span></a>                <span class="s1">deeplist</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">deep</span><span class="s3">)</span>
+<a name="l460"><span class="ln">460  </span></a>        <span class="s1">d </span><span class="s2">= </span><span class="s3">{</span><span class="s2">None: </span><span class="s3">{</span><span class="s1">expr</span><span class="s3">}}</span>
+<a name="l461"><span class="ln">461  </span></a>        <span class="s2">if </span><span class="s1">deeplist</span><span class="s2">:</span>
+<a name="l462"><span class="ln">462  </span></a>            <span class="s1">d</span><span class="s3">[</span><span class="s1">expr</span><span class="s3">] </span><span class="s2">= </span><span class="s1">deeplist</span>
+<a name="l463"><span class="ln">463  </span></a>        <span class="s2">return </span><span class="s1">d</span>
+<a name="l464"><span class="ln">464  </span></a>
+<a name="l465"><span class="ln">465  </span></a>    <span class="s0"># this test is expensive, so it should be at the end</span>
+<a name="l466"><span class="ln">466  </span></a>    <span class="s2">elif not </span><span class="s1">expr</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">Indexed</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l467"><span class="ln">467  </span></a>        <span class="s2">return </span><span class="s3">{</span><span class="s2">None: </span><span class="s3">{</span><span class="s1">expr</span><span class="s3">}}</span>
+<a name="l468"><span class="ln">468  </span></a>    <span class="s2">raise </span><span class="s1">NotImplementedError</span><span class="s3">(</span>
+<a name="l469"><span class="ln">469  </span></a>        <span class="s5">&quot;FIXME: No specialized handling of type %s&quot; </span><span class="s2">% </span><span class="s1">type</span><span class="s3">(</span><span class="s1">expr</span><span class="s3">))</span>
+<a name="l470"><span class="ln">470  </span></a></pre>
+</body>
+</html>

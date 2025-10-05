@@ -1,0 +1,1238 @@
+<html>
+<head>
+<title>_arraysetops_impl.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_arraysetops_impl.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>Set operations for arrays based on sorting. 
+<a name="l3"><span class="ln">3    </span></a> 
+<a name="l4"><span class="ln">4    </span></a>Notes 
+<a name="l5"><span class="ln">5    </span></a>----- 
+<a name="l6"><span class="ln">6    </span></a> 
+<a name="l7"><span class="ln">7    </span></a>For floating point arrays, inaccurate results may appear due to usual round-off 
+<a name="l8"><span class="ln">8    </span></a>and floating point comparison issues. 
+<a name="l9"><span class="ln">9    </span></a> 
+<a name="l10"><span class="ln">10   </span></a>Speed could be gained in some operations by an implementation of 
+<a name="l11"><span class="ln">11   </span></a>`numpy.sort`, that can provide directly the permutation vectors, thus avoiding 
+<a name="l12"><span class="ln">12   </span></a>calls to `numpy.argsort`. 
+<a name="l13"><span class="ln">13   </span></a> 
+<a name="l14"><span class="ln">14   </span></a>Original author: Robert Cimrman 
+<a name="l15"><span class="ln">15   </span></a> 
+<a name="l16"><span class="ln">16   </span></a>&quot;&quot;&quot;</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">import </span><span class="s1">functools</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s2">import </span><span class="s1">warnings</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">from </span><span class="s1">typing </span><span class="s2">import </span><span class="s1">NamedTuple</span>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s2">import </span><span class="s1">numpy </span><span class="s2">as </span><span class="s1">np</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s2">from </span><span class="s1">numpy</span><span class="s3">.</span><span class="s1">_core </span><span class="s2">import </span><span class="s1">overrides</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s2">from </span><span class="s1">numpy</span><span class="s3">.</span><span class="s1">_core</span><span class="s3">.</span><span class="s1">_multiarray_umath </span><span class="s2">import </span><span class="s1">_array_converter</span>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a>
+<a name="l26"><span class="ln">26   </span></a><span class="s1">array_function_dispatch </span><span class="s2">= </span><span class="s1">functools</span><span class="s3">.</span><span class="s1">partial</span><span class="s3">(</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s1">overrides</span><span class="s3">.</span><span class="s1">array_function_dispatch</span><span class="s3">, </span><span class="s1">module</span><span class="s2">=</span><span class="s4">'numpy'</span><span class="s3">)</span>
+<a name="l28"><span class="ln">28   </span></a>
+<a name="l29"><span class="ln">29   </span></a>
+<a name="l30"><span class="ln">30   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s4">&quot;ediff1d&quot;</span><span class="s3">, </span><span class="s4">&quot;in1d&quot;</span><span class="s3">, </span><span class="s4">&quot;intersect1d&quot;</span><span class="s3">, </span><span class="s4">&quot;isin&quot;</span><span class="s3">, </span><span class="s4">&quot;setdiff1d&quot;</span><span class="s3">, </span><span class="s4">&quot;setxor1d&quot;</span><span class="s3">,</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s4">&quot;union1d&quot;</span><span class="s3">, </span><span class="s4">&quot;unique&quot;</span><span class="s3">, </span><span class="s4">&quot;unique_all&quot;</span><span class="s3">, </span><span class="s4">&quot;unique_counts&quot;</span><span class="s3">, </span><span class="s4">&quot;unique_inverse&quot;</span><span class="s3">,</span>
+<a name="l33"><span class="ln">33   </span></a>    <span class="s4">&quot;unique_values&quot;</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s3">]</span>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a>
+<a name="l37"><span class="ln">37   </span></a><span class="s2">def </span><span class="s1">_ediff1d_dispatcher</span><span class="s3">(</span><span class="s1">ary</span><span class="s3">, </span><span class="s1">to_end</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">to_begin</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">ary</span><span class="s3">, </span><span class="s1">to_end</span><span class="s3">, </span><span class="s1">to_begin</span><span class="s3">)</span>
+<a name="l39"><span class="ln">39   </span></a>
+<a name="l40"><span class="ln">40   </span></a>
+<a name="l41"><span class="ln">41   </span></a><span class="s2">@</span><span class="s1">array_function_dispatch</span><span class="s3">(</span><span class="s1">_ediff1d_dispatcher</span><span class="s3">)</span>
+<a name="l42"><span class="ln">42   </span></a><span class="s2">def </span><span class="s1">ediff1d</span><span class="s3">(</span><span class="s1">ary</span><span class="s3">, </span><span class="s1">to_end</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">to_begin</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l44"><span class="ln">44   </span></a>    The differences between consecutive elements of an array. 
+<a name="l45"><span class="ln">45   </span></a> 
+<a name="l46"><span class="ln">46   </span></a>    Parameters 
+<a name="l47"><span class="ln">47   </span></a>    ---------- 
+<a name="l48"><span class="ln">48   </span></a>    ary : array_like 
+<a name="l49"><span class="ln">49   </span></a>        If necessary, will be flattened before the differences are taken. 
+<a name="l50"><span class="ln">50   </span></a>    to_end : array_like, optional 
+<a name="l51"><span class="ln">51   </span></a>        Number(s) to append at the end of the returned differences. 
+<a name="l52"><span class="ln">52   </span></a>    to_begin : array_like, optional 
+<a name="l53"><span class="ln">53   </span></a>        Number(s) to prepend at the beginning of the returned differences. 
+<a name="l54"><span class="ln">54   </span></a> 
+<a name="l55"><span class="ln">55   </span></a>    Returns 
+<a name="l56"><span class="ln">56   </span></a>    ------- 
+<a name="l57"><span class="ln">57   </span></a>    ediff1d : ndarray 
+<a name="l58"><span class="ln">58   </span></a>        The differences. Loosely, this is ``ary.flat[1:] - ary.flat[:-1]``. 
+<a name="l59"><span class="ln">59   </span></a> 
+<a name="l60"><span class="ln">60   </span></a>    See Also 
+<a name="l61"><span class="ln">61   </span></a>    -------- 
+<a name="l62"><span class="ln">62   </span></a>    diff, gradient 
+<a name="l63"><span class="ln">63   </span></a> 
+<a name="l64"><span class="ln">64   </span></a>    Notes 
+<a name="l65"><span class="ln">65   </span></a>    ----- 
+<a name="l66"><span class="ln">66   </span></a>    When applied to masked arrays, this function drops the mask information 
+<a name="l67"><span class="ln">67   </span></a>    if the `to_begin` and/or `to_end` parameters are used. 
+<a name="l68"><span class="ln">68   </span></a> 
+<a name="l69"><span class="ln">69   </span></a>    Examples 
+<a name="l70"><span class="ln">70   </span></a>    -------- 
+<a name="l71"><span class="ln">71   </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l72"><span class="ln">72   </span></a>    &gt;&gt;&gt; x = np.array([1, 2, 4, 7, 0]) 
+<a name="l73"><span class="ln">73   </span></a>    &gt;&gt;&gt; np.ediff1d(x) 
+<a name="l74"><span class="ln">74   </span></a>    array([ 1,  2,  3, -7]) 
+<a name="l75"><span class="ln">75   </span></a> 
+<a name="l76"><span class="ln">76   </span></a>    &gt;&gt;&gt; np.ediff1d(x, to_begin=-99, to_end=np.array([88, 99])) 
+<a name="l77"><span class="ln">77   </span></a>    array([-99,   1,   2, ...,  -7,  88,  99]) 
+<a name="l78"><span class="ln">78   </span></a> 
+<a name="l79"><span class="ln">79   </span></a>    The returned array is always 1D. 
+<a name="l80"><span class="ln">80   </span></a> 
+<a name="l81"><span class="ln">81   </span></a>    &gt;&gt;&gt; y = [[1, 2, 4], [1, 6, 24]] 
+<a name="l82"><span class="ln">82   </span></a>    &gt;&gt;&gt; np.ediff1d(y) 
+<a name="l83"><span class="ln">83   </span></a>    array([ 1,  2, -3,  5, 18]) 
+<a name="l84"><span class="ln">84   </span></a> 
+<a name="l85"><span class="ln">85   </span></a>    &quot;&quot;&quot;</span>
+<a name="l86"><span class="ln">86   </span></a>    <span class="s1">conv </span><span class="s2">= </span><span class="s1">_array_converter</span><span class="s3">(</span><span class="s1">ary</span><span class="s3">)</span>
+<a name="l87"><span class="ln">87   </span></a>    <span class="s0"># Convert to (any) array and ravel:</span>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s1">ary </span><span class="s2">= </span><span class="s1">conv</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">ravel</span><span class="s3">()</span>
+<a name="l89"><span class="ln">89   </span></a>
+<a name="l90"><span class="ln">90   </span></a>    <span class="s0"># enforce that the dtype of `ary` is used for the output</span>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s1">dtype_req </span><span class="s2">= </span><span class="s1">ary</span><span class="s3">.</span><span class="s1">dtype</span>
+<a name="l92"><span class="ln">92   </span></a>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s0"># fast track default case</span>
+<a name="l94"><span class="ln">94   </span></a>    <span class="s2">if </span><span class="s1">to_begin </span><span class="s2">is None and </span><span class="s1">to_end </span><span class="s2">is None:</span>
+<a name="l95"><span class="ln">95   </span></a>        <span class="s2">return </span><span class="s1">ary</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">] </span><span class="s2">- </span><span class="s1">ary</span><span class="s3">[</span><span class="s2">:-</span><span class="s5">1</span><span class="s3">]</span>
+<a name="l96"><span class="ln">96   </span></a>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s2">if </span><span class="s1">to_begin </span><span class="s2">is None:</span>
+<a name="l98"><span class="ln">98   </span></a>        <span class="s1">l_begin </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l99"><span class="ln">99   </span></a>    <span class="s2">else:</span>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s1">to_begin </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asanyarray</span><span class="s3">(</span><span class="s1">to_begin</span><span class="s3">)</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s2">if not </span><span class="s1">np</span><span class="s3">.</span><span class="s1">can_cast</span><span class="s3">(</span><span class="s1">to_begin</span><span class="s3">, </span><span class="s1">dtype_req</span><span class="s3">, </span><span class="s1">casting</span><span class="s2">=</span><span class="s4">&quot;same_kind&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l102"><span class="ln">102  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;dtype of `to_begin` must be compatible &quot;</span>
+<a name="l103"><span class="ln">103  </span></a>                            <span class="s4">&quot;with input `ary` under the `same_kind` rule.&quot;</span><span class="s3">)</span>
+<a name="l104"><span class="ln">104  </span></a>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s1">to_begin </span><span class="s2">= </span><span class="s1">to_begin</span><span class="s3">.</span><span class="s1">ravel</span><span class="s3">()</span>
+<a name="l106"><span class="ln">106  </span></a>        <span class="s1">l_begin </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">to_begin</span><span class="s3">)</span>
+<a name="l107"><span class="ln">107  </span></a>
+<a name="l108"><span class="ln">108  </span></a>    <span class="s2">if </span><span class="s1">to_end </span><span class="s2">is None:</span>
+<a name="l109"><span class="ln">109  </span></a>        <span class="s1">l_end </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l110"><span class="ln">110  </span></a>    <span class="s2">else:</span>
+<a name="l111"><span class="ln">111  </span></a>        <span class="s1">to_end </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asanyarray</span><span class="s3">(</span><span class="s1">to_end</span><span class="s3">)</span>
+<a name="l112"><span class="ln">112  </span></a>        <span class="s2">if not </span><span class="s1">np</span><span class="s3">.</span><span class="s1">can_cast</span><span class="s3">(</span><span class="s1">to_end</span><span class="s3">, </span><span class="s1">dtype_req</span><span class="s3">, </span><span class="s1">casting</span><span class="s2">=</span><span class="s4">&quot;same_kind&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l113"><span class="ln">113  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;dtype of `to_end` must be compatible &quot;</span>
+<a name="l114"><span class="ln">114  </span></a>                            <span class="s4">&quot;with input `ary` under the `same_kind` rule.&quot;</span><span class="s3">)</span>
+<a name="l115"><span class="ln">115  </span></a>
+<a name="l116"><span class="ln">116  </span></a>        <span class="s1">to_end </span><span class="s2">= </span><span class="s1">to_end</span><span class="s3">.</span><span class="s1">ravel</span><span class="s3">()</span>
+<a name="l117"><span class="ln">117  </span></a>        <span class="s1">l_end </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">to_end</span><span class="s3">)</span>
+<a name="l118"><span class="ln">118  </span></a>
+<a name="l119"><span class="ln">119  </span></a>    <span class="s0"># do the calculation in place and copy to_begin and to_end</span>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s1">l_diff </span><span class="s2">= </span><span class="s1">max</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">ary</span><span class="s3">) </span><span class="s2">- </span><span class="s5">1</span><span class="s3">, </span><span class="s5">0</span><span class="s3">)</span>
+<a name="l121"><span class="ln">121  </span></a>    <span class="s1">result </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">empty_like</span><span class="s3">(</span><span class="s1">ary</span><span class="s3">, </span><span class="s1">shape</span><span class="s2">=</span><span class="s1">l_diff </span><span class="s2">+ </span><span class="s1">l_begin </span><span class="s2">+ </span><span class="s1">l_end</span><span class="s3">)</span>
+<a name="l122"><span class="ln">122  </span></a>
+<a name="l123"><span class="ln">123  </span></a>    <span class="s2">if </span><span class="s1">l_begin </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l124"><span class="ln">124  </span></a>        <span class="s1">result</span><span class="s3">[</span><span class="s2">:</span><span class="s1">l_begin</span><span class="s3">] </span><span class="s2">= </span><span class="s1">to_begin</span>
+<a name="l125"><span class="ln">125  </span></a>    <span class="s2">if </span><span class="s1">l_end </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l126"><span class="ln">126  </span></a>        <span class="s1">result</span><span class="s3">[</span><span class="s1">l_begin </span><span class="s2">+ </span><span class="s1">l_diff</span><span class="s2">:</span><span class="s3">] </span><span class="s2">= </span><span class="s1">to_end</span>
+<a name="l127"><span class="ln">127  </span></a>    <span class="s1">np</span><span class="s3">.</span><span class="s1">subtract</span><span class="s3">(</span><span class="s1">ary</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">], </span><span class="s1">ary</span><span class="s3">[</span><span class="s2">:-</span><span class="s5">1</span><span class="s3">], </span><span class="s1">result</span><span class="s3">[</span><span class="s1">l_begin</span><span class="s2">:</span><span class="s1">l_begin </span><span class="s2">+ </span><span class="s1">l_diff</span><span class="s3">])</span>
+<a name="l128"><span class="ln">128  </span></a>
+<a name="l129"><span class="ln">129  </span></a>    <span class="s2">return </span><span class="s1">conv</span><span class="s3">.</span><span class="s1">wrap</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l130"><span class="ln">130  </span></a>
+<a name="l131"><span class="ln">131  </span></a>
+<a name="l132"><span class="ln">132  </span></a><span class="s2">def </span><span class="s1">_unpack_tuple</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l133"><span class="ln">133  </span></a>    <span class="s0">&quot;&quot;&quot; Unpacks one-element tuples for use as return values &quot;&quot;&quot;</span>
+<a name="l134"><span class="ln">134  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l135"><span class="ln">135  </span></a>        <span class="s2">return </span><span class="s1">x</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l136"><span class="ln">136  </span></a>    <span class="s2">else:</span>
+<a name="l137"><span class="ln">137  </span></a>        <span class="s2">return </span><span class="s1">x</span>
+<a name="l138"><span class="ln">138  </span></a>
+<a name="l139"><span class="ln">139  </span></a>
+<a name="l140"><span class="ln">140  </span></a><span class="s2">def </span><span class="s1">_unique_dispatcher</span><span class="s3">(</span><span class="s1">ar</span><span class="s3">, </span><span class="s1">return_index</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">return_inverse</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l141"><span class="ln">141  </span></a>                       <span class="s1">return_counts</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">axis</span><span class="s2">=None</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">equal_nan</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l142"><span class="ln">142  </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">ar</span><span class="s3">,)</span>
+<a name="l143"><span class="ln">143  </span></a>
+<a name="l144"><span class="ln">144  </span></a>
+<a name="l145"><span class="ln">145  </span></a><span class="s2">@</span><span class="s1">array_function_dispatch</span><span class="s3">(</span><span class="s1">_unique_dispatcher</span><span class="s3">)</span>
+<a name="l146"><span class="ln">146  </span></a><span class="s2">def </span><span class="s1">unique</span><span class="s3">(</span><span class="s1">ar</span><span class="s3">, </span><span class="s1">return_index</span><span class="s2">=False</span><span class="s3">, </span><span class="s1">return_inverse</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l147"><span class="ln">147  </span></a>           <span class="s1">return_counts</span><span class="s2">=False</span><span class="s3">, </span><span class="s1">axis</span><span class="s2">=None</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">equal_nan</span><span class="s2">=True</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l149"><span class="ln">149  </span></a>    Find the unique elements of an array. 
+<a name="l150"><span class="ln">150  </span></a> 
+<a name="l151"><span class="ln">151  </span></a>    Returns the sorted unique elements of an array. There are three optional 
+<a name="l152"><span class="ln">152  </span></a>    outputs in addition to the unique elements: 
+<a name="l153"><span class="ln">153  </span></a> 
+<a name="l154"><span class="ln">154  </span></a>    * the indices of the input array that give the unique values 
+<a name="l155"><span class="ln">155  </span></a>    * the indices of the unique array that reconstruct the input array 
+<a name="l156"><span class="ln">156  </span></a>    * the number of times each unique value comes up in the input array 
+<a name="l157"><span class="ln">157  </span></a> 
+<a name="l158"><span class="ln">158  </span></a>    Parameters 
+<a name="l159"><span class="ln">159  </span></a>    ---------- 
+<a name="l160"><span class="ln">160  </span></a>    ar : array_like 
+<a name="l161"><span class="ln">161  </span></a>        Input array. Unless `axis` is specified, this will be flattened if it 
+<a name="l162"><span class="ln">162  </span></a>        is not already 1-D. 
+<a name="l163"><span class="ln">163  </span></a>    return_index : bool, optional 
+<a name="l164"><span class="ln">164  </span></a>        If True, also return the indices of `ar` (along the specified axis, 
+<a name="l165"><span class="ln">165  </span></a>        if provided, or in the flattened array) that result in the unique array. 
+<a name="l166"><span class="ln">166  </span></a>    return_inverse : bool, optional 
+<a name="l167"><span class="ln">167  </span></a>        If True, also return the indices of the unique array (for the specified 
+<a name="l168"><span class="ln">168  </span></a>        axis, if provided) that can be used to reconstruct `ar`. 
+<a name="l169"><span class="ln">169  </span></a>    return_counts : bool, optional 
+<a name="l170"><span class="ln">170  </span></a>        If True, also return the number of times each unique item appears 
+<a name="l171"><span class="ln">171  </span></a>        in `ar`. 
+<a name="l172"><span class="ln">172  </span></a>    axis : int or None, optional 
+<a name="l173"><span class="ln">173  </span></a>        The axis to operate on. If None, `ar` will be flattened. If an integer, 
+<a name="l174"><span class="ln">174  </span></a>        the subarrays indexed by the given axis will be flattened and treated 
+<a name="l175"><span class="ln">175  </span></a>        as the elements of a 1-D array with the dimension of the given axis, 
+<a name="l176"><span class="ln">176  </span></a>        see the notes for more details.  Object arrays or structured arrays 
+<a name="l177"><span class="ln">177  </span></a>        that contain objects are not supported if the `axis` kwarg is used. The 
+<a name="l178"><span class="ln">178  </span></a>        default is None. 
+<a name="l179"><span class="ln">179  </span></a> 
+<a name="l180"><span class="ln">180  </span></a>    equal_nan : bool, optional 
+<a name="l181"><span class="ln">181  </span></a>        If True, collapses multiple NaN values in the return array into one. 
+<a name="l182"><span class="ln">182  </span></a> 
+<a name="l183"><span class="ln">183  </span></a>        .. versionadded:: 1.24 
+<a name="l184"><span class="ln">184  </span></a> 
+<a name="l185"><span class="ln">185  </span></a>    Returns 
+<a name="l186"><span class="ln">186  </span></a>    ------- 
+<a name="l187"><span class="ln">187  </span></a>    unique : ndarray 
+<a name="l188"><span class="ln">188  </span></a>        The sorted unique values. 
+<a name="l189"><span class="ln">189  </span></a>    unique_indices : ndarray, optional 
+<a name="l190"><span class="ln">190  </span></a>        The indices of the first occurrences of the unique values in the 
+<a name="l191"><span class="ln">191  </span></a>        original array. Only provided if `return_index` is True. 
+<a name="l192"><span class="ln">192  </span></a>    unique_inverse : ndarray, optional 
+<a name="l193"><span class="ln">193  </span></a>        The indices to reconstruct the original array from the 
+<a name="l194"><span class="ln">194  </span></a>        unique array. Only provided if `return_inverse` is True. 
+<a name="l195"><span class="ln">195  </span></a>    unique_counts : ndarray, optional 
+<a name="l196"><span class="ln">196  </span></a>        The number of times each of the unique values comes up in the 
+<a name="l197"><span class="ln">197  </span></a>        original array. Only provided if `return_counts` is True. 
+<a name="l198"><span class="ln">198  </span></a> 
+<a name="l199"><span class="ln">199  </span></a>    See Also 
+<a name="l200"><span class="ln">200  </span></a>    -------- 
+<a name="l201"><span class="ln">201  </span></a>    repeat : Repeat elements of an array. 
+<a name="l202"><span class="ln">202  </span></a>    sort : Return a sorted copy of an array. 
+<a name="l203"><span class="ln">203  </span></a> 
+<a name="l204"><span class="ln">204  </span></a>    Notes 
+<a name="l205"><span class="ln">205  </span></a>    ----- 
+<a name="l206"><span class="ln">206  </span></a>    When an axis is specified the subarrays indexed by the axis are sorted. 
+<a name="l207"><span class="ln">207  </span></a>    This is done by making the specified axis the first dimension of the array 
+<a name="l208"><span class="ln">208  </span></a>    (move the axis to the first dimension to keep the order of the other axes) 
+<a name="l209"><span class="ln">209  </span></a>    and then flattening the subarrays in C order. The flattened subarrays are 
+<a name="l210"><span class="ln">210  </span></a>    then viewed as a structured type with each element given a label, with the 
+<a name="l211"><span class="ln">211  </span></a>    effect that we end up with a 1-D array of structured types that can be 
+<a name="l212"><span class="ln">212  </span></a>    treated in the same way as any other 1-D array. The result is that the 
+<a name="l213"><span class="ln">213  </span></a>    flattened subarrays are sorted in lexicographic order starting with the 
+<a name="l214"><span class="ln">214  </span></a>    first element. 
+<a name="l215"><span class="ln">215  </span></a> 
+<a name="l216"><span class="ln">216  </span></a>    .. versionchanged:: 1.21 
+<a name="l217"><span class="ln">217  </span></a>        Like np.sort, NaN will sort to the end of the values. 
+<a name="l218"><span class="ln">218  </span></a>        For complex arrays all NaN values are considered equivalent 
+<a name="l219"><span class="ln">219  </span></a>        (no matter whether the NaN is in the real or imaginary part). 
+<a name="l220"><span class="ln">220  </span></a>        As the representant for the returned array the smallest one in the 
+<a name="l221"><span class="ln">221  </span></a>        lexicographical order is chosen - see np.sort for how the lexicographical 
+<a name="l222"><span class="ln">222  </span></a>        order is defined for complex arrays. 
+<a name="l223"><span class="ln">223  </span></a> 
+<a name="l224"><span class="ln">224  </span></a>    .. versionchanged:: 2.0 
+<a name="l225"><span class="ln">225  </span></a>        For multi-dimensional inputs, ``unique_inverse`` is reshaped 
+<a name="l226"><span class="ln">226  </span></a>        such that the input can be reconstructed using 
+<a name="l227"><span class="ln">227  </span></a>        ``np.take(unique, unique_inverse, axis=axis)``. The result is 
+<a name="l228"><span class="ln">228  </span></a>        now not 1-dimensional when ``axis=None``. 
+<a name="l229"><span class="ln">229  </span></a> 
+<a name="l230"><span class="ln">230  </span></a>        Note that in NumPy 2.0.0 a higher dimensional array was returned also 
+<a name="l231"><span class="ln">231  </span></a>        when ``axis`` was not ``None``.  This was reverted, but 
+<a name="l232"><span class="ln">232  </span></a>        ``inverse.reshape(-1)`` can be used to ensure compatibility with both 
+<a name="l233"><span class="ln">233  </span></a>        versions. 
+<a name="l234"><span class="ln">234  </span></a> 
+<a name="l235"><span class="ln">235  </span></a>    Examples 
+<a name="l236"><span class="ln">236  </span></a>    -------- 
+<a name="l237"><span class="ln">237  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l238"><span class="ln">238  </span></a>    &gt;&gt;&gt; np.unique([1, 1, 2, 2, 3, 3]) 
+<a name="l239"><span class="ln">239  </span></a>    array([1, 2, 3]) 
+<a name="l240"><span class="ln">240  </span></a>    &gt;&gt;&gt; a = np.array([[1, 1], [2, 3]]) 
+<a name="l241"><span class="ln">241  </span></a>    &gt;&gt;&gt; np.unique(a) 
+<a name="l242"><span class="ln">242  </span></a>    array([1, 2, 3]) 
+<a name="l243"><span class="ln">243  </span></a> 
+<a name="l244"><span class="ln">244  </span></a>    Return the unique rows of a 2D array 
+<a name="l245"><span class="ln">245  </span></a> 
+<a name="l246"><span class="ln">246  </span></a>    &gt;&gt;&gt; a = np.array([[1, 0, 0], [1, 0, 0], [2, 3, 4]]) 
+<a name="l247"><span class="ln">247  </span></a>    &gt;&gt;&gt; np.unique(a, axis=0) 
+<a name="l248"><span class="ln">248  </span></a>    array([[1, 0, 0], [2, 3, 4]]) 
+<a name="l249"><span class="ln">249  </span></a> 
+<a name="l250"><span class="ln">250  </span></a>    Return the indices of the original array that give the unique values: 
+<a name="l251"><span class="ln">251  </span></a> 
+<a name="l252"><span class="ln">252  </span></a>    &gt;&gt;&gt; a = np.array(['a', 'b', 'b', 'c', 'a']) 
+<a name="l253"><span class="ln">253  </span></a>    &gt;&gt;&gt; u, indices = np.unique(a, return_index=True) 
+<a name="l254"><span class="ln">254  </span></a>    &gt;&gt;&gt; u 
+<a name="l255"><span class="ln">255  </span></a>    array(['a', 'b', 'c'], dtype='&lt;U1') 
+<a name="l256"><span class="ln">256  </span></a>    &gt;&gt;&gt; indices 
+<a name="l257"><span class="ln">257  </span></a>    array([0, 1, 3]) 
+<a name="l258"><span class="ln">258  </span></a>    &gt;&gt;&gt; a[indices] 
+<a name="l259"><span class="ln">259  </span></a>    array(['a', 'b', 'c'], dtype='&lt;U1') 
+<a name="l260"><span class="ln">260  </span></a> 
+<a name="l261"><span class="ln">261  </span></a>    Reconstruct the input array from the unique values and inverse: 
+<a name="l262"><span class="ln">262  </span></a> 
+<a name="l263"><span class="ln">263  </span></a>    &gt;&gt;&gt; a = np.array([1, 2, 6, 4, 2, 3, 2]) 
+<a name="l264"><span class="ln">264  </span></a>    &gt;&gt;&gt; u, indices = np.unique(a, return_inverse=True) 
+<a name="l265"><span class="ln">265  </span></a>    &gt;&gt;&gt; u 
+<a name="l266"><span class="ln">266  </span></a>    array([1, 2, 3, 4, 6]) 
+<a name="l267"><span class="ln">267  </span></a>    &gt;&gt;&gt; indices 
+<a name="l268"><span class="ln">268  </span></a>    array([0, 1, 4, 3, 1, 2, 1]) 
+<a name="l269"><span class="ln">269  </span></a>    &gt;&gt;&gt; u[indices] 
+<a name="l270"><span class="ln">270  </span></a>    array([1, 2, 6, 4, 2, 3, 2]) 
+<a name="l271"><span class="ln">271  </span></a> 
+<a name="l272"><span class="ln">272  </span></a>    Reconstruct the input values from the unique values and counts: 
+<a name="l273"><span class="ln">273  </span></a> 
+<a name="l274"><span class="ln">274  </span></a>    &gt;&gt;&gt; a = np.array([1, 2, 6, 4, 2, 3, 2]) 
+<a name="l275"><span class="ln">275  </span></a>    &gt;&gt;&gt; values, counts = np.unique(a, return_counts=True) 
+<a name="l276"><span class="ln">276  </span></a>    &gt;&gt;&gt; values 
+<a name="l277"><span class="ln">277  </span></a>    array([1, 2, 3, 4, 6]) 
+<a name="l278"><span class="ln">278  </span></a>    &gt;&gt;&gt; counts 
+<a name="l279"><span class="ln">279  </span></a>    array([1, 3, 1, 1, 1]) 
+<a name="l280"><span class="ln">280  </span></a>    &gt;&gt;&gt; np.repeat(values, counts) 
+<a name="l281"><span class="ln">281  </span></a>    array([1, 2, 2, 2, 3, 4, 6])    # original order not preserved 
+<a name="l282"><span class="ln">282  </span></a> 
+<a name="l283"><span class="ln">283  </span></a>    &quot;&quot;&quot;</span>
+<a name="l284"><span class="ln">284  </span></a>    <span class="s1">ar </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asanyarray</span><span class="s3">(</span><span class="s1">ar</span><span class="s3">)</span>
+<a name="l285"><span class="ln">285  </span></a>    <span class="s2">if </span><span class="s1">axis </span><span class="s2">is None:</span>
+<a name="l286"><span class="ln">286  </span></a>        <span class="s1">ret </span><span class="s2">= </span><span class="s1">_unique1d</span><span class="s3">(</span><span class="s1">ar</span><span class="s3">, </span><span class="s1">return_index</span><span class="s3">, </span><span class="s1">return_inverse</span><span class="s3">, </span><span class="s1">return_counts</span><span class="s3">,</span>
+<a name="l287"><span class="ln">287  </span></a>                        <span class="s1">equal_nan</span><span class="s2">=</span><span class="s1">equal_nan</span><span class="s3">, </span><span class="s1">inverse_shape</span><span class="s2">=</span><span class="s1">ar</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">, </span><span class="s1">axis</span><span class="s2">=None</span><span class="s3">)</span>
+<a name="l288"><span class="ln">288  </span></a>        <span class="s2">return </span><span class="s1">_unpack_tuple</span><span class="s3">(</span><span class="s1">ret</span><span class="s3">)</span>
+<a name="l289"><span class="ln">289  </span></a>
+<a name="l290"><span class="ln">290  </span></a>    <span class="s0"># axis was specified and not None</span>
+<a name="l291"><span class="ln">291  </span></a>    <span class="s2">try:</span>
+<a name="l292"><span class="ln">292  </span></a>        <span class="s1">ar </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">moveaxis</span><span class="s3">(</span><span class="s1">ar</span><span class="s3">, </span><span class="s1">axis</span><span class="s3">, </span><span class="s5">0</span><span class="s3">)</span>
+<a name="l293"><span class="ln">293  </span></a>    <span class="s2">except </span><span class="s1">np</span><span class="s3">.</span><span class="s1">exceptions</span><span class="s3">.</span><span class="s1">AxisError</span><span class="s2">:</span>
+<a name="l294"><span class="ln">294  </span></a>        <span class="s0"># this removes the &quot;axis1&quot; or &quot;axis2&quot; prefix from the error message</span>
+<a name="l295"><span class="ln">295  </span></a>        <span class="s2">raise </span><span class="s1">np</span><span class="s3">.</span><span class="s1">exceptions</span><span class="s3">.</span><span class="s1">AxisError</span><span class="s3">(</span><span class="s1">axis</span><span class="s3">, </span><span class="s1">ar</span><span class="s3">.</span><span class="s1">ndim</span><span class="s3">) </span><span class="s2">from None</span>
+<a name="l296"><span class="ln">296  </span></a>    <span class="s1">inverse_shape </span><span class="s2">= </span><span class="s3">[</span><span class="s5">1</span><span class="s3">] </span><span class="s2">* </span><span class="s1">ar</span><span class="s3">.</span><span class="s1">ndim</span>
+<a name="l297"><span class="ln">297  </span></a>    <span class="s1">inverse_shape</span><span class="s3">[</span><span class="s1">axis</span><span class="s3">] </span><span class="s2">= </span><span class="s1">ar</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l298"><span class="ln">298  </span></a>
+<a name="l299"><span class="ln">299  </span></a>    <span class="s0"># Must reshape to a contiguous 2D array for this to work...</span>
+<a name="l300"><span class="ln">300  </span></a>    <span class="s1">orig_shape</span><span class="s3">, </span><span class="s1">orig_dtype </span><span class="s2">= </span><span class="s1">ar</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">, </span><span class="s1">ar</span><span class="s3">.</span><span class="s1">dtype</span>
+<a name="l301"><span class="ln">301  </span></a>    <span class="s1">ar </span><span class="s2">= </span><span class="s1">ar</span><span class="s3">.</span><span class="s1">reshape</span><span class="s3">(</span><span class="s1">orig_shape</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">np</span><span class="s3">.</span><span class="s1">prod</span><span class="s3">(</span><span class="s1">orig_shape</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">], </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">np</span><span class="s3">.</span><span class="s1">intp</span><span class="s3">))</span>
+<a name="l302"><span class="ln">302  </span></a>    <span class="s1">ar </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ascontiguousarray</span><span class="s3">(</span><span class="s1">ar</span><span class="s3">)</span>
+<a name="l303"><span class="ln">303  </span></a>    <span class="s1">dtype </span><span class="s2">= </span><span class="s3">[(</span><span class="s4">'f{i}'</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">i</span><span class="s2">=</span><span class="s1">i</span><span class="s3">), </span><span class="s1">ar</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">) </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">ar</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s5">1</span><span class="s3">])]</span>
+<a name="l304"><span class="ln">304  </span></a>
+<a name="l305"><span class="ln">305  </span></a>    <span class="s0"># At this point, `ar` has shape `(n, m)`, and `dtype` is a structured</span>
+<a name="l306"><span class="ln">306  </span></a>    <span class="s0"># data type with `m` fields where each field has the data type of `ar`.</span>
+<a name="l307"><span class="ln">307  </span></a>    <span class="s0"># In the following, we create the array `consolidated`, which has</span>
+<a name="l308"><span class="ln">308  </span></a>    <span class="s0"># shape `(n,)` with data type `dtype`.</span>
+<a name="l309"><span class="ln">309  </span></a>    <span class="s2">try:</span>
+<a name="l310"><span class="ln">310  </span></a>        <span class="s2">if </span><span class="s1">ar</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s5">1</span><span class="s3">] </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l311"><span class="ln">311  </span></a>            <span class="s1">consolidated </span><span class="s2">= </span><span class="s1">ar</span><span class="s3">.</span><span class="s1">view</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l312"><span class="ln">312  </span></a>        <span class="s2">else:</span>
+<a name="l313"><span class="ln">313  </span></a>            <span class="s0"># If ar.shape[1] == 0, then dtype will be `np.dtype([])`, which is</span>
+<a name="l314"><span class="ln">314  </span></a>            <span class="s0"># a data type with itemsize 0, and the call `ar.view(dtype)` will</span>
+<a name="l315"><span class="ln">315  </span></a>            <span class="s0"># fail.  Instead, we'll use `np.empty` to explicitly create the</span>
+<a name="l316"><span class="ln">316  </span></a>            <span class="s0"># array with shape `(len(ar),)`.  Because `dtype` in this case has</span>
+<a name="l317"><span class="ln">317  </span></a>            <span class="s0"># itemsize 0, the total size of the result is still 0 bytes.</span>
+<a name="l318"><span class="ln">318  </span></a>            <span class="s1">consolidated </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">empty</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">ar</span><span class="s3">), </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l319"><span class="ln">319  </span></a>    <span class="s2">except </span><span class="s1">TypeError </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l320"><span class="ln">320  </span></a>        <span class="s0"># There's no good way to do this for object arrays, etc...</span>
+<a name="l321"><span class="ln">321  </span></a>        <span class="s1">msg </span><span class="s2">= </span><span class="s4">'The axis argument to unique is not supported for dtype {dt}'</span>
+<a name="l322"><span class="ln">322  </span></a>        <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">dt</span><span class="s2">=</span><span class="s1">ar</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">)) </span><span class="s2">from </span><span class="s1">e</span>
+<a name="l323"><span class="ln">323  </span></a>
+<a name="l324"><span class="ln">324  </span></a>    <span class="s2">def </span><span class="s1">reshape_uniq</span><span class="s3">(</span><span class="s1">uniq</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l325"><span class="ln">325  </span></a>        <span class="s1">n </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">uniq</span><span class="s3">)</span>
+<a name="l326"><span class="ln">326  </span></a>        <span class="s1">uniq </span><span class="s2">= </span><span class="s1">uniq</span><span class="s3">.</span><span class="s1">view</span><span class="s3">(</span><span class="s1">orig_dtype</span><span class="s3">)</span>
+<a name="l327"><span class="ln">327  </span></a>        <span class="s1">uniq </span><span class="s2">= </span><span class="s1">uniq</span><span class="s3">.</span><span class="s1">reshape</span><span class="s3">(</span><span class="s1">n</span><span class="s3">, </span><span class="s2">*</span><span class="s1">orig_shape</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">])</span>
+<a name="l328"><span class="ln">328  </span></a>        <span class="s1">uniq </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">moveaxis</span><span class="s3">(</span><span class="s1">uniq</span><span class="s3">, </span><span class="s5">0</span><span class="s3">, </span><span class="s1">axis</span><span class="s3">)</span>
+<a name="l329"><span class="ln">329  </span></a>        <span class="s2">return </span><span class="s1">uniq</span>
+<a name="l330"><span class="ln">330  </span></a>
+<a name="l331"><span class="ln">331  </span></a>    <span class="s1">output </span><span class="s2">= </span><span class="s1">_unique1d</span><span class="s3">(</span><span class="s1">consolidated</span><span class="s3">, </span><span class="s1">return_index</span><span class="s3">,</span>
+<a name="l332"><span class="ln">332  </span></a>                       <span class="s1">return_inverse</span><span class="s3">, </span><span class="s1">return_counts</span><span class="s3">,</span>
+<a name="l333"><span class="ln">333  </span></a>                       <span class="s1">equal_nan</span><span class="s2">=</span><span class="s1">equal_nan</span><span class="s3">, </span><span class="s1">inverse_shape</span><span class="s2">=</span><span class="s1">inverse_shape</span><span class="s3">,</span>
+<a name="l334"><span class="ln">334  </span></a>                       <span class="s1">axis</span><span class="s2">=</span><span class="s1">axis</span><span class="s3">)</span>
+<a name="l335"><span class="ln">335  </span></a>    <span class="s1">output </span><span class="s2">= </span><span class="s3">(</span><span class="s1">reshape_uniq</span><span class="s3">(</span><span class="s1">output</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]),) </span><span class="s2">+ </span><span class="s1">output</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">]</span>
+<a name="l336"><span class="ln">336  </span></a>    <span class="s2">return </span><span class="s1">_unpack_tuple</span><span class="s3">(</span><span class="s1">output</span><span class="s3">)</span>
+<a name="l337"><span class="ln">337  </span></a>
+<a name="l338"><span class="ln">338  </span></a>
+<a name="l339"><span class="ln">339  </span></a><span class="s2">def </span><span class="s1">_unique1d</span><span class="s3">(</span><span class="s1">ar</span><span class="s3">, </span><span class="s1">return_index</span><span class="s2">=False</span><span class="s3">, </span><span class="s1">return_inverse</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l340"><span class="ln">340  </span></a>              <span class="s1">return_counts</span><span class="s2">=False</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">equal_nan</span><span class="s2">=True</span><span class="s3">, </span><span class="s1">inverse_shape</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l341"><span class="ln">341  </span></a>              <span class="s1">axis</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l342"><span class="ln">342  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l343"><span class="ln">343  </span></a>    Find the unique elements of an array, ignoring shape. 
+<a name="l344"><span class="ln">344  </span></a>    &quot;&quot;&quot;</span>
+<a name="l345"><span class="ln">345  </span></a>    <span class="s1">ar </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asanyarray</span><span class="s3">(</span><span class="s1">ar</span><span class="s3">).</span><span class="s1">flatten</span><span class="s3">()</span>
+<a name="l346"><span class="ln">346  </span></a>
+<a name="l347"><span class="ln">347  </span></a>    <span class="s1">optional_indices </span><span class="s2">= </span><span class="s1">return_index </span><span class="s2">or </span><span class="s1">return_inverse</span>
+<a name="l348"><span class="ln">348  </span></a>
+<a name="l349"><span class="ln">349  </span></a>    <span class="s2">if </span><span class="s1">optional_indices</span><span class="s2">:</span>
+<a name="l350"><span class="ln">350  </span></a>        <span class="s1">perm </span><span class="s2">= </span><span class="s1">ar</span><span class="s3">.</span><span class="s1">argsort</span><span class="s3">(</span><span class="s1">kind</span><span class="s2">=</span><span class="s4">'mergesort' </span><span class="s2">if </span><span class="s1">return_index </span><span class="s2">else </span><span class="s4">'quicksort'</span><span class="s3">)</span>
+<a name="l351"><span class="ln">351  </span></a>        <span class="s1">aux </span><span class="s2">= </span><span class="s1">ar</span><span class="s3">[</span><span class="s1">perm</span><span class="s3">]</span>
+<a name="l352"><span class="ln">352  </span></a>    <span class="s2">else:</span>
+<a name="l353"><span class="ln">353  </span></a>        <span class="s1">ar</span><span class="s3">.</span><span class="s1">sort</span><span class="s3">()</span>
+<a name="l354"><span class="ln">354  </span></a>        <span class="s1">aux </span><span class="s2">= </span><span class="s1">ar</span>
+<a name="l355"><span class="ln">355  </span></a>    <span class="s1">mask </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">empty</span><span class="s3">(</span><span class="s1">aux</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">np</span><span class="s3">.</span><span class="s1">bool</span><span class="s3">)</span>
+<a name="l356"><span class="ln">356  </span></a>    <span class="s1">mask</span><span class="s3">[</span><span class="s2">:</span><span class="s5">1</span><span class="s3">] </span><span class="s2">= True</span>
+<a name="l357"><span class="ln">357  </span></a>    <span class="s2">if </span><span class="s3">(</span><span class="s1">equal_nan </span><span class="s2">and </span><span class="s1">aux</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">&gt; </span><span class="s5">0 </span><span class="s2">and </span><span class="s1">aux</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">kind </span><span class="s2">in </span><span class="s4">&quot;cfmM&quot; </span><span class="s2">and</span>
+<a name="l358"><span class="ln">358  </span></a>            <span class="s1">np</span><span class="s3">.</span><span class="s1">isnan</span><span class="s3">(</span><span class="s1">aux</span><span class="s3">[</span><span class="s2">-</span><span class="s5">1</span><span class="s3">]))</span><span class="s2">:</span>
+<a name="l359"><span class="ln">359  </span></a>        <span class="s2">if </span><span class="s1">aux</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">kind </span><span class="s2">== </span><span class="s4">&quot;c&quot;</span><span class="s2">:  </span><span class="s0"># for complex all NaNs are considered equivalent</span>
+<a name="l360"><span class="ln">360  </span></a>            <span class="s1">aux_firstnan </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">searchsorted</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">isnan</span><span class="s3">(</span><span class="s1">aux</span><span class="s3">), </span><span class="s2">True</span><span class="s3">, </span><span class="s1">side</span><span class="s2">=</span><span class="s4">'left'</span><span class="s3">)</span>
+<a name="l361"><span class="ln">361  </span></a>        <span class="s2">else:</span>
+<a name="l362"><span class="ln">362  </span></a>            <span class="s1">aux_firstnan </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">searchsorted</span><span class="s3">(</span><span class="s1">aux</span><span class="s3">, </span><span class="s1">aux</span><span class="s3">[</span><span class="s2">-</span><span class="s5">1</span><span class="s3">], </span><span class="s1">side</span><span class="s2">=</span><span class="s4">'left'</span><span class="s3">)</span>
+<a name="l363"><span class="ln">363  </span></a>        <span class="s2">if </span><span class="s1">aux_firstnan </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l364"><span class="ln">364  </span></a>            <span class="s1">mask</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s1">aux_firstnan</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l365"><span class="ln">365  </span></a>                <span class="s1">aux</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s1">aux_firstnan</span><span class="s3">] </span><span class="s2">!= </span><span class="s1">aux</span><span class="s3">[</span><span class="s2">:</span><span class="s1">aux_firstnan </span><span class="s2">- </span><span class="s5">1</span><span class="s3">])</span>
+<a name="l366"><span class="ln">366  </span></a>        <span class="s1">mask</span><span class="s3">[</span><span class="s1">aux_firstnan</span><span class="s3">] </span><span class="s2">= True</span>
+<a name="l367"><span class="ln">367  </span></a>        <span class="s1">mask</span><span class="s3">[</span><span class="s1">aux_firstnan </span><span class="s2">+ </span><span class="s5">1</span><span class="s2">:</span><span class="s3">] </span><span class="s2">= False</span>
+<a name="l368"><span class="ln">368  </span></a>    <span class="s2">else:</span>
+<a name="l369"><span class="ln">369  </span></a>        <span class="s1">mask</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">] </span><span class="s2">= </span><span class="s1">aux</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">] </span><span class="s2">!= </span><span class="s1">aux</span><span class="s3">[</span><span class="s2">:-</span><span class="s5">1</span><span class="s3">]</span>
+<a name="l370"><span class="ln">370  </span></a>
+<a name="l371"><span class="ln">371  </span></a>    <span class="s1">ret </span><span class="s2">= </span><span class="s3">(</span><span class="s1">aux</span><span class="s3">[</span><span class="s1">mask</span><span class="s3">],)</span>
+<a name="l372"><span class="ln">372  </span></a>    <span class="s2">if </span><span class="s1">return_index</span><span class="s2">:</span>
+<a name="l373"><span class="ln">373  </span></a>        <span class="s1">ret </span><span class="s2">+= </span><span class="s3">(</span><span class="s1">perm</span><span class="s3">[</span><span class="s1">mask</span><span class="s3">],)</span>
+<a name="l374"><span class="ln">374  </span></a>    <span class="s2">if </span><span class="s1">return_inverse</span><span class="s2">:</span>
+<a name="l375"><span class="ln">375  </span></a>        <span class="s1">imask </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">cumsum</span><span class="s3">(</span><span class="s1">mask</span><span class="s3">) </span><span class="s2">- </span><span class="s5">1</span>
+<a name="l376"><span class="ln">376  </span></a>        <span class="s1">inv_idx </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">empty</span><span class="s3">(</span><span class="s1">mask</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">np</span><span class="s3">.</span><span class="s1">intp</span><span class="s3">)</span>
+<a name="l377"><span class="ln">377  </span></a>        <span class="s1">inv_idx</span><span class="s3">[</span><span class="s1">perm</span><span class="s3">] </span><span class="s2">= </span><span class="s1">imask</span>
+<a name="l378"><span class="ln">378  </span></a>        <span class="s1">ret </span><span class="s2">+= </span><span class="s3">(</span><span class="s1">inv_idx</span><span class="s3">.</span><span class="s1">reshape</span><span class="s3">(</span><span class="s1">inverse_shape</span><span class="s3">) </span><span class="s2">if </span><span class="s1">axis </span><span class="s2">is None else </span><span class="s1">inv_idx</span><span class="s3">,)</span>
+<a name="l379"><span class="ln">379  </span></a>    <span class="s2">if </span><span class="s1">return_counts</span><span class="s2">:</span>
+<a name="l380"><span class="ln">380  </span></a>        <span class="s1">idx </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">concatenate</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">nonzero</span><span class="s3">(</span><span class="s1">mask</span><span class="s3">) </span><span class="s2">+ </span><span class="s3">([</span><span class="s1">mask</span><span class="s3">.</span><span class="s1">size</span><span class="s3">],))</span>
+<a name="l381"><span class="ln">381  </span></a>        <span class="s1">ret </span><span class="s2">+= </span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">idx</span><span class="s3">),)</span>
+<a name="l382"><span class="ln">382  </span></a>    <span class="s2">return </span><span class="s1">ret</span>
+<a name="l383"><span class="ln">383  </span></a>
+<a name="l384"><span class="ln">384  </span></a>
+<a name="l385"><span class="ln">385  </span></a><span class="s0"># Array API set functions</span>
+<a name="l386"><span class="ln">386  </span></a>
+<a name="l387"><span class="ln">387  </span></a><span class="s2">class </span><span class="s1">UniqueAllResult</span><span class="s3">(</span><span class="s1">NamedTuple</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l388"><span class="ln">388  </span></a>    <span class="s1">values</span><span class="s2">: </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ndarray</span>
+<a name="l389"><span class="ln">389  </span></a>    <span class="s1">indices</span><span class="s2">: </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ndarray</span>
+<a name="l390"><span class="ln">390  </span></a>    <span class="s1">inverse_indices</span><span class="s2">: </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ndarray</span>
+<a name="l391"><span class="ln">391  </span></a>    <span class="s1">counts</span><span class="s2">: </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ndarray</span>
+<a name="l392"><span class="ln">392  </span></a>
+<a name="l393"><span class="ln">393  </span></a>
+<a name="l394"><span class="ln">394  </span></a><span class="s2">class </span><span class="s1">UniqueCountsResult</span><span class="s3">(</span><span class="s1">NamedTuple</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l395"><span class="ln">395  </span></a>    <span class="s1">values</span><span class="s2">: </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ndarray</span>
+<a name="l396"><span class="ln">396  </span></a>    <span class="s1">counts</span><span class="s2">: </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ndarray</span>
+<a name="l397"><span class="ln">397  </span></a>
+<a name="l398"><span class="ln">398  </span></a>
+<a name="l399"><span class="ln">399  </span></a><span class="s2">class </span><span class="s1">UniqueInverseResult</span><span class="s3">(</span><span class="s1">NamedTuple</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l400"><span class="ln">400  </span></a>    <span class="s1">values</span><span class="s2">: </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ndarray</span>
+<a name="l401"><span class="ln">401  </span></a>    <span class="s1">inverse_indices</span><span class="s2">: </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ndarray</span>
+<a name="l402"><span class="ln">402  </span></a>
+<a name="l403"><span class="ln">403  </span></a>
+<a name="l404"><span class="ln">404  </span></a><span class="s2">def </span><span class="s1">_unique_all_dispatcher</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s2">/</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l405"><span class="ln">405  </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">x</span><span class="s3">,)</span>
+<a name="l406"><span class="ln">406  </span></a>
+<a name="l407"><span class="ln">407  </span></a>
+<a name="l408"><span class="ln">408  </span></a><span class="s2">@</span><span class="s1">array_function_dispatch</span><span class="s3">(</span><span class="s1">_unique_all_dispatcher</span><span class="s3">)</span>
+<a name="l409"><span class="ln">409  </span></a><span class="s2">def </span><span class="s1">unique_all</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l410"><span class="ln">410  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l411"><span class="ln">411  </span></a>    Find the unique elements of an array, and counts, inverse, and indices. 
+<a name="l412"><span class="ln">412  </span></a> 
+<a name="l413"><span class="ln">413  </span></a>    This function is an Array API compatible alternative to:: 
+<a name="l414"><span class="ln">414  </span></a> 
+<a name="l415"><span class="ln">415  </span></a>        np.unique(x, return_index=True, return_inverse=True, 
+<a name="l416"><span class="ln">416  </span></a>                  return_counts=True, equal_nan=False) 
+<a name="l417"><span class="ln">417  </span></a> 
+<a name="l418"><span class="ln">418  </span></a>    but returns a namedtuple for easier access to each output. 
+<a name="l419"><span class="ln">419  </span></a> 
+<a name="l420"><span class="ln">420  </span></a>    Parameters 
+<a name="l421"><span class="ln">421  </span></a>    ---------- 
+<a name="l422"><span class="ln">422  </span></a>    x : array_like 
+<a name="l423"><span class="ln">423  </span></a>        Input array. It will be flattened if it is not already 1-D. 
+<a name="l424"><span class="ln">424  </span></a> 
+<a name="l425"><span class="ln">425  </span></a>    Returns 
+<a name="l426"><span class="ln">426  </span></a>    ------- 
+<a name="l427"><span class="ln">427  </span></a>    out : namedtuple 
+<a name="l428"><span class="ln">428  </span></a>        The result containing: 
+<a name="l429"><span class="ln">429  </span></a> 
+<a name="l430"><span class="ln">430  </span></a>        * values - The unique elements of an input array. 
+<a name="l431"><span class="ln">431  </span></a>        * indices - The first occurring indices for each unique element. 
+<a name="l432"><span class="ln">432  </span></a>        * inverse_indices - The indices from the set of unique elements 
+<a name="l433"><span class="ln">433  </span></a>          that reconstruct `x`. 
+<a name="l434"><span class="ln">434  </span></a>        * counts - The corresponding counts for each unique element. 
+<a name="l435"><span class="ln">435  </span></a> 
+<a name="l436"><span class="ln">436  </span></a>    See Also 
+<a name="l437"><span class="ln">437  </span></a>    -------- 
+<a name="l438"><span class="ln">438  </span></a>    unique : Find the unique elements of an array. 
+<a name="l439"><span class="ln">439  </span></a> 
+<a name="l440"><span class="ln">440  </span></a>    Examples 
+<a name="l441"><span class="ln">441  </span></a>    -------- 
+<a name="l442"><span class="ln">442  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l443"><span class="ln">443  </span></a>    &gt;&gt;&gt; x = [1, 1, 2] 
+<a name="l444"><span class="ln">444  </span></a>    &gt;&gt;&gt; uniq = np.unique_all(x) 
+<a name="l445"><span class="ln">445  </span></a>    &gt;&gt;&gt; uniq.values 
+<a name="l446"><span class="ln">446  </span></a>    array([1, 2]) 
+<a name="l447"><span class="ln">447  </span></a>    &gt;&gt;&gt; uniq.indices 
+<a name="l448"><span class="ln">448  </span></a>    array([0, 2]) 
+<a name="l449"><span class="ln">449  </span></a>    &gt;&gt;&gt; uniq.inverse_indices 
+<a name="l450"><span class="ln">450  </span></a>    array([0, 0, 1]) 
+<a name="l451"><span class="ln">451  </span></a>    &gt;&gt;&gt; uniq.counts 
+<a name="l452"><span class="ln">452  </span></a>    array([2, 1]) 
+<a name="l453"><span class="ln">453  </span></a>    &quot;&quot;&quot;</span>
+<a name="l454"><span class="ln">454  </span></a>    <span class="s1">result </span><span class="s2">= </span><span class="s1">unique</span><span class="s3">(</span>
+<a name="l455"><span class="ln">455  </span></a>        <span class="s1">x</span><span class="s3">,</span>
+<a name="l456"><span class="ln">456  </span></a>        <span class="s1">return_index</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l457"><span class="ln">457  </span></a>        <span class="s1">return_inverse</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l458"><span class="ln">458  </span></a>        <span class="s1">return_counts</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l459"><span class="ln">459  </span></a>        <span class="s1">equal_nan</span><span class="s2">=False</span>
+<a name="l460"><span class="ln">460  </span></a>    <span class="s3">)</span>
+<a name="l461"><span class="ln">461  </span></a>    <span class="s2">return </span><span class="s1">UniqueAllResult</span><span class="s3">(</span><span class="s2">*</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l462"><span class="ln">462  </span></a>
+<a name="l463"><span class="ln">463  </span></a>
+<a name="l464"><span class="ln">464  </span></a><span class="s2">def </span><span class="s1">_unique_counts_dispatcher</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s2">/</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l465"><span class="ln">465  </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">x</span><span class="s3">,)</span>
+<a name="l466"><span class="ln">466  </span></a>
+<a name="l467"><span class="ln">467  </span></a>
+<a name="l468"><span class="ln">468  </span></a><span class="s2">@</span><span class="s1">array_function_dispatch</span><span class="s3">(</span><span class="s1">_unique_counts_dispatcher</span><span class="s3">)</span>
+<a name="l469"><span class="ln">469  </span></a><span class="s2">def </span><span class="s1">unique_counts</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l470"><span class="ln">470  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l471"><span class="ln">471  </span></a>    Find the unique elements and counts of an input array `x`. 
+<a name="l472"><span class="ln">472  </span></a> 
+<a name="l473"><span class="ln">473  </span></a>    This function is an Array API compatible alternative to:: 
+<a name="l474"><span class="ln">474  </span></a> 
+<a name="l475"><span class="ln">475  </span></a>        np.unique(x, return_counts=True, equal_nan=False) 
+<a name="l476"><span class="ln">476  </span></a> 
+<a name="l477"><span class="ln">477  </span></a>    but returns a namedtuple for easier access to each output. 
+<a name="l478"><span class="ln">478  </span></a> 
+<a name="l479"><span class="ln">479  </span></a>    Parameters 
+<a name="l480"><span class="ln">480  </span></a>    ---------- 
+<a name="l481"><span class="ln">481  </span></a>    x : array_like 
+<a name="l482"><span class="ln">482  </span></a>        Input array. It will be flattened if it is not already 1-D. 
+<a name="l483"><span class="ln">483  </span></a> 
+<a name="l484"><span class="ln">484  </span></a>    Returns 
+<a name="l485"><span class="ln">485  </span></a>    ------- 
+<a name="l486"><span class="ln">486  </span></a>    out : namedtuple 
+<a name="l487"><span class="ln">487  </span></a>        The result containing: 
+<a name="l488"><span class="ln">488  </span></a> 
+<a name="l489"><span class="ln">489  </span></a>        * values - The unique elements of an input array. 
+<a name="l490"><span class="ln">490  </span></a>        * counts - The corresponding counts for each unique element. 
+<a name="l491"><span class="ln">491  </span></a> 
+<a name="l492"><span class="ln">492  </span></a>    See Also 
+<a name="l493"><span class="ln">493  </span></a>    -------- 
+<a name="l494"><span class="ln">494  </span></a>    unique : Find the unique elements of an array. 
+<a name="l495"><span class="ln">495  </span></a> 
+<a name="l496"><span class="ln">496  </span></a>    Examples 
+<a name="l497"><span class="ln">497  </span></a>    -------- 
+<a name="l498"><span class="ln">498  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l499"><span class="ln">499  </span></a>    &gt;&gt;&gt; x = [1, 1, 2] 
+<a name="l500"><span class="ln">500  </span></a>    &gt;&gt;&gt; uniq = np.unique_counts(x) 
+<a name="l501"><span class="ln">501  </span></a>    &gt;&gt;&gt; uniq.values 
+<a name="l502"><span class="ln">502  </span></a>    array([1, 2]) 
+<a name="l503"><span class="ln">503  </span></a>    &gt;&gt;&gt; uniq.counts 
+<a name="l504"><span class="ln">504  </span></a>    array([2, 1]) 
+<a name="l505"><span class="ln">505  </span></a>    &quot;&quot;&quot;</span>
+<a name="l506"><span class="ln">506  </span></a>    <span class="s1">result </span><span class="s2">= </span><span class="s1">unique</span><span class="s3">(</span>
+<a name="l507"><span class="ln">507  </span></a>        <span class="s1">x</span><span class="s3">,</span>
+<a name="l508"><span class="ln">508  </span></a>        <span class="s1">return_index</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l509"><span class="ln">509  </span></a>        <span class="s1">return_inverse</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l510"><span class="ln">510  </span></a>        <span class="s1">return_counts</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l511"><span class="ln">511  </span></a>        <span class="s1">equal_nan</span><span class="s2">=False</span>
+<a name="l512"><span class="ln">512  </span></a>    <span class="s3">)</span>
+<a name="l513"><span class="ln">513  </span></a>    <span class="s2">return </span><span class="s1">UniqueCountsResult</span><span class="s3">(</span><span class="s2">*</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l514"><span class="ln">514  </span></a>
+<a name="l515"><span class="ln">515  </span></a>
+<a name="l516"><span class="ln">516  </span></a><span class="s2">def </span><span class="s1">_unique_inverse_dispatcher</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s2">/</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l517"><span class="ln">517  </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">x</span><span class="s3">,)</span>
+<a name="l518"><span class="ln">518  </span></a>
+<a name="l519"><span class="ln">519  </span></a>
+<a name="l520"><span class="ln">520  </span></a><span class="s2">@</span><span class="s1">array_function_dispatch</span><span class="s3">(</span><span class="s1">_unique_inverse_dispatcher</span><span class="s3">)</span>
+<a name="l521"><span class="ln">521  </span></a><span class="s2">def </span><span class="s1">unique_inverse</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l522"><span class="ln">522  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l523"><span class="ln">523  </span></a>    Find the unique elements of `x` and indices to reconstruct `x`. 
+<a name="l524"><span class="ln">524  </span></a> 
+<a name="l525"><span class="ln">525  </span></a>    This function is an Array API compatible alternative to:: 
+<a name="l526"><span class="ln">526  </span></a> 
+<a name="l527"><span class="ln">527  </span></a>        np.unique(x, return_inverse=True, equal_nan=False) 
+<a name="l528"><span class="ln">528  </span></a> 
+<a name="l529"><span class="ln">529  </span></a>    but returns a namedtuple for easier access to each output. 
+<a name="l530"><span class="ln">530  </span></a> 
+<a name="l531"><span class="ln">531  </span></a>    Parameters 
+<a name="l532"><span class="ln">532  </span></a>    ---------- 
+<a name="l533"><span class="ln">533  </span></a>    x : array_like 
+<a name="l534"><span class="ln">534  </span></a>        Input array. It will be flattened if it is not already 1-D. 
+<a name="l535"><span class="ln">535  </span></a> 
+<a name="l536"><span class="ln">536  </span></a>    Returns 
+<a name="l537"><span class="ln">537  </span></a>    ------- 
+<a name="l538"><span class="ln">538  </span></a>    out : namedtuple 
+<a name="l539"><span class="ln">539  </span></a>        The result containing: 
+<a name="l540"><span class="ln">540  </span></a> 
+<a name="l541"><span class="ln">541  </span></a>        * values - The unique elements of an input array. 
+<a name="l542"><span class="ln">542  </span></a>        * inverse_indices - The indices from the set of unique elements 
+<a name="l543"><span class="ln">543  </span></a>          that reconstruct `x`. 
+<a name="l544"><span class="ln">544  </span></a> 
+<a name="l545"><span class="ln">545  </span></a>    See Also 
+<a name="l546"><span class="ln">546  </span></a>    -------- 
+<a name="l547"><span class="ln">547  </span></a>    unique : Find the unique elements of an array. 
+<a name="l548"><span class="ln">548  </span></a> 
+<a name="l549"><span class="ln">549  </span></a>    Examples 
+<a name="l550"><span class="ln">550  </span></a>    -------- 
+<a name="l551"><span class="ln">551  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l552"><span class="ln">552  </span></a>    &gt;&gt;&gt; x = [1, 1, 2] 
+<a name="l553"><span class="ln">553  </span></a>    &gt;&gt;&gt; uniq = np.unique_inverse(x) 
+<a name="l554"><span class="ln">554  </span></a>    &gt;&gt;&gt; uniq.values 
+<a name="l555"><span class="ln">555  </span></a>    array([1, 2]) 
+<a name="l556"><span class="ln">556  </span></a>    &gt;&gt;&gt; uniq.inverse_indices 
+<a name="l557"><span class="ln">557  </span></a>    array([0, 0, 1]) 
+<a name="l558"><span class="ln">558  </span></a>    &quot;&quot;&quot;</span>
+<a name="l559"><span class="ln">559  </span></a>    <span class="s1">result </span><span class="s2">= </span><span class="s1">unique</span><span class="s3">(</span>
+<a name="l560"><span class="ln">560  </span></a>        <span class="s1">x</span><span class="s3">,</span>
+<a name="l561"><span class="ln">561  </span></a>        <span class="s1">return_index</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l562"><span class="ln">562  </span></a>        <span class="s1">return_inverse</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l563"><span class="ln">563  </span></a>        <span class="s1">return_counts</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l564"><span class="ln">564  </span></a>        <span class="s1">equal_nan</span><span class="s2">=False</span>
+<a name="l565"><span class="ln">565  </span></a>    <span class="s3">)</span>
+<a name="l566"><span class="ln">566  </span></a>    <span class="s2">return </span><span class="s1">UniqueInverseResult</span><span class="s3">(</span><span class="s2">*</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l567"><span class="ln">567  </span></a>
+<a name="l568"><span class="ln">568  </span></a>
+<a name="l569"><span class="ln">569  </span></a><span class="s2">def </span><span class="s1">_unique_values_dispatcher</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s2">/</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l570"><span class="ln">570  </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">x</span><span class="s3">,)</span>
+<a name="l571"><span class="ln">571  </span></a>
+<a name="l572"><span class="ln">572  </span></a>
+<a name="l573"><span class="ln">573  </span></a><span class="s2">@</span><span class="s1">array_function_dispatch</span><span class="s3">(</span><span class="s1">_unique_values_dispatcher</span><span class="s3">)</span>
+<a name="l574"><span class="ln">574  </span></a><span class="s2">def </span><span class="s1">unique_values</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l575"><span class="ln">575  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l576"><span class="ln">576  </span></a>    Returns the unique elements of an input array `x`. 
+<a name="l577"><span class="ln">577  </span></a> 
+<a name="l578"><span class="ln">578  </span></a>    This function is an Array API compatible alternative to:: 
+<a name="l579"><span class="ln">579  </span></a> 
+<a name="l580"><span class="ln">580  </span></a>        np.unique(x, equal_nan=False) 
+<a name="l581"><span class="ln">581  </span></a> 
+<a name="l582"><span class="ln">582  </span></a>    Parameters 
+<a name="l583"><span class="ln">583  </span></a>    ---------- 
+<a name="l584"><span class="ln">584  </span></a>    x : array_like 
+<a name="l585"><span class="ln">585  </span></a>        Input array. It will be flattened if it is not already 1-D. 
+<a name="l586"><span class="ln">586  </span></a> 
+<a name="l587"><span class="ln">587  </span></a>    Returns 
+<a name="l588"><span class="ln">588  </span></a>    ------- 
+<a name="l589"><span class="ln">589  </span></a>    out : ndarray 
+<a name="l590"><span class="ln">590  </span></a>        The unique elements of an input array. 
+<a name="l591"><span class="ln">591  </span></a> 
+<a name="l592"><span class="ln">592  </span></a>    See Also 
+<a name="l593"><span class="ln">593  </span></a>    -------- 
+<a name="l594"><span class="ln">594  </span></a>    unique : Find the unique elements of an array. 
+<a name="l595"><span class="ln">595  </span></a> 
+<a name="l596"><span class="ln">596  </span></a>    Examples 
+<a name="l597"><span class="ln">597  </span></a>    -------- 
+<a name="l598"><span class="ln">598  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l599"><span class="ln">599  </span></a>    &gt;&gt;&gt; np.unique_values([1, 1, 2]) 
+<a name="l600"><span class="ln">600  </span></a>    array([1, 2]) 
+<a name="l601"><span class="ln">601  </span></a> 
+<a name="l602"><span class="ln">602  </span></a>    &quot;&quot;&quot;</span>
+<a name="l603"><span class="ln">603  </span></a>    <span class="s2">return </span><span class="s1">unique</span><span class="s3">(</span>
+<a name="l604"><span class="ln">604  </span></a>        <span class="s1">x</span><span class="s3">,</span>
+<a name="l605"><span class="ln">605  </span></a>        <span class="s1">return_index</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l606"><span class="ln">606  </span></a>        <span class="s1">return_inverse</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l607"><span class="ln">607  </span></a>        <span class="s1">return_counts</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l608"><span class="ln">608  </span></a>        <span class="s1">equal_nan</span><span class="s2">=False</span>
+<a name="l609"><span class="ln">609  </span></a>    <span class="s3">)</span>
+<a name="l610"><span class="ln">610  </span></a>
+<a name="l611"><span class="ln">611  </span></a>
+<a name="l612"><span class="ln">612  </span></a><span class="s2">def </span><span class="s1">_intersect1d_dispatcher</span><span class="s3">(</span>
+<a name="l613"><span class="ln">613  </span></a>        <span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">return_indices</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l614"><span class="ln">614  </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">)</span>
+<a name="l615"><span class="ln">615  </span></a>
+<a name="l616"><span class="ln">616  </span></a>
+<a name="l617"><span class="ln">617  </span></a><span class="s2">@</span><span class="s1">array_function_dispatch</span><span class="s3">(</span><span class="s1">_intersect1d_dispatcher</span><span class="s3">)</span>
+<a name="l618"><span class="ln">618  </span></a><span class="s2">def </span><span class="s1">intersect1d</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s2">=False</span><span class="s3">, </span><span class="s1">return_indices</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l619"><span class="ln">619  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l620"><span class="ln">620  </span></a>    Find the intersection of two arrays. 
+<a name="l621"><span class="ln">621  </span></a> 
+<a name="l622"><span class="ln">622  </span></a>    Return the sorted, unique values that are in both of the input arrays. 
+<a name="l623"><span class="ln">623  </span></a> 
+<a name="l624"><span class="ln">624  </span></a>    Parameters 
+<a name="l625"><span class="ln">625  </span></a>    ---------- 
+<a name="l626"><span class="ln">626  </span></a>    ar1, ar2 : array_like 
+<a name="l627"><span class="ln">627  </span></a>        Input arrays. Will be flattened if not already 1D. 
+<a name="l628"><span class="ln">628  </span></a>    assume_unique : bool 
+<a name="l629"><span class="ln">629  </span></a>        If True, the input arrays are both assumed to be unique, which 
+<a name="l630"><span class="ln">630  </span></a>        can speed up the calculation.  If True but ``ar1`` or ``ar2`` are not 
+<a name="l631"><span class="ln">631  </span></a>        unique, incorrect results and out-of-bounds indices could result. 
+<a name="l632"><span class="ln">632  </span></a>        Default is False. 
+<a name="l633"><span class="ln">633  </span></a>    return_indices : bool 
+<a name="l634"><span class="ln">634  </span></a>        If True, the indices which correspond to the intersection of the two 
+<a name="l635"><span class="ln">635  </span></a>        arrays are returned. The first instance of a value is used if there are 
+<a name="l636"><span class="ln">636  </span></a>        multiple. Default is False. 
+<a name="l637"><span class="ln">637  </span></a> 
+<a name="l638"><span class="ln">638  </span></a>    Returns 
+<a name="l639"><span class="ln">639  </span></a>    ------- 
+<a name="l640"><span class="ln">640  </span></a>    intersect1d : ndarray 
+<a name="l641"><span class="ln">641  </span></a>        Sorted 1D array of common and unique elements. 
+<a name="l642"><span class="ln">642  </span></a>    comm1 : ndarray 
+<a name="l643"><span class="ln">643  </span></a>        The indices of the first occurrences of the common values in `ar1`. 
+<a name="l644"><span class="ln">644  </span></a>        Only provided if `return_indices` is True. 
+<a name="l645"><span class="ln">645  </span></a>    comm2 : ndarray 
+<a name="l646"><span class="ln">646  </span></a>        The indices of the first occurrences of the common values in `ar2`. 
+<a name="l647"><span class="ln">647  </span></a>        Only provided if `return_indices` is True. 
+<a name="l648"><span class="ln">648  </span></a> 
+<a name="l649"><span class="ln">649  </span></a>    Examples 
+<a name="l650"><span class="ln">650  </span></a>    -------- 
+<a name="l651"><span class="ln">651  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l652"><span class="ln">652  </span></a>    &gt;&gt;&gt; np.intersect1d([1, 3, 4, 3], [3, 1, 2, 1]) 
+<a name="l653"><span class="ln">653  </span></a>    array([1, 3]) 
+<a name="l654"><span class="ln">654  </span></a> 
+<a name="l655"><span class="ln">655  </span></a>    To intersect more than two arrays, use functools.reduce: 
+<a name="l656"><span class="ln">656  </span></a> 
+<a name="l657"><span class="ln">657  </span></a>    &gt;&gt;&gt; from functools import reduce 
+<a name="l658"><span class="ln">658  </span></a>    &gt;&gt;&gt; reduce(np.intersect1d, ([1, 3, 4, 3], [3, 1, 2, 1], [6, 3, 4, 2])) 
+<a name="l659"><span class="ln">659  </span></a>    array([3]) 
+<a name="l660"><span class="ln">660  </span></a> 
+<a name="l661"><span class="ln">661  </span></a>    To return the indices of the values common to the input arrays 
+<a name="l662"><span class="ln">662  </span></a>    along with the intersected values: 
+<a name="l663"><span class="ln">663  </span></a> 
+<a name="l664"><span class="ln">664  </span></a>    &gt;&gt;&gt; x = np.array([1, 1, 2, 3, 4]) 
+<a name="l665"><span class="ln">665  </span></a>    &gt;&gt;&gt; y = np.array([2, 1, 4, 6]) 
+<a name="l666"><span class="ln">666  </span></a>    &gt;&gt;&gt; xy, x_ind, y_ind = np.intersect1d(x, y, return_indices=True) 
+<a name="l667"><span class="ln">667  </span></a>    &gt;&gt;&gt; x_ind, y_ind 
+<a name="l668"><span class="ln">668  </span></a>    (array([0, 2, 4]), array([1, 0, 2])) 
+<a name="l669"><span class="ln">669  </span></a>    &gt;&gt;&gt; xy, x[x_ind], y[y_ind] 
+<a name="l670"><span class="ln">670  </span></a>    (array([1, 2, 4]), array([1, 2, 4]), array([1, 2, 4])) 
+<a name="l671"><span class="ln">671  </span></a> 
+<a name="l672"><span class="ln">672  </span></a>    &quot;&quot;&quot;</span>
+<a name="l673"><span class="ln">673  </span></a>    <span class="s1">ar1 </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asanyarray</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">)</span>
+<a name="l674"><span class="ln">674  </span></a>    <span class="s1">ar2 </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asanyarray</span><span class="s3">(</span><span class="s1">ar2</span><span class="s3">)</span>
+<a name="l675"><span class="ln">675  </span></a>
+<a name="l676"><span class="ln">676  </span></a>    <span class="s2">if not </span><span class="s1">assume_unique</span><span class="s2">:</span>
+<a name="l677"><span class="ln">677  </span></a>        <span class="s2">if </span><span class="s1">return_indices</span><span class="s2">:</span>
+<a name="l678"><span class="ln">678  </span></a>            <span class="s1">ar1</span><span class="s3">, </span><span class="s1">ind1 </span><span class="s2">= </span><span class="s1">unique</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">return_index</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l679"><span class="ln">679  </span></a>            <span class="s1">ar2</span><span class="s3">, </span><span class="s1">ind2 </span><span class="s2">= </span><span class="s1">unique</span><span class="s3">(</span><span class="s1">ar2</span><span class="s3">, </span><span class="s1">return_index</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l680"><span class="ln">680  </span></a>        <span class="s2">else:</span>
+<a name="l681"><span class="ln">681  </span></a>            <span class="s1">ar1 </span><span class="s2">= </span><span class="s1">unique</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">)</span>
+<a name="l682"><span class="ln">682  </span></a>            <span class="s1">ar2 </span><span class="s2">= </span><span class="s1">unique</span><span class="s3">(</span><span class="s1">ar2</span><span class="s3">)</span>
+<a name="l683"><span class="ln">683  </span></a>    <span class="s2">else:</span>
+<a name="l684"><span class="ln">684  </span></a>        <span class="s1">ar1 </span><span class="s2">= </span><span class="s1">ar1</span><span class="s3">.</span><span class="s1">ravel</span><span class="s3">()</span>
+<a name="l685"><span class="ln">685  </span></a>        <span class="s1">ar2 </span><span class="s2">= </span><span class="s1">ar2</span><span class="s3">.</span><span class="s1">ravel</span><span class="s3">()</span>
+<a name="l686"><span class="ln">686  </span></a>
+<a name="l687"><span class="ln">687  </span></a>    <span class="s1">aux </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">concatenate</span><span class="s3">((</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">))</span>
+<a name="l688"><span class="ln">688  </span></a>    <span class="s2">if </span><span class="s1">return_indices</span><span class="s2">:</span>
+<a name="l689"><span class="ln">689  </span></a>        <span class="s1">aux_sort_indices </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">argsort</span><span class="s3">(</span><span class="s1">aux</span><span class="s3">, </span><span class="s1">kind</span><span class="s2">=</span><span class="s4">'mergesort'</span><span class="s3">)</span>
+<a name="l690"><span class="ln">690  </span></a>        <span class="s1">aux </span><span class="s2">= </span><span class="s1">aux</span><span class="s3">[</span><span class="s1">aux_sort_indices</span><span class="s3">]</span>
+<a name="l691"><span class="ln">691  </span></a>    <span class="s2">else:</span>
+<a name="l692"><span class="ln">692  </span></a>        <span class="s1">aux</span><span class="s3">.</span><span class="s1">sort</span><span class="s3">()</span>
+<a name="l693"><span class="ln">693  </span></a>
+<a name="l694"><span class="ln">694  </span></a>    <span class="s1">mask </span><span class="s2">= </span><span class="s1">aux</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">] </span><span class="s2">== </span><span class="s1">aux</span><span class="s3">[</span><span class="s2">:-</span><span class="s5">1</span><span class="s3">]</span>
+<a name="l695"><span class="ln">695  </span></a>    <span class="s1">int1d </span><span class="s2">= </span><span class="s1">aux</span><span class="s3">[</span><span class="s2">:-</span><span class="s5">1</span><span class="s3">][</span><span class="s1">mask</span><span class="s3">]</span>
+<a name="l696"><span class="ln">696  </span></a>
+<a name="l697"><span class="ln">697  </span></a>    <span class="s2">if </span><span class="s1">return_indices</span><span class="s2">:</span>
+<a name="l698"><span class="ln">698  </span></a>        <span class="s1">ar1_indices </span><span class="s2">= </span><span class="s1">aux_sort_indices</span><span class="s3">[</span><span class="s2">:-</span><span class="s5">1</span><span class="s3">][</span><span class="s1">mask</span><span class="s3">]</span>
+<a name="l699"><span class="ln">699  </span></a>        <span class="s1">ar2_indices </span><span class="s2">= </span><span class="s1">aux_sort_indices</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">][</span><span class="s1">mask</span><span class="s3">] </span><span class="s2">- </span><span class="s1">ar1</span><span class="s3">.</span><span class="s1">size</span>
+<a name="l700"><span class="ln">700  </span></a>        <span class="s2">if not </span><span class="s1">assume_unique</span><span class="s2">:</span>
+<a name="l701"><span class="ln">701  </span></a>            <span class="s1">ar1_indices </span><span class="s2">= </span><span class="s1">ind1</span><span class="s3">[</span><span class="s1">ar1_indices</span><span class="s3">]</span>
+<a name="l702"><span class="ln">702  </span></a>            <span class="s1">ar2_indices </span><span class="s2">= </span><span class="s1">ind2</span><span class="s3">[</span><span class="s1">ar2_indices</span><span class="s3">]</span>
+<a name="l703"><span class="ln">703  </span></a>
+<a name="l704"><span class="ln">704  </span></a>        <span class="s2">return </span><span class="s1">int1d</span><span class="s3">, </span><span class="s1">ar1_indices</span><span class="s3">, </span><span class="s1">ar2_indices</span>
+<a name="l705"><span class="ln">705  </span></a>    <span class="s2">else:</span>
+<a name="l706"><span class="ln">706  </span></a>        <span class="s2">return </span><span class="s1">int1d</span>
+<a name="l707"><span class="ln">707  </span></a>
+<a name="l708"><span class="ln">708  </span></a>
+<a name="l709"><span class="ln">709  </span></a><span class="s2">def </span><span class="s1">_setxor1d_dispatcher</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l710"><span class="ln">710  </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">)</span>
+<a name="l711"><span class="ln">711  </span></a>
+<a name="l712"><span class="ln">712  </span></a>
+<a name="l713"><span class="ln">713  </span></a><span class="s2">@</span><span class="s1">array_function_dispatch</span><span class="s3">(</span><span class="s1">_setxor1d_dispatcher</span><span class="s3">)</span>
+<a name="l714"><span class="ln">714  </span></a><span class="s2">def </span><span class="s1">setxor1d</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l715"><span class="ln">715  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l716"><span class="ln">716  </span></a>    Find the set exclusive-or of two arrays. 
+<a name="l717"><span class="ln">717  </span></a> 
+<a name="l718"><span class="ln">718  </span></a>    Return the sorted, unique values that are in only one (not both) of the 
+<a name="l719"><span class="ln">719  </span></a>    input arrays. 
+<a name="l720"><span class="ln">720  </span></a> 
+<a name="l721"><span class="ln">721  </span></a>    Parameters 
+<a name="l722"><span class="ln">722  </span></a>    ---------- 
+<a name="l723"><span class="ln">723  </span></a>    ar1, ar2 : array_like 
+<a name="l724"><span class="ln">724  </span></a>        Input arrays. 
+<a name="l725"><span class="ln">725  </span></a>    assume_unique : bool 
+<a name="l726"><span class="ln">726  </span></a>        If True, the input arrays are both assumed to be unique, which 
+<a name="l727"><span class="ln">727  </span></a>        can speed up the calculation. Default is False. 
+<a name="l728"><span class="ln">728  </span></a> 
+<a name="l729"><span class="ln">729  </span></a>    Returns 
+<a name="l730"><span class="ln">730  </span></a>    ------- 
+<a name="l731"><span class="ln">731  </span></a>    setxor1d : ndarray 
+<a name="l732"><span class="ln">732  </span></a>        Sorted 1D array of unique values that are in only one of the input 
+<a name="l733"><span class="ln">733  </span></a>        arrays. 
+<a name="l734"><span class="ln">734  </span></a> 
+<a name="l735"><span class="ln">735  </span></a>    Examples 
+<a name="l736"><span class="ln">736  </span></a>    -------- 
+<a name="l737"><span class="ln">737  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l738"><span class="ln">738  </span></a>    &gt;&gt;&gt; a = np.array([1, 2, 3, 2, 4]) 
+<a name="l739"><span class="ln">739  </span></a>    &gt;&gt;&gt; b = np.array([2, 3, 5, 7, 5]) 
+<a name="l740"><span class="ln">740  </span></a>    &gt;&gt;&gt; np.setxor1d(a,b) 
+<a name="l741"><span class="ln">741  </span></a>    array([1, 4, 5, 7]) 
+<a name="l742"><span class="ln">742  </span></a> 
+<a name="l743"><span class="ln">743  </span></a>    &quot;&quot;&quot;</span>
+<a name="l744"><span class="ln">744  </span></a>    <span class="s2">if not </span><span class="s1">assume_unique</span><span class="s2">:</span>
+<a name="l745"><span class="ln">745  </span></a>        <span class="s1">ar1 </span><span class="s2">= </span><span class="s1">unique</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">)</span>
+<a name="l746"><span class="ln">746  </span></a>        <span class="s1">ar2 </span><span class="s2">= </span><span class="s1">unique</span><span class="s3">(</span><span class="s1">ar2</span><span class="s3">)</span>
+<a name="l747"><span class="ln">747  </span></a>
+<a name="l748"><span class="ln">748  </span></a>    <span class="s1">aux </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">concatenate</span><span class="s3">((</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">), </span><span class="s1">axis</span><span class="s2">=None</span><span class="s3">)</span>
+<a name="l749"><span class="ln">749  </span></a>    <span class="s2">if </span><span class="s1">aux</span><span class="s3">.</span><span class="s1">size </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l750"><span class="ln">750  </span></a>        <span class="s2">return </span><span class="s1">aux</span>
+<a name="l751"><span class="ln">751  </span></a>
+<a name="l752"><span class="ln">752  </span></a>    <span class="s1">aux</span><span class="s3">.</span><span class="s1">sort</span><span class="s3">()</span>
+<a name="l753"><span class="ln">753  </span></a>    <span class="s1">flag </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">concatenate</span><span class="s3">(([</span><span class="s2">True</span><span class="s3">], </span><span class="s1">aux</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">] </span><span class="s2">!= </span><span class="s1">aux</span><span class="s3">[</span><span class="s2">:-</span><span class="s5">1</span><span class="s3">], [</span><span class="s2">True</span><span class="s3">]))</span>
+<a name="l754"><span class="ln">754  </span></a>    <span class="s2">return </span><span class="s1">aux</span><span class="s3">[</span><span class="s1">flag</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">] </span><span class="s2">&amp; </span><span class="s1">flag</span><span class="s3">[</span><span class="s2">:-</span><span class="s5">1</span><span class="s3">]]</span>
+<a name="l755"><span class="ln">755  </span></a>
+<a name="l756"><span class="ln">756  </span></a>
+<a name="l757"><span class="ln">757  </span></a><span class="s2">def </span><span class="s1">_in1d_dispatcher</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">invert</span><span class="s2">=None</span><span class="s3">, </span><span class="s2">*</span><span class="s3">,</span>
+<a name="l758"><span class="ln">758  </span></a>                     <span class="s1">kind</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l759"><span class="ln">759  </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">)</span>
+<a name="l760"><span class="ln">760  </span></a>
+<a name="l761"><span class="ln">761  </span></a>
+<a name="l762"><span class="ln">762  </span></a><span class="s2">@</span><span class="s1">array_function_dispatch</span><span class="s3">(</span><span class="s1">_in1d_dispatcher</span><span class="s3">)</span>
+<a name="l763"><span class="ln">763  </span></a><span class="s2">def </span><span class="s1">in1d</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s2">=False</span><span class="s3">, </span><span class="s1">invert</span><span class="s2">=False</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">kind</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l764"><span class="ln">764  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l765"><span class="ln">765  </span></a>    Test whether each element of a 1-D array is also present in a second array. 
+<a name="l766"><span class="ln">766  </span></a> 
+<a name="l767"><span class="ln">767  </span></a>    .. deprecated:: 2.0 
+<a name="l768"><span class="ln">768  </span></a>        Use :func:`isin` instead of `in1d` for new code. 
+<a name="l769"><span class="ln">769  </span></a> 
+<a name="l770"><span class="ln">770  </span></a>    Returns a boolean array the same length as `ar1` that is True 
+<a name="l771"><span class="ln">771  </span></a>    where an element of `ar1` is in `ar2` and False otherwise. 
+<a name="l772"><span class="ln">772  </span></a> 
+<a name="l773"><span class="ln">773  </span></a>    Parameters 
+<a name="l774"><span class="ln">774  </span></a>    ---------- 
+<a name="l775"><span class="ln">775  </span></a>    ar1 : (M,) array_like 
+<a name="l776"><span class="ln">776  </span></a>        Input array. 
+<a name="l777"><span class="ln">777  </span></a>    ar2 : array_like 
+<a name="l778"><span class="ln">778  </span></a>        The values against which to test each value of `ar1`. 
+<a name="l779"><span class="ln">779  </span></a>    assume_unique : bool, optional 
+<a name="l780"><span class="ln">780  </span></a>        If True, the input arrays are both assumed to be unique, which 
+<a name="l781"><span class="ln">781  </span></a>        can speed up the calculation.  Default is False. 
+<a name="l782"><span class="ln">782  </span></a>    invert : bool, optional 
+<a name="l783"><span class="ln">783  </span></a>        If True, the values in the returned array are inverted (that is, 
+<a name="l784"><span class="ln">784  </span></a>        False where an element of `ar1` is in `ar2` and True otherwise). 
+<a name="l785"><span class="ln">785  </span></a>        Default is False. ``np.in1d(a, b, invert=True)`` is equivalent 
+<a name="l786"><span class="ln">786  </span></a>        to (but is faster than) ``np.invert(in1d(a, b))``. 
+<a name="l787"><span class="ln">787  </span></a>    kind : {None, 'sort', 'table'}, optional 
+<a name="l788"><span class="ln">788  </span></a>        The algorithm to use. This will not affect the final result, 
+<a name="l789"><span class="ln">789  </span></a>        but will affect the speed and memory use. The default, None, 
+<a name="l790"><span class="ln">790  </span></a>        will select automatically based on memory considerations. 
+<a name="l791"><span class="ln">791  </span></a> 
+<a name="l792"><span class="ln">792  </span></a>        * If 'sort', will use a mergesort-based approach. This will have 
+<a name="l793"><span class="ln">793  </span></a>          a memory usage of roughly 6 times the sum of the sizes of 
+<a name="l794"><span class="ln">794  </span></a>          `ar1` and `ar2`, not accounting for size of dtypes. 
+<a name="l795"><span class="ln">795  </span></a>        * If 'table', will use a lookup table approach similar 
+<a name="l796"><span class="ln">796  </span></a>          to a counting sort. This is only available for boolean and 
+<a name="l797"><span class="ln">797  </span></a>          integer arrays. This will have a memory usage of the 
+<a name="l798"><span class="ln">798  </span></a>          size of `ar1` plus the max-min value of `ar2`. `assume_unique` 
+<a name="l799"><span class="ln">799  </span></a>          has no effect when the 'table' option is used. 
+<a name="l800"><span class="ln">800  </span></a>        * If None, will automatically choose 'table' if 
+<a name="l801"><span class="ln">801  </span></a>          the required memory allocation is less than or equal to 
+<a name="l802"><span class="ln">802  </span></a>          6 times the sum of the sizes of `ar1` and `ar2`, 
+<a name="l803"><span class="ln">803  </span></a>          otherwise will use 'sort'. This is done to not use 
+<a name="l804"><span class="ln">804  </span></a>          a large amount of memory by default, even though 
+<a name="l805"><span class="ln">805  </span></a>          'table' may be faster in most cases. If 'table' is chosen, 
+<a name="l806"><span class="ln">806  </span></a>          `assume_unique` will have no effect. 
+<a name="l807"><span class="ln">807  </span></a> 
+<a name="l808"><span class="ln">808  </span></a>    Returns 
+<a name="l809"><span class="ln">809  </span></a>    ------- 
+<a name="l810"><span class="ln">810  </span></a>    in1d : (M,) ndarray, bool 
+<a name="l811"><span class="ln">811  </span></a>        The values `ar1[in1d]` are in `ar2`. 
+<a name="l812"><span class="ln">812  </span></a> 
+<a name="l813"><span class="ln">813  </span></a>    See Also 
+<a name="l814"><span class="ln">814  </span></a>    -------- 
+<a name="l815"><span class="ln">815  </span></a>    isin                  : Version of this function that preserves the 
+<a name="l816"><span class="ln">816  </span></a>                            shape of ar1. 
+<a name="l817"><span class="ln">817  </span></a> 
+<a name="l818"><span class="ln">818  </span></a>    Notes 
+<a name="l819"><span class="ln">819  </span></a>    ----- 
+<a name="l820"><span class="ln">820  </span></a>    `in1d` can be considered as an element-wise function version of the 
+<a name="l821"><span class="ln">821  </span></a>    python keyword `in`, for 1-D sequences. ``in1d(a, b)`` is roughly 
+<a name="l822"><span class="ln">822  </span></a>    equivalent to ``np.array([item in b for item in a])``. 
+<a name="l823"><span class="ln">823  </span></a>    However, this idea fails if `ar2` is a set, or similar (non-sequence) 
+<a name="l824"><span class="ln">824  </span></a>    container:  As ``ar2`` is converted to an array, in those cases 
+<a name="l825"><span class="ln">825  </span></a>    ``asarray(ar2)`` is an object array rather than the expected array of 
+<a name="l826"><span class="ln">826  </span></a>    contained values. 
+<a name="l827"><span class="ln">827  </span></a> 
+<a name="l828"><span class="ln">828  </span></a>    Using ``kind='table'`` tends to be faster than `kind='sort'` if the 
+<a name="l829"><span class="ln">829  </span></a>    following relationship is true: 
+<a name="l830"><span class="ln">830  </span></a>    ``log10(len(ar2)) &gt; (log10(max(ar2)-min(ar2)) - 2.27) / 0.927``, 
+<a name="l831"><span class="ln">831  </span></a>    but may use greater memory. The default value for `kind` will 
+<a name="l832"><span class="ln">832  </span></a>    be automatically selected based only on memory usage, so one may 
+<a name="l833"><span class="ln">833  </span></a>    manually set ``kind='table'`` if memory constraints can be relaxed. 
+<a name="l834"><span class="ln">834  </span></a> 
+<a name="l835"><span class="ln">835  </span></a>    Examples 
+<a name="l836"><span class="ln">836  </span></a>    -------- 
+<a name="l837"><span class="ln">837  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l838"><span class="ln">838  </span></a>    &gt;&gt;&gt; test = np.array([0, 1, 2, 5, 0]) 
+<a name="l839"><span class="ln">839  </span></a>    &gt;&gt;&gt; states = [0, 2] 
+<a name="l840"><span class="ln">840  </span></a>    &gt;&gt;&gt; mask = np.in1d(test, states) 
+<a name="l841"><span class="ln">841  </span></a>    &gt;&gt;&gt; mask 
+<a name="l842"><span class="ln">842  </span></a>    array([ True, False,  True, False,  True]) 
+<a name="l843"><span class="ln">843  </span></a>    &gt;&gt;&gt; test[mask] 
+<a name="l844"><span class="ln">844  </span></a>    array([0, 2, 0]) 
+<a name="l845"><span class="ln">845  </span></a>    &gt;&gt;&gt; mask = np.in1d(test, states, invert=True) 
+<a name="l846"><span class="ln">846  </span></a>    &gt;&gt;&gt; mask 
+<a name="l847"><span class="ln">847  </span></a>    array([False,  True, False,  True, False]) 
+<a name="l848"><span class="ln">848  </span></a>    &gt;&gt;&gt; test[mask] 
+<a name="l849"><span class="ln">849  </span></a>    array([1, 5]) 
+<a name="l850"><span class="ln">850  </span></a>    &quot;&quot;&quot;</span>
+<a name="l851"><span class="ln">851  </span></a>
+<a name="l852"><span class="ln">852  </span></a>    <span class="s0"># Deprecated in NumPy 2.0, 2023-08-18</span>
+<a name="l853"><span class="ln">853  </span></a>    <span class="s1">warnings</span><span class="s3">.</span><span class="s1">warn</span><span class="s3">(</span>
+<a name="l854"><span class="ln">854  </span></a>        <span class="s4">&quot;`in1d` is deprecated. Use `np.isin` instead.&quot;</span><span class="s3">,</span>
+<a name="l855"><span class="ln">855  </span></a>        <span class="s1">DeprecationWarning</span><span class="s3">,</span>
+<a name="l856"><span class="ln">856  </span></a>        <span class="s1">stacklevel</span><span class="s2">=</span><span class="s5">2</span>
+<a name="l857"><span class="ln">857  </span></a>    <span class="s3">)</span>
+<a name="l858"><span class="ln">858  </span></a>
+<a name="l859"><span class="ln">859  </span></a>    <span class="s2">return </span><span class="s1">_in1d</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s3">, </span><span class="s1">invert</span><span class="s3">, </span><span class="s1">kind</span><span class="s2">=</span><span class="s1">kind</span><span class="s3">)</span>
+<a name="l860"><span class="ln">860  </span></a>
+<a name="l861"><span class="ln">861  </span></a>
+<a name="l862"><span class="ln">862  </span></a><span class="s2">def </span><span class="s1">_in1d</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s2">=False</span><span class="s3">, </span><span class="s1">invert</span><span class="s2">=False</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">kind</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l863"><span class="ln">863  </span></a>    <span class="s0"># Ravel both arrays, behavior for the first array could be different</span>
+<a name="l864"><span class="ln">864  </span></a>    <span class="s1">ar1 </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">).</span><span class="s1">ravel</span><span class="s3">()</span>
+<a name="l865"><span class="ln">865  </span></a>    <span class="s1">ar2 </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">ar2</span><span class="s3">).</span><span class="s1">ravel</span><span class="s3">()</span>
+<a name="l866"><span class="ln">866  </span></a>
+<a name="l867"><span class="ln">867  </span></a>    <span class="s0"># Ensure that iteration through object arrays yields size-1 arrays</span>
+<a name="l868"><span class="ln">868  </span></a>    <span class="s2">if </span><span class="s1">ar2</span><span class="s3">.</span><span class="s1">dtype </span><span class="s2">== </span><span class="s1">object</span><span class="s2">:</span>
+<a name="l869"><span class="ln">869  </span></a>        <span class="s1">ar2 </span><span class="s2">= </span><span class="s1">ar2</span><span class="s3">.</span><span class="s1">reshape</span><span class="s3">(</span><span class="s2">-</span><span class="s5">1</span><span class="s3">, </span><span class="s5">1</span><span class="s3">)</span>
+<a name="l870"><span class="ln">870  </span></a>
+<a name="l871"><span class="ln">871  </span></a>    <span class="s2">if </span><span class="s1">kind </span><span class="s2">not in </span><span class="s3">{</span><span class="s2">None</span><span class="s3">, </span><span class="s4">'sort'</span><span class="s3">, </span><span class="s4">'table'</span><span class="s3">}</span><span class="s2">:</span>
+<a name="l872"><span class="ln">872  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span>
+<a name="l873"><span class="ln">873  </span></a>            <span class="s4">f&quot;Invalid kind: '{</span><span class="s1">kind</span><span class="s4">}'. Please use None, 'sort' or 'table'.&quot;</span><span class="s3">)</span>
+<a name="l874"><span class="ln">874  </span></a>
+<a name="l875"><span class="ln">875  </span></a>    <span class="s0"># Can use the table method if all arrays are integers or boolean:</span>
+<a name="l876"><span class="ln">876  </span></a>    <span class="s1">is_int_arrays </span><span class="s2">= </span><span class="s1">all</span><span class="s3">(</span><span class="s1">ar</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">kind </span><span class="s2">in </span><span class="s3">(</span><span class="s4">&quot;u&quot;</span><span class="s3">, </span><span class="s4">&quot;i&quot;</span><span class="s3">, </span><span class="s4">&quot;b&quot;</span><span class="s3">) </span><span class="s2">for </span><span class="s1">ar </span><span class="s2">in </span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">))</span>
+<a name="l877"><span class="ln">877  </span></a>    <span class="s1">use_table_method </span><span class="s2">= </span><span class="s1">is_int_arrays </span><span class="s2">and </span><span class="s1">kind </span><span class="s2">in </span><span class="s3">{</span><span class="s2">None</span><span class="s3">, </span><span class="s4">'table'</span><span class="s3">}</span>
+<a name="l878"><span class="ln">878  </span></a>
+<a name="l879"><span class="ln">879  </span></a>    <span class="s2">if </span><span class="s1">use_table_method</span><span class="s2">:</span>
+<a name="l880"><span class="ln">880  </span></a>        <span class="s2">if </span><span class="s1">ar2</span><span class="s3">.</span><span class="s1">size </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l881"><span class="ln">881  </span></a>            <span class="s2">if </span><span class="s1">invert</span><span class="s2">:</span>
+<a name="l882"><span class="ln">882  </span></a>                <span class="s2">return </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ones_like</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">bool</span><span class="s3">)</span>
+<a name="l883"><span class="ln">883  </span></a>            <span class="s2">else:</span>
+<a name="l884"><span class="ln">884  </span></a>                <span class="s2">return </span><span class="s1">np</span><span class="s3">.</span><span class="s1">zeros_like</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">bool</span><span class="s3">)</span>
+<a name="l885"><span class="ln">885  </span></a>
+<a name="l886"><span class="ln">886  </span></a>        <span class="s0"># Convert booleans to uint8 so we can use the fast integer algorithm</span>
+<a name="l887"><span class="ln">887  </span></a>        <span class="s2">if </span><span class="s1">ar1</span><span class="s3">.</span><span class="s1">dtype </span><span class="s2">== </span><span class="s1">bool</span><span class="s2">:</span>
+<a name="l888"><span class="ln">888  </span></a>            <span class="s1">ar1 </span><span class="s2">= </span><span class="s1">ar1</span><span class="s3">.</span><span class="s1">astype</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">uint8</span><span class="s3">)</span>
+<a name="l889"><span class="ln">889  </span></a>        <span class="s2">if </span><span class="s1">ar2</span><span class="s3">.</span><span class="s1">dtype </span><span class="s2">== </span><span class="s1">bool</span><span class="s2">:</span>
+<a name="l890"><span class="ln">890  </span></a>            <span class="s1">ar2 </span><span class="s2">= </span><span class="s1">ar2</span><span class="s3">.</span><span class="s1">astype</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">uint8</span><span class="s3">)</span>
+<a name="l891"><span class="ln">891  </span></a>
+<a name="l892"><span class="ln">892  </span></a>        <span class="s1">ar2_min </span><span class="s2">= </span><span class="s1">int</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">min</span><span class="s3">(</span><span class="s1">ar2</span><span class="s3">))</span>
+<a name="l893"><span class="ln">893  </span></a>        <span class="s1">ar2_max </span><span class="s2">= </span><span class="s1">int</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">max</span><span class="s3">(</span><span class="s1">ar2</span><span class="s3">))</span>
+<a name="l894"><span class="ln">894  </span></a>
+<a name="l895"><span class="ln">895  </span></a>        <span class="s1">ar2_range </span><span class="s2">= </span><span class="s1">ar2_max </span><span class="s2">- </span><span class="s1">ar2_min</span>
+<a name="l896"><span class="ln">896  </span></a>
+<a name="l897"><span class="ln">897  </span></a>        <span class="s0"># Constraints on whether we can actually use the table method:</span>
+<a name="l898"><span class="ln">898  </span></a>        <span class="s0">#  1. Assert memory usage is not too large</span>
+<a name="l899"><span class="ln">899  </span></a>        <span class="s1">below_memory_constraint </span><span class="s2">= </span><span class="s1">ar2_range </span><span class="s2">&lt;= </span><span class="s5">6 </span><span class="s2">* </span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">.</span><span class="s1">size </span><span class="s2">+ </span><span class="s1">ar2</span><span class="s3">.</span><span class="s1">size</span><span class="s3">)</span>
+<a name="l900"><span class="ln">900  </span></a>        <span class="s0">#  2. Check overflows for (ar2 - ar2_min); dtype=ar2.dtype</span>
+<a name="l901"><span class="ln">901  </span></a>        <span class="s1">range_safe_from_overflow </span><span class="s2">= </span><span class="s1">ar2_range </span><span class="s2">&lt;= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">iinfo</span><span class="s3">(</span><span class="s1">ar2</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">).</span><span class="s1">max</span>
+<a name="l902"><span class="ln">902  </span></a>
+<a name="l903"><span class="ln">903  </span></a>        <span class="s0"># Optimal performance is for approximately</span>
+<a name="l904"><span class="ln">904  </span></a>        <span class="s0"># log10(size) &gt; (log10(range) - 2.27) / 0.927.</span>
+<a name="l905"><span class="ln">905  </span></a>        <span class="s0"># However, here we set the requirement that by default</span>
+<a name="l906"><span class="ln">906  </span></a>        <span class="s0"># the intermediate array can only be 6x</span>
+<a name="l907"><span class="ln">907  </span></a>        <span class="s0"># the combined memory allocation of the original</span>
+<a name="l908"><span class="ln">908  </span></a>        <span class="s0"># arrays. See discussion on</span>
+<a name="l909"><span class="ln">909  </span></a>        <span class="s0"># https://github.com/numpy/numpy/pull/12065.</span>
+<a name="l910"><span class="ln">910  </span></a>
+<a name="l911"><span class="ln">911  </span></a>        <span class="s2">if </span><span class="s3">(</span>
+<a name="l912"><span class="ln">912  </span></a>            <span class="s1">range_safe_from_overflow </span><span class="s2">and</span>
+<a name="l913"><span class="ln">913  </span></a>            <span class="s3">(</span><span class="s1">below_memory_constraint </span><span class="s2">or </span><span class="s1">kind </span><span class="s2">== </span><span class="s4">'table'</span><span class="s3">)</span>
+<a name="l914"><span class="ln">914  </span></a>        <span class="s3">)</span><span class="s2">:</span>
+<a name="l915"><span class="ln">915  </span></a>
+<a name="l916"><span class="ln">916  </span></a>            <span class="s2">if </span><span class="s1">invert</span><span class="s2">:</span>
+<a name="l917"><span class="ln">917  </span></a>                <span class="s1">outgoing_array </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ones_like</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">bool</span><span class="s3">)</span>
+<a name="l918"><span class="ln">918  </span></a>            <span class="s2">else:</span>
+<a name="l919"><span class="ln">919  </span></a>                <span class="s1">outgoing_array </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">zeros_like</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">bool</span><span class="s3">)</span>
+<a name="l920"><span class="ln">920  </span></a>
+<a name="l921"><span class="ln">921  </span></a>            <span class="s0"># Make elements 1 where the integer exists in ar2</span>
+<a name="l922"><span class="ln">922  </span></a>            <span class="s2">if </span><span class="s1">invert</span><span class="s2">:</span>
+<a name="l923"><span class="ln">923  </span></a>                <span class="s1">isin_helper_ar </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ones</span><span class="s3">(</span><span class="s1">ar2_range </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">bool</span><span class="s3">)</span>
+<a name="l924"><span class="ln">924  </span></a>                <span class="s1">isin_helper_ar</span><span class="s3">[</span><span class="s1">ar2 </span><span class="s2">- </span><span class="s1">ar2_min</span><span class="s3">] </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l925"><span class="ln">925  </span></a>            <span class="s2">else:</span>
+<a name="l926"><span class="ln">926  </span></a>                <span class="s1">isin_helper_ar </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">zeros</span><span class="s3">(</span><span class="s1">ar2_range </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">bool</span><span class="s3">)</span>
+<a name="l927"><span class="ln">927  </span></a>                <span class="s1">isin_helper_ar</span><span class="s3">[</span><span class="s1">ar2 </span><span class="s2">- </span><span class="s1">ar2_min</span><span class="s3">] </span><span class="s2">= </span><span class="s5">1</span>
+<a name="l928"><span class="ln">928  </span></a>
+<a name="l929"><span class="ln">929  </span></a>            <span class="s0"># Mask out elements we know won't work</span>
+<a name="l930"><span class="ln">930  </span></a>            <span class="s1">basic_mask </span><span class="s2">= </span><span class="s3">(</span><span class="s1">ar1 </span><span class="s2">&lt;= </span><span class="s1">ar2_max</span><span class="s3">) </span><span class="s2">&amp; </span><span class="s3">(</span><span class="s1">ar1 </span><span class="s2">&gt;= </span><span class="s1">ar2_min</span><span class="s3">)</span>
+<a name="l931"><span class="ln">931  </span></a>            <span class="s1">in_range_ar1 </span><span class="s2">= </span><span class="s1">ar1</span><span class="s3">[</span><span class="s1">basic_mask</span><span class="s3">]</span>
+<a name="l932"><span class="ln">932  </span></a>            <span class="s2">if </span><span class="s1">in_range_ar1</span><span class="s3">.</span><span class="s1">size </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l933"><span class="ln">933  </span></a>                <span class="s0"># Nothing more to do, since all values are out of range.</span>
+<a name="l934"><span class="ln">934  </span></a>                <span class="s2">return </span><span class="s1">outgoing_array</span>
+<a name="l935"><span class="ln">935  </span></a>
+<a name="l936"><span class="ln">936  </span></a>            <span class="s0"># Unfortunately, ar2_min can be out of range for `intp` even</span>
+<a name="l937"><span class="ln">937  </span></a>            <span class="s0"># if the calculation result must fit in range (and be positive).</span>
+<a name="l938"><span class="ln">938  </span></a>            <span class="s0"># In that case, use ar2.dtype which must work for all unmasked</span>
+<a name="l939"><span class="ln">939  </span></a>            <span class="s0"># values.</span>
+<a name="l940"><span class="ln">940  </span></a>            <span class="s2">try:</span>
+<a name="l941"><span class="ln">941  </span></a>                <span class="s1">ar2_min </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">array</span><span class="s3">(</span><span class="s1">ar2_min</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">np</span><span class="s3">.</span><span class="s1">intp</span><span class="s3">)</span>
+<a name="l942"><span class="ln">942  </span></a>                <span class="s1">dtype </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">intp</span>
+<a name="l943"><span class="ln">943  </span></a>            <span class="s2">except </span><span class="s1">OverflowError</span><span class="s2">:</span>
+<a name="l944"><span class="ln">944  </span></a>                <span class="s1">dtype </span><span class="s2">= </span><span class="s1">ar2</span><span class="s3">.</span><span class="s1">dtype</span>
+<a name="l945"><span class="ln">945  </span></a>
+<a name="l946"><span class="ln">946  </span></a>            <span class="s1">out </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">empty_like</span><span class="s3">(</span><span class="s1">in_range_ar1</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">np</span><span class="s3">.</span><span class="s1">intp</span><span class="s3">)</span>
+<a name="l947"><span class="ln">947  </span></a>            <span class="s1">outgoing_array</span><span class="s3">[</span><span class="s1">basic_mask</span><span class="s3">] </span><span class="s2">= </span><span class="s1">isin_helper_ar</span><span class="s3">[</span>
+<a name="l948"><span class="ln">948  </span></a>                    <span class="s1">np</span><span class="s3">.</span><span class="s1">subtract</span><span class="s3">(</span><span class="s1">in_range_ar1</span><span class="s3">, </span><span class="s1">ar2_min</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s3">,</span>
+<a name="l949"><span class="ln">949  </span></a>                                <span class="s1">out</span><span class="s2">=</span><span class="s1">out</span><span class="s3">, </span><span class="s1">casting</span><span class="s2">=</span><span class="s4">&quot;unsafe&quot;</span><span class="s3">)]</span>
+<a name="l950"><span class="ln">950  </span></a>
+<a name="l951"><span class="ln">951  </span></a>            <span class="s2">return </span><span class="s1">outgoing_array</span>
+<a name="l952"><span class="ln">952  </span></a>        <span class="s2">elif </span><span class="s1">kind </span><span class="s2">== </span><span class="s4">'table'</span><span class="s2">:  </span><span class="s0"># not range_safe_from_overflow</span>
+<a name="l953"><span class="ln">953  </span></a>            <span class="s2">raise </span><span class="s1">RuntimeError</span><span class="s3">(</span>
+<a name="l954"><span class="ln">954  </span></a>                <span class="s4">&quot;You have specified kind='table', &quot;</span>
+<a name="l955"><span class="ln">955  </span></a>                <span class="s4">&quot;but the range of values in `ar2` or `ar1` exceed the &quot;</span>
+<a name="l956"><span class="ln">956  </span></a>                <span class="s4">&quot;maximum integer of the datatype. &quot;</span>
+<a name="l957"><span class="ln">957  </span></a>                <span class="s4">&quot;Please set `kind` to None or 'sort'.&quot;</span>
+<a name="l958"><span class="ln">958  </span></a>            <span class="s3">)</span>
+<a name="l959"><span class="ln">959  </span></a>    <span class="s2">elif </span><span class="s1">kind </span><span class="s2">== </span><span class="s4">'table'</span><span class="s2">:</span>
+<a name="l960"><span class="ln">960  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span>
+<a name="l961"><span class="ln">961  </span></a>            <span class="s4">&quot;The 'table' method is only &quot;</span>
+<a name="l962"><span class="ln">962  </span></a>            <span class="s4">&quot;supported for boolean or integer arrays. &quot;</span>
+<a name="l963"><span class="ln">963  </span></a>            <span class="s4">&quot;Please select 'sort' or None for kind.&quot;</span>
+<a name="l964"><span class="ln">964  </span></a>        <span class="s3">)</span>
+<a name="l965"><span class="ln">965  </span></a>
+<a name="l966"><span class="ln">966  </span></a>
+<a name="l967"><span class="ln">967  </span></a>    <span class="s0"># Check if one of the arrays may contain arbitrary objects</span>
+<a name="l968"><span class="ln">968  </span></a>    <span class="s1">contains_object </span><span class="s2">= </span><span class="s1">ar1</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">hasobject </span><span class="s2">or </span><span class="s1">ar2</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">.</span><span class="s1">hasobject</span>
+<a name="l969"><span class="ln">969  </span></a>
+<a name="l970"><span class="ln">970  </span></a>    <span class="s0"># This code is run when</span>
+<a name="l971"><span class="ln">971  </span></a>    <span class="s0"># a) the first condition is true, making the code significantly faster</span>
+<a name="l972"><span class="ln">972  </span></a>    <span class="s0"># b) the second condition is true (i.e. `ar1` or `ar2` may contain</span>
+<a name="l973"><span class="ln">973  </span></a>    <span class="s0">#    arbitrary objects), since then sorting is not guaranteed to work</span>
+<a name="l974"><span class="ln">974  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">ar2</span><span class="s3">) </span><span class="s2">&lt; </span><span class="s5">10 </span><span class="s2">* </span><span class="s1">len</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">) </span><span class="s2">** </span><span class="s5">0.145 </span><span class="s2">or </span><span class="s1">contains_object</span><span class="s2">:</span>
+<a name="l975"><span class="ln">975  </span></a>        <span class="s2">if </span><span class="s1">invert</span><span class="s2">:</span>
+<a name="l976"><span class="ln">976  </span></a>            <span class="s1">mask </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">ones</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">), </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">bool</span><span class="s3">)</span>
+<a name="l977"><span class="ln">977  </span></a>            <span class="s2">for </span><span class="s1">a </span><span class="s2">in </span><span class="s1">ar2</span><span class="s2">:</span>
+<a name="l978"><span class="ln">978  </span></a>                <span class="s1">mask </span><span class="s2">&amp;= </span><span class="s3">(</span><span class="s1">ar1 </span><span class="s2">!= </span><span class="s1">a</span><span class="s3">)</span>
+<a name="l979"><span class="ln">979  </span></a>        <span class="s2">else:</span>
+<a name="l980"><span class="ln">980  </span></a>            <span class="s1">mask </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">zeros</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">), </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">bool</span><span class="s3">)</span>
+<a name="l981"><span class="ln">981  </span></a>            <span class="s2">for </span><span class="s1">a </span><span class="s2">in </span><span class="s1">ar2</span><span class="s2">:</span>
+<a name="l982"><span class="ln">982  </span></a>                <span class="s1">mask </span><span class="s2">|= </span><span class="s3">(</span><span class="s1">ar1 </span><span class="s2">== </span><span class="s1">a</span><span class="s3">)</span>
+<a name="l983"><span class="ln">983  </span></a>        <span class="s2">return </span><span class="s1">mask</span>
+<a name="l984"><span class="ln">984  </span></a>
+<a name="l985"><span class="ln">985  </span></a>    <span class="s0"># Otherwise use sorting</span>
+<a name="l986"><span class="ln">986  </span></a>    <span class="s2">if not </span><span class="s1">assume_unique</span><span class="s2">:</span>
+<a name="l987"><span class="ln">987  </span></a>        <span class="s1">ar1</span><span class="s3">, </span><span class="s1">rev_idx </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">unique</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">return_inverse</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l988"><span class="ln">988  </span></a>        <span class="s1">ar2 </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">unique</span><span class="s3">(</span><span class="s1">ar2</span><span class="s3">)</span>
+<a name="l989"><span class="ln">989  </span></a>
+<a name="l990"><span class="ln">990  </span></a>    <span class="s1">ar </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">concatenate</span><span class="s3">((</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">))</span>
+<a name="l991"><span class="ln">991  </span></a>    <span class="s0"># We need this to be a stable sort, so always use 'mergesort'</span>
+<a name="l992"><span class="ln">992  </span></a>    <span class="s0"># here. The values from the first array should always come before</span>
+<a name="l993"><span class="ln">993  </span></a>    <span class="s0"># the values from the second array.</span>
+<a name="l994"><span class="ln">994  </span></a>    <span class="s1">order </span><span class="s2">= </span><span class="s1">ar</span><span class="s3">.</span><span class="s1">argsort</span><span class="s3">(</span><span class="s1">kind</span><span class="s2">=</span><span class="s4">'mergesort'</span><span class="s3">)</span>
+<a name="l995"><span class="ln">995  </span></a>    <span class="s1">sar </span><span class="s2">= </span><span class="s1">ar</span><span class="s3">[</span><span class="s1">order</span><span class="s3">]</span>
+<a name="l996"><span class="ln">996  </span></a>    <span class="s2">if </span><span class="s1">invert</span><span class="s2">:</span>
+<a name="l997"><span class="ln">997  </span></a>        <span class="s1">bool_ar </span><span class="s2">= </span><span class="s3">(</span><span class="s1">sar</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">] </span><span class="s2">!= </span><span class="s1">sar</span><span class="s3">[</span><span class="s2">:-</span><span class="s5">1</span><span class="s3">])</span>
+<a name="l998"><span class="ln">998  </span></a>    <span class="s2">else:</span>
+<a name="l999"><span class="ln">999  </span></a>        <span class="s1">bool_ar </span><span class="s2">= </span><span class="s3">(</span><span class="s1">sar</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">] </span><span class="s2">== </span><span class="s1">sar</span><span class="s3">[</span><span class="s2">:-</span><span class="s5">1</span><span class="s3">])</span>
+<a name="l1000"><span class="ln">1000 </span></a>    <span class="s1">flag </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">concatenate</span><span class="s3">((</span><span class="s1">bool_ar</span><span class="s3">, [</span><span class="s1">invert</span><span class="s3">]))</span>
+<a name="l1001"><span class="ln">1001 </span></a>    <span class="s1">ret </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">empty</span><span class="s3">(</span><span class="s1">ar</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">bool</span><span class="s3">)</span>
+<a name="l1002"><span class="ln">1002 </span></a>    <span class="s1">ret</span><span class="s3">[</span><span class="s1">order</span><span class="s3">] </span><span class="s2">= </span><span class="s1">flag</span>
+<a name="l1003"><span class="ln">1003 </span></a>
+<a name="l1004"><span class="ln">1004 </span></a>    <span class="s2">if </span><span class="s1">assume_unique</span><span class="s2">:</span>
+<a name="l1005"><span class="ln">1005 </span></a>        <span class="s2">return </span><span class="s1">ret</span><span class="s3">[</span><span class="s2">:</span><span class="s1">len</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">)]</span>
+<a name="l1006"><span class="ln">1006 </span></a>    <span class="s2">else:</span>
+<a name="l1007"><span class="ln">1007 </span></a>        <span class="s2">return </span><span class="s1">ret</span><span class="s3">[</span><span class="s1">rev_idx</span><span class="s3">]</span>
+<a name="l1008"><span class="ln">1008 </span></a>
+<a name="l1009"><span class="ln">1009 </span></a>
+<a name="l1010"><span class="ln">1010 </span></a><span class="s2">def </span><span class="s1">_isin_dispatcher</span><span class="s3">(</span><span class="s1">element</span><span class="s3">, </span><span class="s1">test_elements</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">invert</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l1011"><span class="ln">1011 </span></a>                     <span class="s2">*</span><span class="s3">, </span><span class="s1">kind</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1012"><span class="ln">1012 </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">element</span><span class="s3">, </span><span class="s1">test_elements</span><span class="s3">)</span>
+<a name="l1013"><span class="ln">1013 </span></a>
+<a name="l1014"><span class="ln">1014 </span></a>
+<a name="l1015"><span class="ln">1015 </span></a><span class="s2">@</span><span class="s1">array_function_dispatch</span><span class="s3">(</span><span class="s1">_isin_dispatcher</span><span class="s3">)</span>
+<a name="l1016"><span class="ln">1016 </span></a><span class="s2">def </span><span class="s1">isin</span><span class="s3">(</span><span class="s1">element</span><span class="s3">, </span><span class="s1">test_elements</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s2">=False</span><span class="s3">, </span><span class="s1">invert</span><span class="s2">=False</span><span class="s3">, </span><span class="s2">*</span><span class="s3">,</span>
+<a name="l1017"><span class="ln">1017 </span></a>         <span class="s1">kind</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1018"><span class="ln">1018 </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l1019"><span class="ln">1019 </span></a>    Calculates ``element in test_elements``, broadcasting over `element` only. 
+<a name="l1020"><span class="ln">1020 </span></a>    Returns a boolean array of the same shape as `element` that is True 
+<a name="l1021"><span class="ln">1021 </span></a>    where an element of `element` is in `test_elements` and False otherwise. 
+<a name="l1022"><span class="ln">1022 </span></a> 
+<a name="l1023"><span class="ln">1023 </span></a>    Parameters 
+<a name="l1024"><span class="ln">1024 </span></a>    ---------- 
+<a name="l1025"><span class="ln">1025 </span></a>    element : array_like 
+<a name="l1026"><span class="ln">1026 </span></a>        Input array. 
+<a name="l1027"><span class="ln">1027 </span></a>    test_elements : array_like 
+<a name="l1028"><span class="ln">1028 </span></a>        The values against which to test each value of `element`. 
+<a name="l1029"><span class="ln">1029 </span></a>        This argument is flattened if it is an array or array_like. 
+<a name="l1030"><span class="ln">1030 </span></a>        See notes for behavior with non-array-like parameters. 
+<a name="l1031"><span class="ln">1031 </span></a>    assume_unique : bool, optional 
+<a name="l1032"><span class="ln">1032 </span></a>        If True, the input arrays are both assumed to be unique, which 
+<a name="l1033"><span class="ln">1033 </span></a>        can speed up the calculation.  Default is False. 
+<a name="l1034"><span class="ln">1034 </span></a>    invert : bool, optional 
+<a name="l1035"><span class="ln">1035 </span></a>        If True, the values in the returned array are inverted, as if 
+<a name="l1036"><span class="ln">1036 </span></a>        calculating `element not in test_elements`. Default is False. 
+<a name="l1037"><span class="ln">1037 </span></a>        ``np.isin(a, b, invert=True)`` is equivalent to (but faster 
+<a name="l1038"><span class="ln">1038 </span></a>        than) ``np.invert(np.isin(a, b))``. 
+<a name="l1039"><span class="ln">1039 </span></a>    kind : {None, 'sort', 'table'}, optional 
+<a name="l1040"><span class="ln">1040 </span></a>        The algorithm to use. This will not affect the final result, 
+<a name="l1041"><span class="ln">1041 </span></a>        but will affect the speed and memory use. The default, None, 
+<a name="l1042"><span class="ln">1042 </span></a>        will select automatically based on memory considerations. 
+<a name="l1043"><span class="ln">1043 </span></a> 
+<a name="l1044"><span class="ln">1044 </span></a>        * If 'sort', will use a mergesort-based approach. This will have 
+<a name="l1045"><span class="ln">1045 </span></a>          a memory usage of roughly 6 times the sum of the sizes of 
+<a name="l1046"><span class="ln">1046 </span></a>          `element` and `test_elements`, not accounting for size of dtypes. 
+<a name="l1047"><span class="ln">1047 </span></a>        * If 'table', will use a lookup table approach similar 
+<a name="l1048"><span class="ln">1048 </span></a>          to a counting sort. This is only available for boolean and 
+<a name="l1049"><span class="ln">1049 </span></a>          integer arrays. This will have a memory usage of the 
+<a name="l1050"><span class="ln">1050 </span></a>          size of `element` plus the max-min value of `test_elements`. 
+<a name="l1051"><span class="ln">1051 </span></a>          `assume_unique` has no effect when the 'table' option is used. 
+<a name="l1052"><span class="ln">1052 </span></a>        * If None, will automatically choose 'table' if 
+<a name="l1053"><span class="ln">1053 </span></a>          the required memory allocation is less than or equal to 
+<a name="l1054"><span class="ln">1054 </span></a>          6 times the sum of the sizes of `element` and `test_elements`, 
+<a name="l1055"><span class="ln">1055 </span></a>          otherwise will use 'sort'. This is done to not use 
+<a name="l1056"><span class="ln">1056 </span></a>          a large amount of memory by default, even though 
+<a name="l1057"><span class="ln">1057 </span></a>          'table' may be faster in most cases. If 'table' is chosen, 
+<a name="l1058"><span class="ln">1058 </span></a>          `assume_unique` will have no effect. 
+<a name="l1059"><span class="ln">1059 </span></a> 
+<a name="l1060"><span class="ln">1060 </span></a> 
+<a name="l1061"><span class="ln">1061 </span></a>    Returns 
+<a name="l1062"><span class="ln">1062 </span></a>    ------- 
+<a name="l1063"><span class="ln">1063 </span></a>    isin : ndarray, bool 
+<a name="l1064"><span class="ln">1064 </span></a>        Has the same shape as `element`. The values `element[isin]` 
+<a name="l1065"><span class="ln">1065 </span></a>        are in `test_elements`. 
+<a name="l1066"><span class="ln">1066 </span></a> 
+<a name="l1067"><span class="ln">1067 </span></a>    Notes 
+<a name="l1068"><span class="ln">1068 </span></a>    ----- 
+<a name="l1069"><span class="ln">1069 </span></a>    `isin` is an element-wise function version of the python keyword `in`. 
+<a name="l1070"><span class="ln">1070 </span></a>    ``isin(a, b)`` is roughly equivalent to 
+<a name="l1071"><span class="ln">1071 </span></a>    ``np.array([item in b for item in a])`` if `a` and `b` are 1-D sequences. 
+<a name="l1072"><span class="ln">1072 </span></a> 
+<a name="l1073"><span class="ln">1073 </span></a>    `element` and `test_elements` are converted to arrays if they are not 
+<a name="l1074"><span class="ln">1074 </span></a>    already. If `test_elements` is a set (or other non-sequence collection) 
+<a name="l1075"><span class="ln">1075 </span></a>    it will be converted to an object array with one element, rather than an 
+<a name="l1076"><span class="ln">1076 </span></a>    array of the values contained in `test_elements`. This is a consequence 
+<a name="l1077"><span class="ln">1077 </span></a>    of the `array` constructor's way of handling non-sequence collections. 
+<a name="l1078"><span class="ln">1078 </span></a>    Converting the set to a list usually gives the desired behavior. 
+<a name="l1079"><span class="ln">1079 </span></a> 
+<a name="l1080"><span class="ln">1080 </span></a>    Using ``kind='table'`` tends to be faster than `kind='sort'` if the 
+<a name="l1081"><span class="ln">1081 </span></a>    following relationship is true: 
+<a name="l1082"><span class="ln">1082 </span></a>    ``log10(len(test_elements)) &gt; 
+<a name="l1083"><span class="ln">1083 </span></a>    (log10(max(test_elements)-min(test_elements)) - 2.27) / 0.927``, 
+<a name="l1084"><span class="ln">1084 </span></a>    but may use greater memory. The default value for `kind` will 
+<a name="l1085"><span class="ln">1085 </span></a>    be automatically selected based only on memory usage, so one may 
+<a name="l1086"><span class="ln">1086 </span></a>    manually set ``kind='table'`` if memory constraints can be relaxed. 
+<a name="l1087"><span class="ln">1087 </span></a> 
+<a name="l1088"><span class="ln">1088 </span></a>    Examples 
+<a name="l1089"><span class="ln">1089 </span></a>    -------- 
+<a name="l1090"><span class="ln">1090 </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l1091"><span class="ln">1091 </span></a>    &gt;&gt;&gt; element = 2*np.arange(4).reshape((2, 2)) 
+<a name="l1092"><span class="ln">1092 </span></a>    &gt;&gt;&gt; element 
+<a name="l1093"><span class="ln">1093 </span></a>    array([[0, 2], 
+<a name="l1094"><span class="ln">1094 </span></a>           [4, 6]]) 
+<a name="l1095"><span class="ln">1095 </span></a>    &gt;&gt;&gt; test_elements = [1, 2, 4, 8] 
+<a name="l1096"><span class="ln">1096 </span></a>    &gt;&gt;&gt; mask = np.isin(element, test_elements) 
+<a name="l1097"><span class="ln">1097 </span></a>    &gt;&gt;&gt; mask 
+<a name="l1098"><span class="ln">1098 </span></a>    array([[False,  True], 
+<a name="l1099"><span class="ln">1099 </span></a>           [ True, False]]) 
+<a name="l1100"><span class="ln">1100 </span></a>    &gt;&gt;&gt; element[mask] 
+<a name="l1101"><span class="ln">1101 </span></a>    array([2, 4]) 
+<a name="l1102"><span class="ln">1102 </span></a> 
+<a name="l1103"><span class="ln">1103 </span></a>    The indices of the matched values can be obtained with `nonzero`: 
+<a name="l1104"><span class="ln">1104 </span></a> 
+<a name="l1105"><span class="ln">1105 </span></a>    &gt;&gt;&gt; np.nonzero(mask) 
+<a name="l1106"><span class="ln">1106 </span></a>    (array([0, 1]), array([1, 0])) 
+<a name="l1107"><span class="ln">1107 </span></a> 
+<a name="l1108"><span class="ln">1108 </span></a>    The test can also be inverted: 
+<a name="l1109"><span class="ln">1109 </span></a> 
+<a name="l1110"><span class="ln">1110 </span></a>    &gt;&gt;&gt; mask = np.isin(element, test_elements, invert=True) 
+<a name="l1111"><span class="ln">1111 </span></a>    &gt;&gt;&gt; mask 
+<a name="l1112"><span class="ln">1112 </span></a>    array([[ True, False], 
+<a name="l1113"><span class="ln">1113 </span></a>           [False,  True]]) 
+<a name="l1114"><span class="ln">1114 </span></a>    &gt;&gt;&gt; element[mask] 
+<a name="l1115"><span class="ln">1115 </span></a>    array([0, 6]) 
+<a name="l1116"><span class="ln">1116 </span></a> 
+<a name="l1117"><span class="ln">1117 </span></a>    Because of how `array` handles sets, the following does not 
+<a name="l1118"><span class="ln">1118 </span></a>    work as expected: 
+<a name="l1119"><span class="ln">1119 </span></a> 
+<a name="l1120"><span class="ln">1120 </span></a>    &gt;&gt;&gt; test_set = {1, 2, 4, 8} 
+<a name="l1121"><span class="ln">1121 </span></a>    &gt;&gt;&gt; np.isin(element, test_set) 
+<a name="l1122"><span class="ln">1122 </span></a>    array([[False, False], 
+<a name="l1123"><span class="ln">1123 </span></a>           [False, False]]) 
+<a name="l1124"><span class="ln">1124 </span></a> 
+<a name="l1125"><span class="ln">1125 </span></a>    Casting the set to a list gives the expected result: 
+<a name="l1126"><span class="ln">1126 </span></a> 
+<a name="l1127"><span class="ln">1127 </span></a>    &gt;&gt;&gt; np.isin(element, list(test_set)) 
+<a name="l1128"><span class="ln">1128 </span></a>    array([[False,  True], 
+<a name="l1129"><span class="ln">1129 </span></a>           [ True, False]]) 
+<a name="l1130"><span class="ln">1130 </span></a>    &quot;&quot;&quot;</span>
+<a name="l1131"><span class="ln">1131 </span></a>    <span class="s1">element </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">element</span><span class="s3">)</span>
+<a name="l1132"><span class="ln">1132 </span></a>    <span class="s2">return </span><span class="s1">_in1d</span><span class="s3">(</span><span class="s1">element</span><span class="s3">, </span><span class="s1">test_elements</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s2">=</span><span class="s1">assume_unique</span><span class="s3">,</span>
+<a name="l1133"><span class="ln">1133 </span></a>                 <span class="s1">invert</span><span class="s2">=</span><span class="s1">invert</span><span class="s3">, </span><span class="s1">kind</span><span class="s2">=</span><span class="s1">kind</span><span class="s3">).</span><span class="s1">reshape</span><span class="s3">(</span><span class="s1">element</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">)</span>
+<a name="l1134"><span class="ln">1134 </span></a>
+<a name="l1135"><span class="ln">1135 </span></a>
+<a name="l1136"><span class="ln">1136 </span></a><span class="s2">def </span><span class="s1">_union1d_dispatcher</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1137"><span class="ln">1137 </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">)</span>
+<a name="l1138"><span class="ln">1138 </span></a>
+<a name="l1139"><span class="ln">1139 </span></a>
+<a name="l1140"><span class="ln">1140 </span></a><span class="s2">@</span><span class="s1">array_function_dispatch</span><span class="s3">(</span><span class="s1">_union1d_dispatcher</span><span class="s3">)</span>
+<a name="l1141"><span class="ln">1141 </span></a><span class="s2">def </span><span class="s1">union1d</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1142"><span class="ln">1142 </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l1143"><span class="ln">1143 </span></a>    Find the union of two arrays. 
+<a name="l1144"><span class="ln">1144 </span></a> 
+<a name="l1145"><span class="ln">1145 </span></a>    Return the unique, sorted array of values that are in either of the two 
+<a name="l1146"><span class="ln">1146 </span></a>    input arrays. 
+<a name="l1147"><span class="ln">1147 </span></a> 
+<a name="l1148"><span class="ln">1148 </span></a>    Parameters 
+<a name="l1149"><span class="ln">1149 </span></a>    ---------- 
+<a name="l1150"><span class="ln">1150 </span></a>    ar1, ar2 : array_like 
+<a name="l1151"><span class="ln">1151 </span></a>        Input arrays. They are flattened if they are not already 1D. 
+<a name="l1152"><span class="ln">1152 </span></a> 
+<a name="l1153"><span class="ln">1153 </span></a>    Returns 
+<a name="l1154"><span class="ln">1154 </span></a>    ------- 
+<a name="l1155"><span class="ln">1155 </span></a>    union1d : ndarray 
+<a name="l1156"><span class="ln">1156 </span></a>        Unique, sorted union of the input arrays. 
+<a name="l1157"><span class="ln">1157 </span></a> 
+<a name="l1158"><span class="ln">1158 </span></a>    Examples 
+<a name="l1159"><span class="ln">1159 </span></a>    -------- 
+<a name="l1160"><span class="ln">1160 </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l1161"><span class="ln">1161 </span></a>    &gt;&gt;&gt; np.union1d([-1, 0, 1], [-2, 0, 2]) 
+<a name="l1162"><span class="ln">1162 </span></a>    array([-2, -1,  0,  1,  2]) 
+<a name="l1163"><span class="ln">1163 </span></a> 
+<a name="l1164"><span class="ln">1164 </span></a>    To find the union of more than two arrays, use functools.reduce: 
+<a name="l1165"><span class="ln">1165 </span></a> 
+<a name="l1166"><span class="ln">1166 </span></a>    &gt;&gt;&gt; from functools import reduce 
+<a name="l1167"><span class="ln">1167 </span></a>    &gt;&gt;&gt; reduce(np.union1d, ([1, 3, 4, 3], [3, 1, 2, 1], [6, 3, 4, 2])) 
+<a name="l1168"><span class="ln">1168 </span></a>    array([1, 2, 3, 4, 6]) 
+<a name="l1169"><span class="ln">1169 </span></a>    &quot;&quot;&quot;</span>
+<a name="l1170"><span class="ln">1170 </span></a>    <span class="s2">return </span><span class="s1">unique</span><span class="s3">(</span><span class="s1">np</span><span class="s3">.</span><span class="s1">concatenate</span><span class="s3">((</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">), </span><span class="s1">axis</span><span class="s2">=None</span><span class="s3">))</span>
+<a name="l1171"><span class="ln">1171 </span></a>
+<a name="l1172"><span class="ln">1172 </span></a>
+<a name="l1173"><span class="ln">1173 </span></a><span class="s2">def </span><span class="s1">_setdiff1d_dispatcher</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1174"><span class="ln">1174 </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">)</span>
+<a name="l1175"><span class="ln">1175 </span></a>
+<a name="l1176"><span class="ln">1176 </span></a>
+<a name="l1177"><span class="ln">1177 </span></a><span class="s2">@</span><span class="s1">array_function_dispatch</span><span class="s3">(</span><span class="s1">_setdiff1d_dispatcher</span><span class="s3">)</span>
+<a name="l1178"><span class="ln">1178 </span></a><span class="s2">def </span><span class="s1">setdiff1d</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1179"><span class="ln">1179 </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l1180"><span class="ln">1180 </span></a>    Find the set difference of two arrays. 
+<a name="l1181"><span class="ln">1181 </span></a> 
+<a name="l1182"><span class="ln">1182 </span></a>    Return the unique values in `ar1` that are not in `ar2`. 
+<a name="l1183"><span class="ln">1183 </span></a> 
+<a name="l1184"><span class="ln">1184 </span></a>    Parameters 
+<a name="l1185"><span class="ln">1185 </span></a>    ---------- 
+<a name="l1186"><span class="ln">1186 </span></a>    ar1 : array_like 
+<a name="l1187"><span class="ln">1187 </span></a>        Input array. 
+<a name="l1188"><span class="ln">1188 </span></a>    ar2 : array_like 
+<a name="l1189"><span class="ln">1189 </span></a>        Input comparison array. 
+<a name="l1190"><span class="ln">1190 </span></a>    assume_unique : bool 
+<a name="l1191"><span class="ln">1191 </span></a>        If True, the input arrays are both assumed to be unique, which 
+<a name="l1192"><span class="ln">1192 </span></a>        can speed up the calculation.  Default is False. 
+<a name="l1193"><span class="ln">1193 </span></a> 
+<a name="l1194"><span class="ln">1194 </span></a>    Returns 
+<a name="l1195"><span class="ln">1195 </span></a>    ------- 
+<a name="l1196"><span class="ln">1196 </span></a>    setdiff1d : ndarray 
+<a name="l1197"><span class="ln">1197 </span></a>        1D array of values in `ar1` that are not in `ar2`. The result 
+<a name="l1198"><span class="ln">1198 </span></a>        is sorted when `assume_unique=False`, but otherwise only sorted 
+<a name="l1199"><span class="ln">1199 </span></a>        if the input is sorted. 
+<a name="l1200"><span class="ln">1200 </span></a> 
+<a name="l1201"><span class="ln">1201 </span></a>    Examples 
+<a name="l1202"><span class="ln">1202 </span></a>    -------- 
+<a name="l1203"><span class="ln">1203 </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l1204"><span class="ln">1204 </span></a>    &gt;&gt;&gt; a = np.array([1, 2, 3, 2, 4, 1]) 
+<a name="l1205"><span class="ln">1205 </span></a>    &gt;&gt;&gt; b = np.array([3, 4, 5, 6]) 
+<a name="l1206"><span class="ln">1206 </span></a>    &gt;&gt;&gt; np.setdiff1d(a, b) 
+<a name="l1207"><span class="ln">1207 </span></a>    array([1, 2]) 
+<a name="l1208"><span class="ln">1208 </span></a> 
+<a name="l1209"><span class="ln">1209 </span></a>    &quot;&quot;&quot;</span>
+<a name="l1210"><span class="ln">1210 </span></a>    <span class="s2">if </span><span class="s1">assume_unique</span><span class="s2">:</span>
+<a name="l1211"><span class="ln">1211 </span></a>        <span class="s1">ar1 </span><span class="s2">= </span><span class="s1">np</span><span class="s3">.</span><span class="s1">asarray</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">).</span><span class="s1">ravel</span><span class="s3">()</span>
+<a name="l1212"><span class="ln">1212 </span></a>    <span class="s2">else:</span>
+<a name="l1213"><span class="ln">1213 </span></a>        <span class="s1">ar1 </span><span class="s2">= </span><span class="s1">unique</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">)</span>
+<a name="l1214"><span class="ln">1214 </span></a>        <span class="s1">ar2 </span><span class="s2">= </span><span class="s1">unique</span><span class="s3">(</span><span class="s1">ar2</span><span class="s3">)</span>
+<a name="l1215"><span class="ln">1215 </span></a>    <span class="s2">return </span><span class="s1">ar1</span><span class="s3">[</span><span class="s1">_in1d</span><span class="s3">(</span><span class="s1">ar1</span><span class="s3">, </span><span class="s1">ar2</span><span class="s3">, </span><span class="s1">assume_unique</span><span class="s2">=True</span><span class="s3">, </span><span class="s1">invert</span><span class="s2">=True</span><span class="s3">)]</span>
+<a name="l1216"><span class="ln">1216 </span></a></pre>
+</body>
+</html>

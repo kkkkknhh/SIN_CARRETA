@@ -1,0 +1,123 @@
+<html>
+<head>
+<title>acceleration.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+acceleration.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>Convergence acceleration / extrapolation methods for series and 
+<a name="l3"><span class="ln">3    </span></a>sequences. 
+<a name="l4"><span class="ln">4    </span></a> 
+<a name="l5"><span class="ln">5    </span></a>References: 
+<a name="l6"><span class="ln">6    </span></a>Carl M. Bender &amp; Steven A. Orszag, &quot;Advanced Mathematical Methods for 
+<a name="l7"><span class="ln">7    </span></a>Scientists and Engineers: Asymptotic Methods and Perturbation Theory&quot;, 
+<a name="l8"><span class="ln">8    </span></a>Springer 1999. (Shanks transformation: pp. 368-375, Richardson 
+<a name="l9"><span class="ln">9    </span></a>extrapolation: pp. 375-377.) 
+<a name="l10"><span class="ln">10   </span></a>&quot;&quot;&quot;</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">numbers </span><span class="s2">import </span><span class="s1">Integer</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">singleton </span><span class="s2">import </span><span class="s1">S</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">functions</span><span class="s3">.</span><span class="s1">combinatorial</span><span class="s3">.</span><span class="s1">factorials </span><span class="s2">import </span><span class="s1">factorial</span>
+<a name="l15"><span class="ln">15   </span></a>
+<a name="l16"><span class="ln">16   </span></a>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">def </span><span class="s1">richardson</span><span class="s3">(</span><span class="s1">A</span><span class="s3">, </span><span class="s1">k</span><span class="s3">, </span><span class="s1">n</span><span class="s3">, </span><span class="s1">N</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l19"><span class="ln">19   </span></a>    Calculate an approximation for lim k-&gt;oo A(k) using Richardson 
+<a name="l20"><span class="ln">20   </span></a>    extrapolation with the terms A(n), A(n+1), ..., A(n+N+1). 
+<a name="l21"><span class="ln">21   </span></a>    Choosing N ~= 2*n often gives good results. 
+<a name="l22"><span class="ln">22   </span></a> 
+<a name="l23"><span class="ln">23   </span></a>    Examples 
+<a name="l24"><span class="ln">24   </span></a>    ======== 
+<a name="l25"><span class="ln">25   </span></a> 
+<a name="l26"><span class="ln">26   </span></a>    A simple example is to calculate exp(1) using the limit definition. 
+<a name="l27"><span class="ln">27   </span></a>    This limit converges slowly; n = 100 only produces two accurate 
+<a name="l28"><span class="ln">28   </span></a>    digits: 
+<a name="l29"><span class="ln">29   </span></a> 
+<a name="l30"><span class="ln">30   </span></a>        &gt;&gt;&gt; from sympy.abc import n 
+<a name="l31"><span class="ln">31   </span></a>        &gt;&gt;&gt; e = (1 + 1/n)**n 
+<a name="l32"><span class="ln">32   </span></a>        &gt;&gt;&gt; print(round(e.subs(n, 100).evalf(), 10)) 
+<a name="l33"><span class="ln">33   </span></a>        2.7048138294 
+<a name="l34"><span class="ln">34   </span></a> 
+<a name="l35"><span class="ln">35   </span></a>    Richardson extrapolation with 11 appropriately chosen terms gives 
+<a name="l36"><span class="ln">36   </span></a>    a value that is accurate to the indicated precision: 
+<a name="l37"><span class="ln">37   </span></a> 
+<a name="l38"><span class="ln">38   </span></a>        &gt;&gt;&gt; from sympy import E 
+<a name="l39"><span class="ln">39   </span></a>        &gt;&gt;&gt; from sympy.series.acceleration import richardson 
+<a name="l40"><span class="ln">40   </span></a>        &gt;&gt;&gt; print(round(richardson(e, n, 10, 20).evalf(), 10)) 
+<a name="l41"><span class="ln">41   </span></a>        2.7182818285 
+<a name="l42"><span class="ln">42   </span></a>        &gt;&gt;&gt; print(round(E.evalf(), 10)) 
+<a name="l43"><span class="ln">43   </span></a>        2.7182818285 
+<a name="l44"><span class="ln">44   </span></a> 
+<a name="l45"><span class="ln">45   </span></a>    Another useful application is to speed up convergence of series. 
+<a name="l46"><span class="ln">46   </span></a>    Computing 100 terms of the zeta(2) series 1/k**2 yields only 
+<a name="l47"><span class="ln">47   </span></a>    two accurate digits: 
+<a name="l48"><span class="ln">48   </span></a> 
+<a name="l49"><span class="ln">49   </span></a>        &gt;&gt;&gt; from sympy.abc import k, n 
+<a name="l50"><span class="ln">50   </span></a>        &gt;&gt;&gt; from sympy import Sum 
+<a name="l51"><span class="ln">51   </span></a>        &gt;&gt;&gt; A = Sum(k**-2, (k, 1, n)) 
+<a name="l52"><span class="ln">52   </span></a>        &gt;&gt;&gt; print(round(A.subs(n, 100).evalf(), 10)) 
+<a name="l53"><span class="ln">53   </span></a>        1.6349839002 
+<a name="l54"><span class="ln">54   </span></a> 
+<a name="l55"><span class="ln">55   </span></a>    Richardson extrapolation performs much better: 
+<a name="l56"><span class="ln">56   </span></a> 
+<a name="l57"><span class="ln">57   </span></a>        &gt;&gt;&gt; from sympy import pi 
+<a name="l58"><span class="ln">58   </span></a>        &gt;&gt;&gt; print(round(richardson(A, n, 10, 20).evalf(), 10)) 
+<a name="l59"><span class="ln">59   </span></a>        1.6449340668 
+<a name="l60"><span class="ln">60   </span></a>        &gt;&gt;&gt; print(round(((pi**2)/6).evalf(), 10))     # Exact value 
+<a name="l61"><span class="ln">61   </span></a>        1.6449340668 
+<a name="l62"><span class="ln">62   </span></a> 
+<a name="l63"><span class="ln">63   </span></a>    &quot;&quot;&quot;</span>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s1">s </span><span class="s2">= </span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span>
+<a name="l65"><span class="ln">65   </span></a>    <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s4">0</span><span class="s3">, </span><span class="s1">N </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s1">s </span><span class="s2">+= </span><span class="s3">(</span><span class="s1">A</span><span class="s3">.</span><span class="s1">subs</span><span class="s3">(</span><span class="s1">k</span><span class="s3">, </span><span class="s1">Integer</span><span class="s3">(</span><span class="s1">n </span><span class="s2">+ </span><span class="s1">j</span><span class="s3">)).</span><span class="s1">doit</span><span class="s3">() </span><span class="s2">* </span><span class="s3">(</span><span class="s1">n </span><span class="s2">+ </span><span class="s1">j</span><span class="s3">)</span><span class="s2">**</span><span class="s1">N </span><span class="s2">*</span>
+<a name="l67"><span class="ln">67   </span></a>              <span class="s1">S</span><span class="s3">.</span><span class="s1">NegativeOne</span><span class="s2">**</span><span class="s3">(</span><span class="s1">j </span><span class="s2">+ </span><span class="s1">N</span><span class="s3">) </span><span class="s2">/ </span><span class="s3">(</span><span class="s1">factorial</span><span class="s3">(</span><span class="s1">j</span><span class="s3">) </span><span class="s2">* </span><span class="s1">factorial</span><span class="s3">(</span><span class="s1">N </span><span class="s2">- </span><span class="s1">j</span><span class="s3">)))</span>
+<a name="l68"><span class="ln">68   </span></a>    <span class="s2">return </span><span class="s1">s</span>
+<a name="l69"><span class="ln">69   </span></a>
+<a name="l70"><span class="ln">70   </span></a>
+<a name="l71"><span class="ln">71   </span></a><span class="s2">def </span><span class="s1">shanks</span><span class="s3">(</span><span class="s1">A</span><span class="s3">, </span><span class="s1">k</span><span class="s3">, </span><span class="s1">n</span><span class="s3">, </span><span class="s1">m</span><span class="s2">=</span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l72"><span class="ln">72   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l73"><span class="ln">73   </span></a>    Calculate an approximation for lim k-&gt;oo A(k) using the n-term Shanks 
+<a name="l74"><span class="ln">74   </span></a>    transformation S(A)(n). With m &gt; 1, calculate the m-fold recursive 
+<a name="l75"><span class="ln">75   </span></a>    Shanks transformation S(S(...S(A)...))(n). 
+<a name="l76"><span class="ln">76   </span></a> 
+<a name="l77"><span class="ln">77   </span></a>    The Shanks transformation is useful for summing Taylor series that 
+<a name="l78"><span class="ln">78   </span></a>    converge slowly near a pole or singularity, e.g. for log(2): 
+<a name="l79"><span class="ln">79   </span></a> 
+<a name="l80"><span class="ln">80   </span></a>        &gt;&gt;&gt; from sympy.abc import k, n 
+<a name="l81"><span class="ln">81   </span></a>        &gt;&gt;&gt; from sympy import Sum, Integer 
+<a name="l82"><span class="ln">82   </span></a>        &gt;&gt;&gt; from sympy.series.acceleration import shanks 
+<a name="l83"><span class="ln">83   </span></a>        &gt;&gt;&gt; A = Sum(Integer(-1)**(k+1) / k, (k, 1, n)) 
+<a name="l84"><span class="ln">84   </span></a>        &gt;&gt;&gt; print(round(A.subs(n, 100).doit().evalf(), 10)) 
+<a name="l85"><span class="ln">85   </span></a>        0.6881721793 
+<a name="l86"><span class="ln">86   </span></a>        &gt;&gt;&gt; print(round(shanks(A, n, 25).evalf(), 10)) 
+<a name="l87"><span class="ln">87   </span></a>        0.6931396564 
+<a name="l88"><span class="ln">88   </span></a>        &gt;&gt;&gt; print(round(shanks(A, n, 25, 5).evalf(), 10)) 
+<a name="l89"><span class="ln">89   </span></a>        0.6931471806 
+<a name="l90"><span class="ln">90   </span></a> 
+<a name="l91"><span class="ln">91   </span></a>    The correct value is 0.6931471805599453094172321215. 
+<a name="l92"><span class="ln">92   </span></a>    &quot;&quot;&quot;</span>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s1">table </span><span class="s2">= </span><span class="s3">[</span><span class="s1">A</span><span class="s3">.</span><span class="s1">subs</span><span class="s3">(</span><span class="s1">k</span><span class="s3">, </span><span class="s1">Integer</span><span class="s3">(</span><span class="s1">j</span><span class="s3">)).</span><span class="s1">doit</span><span class="s3">() </span><span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">n </span><span class="s2">+ </span><span class="s1">m </span><span class="s2">+ </span><span class="s4">2</span><span class="s3">)]</span>
+<a name="l94"><span class="ln">94   </span></a>    <span class="s1">table2 </span><span class="s2">= </span><span class="s1">table</span><span class="s3">.</span><span class="s1">copy</span><span class="s3">()</span>
+<a name="l95"><span class="ln">95   </span></a>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s4">1</span><span class="s3">, </span><span class="s1">m </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l97"><span class="ln">97   </span></a>        <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s1">n </span><span class="s2">+ </span><span class="s1">m </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l98"><span class="ln">98   </span></a>            <span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">z </span><span class="s2">= </span><span class="s1">table</span><span class="s3">[</span><span class="s1">j </span><span class="s2">- </span><span class="s4">1</span><span class="s3">], </span><span class="s1">table</span><span class="s3">[</span><span class="s1">j</span><span class="s3">], </span><span class="s1">table</span><span class="s3">[</span><span class="s1">j </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">]</span>
+<a name="l99"><span class="ln">99   </span></a>            <span class="s1">table2</span><span class="s3">[</span><span class="s1">j</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span><span class="s1">z</span><span class="s2">*</span><span class="s1">x </span><span class="s2">- </span><span class="s1">y</span><span class="s2">**</span><span class="s4">2</span><span class="s3">) </span><span class="s2">/ </span><span class="s3">(</span><span class="s1">z </span><span class="s2">+ </span><span class="s1">x </span><span class="s2">- </span><span class="s4">2</span><span class="s2">*</span><span class="s1">y</span><span class="s3">)</span>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s1">table </span><span class="s2">= </span><span class="s1">table2</span><span class="s3">.</span><span class="s1">copy</span><span class="s3">()</span>
+<a name="l101"><span class="ln">101  </span></a>    <span class="s2">return </span><span class="s1">table</span><span class="s3">[</span><span class="s1">n</span><span class="s3">]</span>
+<a name="l102"><span class="ln">102  </span></a></pre>
+</body>
+</html>

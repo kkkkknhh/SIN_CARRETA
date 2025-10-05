@@ -1,0 +1,844 @@
+<html>
+<head>
+<title>tunable.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+tunable.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">r&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>This module exposes a TunableOp interface. 
+<a name="l3"><span class="ln">3    </span></a> 
+<a name="l4"><span class="ln">4    </span></a>Some operations, such as GEMMs, could be implemented using more than one library 
+<a name="l5"><span class="ln">5    </span></a>or more than one technique. For example, a GEMM could be implemented for CUDA or 
+<a name="l6"><span class="ln">6    </span></a>ROCm using either the blas or blasLt libraries. Further, ROCm's rocblas and 
+<a name="l7"><span class="ln">7    </span></a>hipblaslt libraries allow the user to query for all possible algorithms and then 
+<a name="l8"><span class="ln">8    </span></a>choose one. How does one know which implementation is the fastest and should be 
+<a name="l9"><span class="ln">9    </span></a>chosen? That's what TunableOp provides. 
+<a name="l10"><span class="ln">10   </span></a> 
+<a name="l11"><span class="ln">11   </span></a>Enabling TunableOp and Tuning Separately 
+<a name="l12"><span class="ln">12   </span></a>======================================== 
+<a name="l13"><span class="ln">13   </span></a> 
+<a name="l14"><span class="ln">14   </span></a>The TunableOp feature is enabled separately from enabling the tuning phase 
+<a name="l15"><span class="ln">15   </span></a>itself. Enabling TunableOp means that PyTorch will replace any standard 
+<a name="l16"><span class="ln">16   </span></a>operators with their Tunable implementations. Any call to a TunableOp first 
+<a name="l17"><span class="ln">17   </span></a>checks whether it has already been tuned for the given operator inputs. If so, 
+<a name="l18"><span class="ln">18   </span></a>it will immediately call the tuned operation; no further tuning will take place 
+<a name="l19"><span class="ln">19   </span></a>even when the tuning setting is enabled. Instead if no tuning result is found, 
+<a name="l20"><span class="ln">20   </span></a>and tuning is enabled, the TunableOp will benchmark every registered 
+<a name="l21"><span class="ln">21   </span></a>implementation of that operator for the given set of inputs and select the 
+<a name="l22"><span class="ln">22   </span></a>fastest. 
+<a name="l23"><span class="ln">23   </span></a> 
+<a name="l24"><span class="ln">24   </span></a>File Input and Output 
+<a name="l25"><span class="ln">25   </span></a>===================== 
+<a name="l26"><span class="ln">26   </span></a> 
+<a name="l27"><span class="ln">27   </span></a>The first time any TunableOp is invoked, the internal database of tuned 
+<a name="l28"><span class="ln">28   </span></a>operations will be prepared by attempting to read the results from the given 
+<a name="l29"><span class="ln">29   </span></a>file. The default filename is 'tunableop_results.csv'. To support tuning when 
+<a name="l30"><span class="ln">30   </span></a>multiple GPUs are used across multiple processes, the GPU device ordinal is 
+<a name="l31"><span class="ln">31   </span></a>automatically inserted into the filename to avoid multiple processes overwriting 
+<a name="l32"><span class="ln">32   </span></a>the same file. 
+<a name="l33"><span class="ln">33   </span></a> 
+<a name="l34"><span class="ln">34   </span></a>If tuning is enabled and new tunings are discovered during the course of your 
+<a name="l35"><span class="ln">35   </span></a>workload, it will also write out to this same filename with all tunings, both 
+<a name="l36"><span class="ln">36   </span></a>the ones it read in at startup as well as the new ones found at runtime. This 
+<a name="l37"><span class="ln">37   </span></a>can be used, for example, to build up a tunings file across many workloads by 
+<a name="l38"><span class="ln">38   </span></a>reusing the same file. The output file is automatically created when the 
+<a name="l39"><span class="ln">39   </span></a>application terminates. This behavior can be controlled by the C++ and Python 
+<a name="l40"><span class="ln">40   </span></a>APIs but not the environment variables. 
+<a name="l41"><span class="ln">41   </span></a> 
+<a name="l42"><span class="ln">42   </span></a>Assuming you specified a filename, you'll end up with a CSV file with contents 
+<a name="l43"><span class="ln">43   </span></a>like so:: 
+<a name="l44"><span class="ln">44   </span></a> 
+<a name="l45"><span class="ln">45   </span></a>  Validator,PT_VERSION,2.2.0 
+<a name="l46"><span class="ln">46   </span></a>  Validator,ROCM_VERSION,6.0.0.0-12969-1544e39 
+<a name="l47"><span class="ln">47   </span></a>  Validator,HIPBLASLT_VERSION,0.6.0-a9c5cc7 
+<a name="l48"><span class="ln">48   </span></a>  Validator,ROCBLAS_VERSION,4.0.0-72e57364-dirty 
+<a name="l49"><span class="ln">49   </span></a>  GemmTunableOp_float_NT,nt_25088_4096_64,Gemm_Hipblaslt_1219,1.262 
+<a name="l50"><span class="ln">50   </span></a>  GemmTunableOp_float_NT,nt_4096_4096_64,Gemm_Rocblas_1216,0.033 
+<a name="l51"><span class="ln">51   </span></a> 
+<a name="l52"><span class="ln">52   </span></a>Note the &quot;Validator&quot; lines. If you change a library version, or ROCm version, or 
+<a name="l53"><span class="ln">53   </span></a>PyTorch version, TunableOp will detect this and reject the tunings file because 
+<a name="l54"><span class="ln">54   </span></a>the prior tunings are likely affected by other software changes. 
+<a name="l55"><span class="ln">55   </span></a> 
+<a name="l56"><span class="ln">56   </span></a>The remaining lines are the tuned solutions for each TunableOp encountered 
+<a name="l57"><span class="ln">57   </span></a>during your execution. Each line consists of 4 comma-separated fields: operator 
+<a name="l58"><span class="ln">58   </span></a>name, operator parameters, solution name, and average execution time. The 
+<a name="l59"><span class="ln">59   </span></a>execution time is an optional field. The CSV file can be edited, but with 
+<a name="l60"><span class="ln">60   </span></a>caution. For example, the solution name (field 3) can be changed to &quot;Default&quot; 
+<a name="l61"><span class="ln">61   </span></a>and it will fall back to the original PyTorch untuned implementation. Or, in the 
+<a name="l62"><span class="ln">62   </span></a>case of ROCm's hipBLAS or hipBLASLt libraries, if you know the specific solution 
+<a name="l63"><span class="ln">63   </span></a>index you can override the solution that TunableOp selected by replacing the 
+<a name="l64"><span class="ln">64   </span></a>value. The operator name and parameters (fields 1 and 2) are internally named 
+<a name="l65"><span class="ln">65   </span></a>and should not be modified. In the case of GemmTunableOp, field 1 indicates the 
+<a name="l66"><span class="ln">66   </span></a>datatype and whether the inputs are transposed (T) or not (N) and field 2 
+<a name="l67"><span class="ln">67   </span></a>indicates the M, N, K input shapes. 
+<a name="l68"><span class="ln">68   </span></a> 
+<a name="l69"><span class="ln">69   </span></a>There is an option to enable verbose output but it is only recommended for 
+<a name="l70"><span class="ln">70   </span></a>debugging purposes. This will produce a lot of diagnostic messages but may be 
+<a name="l71"><span class="ln">71   </span></a>useful to see if TunableOp is being used at all. Otherwise, TunableOp is 
+<a name="l72"><span class="ln">72   </span></a>completely silent, besides file output, unless there is a warning or error 
+<a name="l73"><span class="ln">73   </span></a>during its use. The verbose option is only available by setting the environment 
+<a name="l74"><span class="ln">74   </span></a>variable PYTORCH_TUNABLEOP_VEROBSE=1. 
+<a name="l75"><span class="ln">75   </span></a> 
+<a name="l76"><span class="ln">76   </span></a>A Note on Tuning Behavior, Warmup, and Cache Effects 
+<a name="l77"><span class="ln">77   </span></a>==================================================== 
+<a name="l78"><span class="ln">78   </span></a> 
+<a name="l79"><span class="ln">79   </span></a>Tuning an operator consists of iterating through the list or registered 
+<a name="l80"><span class="ln">80   </span></a>implementations and profiling each one. The profile is established by running a 
+<a name="l81"><span class="ln">81   </span></a>single implementation in a loop multiple times and taking the average execution 
+<a name="l82"><span class="ln">82   </span></a>time. There is also an optional warmup phase prior to tuning that can help with 
+<a name="l83"><span class="ln">83   </span></a>reaching stable power states by the hardware. During tuning of a workload the 
+<a name="l84"><span class="ln">84   </span></a>various hardware caches will more likely produce hits than when not tuning. 
+<a name="l85"><span class="ln">85   </span></a>There are options for flushing the instruction cache and rotate the input tensors 
+<a name="l86"><span class="ln">86   </span></a>which might help produce a more faithful profile of the tuned operator as if the 
+<a name="l87"><span class="ln">87   </span></a>operator were run within a larger workload instead of in a tight, repetitive loop. 
+<a name="l88"><span class="ln">88   </span></a> 
+<a name="l89"><span class="ln">89   </span></a>By default, each possible solution for a given operator will be run for either 
+<a name="l90"><span class="ln">90   </span></a>100 iterations or as many iterations that can be run within 30ms, whichever is 
+<a name="l91"><span class="ln">91   </span></a>smaller, and its average execution will be calculated. The fastest solution 
+<a name="l92"><span class="ln">92   </span></a>among all that were successfully profiled will be chosen. A profile might fail 
+<a name="l93"><span class="ln">93   </span></a>if the given solution doesn't achieve the same accuracy as the default 
+<a name="l94"><span class="ln">94   </span></a>implementation or if the solution returns an error code. 
+<a name="l95"><span class="ln">95   </span></a> 
+<a name="l96"><span class="ln">96   </span></a>Current Tunable Operators 
+<a name="l97"><span class="ln">97   </span></a>========================= 
+<a name="l98"><span class="ln">98   </span></a> 
+<a name="l99"><span class="ln">99   </span></a>TunableGemm for ROCm 
+<a name="l100"><span class="ln">100  </span></a>-------------------- 
+<a name="l101"><span class="ln">101  </span></a> 
+<a name="l102"><span class="ln">102  </span></a>Currently only a TunableGemm for ROCm is implemented. Note that CUDA builds of 
+<a name="l103"><span class="ln">103  </span></a>PyTorch will function correctly when using TunableOp but the only solution 
+<a name="l104"><span class="ln">104  </span></a>available to CUDA builds is the 'Default' implementation i.e. the original 
+<a name="l105"><span class="ln">105  </span></a>cuBLAS default, now called through TunableOp. Any call to at::cuda::blas::gemm() 
+<a name="l106"><span class="ln">106  </span></a>or ::bgemm() will be routed through TunableOp when enabled. Calling gemm() for a 
+<a name="l107"><span class="ln">107  </span></a>given set of input arguments (transa, transb, m, n, k) will attempt to use the 
+<a name="l108"><span class="ln">108  </span></a>fastest available implementation across both rocblas and hipblaslt. 
+<a name="l109"><span class="ln">109  </span></a> 
+<a name="l110"><span class="ln">110  </span></a>Offline Tuning 
+<a name="l111"><span class="ln">111  </span></a>============== 
+<a name="l112"><span class="ln">112  </span></a> 
+<a name="l113"><span class="ln">113  </span></a>Motivation 
+<a name="l114"><span class="ln">114  </span></a>---------- 
+<a name="l115"><span class="ln">115  </span></a>There are several use cases for offline tuning. 
+<a name="l116"><span class="ln">116  </span></a> 
+<a name="l117"><span class="ln">117  </span></a>One use case involves a workload with a high-memory utilization, where regular tuning might lead to running out of memory. 
+<a name="l118"><span class="ln">118  </span></a> 
+<a name="l119"><span class="ln">119  </span></a>Another use case is for compute-intensive workloads. In such cases, it is more resource-efficient to collect 
+<a name="l120"><span class="ln">120  </span></a>the GEMMs for the workload once and then tune repeatedly with different tuning parameters or libraries. 
+<a name="l121"><span class="ln">121  </span></a> 
+<a name="l122"><span class="ln">122  </span></a>Workflow 
+<a name="l123"><span class="ln">123  </span></a>-------- 
+<a name="l124"><span class="ln">124  </span></a>There are basically two steps: 
+<a name="l125"><span class="ln">125  </span></a>1) Set the environment variables to collect the untuned GEMM and this will generate ``tunableop_untuned0.csv``: 
+<a name="l126"><span class="ln">126  </span></a> 
+<a name="l127"><span class="ln">127  </span></a>.. code-block:: python 
+<a name="l128"><span class="ln">128  </span></a> 
+<a name="l129"><span class="ln">129  </span></a>   PYTORCH_TUNABLEOP_ENABLED=1 
+<a name="l130"><span class="ln">130  </span></a>   PYTORCH_TUNABLEOP_TUNING=0 
+<a name="l131"><span class="ln">131  </span></a>   PYTORCH_TUNABLEOP_RECORD_UNTUNED=1 
+<a name="l132"><span class="ln">132  </span></a>   ... 
+<a name="l133"><span class="ln">133  </span></a> 
+<a name="l134"><span class="ln">134  </span></a>2) Run a Python script that reads the ``tunableop_untuned0.csv`` and generates the ``tunableop_results0.csv``, like this: 
+<a name="l135"><span class="ln">135  </span></a> 
+<a name="l136"><span class="ln">136  </span></a>.. code-block:: python 
+<a name="l137"><span class="ln">137  </span></a> 
+<a name="l138"><span class="ln">138  </span></a>   import torch.cuda.tunable as tunable 
+<a name="l139"><span class="ln">139  </span></a>   import os 
+<a name="l140"><span class="ln">140  </span></a> 
+<a name="l141"><span class="ln">141  </span></a>   os.putenv('PYTORCH_TUNABLEOP_ENABLED', '1') 
+<a name="l142"><span class="ln">142  </span></a>   os.putenv('PYTORCH_TUNABLEOP_TUNING', '1') 
+<a name="l143"><span class="ln">143  </span></a>   os.putenv('PYTORCH_TUNABLEOP_RECORD_UNTUNED', '0') 
+<a name="l144"><span class="ln">144  </span></a>   tunable.tune_gemm_in_file(&quot;tunableop_untuned0.csv&quot;) 
+<a name="l145"><span class="ln">145  </span></a> 
+<a name="l146"><span class="ln">146  </span></a> 
+<a name="l147"><span class="ln">147  </span></a>It is also possible to take multiple untuned files and distribute the GEMMs for tuning to multiple GPUs 
+<a name="l148"><span class="ln">148  </span></a>within a single node. In the first step, the GEMMs are first gathered and duplicate GEMMs are eliminated. 
+<a name="l149"><span class="ln">149  </span></a>Next, the GEMMs are distributed to different GPUs for tuning. After all GEMMs are tuned, the results from 
+<a name="l150"><span class="ln">150  </span></a>all the GPUs are then gathered into a single file whose base filename has ``_full0`` appended to it 
+<a name="l151"><span class="ln">151  </span></a>(for example ``tunableop_results_full0.csv``). Finally, this new file, containing the gathered results, will be 
+<a name="l152"><span class="ln">152  </span></a>duplicated N times, once for each GPU as convenience to the user will run the workload with the tuned 
+<a name="l153"><span class="ln">153  </span></a>configuration on N GPUs. 
+<a name="l154"><span class="ln">154  </span></a> 
+<a name="l155"><span class="ln">155  </span></a>.. code-block:: python 
+<a name="l156"><span class="ln">156  </span></a> 
+<a name="l157"><span class="ln">157  </span></a>   if __name__ == &quot;__main__&quot;: 
+<a name="l158"><span class="ln">158  </span></a>       num_gpus = 8 # number of GPUs that will be used during the tuning process 
+<a name="l159"><span class="ln">159  </span></a>       tunable.mgpu_tune_gemm_in_file(&quot;tunableop_untuned?.csv&quot;, num_gpus) 
+<a name="l160"><span class="ln">160  </span></a> 
+<a name="l161"><span class="ln">161  </span></a>Note that the usage of the ``mgpu_tune_gemm_in_file`` API is different from its single GPU counterpart 
+<a name="l162"><span class="ln">162  </span></a>(``tune_gemm_in_file``). The body of the Python script that calls the API must be wrapped in ``main()`` as shown 
+<a name="l163"><span class="ln">163  </span></a>due to the use of concurrent futures module. The argument to ``mgpu_tune_gemm_in_file`` must contain a wild card 
+<a name="l164"><span class="ln">164  </span></a>expression (``?`` or ``*``) to generate the list of untuned files containing the GEMMs to be processed. The ``num_gpus`` 
+<a name="l165"><span class="ln">165  </span></a>must between 1 and the total number of GPUs available. 
+<a name="l166"><span class="ln">166  </span></a> 
+<a name="l167"><span class="ln">167  </span></a>Tuning Context 
+<a name="l168"><span class="ln">168  </span></a>============== 
+<a name="l169"><span class="ln">169  </span></a> 
+<a name="l170"><span class="ln">170  </span></a>The behavior of TunableOp is currently manipulated through environment 
+<a name="l171"><span class="ln">171  </span></a>variables, the C++ interface of at::cuda::tunable::getTuningContext(), or the 
+<a name="l172"><span class="ln">172  </span></a>torch.cuda.tunable python interfaces. The environment variables take precedence 
+<a name="l173"><span class="ln">173  </span></a>over any setting you manipulate using the C++ or Python APIs. 
+<a name="l174"><span class="ln">174  </span></a> 
+<a name="l175"><span class="ln">175  </span></a>Environment Variable Interface 
+<a name="l176"><span class="ln">176  </span></a>------------------------------ 
+<a name="l177"><span class="ln">177  </span></a>Environment variables are cached the first time they are read. You cannot use the 
+<a name="l178"><span class="ln">178  </span></a>environment variable interface programmatically since the settings become fixed. 
+<a name="l179"><span class="ln">179  </span></a>Use the C++ or Python APIs instead. 
+<a name="l180"><span class="ln">180  </span></a> 
+<a name="l181"><span class="ln">181  </span></a>&quot;&quot;&quot;</span>
+<a name="l182"><span class="ln">182  </span></a><span class="s2">import </span><span class="s1">concurrent</span><span class="s3">.</span><span class="s1">futures</span>
+<a name="l183"><span class="ln">183  </span></a><span class="s2">import </span><span class="s1">glob</span>
+<a name="l184"><span class="ln">184  </span></a><span class="s2">import </span><span class="s1">multiprocessing </span><span class="s2">as </span><span class="s1">mp</span>
+<a name="l185"><span class="ln">185  </span></a><span class="s2">import </span><span class="s1">os</span>
+<a name="l186"><span class="ln">186  </span></a><span class="s2">import </span><span class="s1">shutil</span>
+<a name="l187"><span class="ln">187  </span></a><span class="s2">import </span><span class="s1">warnings</span>
+<a name="l188"><span class="ln">188  </span></a><span class="s2">from </span><span class="s1">typing </span><span class="s2">import </span><span class="s1">Optional</span>
+<a name="l189"><span class="ln">189  </span></a>
+<a name="l190"><span class="ln">190  </span></a><span class="s2">import </span><span class="s1">torch</span>
+<a name="l191"><span class="ln">191  </span></a>
+<a name="l192"><span class="ln">192  </span></a>
+<a name="l193"><span class="ln">193  </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l194"><span class="ln">194  </span></a>    <span class="s4">&quot;enable&quot;</span><span class="s3">,</span>
+<a name="l195"><span class="ln">195  </span></a>    <span class="s4">&quot;is_enabled&quot;</span><span class="s3">,</span>
+<a name="l196"><span class="ln">196  </span></a>    <span class="s4">&quot;tuning_enable&quot;</span><span class="s3">,</span>
+<a name="l197"><span class="ln">197  </span></a>    <span class="s4">&quot;tuning_is_enabled&quot;</span><span class="s3">,</span>
+<a name="l198"><span class="ln">198  </span></a>    <span class="s4">&quot;record_untuned_enable&quot;</span><span class="s3">,</span>
+<a name="l199"><span class="ln">199  </span></a>    <span class="s4">&quot;record_untuned_is_enabled&quot;</span><span class="s3">,</span>
+<a name="l200"><span class="ln">200  </span></a>    <span class="s4">&quot;set_max_tuning_duration&quot;</span><span class="s3">,</span>
+<a name="l201"><span class="ln">201  </span></a>    <span class="s4">&quot;get_max_tuning_duration&quot;</span><span class="s3">,</span>
+<a name="l202"><span class="ln">202  </span></a>    <span class="s4">&quot;set_max_tuning_iterations&quot;</span><span class="s3">,</span>
+<a name="l203"><span class="ln">203  </span></a>    <span class="s4">&quot;get_max_tuning_iterations&quot;</span><span class="s3">,</span>
+<a name="l204"><span class="ln">204  </span></a>    <span class="s4">&quot;set_filename&quot;</span><span class="s3">,</span>
+<a name="l205"><span class="ln">205  </span></a>    <span class="s4">&quot;get_filename&quot;</span><span class="s3">,</span>
+<a name="l206"><span class="ln">206  </span></a>    <span class="s4">&quot;get_results&quot;</span><span class="s3">,</span>
+<a name="l207"><span class="ln">207  </span></a>    <span class="s4">&quot;get_validators&quot;</span><span class="s3">,</span>
+<a name="l208"><span class="ln">208  </span></a>    <span class="s4">&quot;write_file_on_exit&quot;</span><span class="s3">,</span>
+<a name="l209"><span class="ln">209  </span></a>    <span class="s4">&quot;write_file&quot;</span><span class="s3">,</span>
+<a name="l210"><span class="ln">210  </span></a>    <span class="s4">&quot;read_file&quot;</span><span class="s3">,</span>
+<a name="l211"><span class="ln">211  </span></a>    <span class="s4">&quot;tune_gemm_in_file&quot;</span><span class="s3">,</span>
+<a name="l212"><span class="ln">212  </span></a>    <span class="s4">&quot;mgpu_tune_gemm_in_file&quot;</span><span class="s3">,</span>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s4">&quot;set_rotating_buffer_size&quot;</span><span class="s3">,</span>
+<a name="l214"><span class="ln">214  </span></a>    <span class="s4">&quot;get_rotating_buffer_size&quot;</span><span class="s3">,</span>
+<a name="l215"><span class="ln">215  </span></a><span class="s3">]</span>
+<a name="l216"><span class="ln">216  </span></a>
+<a name="l217"><span class="ln">217  </span></a>
+<a name="l218"><span class="ln">218  </span></a><span class="s2">def </span><span class="s1">enable</span><span class="s3">(</span><span class="s1">val</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= True</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l219"><span class="ln">219  </span></a>    <span class="s0">r&quot;&quot;&quot;This is the big on/off switch for all TunableOp implementations.&quot;&quot;&quot;</span>
+<a name="l220"><span class="ln">220  </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_enable</span><span class="s3">(</span><span class="s1">val</span><span class="s3">)  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l221"><span class="ln">221  </span></a>
+<a name="l222"><span class="ln">222  </span></a>
+<a name="l223"><span class="ln">223  </span></a><span class="s2">def </span><span class="s1">is_enabled</span><span class="s3">() </span><span class="s1">-&gt; bool</span><span class="s2">:</span>
+<a name="l224"><span class="ln">224  </span></a>    <span class="s0">r&quot;&quot;&quot;Returns whether the TunableOp feature is enabled.&quot;&quot;&quot;</span>
+<a name="l225"><span class="ln">225  </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_is_enabled</span><span class="s3">()  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l226"><span class="ln">226  </span></a>
+<a name="l227"><span class="ln">227  </span></a>
+<a name="l228"><span class="ln">228  </span></a><span class="s2">def </span><span class="s1">tuning_enable</span><span class="s3">(</span><span class="s1">val</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= True</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l229"><span class="ln">229  </span></a>    <span class="s0">r&quot;&quot;&quot;Enable tuning of TunableOp implementations. 
+<a name="l230"><span class="ln">230  </span></a> 
+<a name="l231"><span class="ln">231  </span></a>    When enabled, if a tuned entry isn't found, run the tuning step and record 
+<a name="l232"><span class="ln">232  </span></a>    the entry. 
+<a name="l233"><span class="ln">233  </span></a>    &quot;&quot;&quot;</span>
+<a name="l234"><span class="ln">234  </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_tuning_enable</span><span class="s3">(</span><span class="s1">val</span><span class="s3">)  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l235"><span class="ln">235  </span></a>
+<a name="l236"><span class="ln">236  </span></a>
+<a name="l237"><span class="ln">237  </span></a><span class="s2">def </span><span class="s1">tuning_is_enabled</span><span class="s3">() </span><span class="s1">-&gt; bool</span><span class="s2">:</span>
+<a name="l238"><span class="ln">238  </span></a>    <span class="s0">r&quot;&quot;&quot;Returns whether TunableOp implementations can be tuned.&quot;&quot;&quot;</span>
+<a name="l239"><span class="ln">239  </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_tuning_is_enabled</span><span class="s3">()  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l240"><span class="ln">240  </span></a>
+<a name="l241"><span class="ln">241  </span></a>
+<a name="l242"><span class="ln">242  </span></a><span class="s2">def </span><span class="s1">record_untuned_enable</span><span class="s3">(</span><span class="s1">val</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= True</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l243"><span class="ln">243  </span></a>    <span class="s0">r&quot;&quot;&quot;Enable recording untuned of TunableOp perations for offline tuning. 
+<a name="l244"><span class="ln">244  </span></a> 
+<a name="l245"><span class="ln">245  </span></a>    When enabled, if a tuned entry isn't found, write it to the untuned file. 
+<a name="l246"><span class="ln">246  </span></a>    &quot;&quot;&quot;</span>
+<a name="l247"><span class="ln">247  </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_record_untuned_enable</span><span class="s3">(</span><span class="s1">val</span><span class="s3">)  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l248"><span class="ln">248  </span></a>
+<a name="l249"><span class="ln">249  </span></a>
+<a name="l250"><span class="ln">250  </span></a><span class="s2">def </span><span class="s1">record_untuned_is_enabled</span><span class="s3">() </span><span class="s1">-&gt; bool</span><span class="s2">:</span>
+<a name="l251"><span class="ln">251  </span></a>    <span class="s0">r&quot;&quot;&quot;Returns whether TunableOp operations are recorded for offline tuning.&quot;&quot;&quot;</span>
+<a name="l252"><span class="ln">252  </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_record_untuned_is_enabled</span><span class="s3">()  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l253"><span class="ln">253  </span></a>
+<a name="l254"><span class="ln">254  </span></a>
+<a name="l255"><span class="ln">255  </span></a><span class="s2">def </span><span class="s1">set_max_tuning_duration</span><span class="s3">(</span><span class="s1">duration</span><span class="s2">: </span><span class="s1">int</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l256"><span class="ln">256  </span></a>    <span class="s0">r&quot;&quot;&quot;Set max time in milliseconds to spend tuning a given solution. 
+<a name="l257"><span class="ln">257  </span></a> 
+<a name="l258"><span class="ln">258  </span></a>    If both max tuning duration and iterations are set, the smaller of the two 
+<a name="l259"><span class="ln">259  </span></a>    will be honored. At minimum 1 tuning iteration will always be run. 
+<a name="l260"><span class="ln">260  </span></a>    &quot;&quot;&quot;</span>
+<a name="l261"><span class="ln">261  </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_set_max_tuning_duration</span><span class="s3">(</span><span class="s1">duration</span><span class="s3">)  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l262"><span class="ln">262  </span></a>
+<a name="l263"><span class="ln">263  </span></a>
+<a name="l264"><span class="ln">264  </span></a><span class="s2">def </span><span class="s1">get_max_tuning_duration</span><span class="s3">() </span><span class="s1">-&gt; int</span><span class="s2">:</span>
+<a name="l265"><span class="ln">265  </span></a>    <span class="s0">r&quot;&quot;&quot;Get max time to spend tuning a given solution.&quot;&quot;&quot;</span>
+<a name="l266"><span class="ln">266  </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_get_max_tuning_duration</span><span class="s3">()  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l267"><span class="ln">267  </span></a>
+<a name="l268"><span class="ln">268  </span></a>
+<a name="l269"><span class="ln">269  </span></a><span class="s2">def </span><span class="s1">set_max_tuning_iterations</span><span class="s3">(</span><span class="s1">iterations</span><span class="s2">: </span><span class="s1">int</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l270"><span class="ln">270  </span></a>    <span class="s0">r&quot;&quot;&quot;Set max number of iterations to spend tuning a given solution. 
+<a name="l271"><span class="ln">271  </span></a> 
+<a name="l272"><span class="ln">272  </span></a>    If both max tuning duration and iterations are set, the smaller of the two 
+<a name="l273"><span class="ln">273  </span></a>    will be honored. At minimum 1 tuning iteration will always be run. 
+<a name="l274"><span class="ln">274  </span></a>    &quot;&quot;&quot;</span>
+<a name="l275"><span class="ln">275  </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_set_max_tuning_iterations</span><span class="s3">(</span><span class="s1">iterations</span><span class="s3">)  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l276"><span class="ln">276  </span></a>
+<a name="l277"><span class="ln">277  </span></a>
+<a name="l278"><span class="ln">278  </span></a><span class="s2">def </span><span class="s1">get_max_tuning_iterations</span><span class="s3">() </span><span class="s1">-&gt; int</span><span class="s2">:</span>
+<a name="l279"><span class="ln">279  </span></a>    <span class="s0">r&quot;&quot;&quot;Get max iterations to spend tuning a given solution.&quot;&quot;&quot;</span>
+<a name="l280"><span class="ln">280  </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_get_max_tuning_iterations</span><span class="s3">()  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l281"><span class="ln">281  </span></a>
+<a name="l282"><span class="ln">282  </span></a>
+<a name="l283"><span class="ln">283  </span></a><span class="s2">def </span><span class="s1">set_filename</span><span class="s3">(</span><span class="s1">filename</span><span class="s2">: </span><span class="s1">str</span><span class="s3">, </span><span class="s1">insert_device_ordinal</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= False</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l284"><span class="ln">284  </span></a>    <span class="s0">r&quot;&quot;&quot;Set the filename to use for input/output of tuning results. 
+<a name="l285"><span class="ln">285  </span></a> 
+<a name="l286"><span class="ln">286  </span></a>    If :attr:`insert_device_ordinal` is ``True`` then the current device ordinal 
+<a name="l287"><span class="ln">287  </span></a>    will be added to the given filename automatically. This can be used in a 
+<a name="l288"><span class="ln">288  </span></a>    1-process-per-gpu cenario to ensure all processes write to a separate file. 
+<a name="l289"><span class="ln">289  </span></a>    &quot;&quot;&quot;</span>
+<a name="l290"><span class="ln">290  </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_set_filename</span><span class="s3">(</span><span class="s1">filename</span><span class="s3">, </span><span class="s1">insert_device_ordinal</span><span class="s3">)  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l291"><span class="ln">291  </span></a>
+<a name="l292"><span class="ln">292  </span></a>
+<a name="l293"><span class="ln">293  </span></a><span class="s2">def </span><span class="s1">get_filename</span><span class="s3">() </span><span class="s1">-&gt; str</span><span class="s2">:</span>
+<a name="l294"><span class="ln">294  </span></a>    <span class="s0">r&quot;&quot;&quot;Get the results filename.&quot;&quot;&quot;</span>
+<a name="l295"><span class="ln">295  </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_get_filename</span><span class="s3">()  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l296"><span class="ln">296  </span></a>
+<a name="l297"><span class="ln">297  </span></a>
+<a name="l298"><span class="ln">298  </span></a><span class="s2">def </span><span class="s1">get_results</span><span class="s3">() </span><span class="s1">-&gt; tuple</span><span class="s3">[</span><span class="s1">str</span><span class="s3">, </span><span class="s1">str</span><span class="s3">, </span><span class="s1">str</span><span class="s3">, </span><span class="s1">float</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l299"><span class="ln">299  </span></a>    <span class="s0">r&quot;&quot;&quot;Return all TunableOp results.&quot;&quot;&quot;</span>
+<a name="l300"><span class="ln">300  </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_get_results</span><span class="s3">()  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l301"><span class="ln">301  </span></a>
+<a name="l302"><span class="ln">302  </span></a>
+<a name="l303"><span class="ln">303  </span></a><span class="s2">def </span><span class="s1">get_validators</span><span class="s3">() </span><span class="s1">-&gt; tuple</span><span class="s3">[</span><span class="s1">str</span><span class="s3">, </span><span class="s1">str</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l304"><span class="ln">304  </span></a>    <span class="s0">r&quot;&quot;&quot;Return the TunableOp validators.&quot;&quot;&quot;</span>
+<a name="l305"><span class="ln">305  </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_get_validators</span><span class="s3">()  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l306"><span class="ln">306  </span></a>
+<a name="l307"><span class="ln">307  </span></a>
+<a name="l308"><span class="ln">308  </span></a><span class="s2">def </span><span class="s1">write_file_on_exit</span><span class="s3">(</span><span class="s1">val</span><span class="s2">: </span><span class="s1">bool</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l309"><span class="ln">309  </span></a>    <span class="s0">r&quot;&quot;&quot;During Tuning Context destruction, write file to disk. 
+<a name="l310"><span class="ln">310  </span></a> 
+<a name="l311"><span class="ln">311  </span></a>    This is useful as a final flush of your results to disk if your application 
+<a name="l312"><span class="ln">312  </span></a>    terminates as result of normal operation or an error. Manual flushing of 
+<a name="l313"><span class="ln">313  </span></a>    your results can be achieved by manually calling ``write_file()``.&quot;&quot;&quot;</span>
+<a name="l314"><span class="ln">314  </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_write_file_on_exit</span><span class="s3">(</span><span class="s1">val</span><span class="s3">)  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l315"><span class="ln">315  </span></a>
+<a name="l316"><span class="ln">316  </span></a>
+<a name="l317"><span class="ln">317  </span></a><span class="s2">def </span><span class="s1">write_file</span><span class="s3">(</span><span class="s1">filename</span><span class="s2">: </span><span class="s1">Optional</span><span class="s3">[</span><span class="s1">str</span><span class="s3">] </span><span class="s2">= None</span><span class="s3">) </span><span class="s1">-&gt; bool</span><span class="s2">:</span>
+<a name="l318"><span class="ln">318  </span></a>    <span class="s0">r&quot;&quot;&quot;Write results to a CSV file. 
+<a name="l319"><span class="ln">319  </span></a> 
+<a name="l320"><span class="ln">320  </span></a>    If :attr:`filename` is not given, ``get_filename()`` is called. 
+<a name="l321"><span class="ln">321  </span></a>    &quot;&quot;&quot;</span>
+<a name="l322"><span class="ln">322  </span></a>    <span class="s2">if </span><span class="s1">filename </span><span class="s2">is None:</span>
+<a name="l323"><span class="ln">323  </span></a>        <span class="s1">filename </span><span class="s2">= </span><span class="s1">get_filename</span><span class="s3">()</span>
+<a name="l324"><span class="ln">324  </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_write_file</span><span class="s3">(</span><span class="s1">filename</span><span class="s3">)  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l325"><span class="ln">325  </span></a>
+<a name="l326"><span class="ln">326  </span></a>
+<a name="l327"><span class="ln">327  </span></a><span class="s2">def </span><span class="s1">read_file</span><span class="s3">(</span><span class="s1">filename</span><span class="s2">: </span><span class="s1">Optional</span><span class="s3">[</span><span class="s1">str</span><span class="s3">] </span><span class="s2">= None</span><span class="s3">) </span><span class="s1">-&gt; bool</span><span class="s2">:</span>
+<a name="l328"><span class="ln">328  </span></a>    <span class="s0">r&quot;&quot;&quot;Read results from a TunableOp CSV file. 
+<a name="l329"><span class="ln">329  </span></a> 
+<a name="l330"><span class="ln">330  </span></a>    If :attr:`filename` is not given, ``get_filename()`` is called. 
+<a name="l331"><span class="ln">331  </span></a>    &quot;&quot;&quot;</span>
+<a name="l332"><span class="ln">332  </span></a>    <span class="s2">if </span><span class="s1">filename </span><span class="s2">is None:</span>
+<a name="l333"><span class="ln">333  </span></a>        <span class="s1">filename </span><span class="s2">= </span><span class="s1">get_filename</span><span class="s3">()</span>
+<a name="l334"><span class="ln">334  </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_read_file</span><span class="s3">(</span><span class="s1">filename</span><span class="s3">)  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l335"><span class="ln">335  </span></a>
+<a name="l336"><span class="ln">336  </span></a>
+<a name="l337"><span class="ln">337  </span></a><span class="s2">def </span><span class="s1">set_rotating_buffer_size</span><span class="s3">(</span><span class="s1">buffer_size</span><span class="s2">: </span><span class="s1">int</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l338"><span class="ln">338  </span></a>    <span class="s0">r&quot;&quot;&quot;Set rotating buffer size to this value in MB, if the buffer size is greater than zero. 
+<a name="l339"><span class="ln">339  </span></a> 
+<a name="l340"><span class="ln">340  </span></a>    If less than zero, query L2 cache size. If equal to zero, means deactivate rotating buffer. 
+<a name="l341"><span class="ln">341  </span></a>    &quot;&quot;&quot;</span>
+<a name="l342"><span class="ln">342  </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_set_rotating_buffer_size</span><span class="s3">(</span><span class="s1">buffer_size</span><span class="s3">)  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l343"><span class="ln">343  </span></a>
+<a name="l344"><span class="ln">344  </span></a>
+<a name="l345"><span class="ln">345  </span></a><span class="s2">def </span><span class="s1">get_rotating_buffer_size</span><span class="s3">() </span><span class="s1">-&gt; int</span><span class="s2">:</span>
+<a name="l346"><span class="ln">346  </span></a>    <span class="s0">r&quot;&quot;&quot;Get the rotating buffer size in kilobytes.&quot;&quot;&quot;</span>
+<a name="l347"><span class="ln">347  </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_cuda_tunableop_get_rotating_buffer_size</span><span class="s3">()  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l348"><span class="ln">348  </span></a>
+<a name="l349"><span class="ln">349  </span></a>
+<a name="l350"><span class="ln">350  </span></a><span class="s2">def </span><span class="s1">tune_gemm_in_file</span><span class="s3">(</span><span class="s1">filename</span><span class="s2">: </span><span class="s1">str</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l351"><span class="ln">351  </span></a>    <span class="s0">r&quot;&quot;&quot;tune GEMM in file.&quot;&quot;&quot;</span>
+<a name="l352"><span class="ln">352  </span></a>
+<a name="l353"><span class="ln">353  </span></a>    <span class="s2">assert </span><span class="s1">is_enabled</span><span class="s3">()</span>
+<a name="l354"><span class="ln">354  </span></a>    <span class="s2">assert </span><span class="s1">tuning_is_enabled</span><span class="s3">()</span>
+<a name="l355"><span class="ln">355  </span></a>
+<a name="l356"><span class="ln">356  </span></a>    <span class="s1">deviceid </span><span class="s2">= </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">cuda</span><span class="s3">.</span><span class="s1">current_device</span><span class="s3">()</span>
+<a name="l357"><span class="ln">357  </span></a>
+<a name="l358"><span class="ln">358  </span></a>    <span class="s2">with </span><span class="s1">open</span><span class="s3">(</span><span class="s1">filename</span><span class="s3">) </span><span class="s2">as </span><span class="s1">file</span><span class="s2">:</span>
+<a name="l359"><span class="ln">359  </span></a>        <span class="s2">for </span><span class="s1">line </span><span class="s2">in </span><span class="s1">file</span><span class="s2">:</span>
+<a name="l360"><span class="ln">360  </span></a>            <span class="s2">if </span><span class="s1">line</span><span class="s3">.</span><span class="s1">startswith</span><span class="s3">((</span><span class="s4">&quot;Gemm&quot;</span><span class="s3">, </span><span class="s4">&quot;ScaledGemm&quot;</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l361"><span class="ln">361  </span></a>                <span class="s1">_process_single_offline_gemm</span><span class="s3">(</span><span class="s1">line</span><span class="s3">, </span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l362"><span class="ln">362  </span></a>
+<a name="l363"><span class="ln">363  </span></a>
+<a name="l364"><span class="ln">364  </span></a><span class="s2">def </span><span class="s1">_gather_unique_untuned_gemm_from_files</span><span class="s3">(</span><span class="s1">filename_pattern</span><span class="s2">: </span><span class="s1">str</span><span class="s3">) </span><span class="s1">-&gt; set</span><span class="s3">[</span><span class="s1">str</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l365"><span class="ln">365  </span></a>    <span class="s0">r&quot;&quot;&quot;Process multiple untuned results file and return a set with duplicates removed.&quot;&quot;&quot;</span>
+<a name="l366"><span class="ln">366  </span></a>    <span class="s1">unique_gemm_entries </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()  </span><span class="s0"># set will avoid duplicates</span>
+<a name="l367"><span class="ln">367  </span></a>
+<a name="l368"><span class="ln">368  </span></a>    <span class="s2">for </span><span class="s1">file_path </span><span class="s2">in </span><span class="s1">glob</span><span class="s3">.</span><span class="s1">glob</span><span class="s3">(</span><span class="s1">filename_pattern</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l369"><span class="ln">369  </span></a>        <span class="s2">with </span><span class="s1">open</span><span class="s3">(</span><span class="s1">file_path</span><span class="s3">) </span><span class="s2">as </span><span class="s1">file</span><span class="s2">:</span>
+<a name="l370"><span class="ln">370  </span></a>            <span class="s2">for </span><span class="s1">line </span><span class="s2">in </span><span class="s1">file</span><span class="s2">:</span>
+<a name="l371"><span class="ln">371  </span></a>                <span class="s2">if </span><span class="s1">line</span><span class="s3">.</span><span class="s1">startswith</span><span class="s3">((</span><span class="s4">&quot;Gemm&quot;</span><span class="s3">, </span><span class="s4">&quot;ScaledGemm&quot;</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l372"><span class="ln">372  </span></a>                    <span class="s1">unique_gemm_entries</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">line</span><span class="s3">)</span>
+<a name="l373"><span class="ln">373  </span></a>
+<a name="l374"><span class="ln">374  </span></a>    <span class="s2">return </span><span class="s1">unique_gemm_entries</span>
+<a name="l375"><span class="ln">375  </span></a>
+<a name="l376"><span class="ln">376  </span></a>
+<a name="l377"><span class="ln">377  </span></a><span class="s2">def </span><span class="s1">_gather_tunableop_results</span><span class="s3">() </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l378"><span class="ln">378  </span></a>    <span class="s0">r&quot;&quot;&quot;Gather results from multiple tunableop results file and create a single file.&quot;&quot;&quot;</span>
+<a name="l379"><span class="ln">379  </span></a>    <span class="s1">gemm_lines </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l380"><span class="ln">380  </span></a>    <span class="s1">validator_lines </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l381"><span class="ln">381  </span></a>
+<a name="l382"><span class="ln">382  </span></a>    <span class="s0"># Need to allow for the possibility that results filename was</span>
+<a name="l383"><span class="ln">383  </span></a>    <span class="s0"># set with the Python API instead of with environment variable.</span>
+<a name="l384"><span class="ln">384  </span></a>    <span class="s0"># Also possible that results filename was not set at all.</span>
+<a name="l385"><span class="ln">385  </span></a>    <span class="s0"># There are several test cases to check, but ultimately we</span>
+<a name="l386"><span class="ln">386  </span></a>    <span class="s0"># need a glob-able expression</span>
+<a name="l387"><span class="ln">387  </span></a>    <span class="s1">results_filename </span><span class="s2">= </span><span class="s1">get_filename</span><span class="s3">()  </span><span class="s0"># Note empty string could be returned here</span>
+<a name="l388"><span class="ln">388  </span></a>
+<a name="l389"><span class="ln">389  </span></a>    <span class="s2">if </span><span class="s3">(</span>
+<a name="l390"><span class="ln">390  </span></a>        <span class="s1">results_filename </span><span class="s2">is not None and </span><span class="s1">results_filename </span><span class="s2">!= </span><span class="s4">&quot;&quot;</span>
+<a name="l391"><span class="ln">391  </span></a>    <span class="s3">)</span><span class="s2">:  </span><span class="s0"># Case were the Python API was used to set the filename</span>
+<a name="l392"><span class="ln">392  </span></a>        <span class="s1">dot_pos </span><span class="s2">= </span><span class="s1">results_filename</span><span class="s3">.</span><span class="s1">find</span><span class="s3">(</span><span class="s4">&quot;.&quot;</span><span class="s3">)</span>
+<a name="l393"><span class="ln">393  </span></a>        <span class="s2">if </span><span class="s1">dot_pos </span><span class="s2">!= -</span><span class="s5">1 </span><span class="s2">and </span><span class="s1">dot_pos </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l394"><span class="ln">394  </span></a>            <span class="s0"># Replace the character just to the left of the dot</span>
+<a name="l395"><span class="ln">395  </span></a>            <span class="s1">filename_pattern </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l396"><span class="ln">396  </span></a>                <span class="s1">results_filename</span><span class="s3">[</span><span class="s2">: </span><span class="s1">dot_pos </span><span class="s2">- </span><span class="s5">1</span><span class="s3">] </span><span class="s2">+ </span><span class="s4">&quot;?&quot; </span><span class="s2">+ </span><span class="s1">results_filename</span><span class="s3">[</span><span class="s1">dot_pos</span><span class="s2">:</span><span class="s3">]</span>
+<a name="l397"><span class="ln">397  </span></a>            <span class="s3">)</span>
+<a name="l398"><span class="ln">398  </span></a>        <span class="s2">else:</span>
+<a name="l399"><span class="ln">399  </span></a>            <span class="s1">filename_pattern </span><span class="s2">= </span><span class="s4">&quot;&quot;  </span><span class="s0"># Needed to make linter happy</span>
+<a name="l400"><span class="ln">400  </span></a>    <span class="s2">else:  </span><span class="s0"># Case where the environment variable was used to set the filename.</span>
+<a name="l401"><span class="ln">401  </span></a>        <span class="s1">results_filename_env </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">getenv</span><span class="s3">(</span><span class="s4">&quot;PYTORCH_TUNABLEOP_FILENAME&quot;</span><span class="s3">)</span>
+<a name="l402"><span class="ln">402  </span></a>        <span class="s2">if </span><span class="s1">results_filename_env </span><span class="s2">is None or </span><span class="s1">results_filename_env </span><span class="s2">== </span><span class="s4">&quot;&quot;</span><span class="s2">:</span>
+<a name="l403"><span class="ln">403  </span></a>            <span class="s1">filename_pattern </span><span class="s2">= </span><span class="s4">&quot;tunableop_results?.csv&quot;</span>
+<a name="l404"><span class="ln">404  </span></a>        <span class="s2">elif </span><span class="s4">&quot;%d&quot; </span><span class="s2">in </span><span class="s1">results_filename_env</span><span class="s2">:</span>
+<a name="l405"><span class="ln">405  </span></a>            <span class="s1">filename_pattern </span><span class="s2">= </span><span class="s1">results_filename_env</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s4">&quot;%d&quot;</span><span class="s3">, </span><span class="s4">&quot;?&quot;</span><span class="s3">)</span>
+<a name="l406"><span class="ln">406  </span></a>        <span class="s2">else:</span>
+<a name="l407"><span class="ln">407  </span></a>            <span class="s1">filename_pattern </span><span class="s2">= </span><span class="s1">results_filename_env</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s4">&quot;.&quot;</span><span class="s3">, </span><span class="s4">&quot;?.&quot;</span><span class="s3">)</span>
+<a name="l408"><span class="ln">408  </span></a>
+<a name="l409"><span class="ln">409  </span></a>    <span class="s2">assert </span><span class="s4">&quot;?&quot; </span><span class="s2">in </span><span class="s1">filename_pattern</span>
+<a name="l410"><span class="ln">410  </span></a>
+<a name="l411"><span class="ln">411  </span></a>    <span class="s1">FirstFile </span><span class="s2">= False</span>
+<a name="l412"><span class="ln">412  </span></a>    <span class="s1">matching_files </span><span class="s2">= </span><span class="s1">glob</span><span class="s3">.</span><span class="s1">glob</span><span class="s3">(</span><span class="s1">filename_pattern</span><span class="s3">)</span>
+<a name="l413"><span class="ln">413  </span></a>    <span class="s1">num_matching_files </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">matching_files</span><span class="s3">)</span>
+<a name="l414"><span class="ln">414  </span></a>    <span class="s2">for </span><span class="s1">file_path </span><span class="s2">in </span><span class="s1">matching_files</span><span class="s2">:</span>
+<a name="l415"><span class="ln">415  </span></a>        <span class="s2">with </span><span class="s1">open</span><span class="s3">(</span><span class="s1">file_path</span><span class="s3">) </span><span class="s2">as </span><span class="s1">file</span><span class="s2">:</span>
+<a name="l416"><span class="ln">416  </span></a>            <span class="s2">for </span><span class="s1">line </span><span class="s2">in </span><span class="s1">file</span><span class="s2">:</span>
+<a name="l417"><span class="ln">417  </span></a>                <span class="s2">if </span><span class="s1">line</span><span class="s3">.</span><span class="s1">startswith</span><span class="s3">(</span><span class="s4">&quot;Validator&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l418"><span class="ln">418  </span></a>                    <span class="s2">if not </span><span class="s3">(</span><span class="s1">FirstFile</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l419"><span class="ln">419  </span></a>                        <span class="s0"># Only read Validator from first file</span>
+<a name="l420"><span class="ln">420  </span></a>                        <span class="s1">validator_lines</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">line</span><span class="s3">)</span>
+<a name="l421"><span class="ln">421  </span></a>                <span class="s2">else:</span>
+<a name="l422"><span class="ln">422  </span></a>                    <span class="s1">gemm_lines</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">line</span><span class="s3">)</span>
+<a name="l423"><span class="ln">423  </span></a>
+<a name="l424"><span class="ln">424  </span></a>        <span class="s1">FirstFile </span><span class="s2">= True</span>
+<a name="l425"><span class="ln">425  </span></a>
+<a name="l426"><span class="ln">426  </span></a>    <span class="s1">output_file </span><span class="s2">= </span><span class="s1">filename_pattern</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s4">&quot;?&quot;</span><span class="s3">, </span><span class="s4">&quot;_full0&quot;</span><span class="s3">)</span>
+<a name="l427"><span class="ln">427  </span></a>
+<a name="l428"><span class="ln">428  </span></a>    <span class="s2">with </span><span class="s1">open</span><span class="s3">(</span><span class="s1">output_file</span><span class="s3">, </span><span class="s4">&quot;w&quot;</span><span class="s3">) </span><span class="s2">as </span><span class="s1">out_file</span><span class="s2">:</span>
+<a name="l429"><span class="ln">429  </span></a>        <span class="s2">for </span><span class="s1">line </span><span class="s2">in </span><span class="s1">validator_lines</span><span class="s2">:</span>
+<a name="l430"><span class="ln">430  </span></a>            <span class="s1">out_file</span><span class="s3">.</span><span class="s1">write</span><span class="s3">(</span><span class="s1">line</span><span class="s3">)</span>
+<a name="l431"><span class="ln">431  </span></a>        <span class="s2">for </span><span class="s1">line </span><span class="s2">in </span><span class="s1">gemm_lines</span><span class="s2">:</span>
+<a name="l432"><span class="ln">432  </span></a>            <span class="s1">out_file</span><span class="s3">.</span><span class="s1">write</span><span class="s3">(</span><span class="s1">line</span><span class="s3">)</span>
+<a name="l433"><span class="ln">433  </span></a>
+<a name="l434"><span class="ln">434  </span></a>    <span class="s0"># Create num_matching_copies of the results file</span>
+<a name="l435"><span class="ln">435  </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s5">1</span><span class="s3">, </span><span class="s1">num_matching_files</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l436"><span class="ln">436  </span></a>        <span class="s1">duplicate_file </span><span class="s2">= </span><span class="s1">output_file</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s4">&quot;0&quot;</span><span class="s3">, </span><span class="s1">str</span><span class="s3">(</span><span class="s1">i</span><span class="s3">))</span>
+<a name="l437"><span class="ln">437  </span></a>        <span class="s1">shutil</span><span class="s3">.</span><span class="s1">copy</span><span class="s3">(</span><span class="s1">output_file</span><span class="s3">, </span><span class="s1">duplicate_file</span><span class="s3">)</span>
+<a name="l438"><span class="ln">438  </span></a>
+<a name="l439"><span class="ln">439  </span></a>
+<a name="l440"><span class="ln">440  </span></a><span class="s2">def </span><span class="s1">_create_matrices</span><span class="s3">(</span>
+<a name="l441"><span class="ln">441  </span></a>    <span class="s1">m</span><span class="s2">: </span><span class="s1">int</span><span class="s3">,</span>
+<a name="l442"><span class="ln">442  </span></a>    <span class="s1">n</span><span class="s2">: </span><span class="s1">int</span><span class="s3">,</span>
+<a name="l443"><span class="ln">443  </span></a>    <span class="s1">k</span><span class="s2">: </span><span class="s1">int</span><span class="s3">,</span>
+<a name="l444"><span class="ln">444  </span></a>    <span class="s1">lda</span><span class="s2">: </span><span class="s1">int</span><span class="s3">,</span>
+<a name="l445"><span class="ln">445  </span></a>    <span class="s1">ldb</span><span class="s2">: </span><span class="s1">int</span><span class="s3">,</span>
+<a name="l446"><span class="ln">446  </span></a>    <span class="s1">ldc</span><span class="s2">: </span><span class="s1">int</span><span class="s3">,</span>
+<a name="l447"><span class="ln">447  </span></a>    <span class="s1">transA</span><span class="s2">: </span><span class="s1">bool</span><span class="s3">,</span>
+<a name="l448"><span class="ln">448  </span></a>    <span class="s1">transB</span><span class="s2">: </span><span class="s1">bool</span><span class="s3">,</span>
+<a name="l449"><span class="ln">449  </span></a>    <span class="s1">dtypeA</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">,</span>
+<a name="l450"><span class="ln">450  </span></a>    <span class="s1">deviceid</span><span class="s2">: </span><span class="s1">str</span><span class="s3">,</span>
+<a name="l451"><span class="ln">451  </span></a>    <span class="s1">dtypeB</span><span class="s2">: </span><span class="s1">Optional</span><span class="s3">[</span><span class="s1">torch</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">] </span><span class="s2">= None</span><span class="s3">,</span>
+<a name="l452"><span class="ln">452  </span></a>    <span class="s1">randn</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= True</span><span class="s3">,</span>
+<a name="l453"><span class="ln">453  </span></a>    <span class="s1">subMatrix</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= False</span><span class="s3">,</span>
+<a name="l454"><span class="ln">454  </span></a><span class="s3">) </span><span class="s1">-&gt; tuple</span><span class="s3">[</span><span class="s1">torch</span><span class="s3">.</span><span class="s1">Tensor</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">Tensor</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l455"><span class="ln">455  </span></a>    <span class="s0">r&quot;&quot;&quot;Helper function for _process_single_offline_gemm. 
+<a name="l456"><span class="ln">456  </span></a>    Creates matrices that are then consumed by one of the Torch GEMM APIs. 
+<a name="l457"><span class="ln">457  </span></a>    &quot;&quot;&quot;</span>
+<a name="l458"><span class="ln">458  </span></a>    <span class="s0"># Fill parameters set for use with ScaledGEMM</span>
+<a name="l459"><span class="ln">459  </span></a>    <span class="s1">fillA </span><span class="s2">= </span><span class="s5">0.25</span>
+<a name="l460"><span class="ln">460  </span></a>    <span class="s1">fillB </span><span class="s2">= </span><span class="s5">0.75</span>
+<a name="l461"><span class="ln">461  </span></a>
+<a name="l462"><span class="ln">462  </span></a>    <span class="s2">if </span><span class="s1">dtypeB </span><span class="s2">is None:</span>
+<a name="l463"><span class="ln">463  </span></a>        <span class="s1">dtypeB </span><span class="s2">= </span><span class="s1">dtypeA</span>
+<a name="l464"><span class="ln">464  </span></a>
+<a name="l465"><span class="ln">465  </span></a>    <span class="s2">if </span><span class="s1">subMatrix</span><span class="s2">:</span>
+<a name="l466"><span class="ln">466  </span></a>        <span class="s0"># User reference for understanding leading dimension:</span>
+<a name="l467"><span class="ln">467  </span></a>        <span class="s0"># https://github.com/Reference-LAPACK/lapack/blob/master/BLAS/SRC/dgemm.f</span>
+<a name="l468"><span class="ln">468  </span></a>        <span class="s0"># TO DO: According to lines 108 - 133, there is no lower bound on rowsA,</span>
+<a name="l469"><span class="ln">469  </span></a>        <span class="s0"># but there is a restriction on rowsB. Using this formula for now as it</span>
+<a name="l470"><span class="ln">470  </span></a>        <span class="s0"># seems to work for all UTs.</span>
+<a name="l471"><span class="ln">471  </span></a>        <span class="s1">rowsA </span><span class="s2">= </span><span class="s1">rowsB </span><span class="s2">= </span><span class="s1">max</span><span class="s3">(</span><span class="s1">ldc</span><span class="s3">, </span><span class="s1">k</span><span class="s3">)</span>
+<a name="l472"><span class="ln">472  </span></a>
+<a name="l473"><span class="ln">473  </span></a>        <span class="s2">if </span><span class="s1">randn</span><span class="s2">:</span>
+<a name="l474"><span class="ln">474  </span></a>            <span class="s1">matA </span><span class="s2">= </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">randn</span><span class="s3">(</span><span class="s1">rowsA</span><span class="s3">, </span><span class="s1">lda</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtypeA</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l475"><span class="ln">475  </span></a>            <span class="s1">matB </span><span class="s2">= </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">randn</span><span class="s3">(</span><span class="s1">rowsB</span><span class="s3">, </span><span class="s1">ldb</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtypeA</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l476"><span class="ln">476  </span></a>        <span class="s2">else:</span>
+<a name="l477"><span class="ln">477  </span></a>            <span class="s1">matA </span><span class="s2">= </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">full</span><span class="s3">((</span><span class="s1">rowsA</span><span class="s3">, </span><span class="s1">lda</span><span class="s3">), </span><span class="s1">fillA</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtypeB</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l478"><span class="ln">478  </span></a>            <span class="s1">matB </span><span class="s2">= </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">full</span><span class="s3">((</span><span class="s1">rowsB</span><span class="s3">, </span><span class="s1">ldb</span><span class="s3">), </span><span class="s1">fillB</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtypeB</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l479"><span class="ln">479  </span></a>
+<a name="l480"><span class="ln">480  </span></a>        <span class="s1">subA </span><span class="s2">= </span><span class="s1">matA</span><span class="s3">[</span><span class="s2">:</span><span class="s1">k</span><span class="s3">, </span><span class="s2">:</span><span class="s1">m</span><span class="s3">].</span><span class="s1">t</span><span class="s3">() </span><span class="s2">if </span><span class="s1">transA </span><span class="s2">else </span><span class="s1">matA</span><span class="s3">[</span><span class="s2">:</span><span class="s1">m</span><span class="s3">, </span><span class="s2">:</span><span class="s1">k</span><span class="s3">]</span>
+<a name="l481"><span class="ln">481  </span></a>        <span class="s1">subB </span><span class="s2">= </span><span class="s1">matB</span><span class="s3">[</span><span class="s2">:</span><span class="s1">n</span><span class="s3">, </span><span class="s2">:</span><span class="s1">k</span><span class="s3">].</span><span class="s1">t</span><span class="s3">() </span><span class="s2">if </span><span class="s1">transB </span><span class="s2">else </span><span class="s1">matB</span><span class="s3">[</span><span class="s2">:</span><span class="s1">k</span><span class="s3">, </span><span class="s2">:</span><span class="s1">n</span><span class="s3">]</span>
+<a name="l482"><span class="ln">482  </span></a>        <span class="s2">return </span><span class="s1">subA</span><span class="s3">, </span><span class="s1">subB</span>
+<a name="l483"><span class="ln">483  </span></a>    <span class="s2">else:</span>
+<a name="l484"><span class="ln">484  </span></a>        <span class="s2">if </span><span class="s1">randn</span><span class="s2">:</span>
+<a name="l485"><span class="ln">485  </span></a>            <span class="s1">matA </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l486"><span class="ln">486  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">rand</span><span class="s3">(</span><span class="s1">k</span><span class="s3">, </span><span class="s1">m</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtypeA</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">).</span><span class="s1">t</span><span class="s3">()</span>
+<a name="l487"><span class="ln">487  </span></a>                <span class="s2">if </span><span class="s1">transA</span>
+<a name="l488"><span class="ln">488  </span></a>                <span class="s2">else </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">rand</span><span class="s3">(</span><span class="s1">m</span><span class="s3">, </span><span class="s1">k</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtypeA</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l489"><span class="ln">489  </span></a>            <span class="s3">)</span>
+<a name="l490"><span class="ln">490  </span></a>            <span class="s1">matB </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l491"><span class="ln">491  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">rand</span><span class="s3">(</span><span class="s1">n</span><span class="s3">, </span><span class="s1">k</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtypeB</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">).</span><span class="s1">t</span><span class="s3">()</span>
+<a name="l492"><span class="ln">492  </span></a>                <span class="s2">if </span><span class="s1">transB</span>
+<a name="l493"><span class="ln">493  </span></a>                <span class="s2">else </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">rand</span><span class="s3">(</span><span class="s1">k</span><span class="s3">, </span><span class="s1">n</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtypeB</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l494"><span class="ln">494  </span></a>            <span class="s3">)</span>
+<a name="l495"><span class="ln">495  </span></a>        <span class="s2">else:</span>
+<a name="l496"><span class="ln">496  </span></a>            <span class="s1">matA </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l497"><span class="ln">497  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">full</span><span class="s3">((</span><span class="s1">k</span><span class="s3">, </span><span class="s1">m</span><span class="s3">), </span><span class="s1">fillA</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtypeA</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">).</span><span class="s1">t</span><span class="s3">()</span>
+<a name="l498"><span class="ln">498  </span></a>                <span class="s2">if </span><span class="s1">transA</span>
+<a name="l499"><span class="ln">499  </span></a>                <span class="s2">else </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">full</span><span class="s3">((</span><span class="s1">m</span><span class="s3">, </span><span class="s1">k</span><span class="s3">), </span><span class="s1">fillA</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtypeA</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l500"><span class="ln">500  </span></a>            <span class="s3">)</span>
+<a name="l501"><span class="ln">501  </span></a>            <span class="s1">matB </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l502"><span class="ln">502  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">full</span><span class="s3">((</span><span class="s1">n</span><span class="s3">, </span><span class="s1">k</span><span class="s3">), </span><span class="s1">fillB</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtypeB</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">).</span><span class="s1">t</span><span class="s3">()</span>
+<a name="l503"><span class="ln">503  </span></a>                <span class="s2">if </span><span class="s1">transB</span>
+<a name="l504"><span class="ln">504  </span></a>                <span class="s2">else </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">full</span><span class="s3">((</span><span class="s1">k</span><span class="s3">, </span><span class="s1">n</span><span class="s3">), </span><span class="s1">fillB</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtypeB</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l505"><span class="ln">505  </span></a>            <span class="s3">)</span>
+<a name="l506"><span class="ln">506  </span></a>        <span class="s2">return </span><span class="s1">matA</span><span class="s3">, </span><span class="s1">matB</span>
+<a name="l507"><span class="ln">507  </span></a>
+<a name="l508"><span class="ln">508  </span></a>
+<a name="l509"><span class="ln">509  </span></a><span class="s2">def </span><span class="s1">_create_batch_matrices</span><span class="s3">(</span>
+<a name="l510"><span class="ln">510  </span></a>    <span class="s1">m</span><span class="s2">: </span><span class="s1">int</span><span class="s3">,</span>
+<a name="l511"><span class="ln">511  </span></a>    <span class="s1">n</span><span class="s2">: </span><span class="s1">int</span><span class="s3">,</span>
+<a name="l512"><span class="ln">512  </span></a>    <span class="s1">k</span><span class="s2">: </span><span class="s1">int</span><span class="s3">,</span>
+<a name="l513"><span class="ln">513  </span></a>    <span class="s1">b</span><span class="s2">: </span><span class="s1">int</span><span class="s3">,</span>
+<a name="l514"><span class="ln">514  </span></a>    <span class="s1">lda</span><span class="s2">: </span><span class="s1">int</span><span class="s3">,</span>
+<a name="l515"><span class="ln">515  </span></a>    <span class="s1">ldb</span><span class="s2">: </span><span class="s1">int</span><span class="s3">,</span>
+<a name="l516"><span class="ln">516  </span></a>    <span class="s1">ldc</span><span class="s2">: </span><span class="s1">int</span><span class="s3">,</span>
+<a name="l517"><span class="ln">517  </span></a>    <span class="s1">transA</span><span class="s2">: </span><span class="s1">bool</span><span class="s3">,</span>
+<a name="l518"><span class="ln">518  </span></a>    <span class="s1">transB</span><span class="s2">: </span><span class="s1">bool</span><span class="s3">,</span>
+<a name="l519"><span class="ln">519  </span></a>    <span class="s1">dtype</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">,</span>
+<a name="l520"><span class="ln">520  </span></a>    <span class="s1">deviceid</span><span class="s2">: </span><span class="s1">str</span><span class="s3">,</span>
+<a name="l521"><span class="ln">521  </span></a>    <span class="s1">subMatrix</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= False</span><span class="s3">,</span>
+<a name="l522"><span class="ln">522  </span></a><span class="s3">) </span><span class="s1">-&gt; tuple</span><span class="s3">[</span><span class="s1">torch</span><span class="s3">.</span><span class="s1">Tensor</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">Tensor</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l523"><span class="ln">523  </span></a>    <span class="s0">r&quot;&quot;&quot;Helper function for _process_single_offline_gemm. 
+<a name="l524"><span class="ln">524  </span></a>    Creates batch matrices that are then consumed by one of the Torch GEMM APIs. 
+<a name="l525"><span class="ln">525  </span></a>    Similar to _create_matrices but for 3D batch matrices. 
+<a name="l526"><span class="ln">526  </span></a>    &quot;&quot;&quot;</span>
+<a name="l527"><span class="ln">527  </span></a>    <span class="s2">if </span><span class="s1">subMatrix</span><span class="s2">:</span>
+<a name="l528"><span class="ln">528  </span></a>        <span class="s0"># User reference for understanding leading dimension:</span>
+<a name="l529"><span class="ln">529  </span></a>        <span class="s0"># https://github.com/Reference-LAPACK/lapack/blob/master/BLAS/SRC/dgemm.f</span>
+<a name="l530"><span class="ln">530  </span></a>        <span class="s0"># TO DO: According to lines 108 - 133, there is no lower bound on rowsA,</span>
+<a name="l531"><span class="ln">531  </span></a>        <span class="s0"># but there is a restriction on rowsB. Using this formula for now as it</span>
+<a name="l532"><span class="ln">532  </span></a>        <span class="s0"># seems to work for all UTs.</span>
+<a name="l533"><span class="ln">533  </span></a>        <span class="s1">rowsA </span><span class="s2">= </span><span class="s1">rowsB </span><span class="s2">= </span><span class="s1">max</span><span class="s3">(</span><span class="s1">ldc</span><span class="s3">, </span><span class="s1">k</span><span class="s3">)</span>
+<a name="l534"><span class="ln">534  </span></a>
+<a name="l535"><span class="ln">535  </span></a>        <span class="s1">matA </span><span class="s2">= </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">randn</span><span class="s3">(</span><span class="s1">b</span><span class="s3">, </span><span class="s1">rowsA</span><span class="s3">, </span><span class="s1">lda</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l536"><span class="ln">536  </span></a>        <span class="s1">matB </span><span class="s2">= </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">randn</span><span class="s3">(</span><span class="s1">b</span><span class="s3">, </span><span class="s1">rowsB</span><span class="s3">, </span><span class="s1">ldb</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l537"><span class="ln">537  </span></a>
+<a name="l538"><span class="ln">538  </span></a>        <span class="s1">subA </span><span class="s2">= </span><span class="s1">matA</span><span class="s3">[</span><span class="s2">:</span><span class="s1">b</span><span class="s3">, </span><span class="s2">:</span><span class="s1">k</span><span class="s3">, </span><span class="s2">:</span><span class="s1">m</span><span class="s3">].</span><span class="s1">transpose</span><span class="s3">(</span><span class="s5">1</span><span class="s3">, </span><span class="s5">2</span><span class="s3">) </span><span class="s2">if </span><span class="s1">transA </span><span class="s2">else </span><span class="s1">matA</span><span class="s3">[</span><span class="s2">:</span><span class="s1">b</span><span class="s3">, </span><span class="s2">:</span><span class="s1">m</span><span class="s3">, </span><span class="s2">:</span><span class="s1">k</span><span class="s3">]</span>
+<a name="l539"><span class="ln">539  </span></a>        <span class="s1">subB </span><span class="s2">= </span><span class="s1">matB</span><span class="s3">[</span><span class="s2">:</span><span class="s1">b</span><span class="s3">, </span><span class="s2">:</span><span class="s1">n</span><span class="s3">, </span><span class="s2">:</span><span class="s1">k</span><span class="s3">].</span><span class="s1">transpose</span><span class="s3">(</span><span class="s5">1</span><span class="s3">, </span><span class="s5">2</span><span class="s3">) </span><span class="s2">if </span><span class="s1">transB </span><span class="s2">else </span><span class="s1">matB</span><span class="s3">[</span><span class="s2">:</span><span class="s1">b</span><span class="s3">, </span><span class="s2">:</span><span class="s1">k</span><span class="s3">, </span><span class="s2">:</span><span class="s1">n</span><span class="s3">]</span>
+<a name="l540"><span class="ln">540  </span></a>        <span class="s2">return </span><span class="s1">subA</span><span class="s3">, </span><span class="s1">subB</span>
+<a name="l541"><span class="ln">541  </span></a>    <span class="s2">else:</span>
+<a name="l542"><span class="ln">542  </span></a>        <span class="s1">matA </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l543"><span class="ln">543  </span></a>            <span class="s1">torch</span><span class="s3">.</span><span class="s1">rand</span><span class="s3">(</span><span class="s1">b</span><span class="s3">, </span><span class="s1">k</span><span class="s3">, </span><span class="s1">m</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l544"><span class="ln">544  </span></a>            <span class="s2">if </span><span class="s1">transA</span>
+<a name="l545"><span class="ln">545  </span></a>            <span class="s2">else </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">rand</span><span class="s3">(</span><span class="s1">b</span><span class="s3">, </span><span class="s1">m</span><span class="s3">, </span><span class="s1">k</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l546"><span class="ln">546  </span></a>        <span class="s3">)</span>
+<a name="l547"><span class="ln">547  </span></a>        <span class="s1">matB </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l548"><span class="ln">548  </span></a>            <span class="s1">torch</span><span class="s3">.</span><span class="s1">rand</span><span class="s3">(</span><span class="s1">b</span><span class="s3">, </span><span class="s1">n</span><span class="s3">, </span><span class="s1">k</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l549"><span class="ln">549  </span></a>            <span class="s2">if </span><span class="s1">transB</span>
+<a name="l550"><span class="ln">550  </span></a>            <span class="s2">else </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">rand</span><span class="s3">(</span><span class="s1">b</span><span class="s3">, </span><span class="s1">k</span><span class="s3">, </span><span class="s1">n</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l551"><span class="ln">551  </span></a>        <span class="s3">)</span>
+<a name="l552"><span class="ln">552  </span></a>        <span class="s1">matA </span><span class="s2">= </span><span class="s1">matA</span><span class="s3">.</span><span class="s1">transpose</span><span class="s3">(</span><span class="s5">1</span><span class="s3">, </span><span class="s5">2</span><span class="s3">) </span><span class="s2">if </span><span class="s1">transA </span><span class="s2">else </span><span class="s1">matA</span>
+<a name="l553"><span class="ln">553  </span></a>        <span class="s1">matB </span><span class="s2">= </span><span class="s1">matB</span><span class="s3">.</span><span class="s1">transpose</span><span class="s3">(</span><span class="s5">1</span><span class="s3">, </span><span class="s5">2</span><span class="s3">) </span><span class="s2">if </span><span class="s1">transB </span><span class="s2">else </span><span class="s1">matB</span>
+<a name="l554"><span class="ln">554  </span></a>        <span class="s2">return </span><span class="s1">matA</span><span class="s3">, </span><span class="s1">matB</span>
+<a name="l555"><span class="ln">555  </span></a>
+<a name="l556"><span class="ln">556  </span></a>
+<a name="l557"><span class="ln">557  </span></a><span class="s2">def </span><span class="s1">_process_single_offline_gemm</span><span class="s3">(</span><span class="s1">untuned_gemm_line</span><span class="s2">: </span><span class="s1">str</span><span class="s3">, </span><span class="s1">gpu_id</span><span class="s2">: </span><span class="s1">int</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l558"><span class="ln">558  </span></a>    <span class="s0">r&quot;&quot;&quot;Process a single untuned GEMM.&quot;&quot;&quot;</span>
+<a name="l559"><span class="ln">559  </span></a>
+<a name="l560"><span class="ln">560  </span></a>    <span class="s1">deviceid </span><span class="s2">= </span><span class="s4">&quot;cuda:&quot; </span><span class="s2">+ </span><span class="s1">str</span><span class="s3">(</span><span class="s1">gpu_id</span><span class="s3">)</span>
+<a name="l561"><span class="ln">561  </span></a>
+<a name="l562"><span class="ln">562  </span></a>    <span class="s1">dtype_dict </span><span class="s2">= </span><span class="s3">{</span>
+<a name="l563"><span class="ln">563  </span></a>        <span class="s4">&quot;float&quot;</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">float32</span><span class="s3">,</span>
+<a name="l564"><span class="ln">564  </span></a>        <span class="s4">&quot;tf32&quot;</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">float32</span><span class="s3">,</span>
+<a name="l565"><span class="ln">565  </span></a>        <span class="s4">&quot;double&quot;</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">float64</span><span class="s3">,</span>
+<a name="l566"><span class="ln">566  </span></a>        <span class="s4">&quot;BFloat16&quot;</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">bfloat16</span><span class="s3">,</span>
+<a name="l567"><span class="ln">567  </span></a>        <span class="s4">&quot;Half&quot;</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">half</span><span class="s3">,</span>
+<a name="l568"><span class="ln">568  </span></a>        <span class="s4">&quot;c10::complex&lt;double&gt;&quot;</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">complex128</span><span class="s3">,</span>
+<a name="l569"><span class="ln">569  </span></a>        <span class="s4">&quot;c10::complex&lt;float&gt;&quot;</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">complex64</span><span class="s3">,</span>
+<a name="l570"><span class="ln">570  </span></a>        <span class="s4">&quot;Float8_e4m3fn&quot;</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">float8_e4m3fn</span><span class="s3">,</span>
+<a name="l571"><span class="ln">571  </span></a>        <span class="s4">&quot;Float8_e5m2&quot;</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">float8_e5m2</span><span class="s3">,</span>
+<a name="l572"><span class="ln">572  </span></a>        <span class="s4">&quot;Float8_e4m3fnuz&quot;</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">float8_e4m3fnuz</span><span class="s3">,</span>
+<a name="l573"><span class="ln">573  </span></a>        <span class="s4">&quot;Float8_e5m2fnuz&quot;</span><span class="s2">: </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">float8_e5m2fnuz</span><span class="s3">,</span>
+<a name="l574"><span class="ln">574  </span></a>    <span class="s3">}</span>
+<a name="l575"><span class="ln">575  </span></a>
+<a name="l576"><span class="ln">576  </span></a>    <span class="s1">untuned_gemm </span><span class="s2">= </span><span class="s1">untuned_gemm_line</span><span class="s3">.</span><span class="s1">strip</span><span class="s3">().</span><span class="s1">split</span><span class="s3">(</span><span class="s4">&quot;,&quot;</span><span class="s3">)[</span><span class="s2">:</span><span class="s3">]</span>
+<a name="l577"><span class="ln">577  </span></a>
+<a name="l578"><span class="ln">578  </span></a>    <span class="s1">underscore_count </span><span class="s2">= </span><span class="s1">untuned_gemm</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">count</span><span class="s3">(</span><span class="s4">&quot;_&quot;</span><span class="s3">)</span>
+<a name="l579"><span class="ln">579  </span></a>
+<a name="l580"><span class="ln">580  </span></a>    <span class="s0"># Initialize dtype to make linter happy</span>
+<a name="l581"><span class="ln">581  </span></a>    <span class="s1">dtype </span><span class="s2">= None</span>
+<a name="l582"><span class="ln">582  </span></a>    <span class="s1">dtypeA </span><span class="s2">= None</span>
+<a name="l583"><span class="ln">583  </span></a>    <span class="s1">dtypeB </span><span class="s2">= None</span>
+<a name="l584"><span class="ln">584  </span></a>    <span class="s1">dtypeC </span><span class="s2">= None</span>
+<a name="l585"><span class="ln">585  </span></a>
+<a name="l586"><span class="ln">586  </span></a>    <span class="s0"># Extract BLAS parameters</span>
+<a name="l587"><span class="ln">587  </span></a>    <span class="s2">if </span><span class="s1">underscore_count </span><span class="s2">== </span><span class="s5">2</span><span class="s2">:</span>
+<a name="l588"><span class="ln">588  </span></a>        <span class="s3">[</span><span class="s1">op_sig</span><span class="s3">, </span><span class="s1">data_type</span><span class="s3">, </span><span class="s1">layout</span><span class="s3">] </span><span class="s2">= </span><span class="s1">untuned_gemm</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">split</span><span class="s3">(</span><span class="s4">&quot;_&quot;</span><span class="s3">)</span>
+<a name="l589"><span class="ln">589  </span></a>        <span class="s1">transB </span><span class="s2">= </span><span class="s1">layout</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">== </span><span class="s4">&quot;T&quot;</span>
+<a name="l590"><span class="ln">590  </span></a>        <span class="s1">transA </span><span class="s2">= </span><span class="s1">layout</span><span class="s3">[</span><span class="s5">1</span><span class="s3">] </span><span class="s2">== </span><span class="s4">&quot;T&quot;</span>
+<a name="l591"><span class="ln">591  </span></a>        <span class="s1">dtype </span><span class="s2">= </span><span class="s1">dtype_dict</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">data_type</span><span class="s3">)</span>
+<a name="l592"><span class="ln">592  </span></a>        <span class="s2">if </span><span class="s1">data_type </span><span class="s2">== </span><span class="s4">&quot;tf32&quot;</span><span class="s2">:</span>
+<a name="l593"><span class="ln">593  </span></a>            <span class="s0"># User must still set HIPBLASLT_ALLOW_TF32=1</span>
+<a name="l594"><span class="ln">594  </span></a>            <span class="s1">torch</span><span class="s3">.</span><span class="s1">backends</span><span class="s3">.</span><span class="s1">cuda</span><span class="s3">.</span><span class="s1">matmul</span><span class="s3">.</span><span class="s1">allow_tf32 </span><span class="s2">= True</span>
+<a name="l595"><span class="ln">595  </span></a>        <span class="s2">else:</span>
+<a name="l596"><span class="ln">596  </span></a>            <span class="s1">torch</span><span class="s3">.</span><span class="s1">backends</span><span class="s3">.</span><span class="s1">cuda</span><span class="s3">.</span><span class="s1">matmul</span><span class="s3">.</span><span class="s1">allow_tf32 </span><span class="s2">= False</span>
+<a name="l597"><span class="ln">597  </span></a>
+<a name="l598"><span class="ln">598  </span></a>    <span class="s2">else:  </span><span class="s0"># ScaledGEMM</span>
+<a name="l599"><span class="ln">599  </span></a>        <span class="s1">count </span><span class="s2">= </span><span class="s1">untuned_gemm</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">count</span><span class="s3">(</span><span class="s4">&quot;_&quot;</span><span class="s3">)</span>
+<a name="l600"><span class="ln">600  </span></a>        <span class="s2">assert </span><span class="s1">count </span><span class="s2">in </span><span class="s3">[</span><span class="s5">6</span><span class="s3">, </span><span class="s5">7</span><span class="s3">]</span>
+<a name="l601"><span class="ln">601  </span></a>        <span class="s1">untuned_gemm_temp </span><span class="s2">= </span><span class="s1">untuned_gemm</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">split</span><span class="s3">(</span><span class="s4">&quot;_&quot;</span><span class="s3">)</span>
+<a name="l602"><span class="ln">602  </span></a>        <span class="s0"># dtypeC = might not be FP8 type, keep track</span>
+<a name="l603"><span class="ln">603  </span></a>        <span class="s0"># of the the number of underscores</span>
+<a name="l604"><span class="ln">604  </span></a>        <span class="s1">op_sig </span><span class="s2">= </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l605"><span class="ln">605  </span></a>        <span class="s1">data_typeA </span><span class="s2">= </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">1</span><span class="s3">] </span><span class="s2">+ </span><span class="s4">&quot;_&quot; </span><span class="s2">+ </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">2</span><span class="s3">]</span>
+<a name="l606"><span class="ln">606  </span></a>        <span class="s1">data_typeB </span><span class="s2">= </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">3</span><span class="s3">] </span><span class="s2">+ </span><span class="s4">&quot;_&quot; </span><span class="s2">+ </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">4</span><span class="s3">]</span>
+<a name="l607"><span class="ln">607  </span></a>        <span class="s2">if </span><span class="s1">count </span><span class="s2">== </span><span class="s5">7</span><span class="s2">:</span>
+<a name="l608"><span class="ln">608  </span></a>            <span class="s1">data_typeC </span><span class="s2">= </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">5</span><span class="s3">] </span><span class="s2">+ </span><span class="s4">&quot;_&quot; </span><span class="s2">+ </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">6</span><span class="s3">]</span>
+<a name="l609"><span class="ln">609  </span></a>        <span class="s2">else:</span>
+<a name="l610"><span class="ln">610  </span></a>            <span class="s1">data_typeC </span><span class="s2">= </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">5</span><span class="s3">]</span>
+<a name="l611"><span class="ln">611  </span></a>        <span class="s1">transB </span><span class="s2">= </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s1">count</span><span class="s3">][</span><span class="s5">0</span><span class="s3">] </span><span class="s2">== </span><span class="s4">&quot;T&quot;</span>
+<a name="l612"><span class="ln">612  </span></a>        <span class="s1">transA </span><span class="s2">= </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s1">count</span><span class="s3">][</span><span class="s5">1</span><span class="s3">] </span><span class="s2">== </span><span class="s4">&quot;T&quot;</span>
+<a name="l613"><span class="ln">613  </span></a>        <span class="s1">dtypeA </span><span class="s2">= </span><span class="s1">dtype_dict</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">data_typeA</span><span class="s3">)</span>
+<a name="l614"><span class="ln">614  </span></a>        <span class="s1">dtypeB </span><span class="s2">= </span><span class="s1">dtype_dict</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">data_typeB</span><span class="s3">)</span>
+<a name="l615"><span class="ln">615  </span></a>        <span class="s1">dtypeC </span><span class="s2">= </span><span class="s1">dtype_dict</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">data_typeC</span><span class="s3">)</span>
+<a name="l616"><span class="ln">616  </span></a>
+<a name="l617"><span class="ln">617  </span></a>    <span class="s1">untuned_gemm_temp </span><span class="s2">= </span><span class="s1">untuned_gemm</span><span class="s3">[</span><span class="s5">1</span><span class="s3">].</span><span class="s1">split</span><span class="s3">(</span><span class="s4">&quot;_&quot;</span><span class="s3">)</span>
+<a name="l618"><span class="ln">618  </span></a>    <span class="s3">[</span><span class="s1">n</span><span class="s3">, </span><span class="s1">m</span><span class="s3">, </span><span class="s1">k</span><span class="s3">] </span><span class="s2">= </span><span class="s3">[</span><span class="s1">int</span><span class="s3">(</span><span class="s1">g</span><span class="s3">) </span><span class="s2">for </span><span class="s1">g </span><span class="s2">in </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s5">4</span><span class="s3">]]</span>
+<a name="l619"><span class="ln">619  </span></a>    <span class="s2">if </span><span class="s1">op_sig </span><span class="s2">== </span><span class="s4">&quot;GemmStridedBatchedTunableOp&quot;</span><span class="s2">:</span>
+<a name="l620"><span class="ln">620  </span></a>        <span class="s2">assert </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">6</span><span class="s3">] </span><span class="s2">== </span><span class="s4">&quot;ld&quot;</span>
+<a name="l621"><span class="ln">621  </span></a>        <span class="s3">[</span><span class="s1">ldb</span><span class="s3">, </span><span class="s1">lda</span><span class="s3">, </span><span class="s1">ldc</span><span class="s3">] </span><span class="s2">= </span><span class="s3">[</span><span class="s1">int</span><span class="s3">(</span><span class="s1">g</span><span class="s3">) </span><span class="s2">for </span><span class="s1">g </span><span class="s2">in </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">7</span><span class="s2">:</span><span class="s5">10</span><span class="s3">]]</span>
+<a name="l622"><span class="ln">622  </span></a>    <span class="s2">else:</span>
+<a name="l623"><span class="ln">623  </span></a>        <span class="s2">assert </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">4</span><span class="s3">] </span><span class="s2">== </span><span class="s4">&quot;ld&quot;</span>
+<a name="l624"><span class="ln">624  </span></a>        <span class="s3">[</span><span class="s1">ldb</span><span class="s3">, </span><span class="s1">lda</span><span class="s3">, </span><span class="s1">ldc</span><span class="s3">] </span><span class="s2">= </span><span class="s3">[</span><span class="s1">int</span><span class="s3">(</span><span class="s1">g</span><span class="s3">) </span><span class="s2">for </span><span class="s1">g </span><span class="s2">in </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">5</span><span class="s2">:</span><span class="s5">8</span><span class="s3">]]</span>
+<a name="l625"><span class="ln">625  </span></a>
+<a name="l626"><span class="ln">626  </span></a>    <span class="s0"># Detect subMatrix case</span>
+<a name="l627"><span class="ln">627  </span></a>    <span class="s2">if </span><span class="s1">all</span><span class="s3">(</span><span class="s1">item </span><span class="s2">in </span><span class="s3">[</span><span class="s1">n</span><span class="s3">, </span><span class="s1">m</span><span class="s3">, </span><span class="s1">k</span><span class="s3">] </span><span class="s2">for </span><span class="s1">item </span><span class="s2">in </span><span class="s3">[</span><span class="s1">lda</span><span class="s3">, </span><span class="s1">ldb</span><span class="s3">, </span><span class="s1">ldc</span><span class="s3">])</span><span class="s2">:</span>
+<a name="l628"><span class="ln">628  </span></a>        <span class="s1">subMatrix </span><span class="s2">= False</span>
+<a name="l629"><span class="ln">629  </span></a>    <span class="s2">else:</span>
+<a name="l630"><span class="ln">630  </span></a>        <span class="s1">subMatrix </span><span class="s2">= True</span>
+<a name="l631"><span class="ln">631  </span></a>
+<a name="l632"><span class="ln">632  </span></a>    <span class="s2">if </span><span class="s1">op_sig </span><span class="s2">== </span><span class="s4">&quot;GemmTunableOp&quot;</span><span class="s2">:</span>
+<a name="l633"><span class="ln">633  </span></a>        <span class="s0"># Warnings for unsupported cases:</span>
+<a name="l634"><span class="ln">634  </span></a>        <span class="s2">if </span><span class="s1">m </span><span class="s2">== </span><span class="s5">1 </span><span class="s2">or </span><span class="s1">n </span><span class="s2">== </span><span class="s5">1 </span><span class="s2">or </span><span class="s1">k </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l635"><span class="ln">635  </span></a>            <span class="s2">if </span><span class="s3">(</span><span class="s2">not </span><span class="s1">transA</span><span class="s3">) </span><span class="s2">and </span><span class="s3">(</span><span class="s2">not </span><span class="s1">transB</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l636"><span class="ln">636  </span></a>                <span class="s2">pass  </span><span class="s0"># case is supported</span>
+<a name="l637"><span class="ln">637  </span></a>            <span class="s2">elif </span><span class="s1">transA </span><span class="s2">and </span><span class="s1">n </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l638"><span class="ln">638  </span></a>                <span class="s2">pass  </span><span class="s0"># case is supported</span>
+<a name="l639"><span class="ln">639  </span></a>            <span class="s2">else:</span>
+<a name="l640"><span class="ln">640  </span></a>                <span class="s1">warnings</span><span class="s3">.</span><span class="s1">warn</span><span class="s3">(</span>
+<a name="l641"><span class="ln">641  </span></a>                    <span class="s4">&quot;Offline tuning is not supported for this GEMM. Use online tuning instead. &quot;</span>
+<a name="l642"><span class="ln">642  </span></a>                    <span class="s2">+ </span><span class="s4">f&quot;Skipped tuning for: {</span><span class="s1">untuned_gemm</span><span class="s3">[</span><span class="s5">1</span><span class="s3">]</span><span class="s4">}&quot;</span>
+<a name="l643"><span class="ln">643  </span></a>                <span class="s3">)</span>
+<a name="l644"><span class="ln">644  </span></a>                <span class="s2">return</span>
+<a name="l645"><span class="ln">645  </span></a>
+<a name="l646"><span class="ln">646  </span></a>        <span class="s0"># Resolve linter issue</span>
+<a name="l647"><span class="ln">647  </span></a>        <span class="s2">if </span><span class="s1">dtype </span><span class="s2">is None or not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l648"><span class="ln">648  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">f&quot;dtype must be a torch.dtype, but got {</span><span class="s1">dtype</span><span class="s4">}&quot;</span><span class="s3">)</span>
+<a name="l649"><span class="ln">649  </span></a>
+<a name="l650"><span class="ln">650  </span></a>        <span class="s1">matA</span><span class="s3">, </span><span class="s1">matB </span><span class="s2">= </span><span class="s1">_create_matrices</span><span class="s3">(</span>
+<a name="l651"><span class="ln">651  </span></a>            <span class="s1">m</span><span class="s3">, </span><span class="s1">n</span><span class="s3">, </span><span class="s1">k</span><span class="s3">, </span><span class="s1">lda</span><span class="s3">, </span><span class="s1">ldb</span><span class="s3">, </span><span class="s1">ldc</span><span class="s3">, </span><span class="s1">transA</span><span class="s3">, </span><span class="s1">transB</span><span class="s3">, </span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">deviceid</span><span class="s3">, </span><span class="s1">subMatrix</span><span class="s2">=</span><span class="s1">subMatrix</span>
+<a name="l652"><span class="ln">652  </span></a>        <span class="s3">)</span>
+<a name="l653"><span class="ln">653  </span></a>        <span class="s1">torch</span><span class="s3">.</span><span class="s1">mm</span><span class="s3">(</span><span class="s1">matA</span><span class="s3">, </span><span class="s1">matB</span><span class="s3">)</span>
+<a name="l654"><span class="ln">654  </span></a>
+<a name="l655"><span class="ln">655  </span></a>    <span class="s2">elif </span><span class="s1">op_sig </span><span class="s2">== </span><span class="s4">&quot;GemmStridedBatchedTunableOp&quot;</span><span class="s2">:</span>
+<a name="l656"><span class="ln">656  </span></a>        <span class="s0"># Warnings for unsupported cases:</span>
+<a name="l657"><span class="ln">657  </span></a>        <span class="s2">if </span><span class="s1">m </span><span class="s2">== </span><span class="s5">1 </span><span class="s2">or </span><span class="s1">n </span><span class="s2">== </span><span class="s5">1 </span><span class="s2">or </span><span class="s1">k </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l658"><span class="ln">658  </span></a>            <span class="s1">warnings</span><span class="s3">.</span><span class="s1">warn</span><span class="s3">(</span>
+<a name="l659"><span class="ln">659  </span></a>                <span class="s4">&quot;Offline tuning is not support for this GEMM. Use online tuning instead. &quot;</span>
+<a name="l660"><span class="ln">660  </span></a>                <span class="s2">+ </span><span class="s4">f&quot;Skipped tuning for: {</span><span class="s1">untuned_gemm</span><span class="s3">[</span><span class="s5">1</span><span class="s3">]</span><span class="s4">}&quot;</span>
+<a name="l661"><span class="ln">661  </span></a>            <span class="s3">)</span>
+<a name="l662"><span class="ln">662  </span></a>            <span class="s2">return</span>
+<a name="l663"><span class="ln">663  </span></a>
+<a name="l664"><span class="ln">664  </span></a>        <span class="s3">[</span><span class="s1">b</span><span class="s3">] </span><span class="s2">= </span><span class="s3">[</span><span class="s1">int</span><span class="s3">(</span><span class="s1">g</span><span class="s3">) </span><span class="s2">for </span><span class="s1">g </span><span class="s2">in </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">5</span><span class="s2">:</span><span class="s5">6</span><span class="s3">]]</span>
+<a name="l665"><span class="ln">665  </span></a>
+<a name="l666"><span class="ln">666  </span></a>        <span class="s0"># Resolve linter issue</span>
+<a name="l667"><span class="ln">667  </span></a>        <span class="s2">if </span><span class="s1">dtype </span><span class="s2">is None or not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l668"><span class="ln">668  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">f&quot;dtype must be a torch.dtype, but got {</span><span class="s1">dtype</span><span class="s4">}&quot;</span><span class="s3">)</span>
+<a name="l669"><span class="ln">669  </span></a>
+<a name="l670"><span class="ln">670  </span></a>        <span class="s1">matA</span><span class="s3">, </span><span class="s1">matB </span><span class="s2">= </span><span class="s1">_create_batch_matrices</span><span class="s3">(</span>
+<a name="l671"><span class="ln">671  </span></a>            <span class="s1">m</span><span class="s3">,</span>
+<a name="l672"><span class="ln">672  </span></a>            <span class="s1">n</span><span class="s3">,</span>
+<a name="l673"><span class="ln">673  </span></a>            <span class="s1">k</span><span class="s3">,</span>
+<a name="l674"><span class="ln">674  </span></a>            <span class="s1">b</span><span class="s3">,</span>
+<a name="l675"><span class="ln">675  </span></a>            <span class="s1">lda</span><span class="s3">,</span>
+<a name="l676"><span class="ln">676  </span></a>            <span class="s1">ldb</span><span class="s3">,</span>
+<a name="l677"><span class="ln">677  </span></a>            <span class="s1">ldc</span><span class="s3">,</span>
+<a name="l678"><span class="ln">678  </span></a>            <span class="s1">transA</span><span class="s3">,</span>
+<a name="l679"><span class="ln">679  </span></a>            <span class="s1">transB</span><span class="s3">,</span>
+<a name="l680"><span class="ln">680  </span></a>            <span class="s1">dtype</span><span class="s3">,</span>
+<a name="l681"><span class="ln">681  </span></a>            <span class="s1">deviceid</span><span class="s3">,</span>
+<a name="l682"><span class="ln">682  </span></a>            <span class="s1">subMatrix</span><span class="s2">=</span><span class="s1">subMatrix</span><span class="s3">,</span>
+<a name="l683"><span class="ln">683  </span></a>        <span class="s3">)</span>
+<a name="l684"><span class="ln">684  </span></a>        <span class="s1">torch</span><span class="s3">.</span><span class="s1">bmm</span><span class="s3">(</span><span class="s1">matA</span><span class="s3">, </span><span class="s1">matB</span><span class="s3">)</span>
+<a name="l685"><span class="ln">685  </span></a>    <span class="s2">elif </span><span class="s1">op_sig </span><span class="s2">== </span><span class="s4">&quot;ScaledGemmTunableOp&quot;</span><span class="s2">:</span>
+<a name="l686"><span class="ln">686  </span></a>        <span class="s0"># Only combination supported by PyTorch</span>
+<a name="l687"><span class="ln">687  </span></a>        <span class="s2">assert </span><span class="s1">transB </span><span class="s2">is True</span>
+<a name="l688"><span class="ln">688  </span></a>        <span class="s2">assert </span><span class="s1">transA </span><span class="s2">is False</span>
+<a name="l689"><span class="ln">689  </span></a>
+<a name="l690"><span class="ln">690  </span></a>        <span class="s0"># Resolve linter issue</span>
+<a name="l691"><span class="ln">691  </span></a>        <span class="s2">if </span><span class="s1">dtypeA </span><span class="s2">is None or not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">dtypeA</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l692"><span class="ln">692  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">f&quot;dtype must be a torch.dtype, but got {</span><span class="s1">dtypeA</span><span class="s4">}&quot;</span><span class="s3">)</span>
+<a name="l693"><span class="ln">693  </span></a>
+<a name="l694"><span class="ln">694  </span></a>        <span class="s1">matA</span><span class="s3">, </span><span class="s1">matB </span><span class="s2">= </span><span class="s1">_create_matrices</span><span class="s3">(</span>
+<a name="l695"><span class="ln">695  </span></a>            <span class="s1">m</span><span class="s3">,</span>
+<a name="l696"><span class="ln">696  </span></a>            <span class="s1">n</span><span class="s3">,</span>
+<a name="l697"><span class="ln">697  </span></a>            <span class="s1">k</span><span class="s3">,</span>
+<a name="l698"><span class="ln">698  </span></a>            <span class="s1">lda</span><span class="s3">,</span>
+<a name="l699"><span class="ln">699  </span></a>            <span class="s1">ldb</span><span class="s3">,</span>
+<a name="l700"><span class="ln">700  </span></a>            <span class="s1">ldc</span><span class="s3">,</span>
+<a name="l701"><span class="ln">701  </span></a>            <span class="s1">transA</span><span class="s3">,</span>
+<a name="l702"><span class="ln">702  </span></a>            <span class="s1">transB</span><span class="s3">,</span>
+<a name="l703"><span class="ln">703  </span></a>            <span class="s1">dtypeA</span><span class="s3">,</span>
+<a name="l704"><span class="ln">704  </span></a>            <span class="s1">deviceid</span><span class="s3">,</span>
+<a name="l705"><span class="ln">705  </span></a>            <span class="s1">dtypeB</span><span class="s2">=</span><span class="s1">dtypeB</span><span class="s3">,</span>
+<a name="l706"><span class="ln">706  </span></a>            <span class="s1">randn</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l707"><span class="ln">707  </span></a>            <span class="s1">subMatrix</span><span class="s2">=</span><span class="s1">subMatrix</span><span class="s3">,</span>
+<a name="l708"><span class="ln">708  </span></a>        <span class="s3">)</span>
+<a name="l709"><span class="ln">709  </span></a>
+<a name="l710"><span class="ln">710  </span></a>        <span class="s2">assert </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">8</span><span class="s3">] </span><span class="s2">== </span><span class="s4">&quot;rw&quot;</span>
+<a name="l711"><span class="ln">711  </span></a>        <span class="s2">if </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">9</span><span class="s3">] </span><span class="s2">== </span><span class="s4">&quot;1&quot;</span><span class="s2">:</span>
+<a name="l712"><span class="ln">712  </span></a>            <span class="s1">rowwise </span><span class="s2">= True</span>
+<a name="l713"><span class="ln">713  </span></a>        <span class="s2">else:</span>
+<a name="l714"><span class="ln">714  </span></a>            <span class="s1">rowwise </span><span class="s2">= False</span>
+<a name="l715"><span class="ln">715  </span></a>        <span class="s2">if </span><span class="s1">rowwise</span><span class="s2">:</span>
+<a name="l716"><span class="ln">716  </span></a>            <span class="s1">scaleA </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l717"><span class="ln">717  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ones</span><span class="s3">((</span><span class="s5">1</span><span class="s3">, </span><span class="s1">m</span><span class="s3">), </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l718"><span class="ln">718  </span></a>                <span class="s2">if </span><span class="s1">transA</span>
+<a name="l719"><span class="ln">719  </span></a>                <span class="s2">else </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">ones</span><span class="s3">((</span><span class="s1">m</span><span class="s3">, </span><span class="s5">1</span><span class="s3">), </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l720"><span class="ln">720  </span></a>            <span class="s3">)</span>
+<a name="l721"><span class="ln">721  </span></a>            <span class="s1">scaleB </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l722"><span class="ln">722  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">ones</span><span class="s3">((</span><span class="s5">1</span><span class="s3">, </span><span class="s1">n</span><span class="s3">), </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l723"><span class="ln">723  </span></a>                <span class="s2">if </span><span class="s1">transB</span>
+<a name="l724"><span class="ln">724  </span></a>                <span class="s2">else </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">ones</span><span class="s3">((</span><span class="s1">n</span><span class="s3">, </span><span class="s5">1</span><span class="s3">), </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l725"><span class="ln">725  </span></a>            <span class="s3">)</span>
+<a name="l726"><span class="ln">726  </span></a>        <span class="s2">else:</span>
+<a name="l727"><span class="ln">727  </span></a>            <span class="s1">scaleA </span><span class="s2">= </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">tensor</span><span class="s3">(</span><span class="s5">0.8</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l728"><span class="ln">728  </span></a>            <span class="s1">scaleB </span><span class="s2">= </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">tensor</span><span class="s3">(</span><span class="s5">0.9</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l729"><span class="ln">729  </span></a>
+<a name="l730"><span class="ln">730  </span></a>        <span class="s2">assert </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">10</span><span class="s3">] </span><span class="s2">== </span><span class="s4">&quot;bias&quot;</span>
+<a name="l731"><span class="ln">731  </span></a>        <span class="s2">if </span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">11</span><span class="s3">] </span><span class="s2">== </span><span class="s4">&quot;None&quot;</span><span class="s2">:  </span><span class="s0"># no bias vector</span>
+<a name="l732"><span class="ln">732  </span></a>            <span class="s1">torch</span><span class="s3">.</span><span class="s1">_scaled_mm</span><span class="s3">(</span>
+<a name="l733"><span class="ln">733  </span></a>                <span class="s1">matA</span><span class="s3">, </span><span class="s1">matB</span><span class="s3">, </span><span class="s1">scale_a</span><span class="s2">=</span><span class="s1">scaleA</span><span class="s3">, </span><span class="s1">scale_b</span><span class="s2">=</span><span class="s1">scaleB</span><span class="s3">, </span><span class="s1">out_dtype</span><span class="s2">=</span><span class="s1">dtypeC</span>
+<a name="l734"><span class="ln">734  </span></a>            <span class="s3">)</span>
+<a name="l735"><span class="ln">735  </span></a>        <span class="s2">else:  </span><span class="s0"># bias vector present</span>
+<a name="l736"><span class="ln">736  </span></a>            <span class="s1">fillbias </span><span class="s2">= </span><span class="s5">0.10</span>
+<a name="l737"><span class="ln">737  </span></a>            <span class="s1">bias_dtype </span><span class="s2">= </span><span class="s1">dtype_dict</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">untuned_gemm_temp</span><span class="s3">[</span><span class="s5">11</span><span class="s3">])</span>
+<a name="l738"><span class="ln">738  </span></a>            <span class="s1">bias </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l739"><span class="ln">739  </span></a>                <span class="s1">torch</span><span class="s3">.</span><span class="s1">full</span><span class="s3">((</span><span class="s1">n</span><span class="s3">,), </span><span class="s1">fillbias</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">bias_dtype</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l740"><span class="ln">740  </span></a>                <span class="s2">if </span><span class="s1">transB</span>
+<a name="l741"><span class="ln">741  </span></a>                <span class="s2">else </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">full</span><span class="s3">((</span><span class="s1">m</span><span class="s3">,), </span><span class="s1">fillbias</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">bias_dtype</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l742"><span class="ln">742  </span></a>            <span class="s3">)</span>
+<a name="l743"><span class="ln">743  </span></a>            <span class="s1">torch</span><span class="s3">.</span><span class="s1">_scaled_mm</span><span class="s3">(</span>
+<a name="l744"><span class="ln">744  </span></a>                <span class="s1">matA</span><span class="s3">, </span><span class="s1">matB</span><span class="s3">, </span><span class="s1">scale_a</span><span class="s2">=</span><span class="s1">scaleA</span><span class="s3">, </span><span class="s1">scale_b</span><span class="s2">=</span><span class="s1">scaleB</span><span class="s3">, </span><span class="s1">out_dtype</span><span class="s2">=</span><span class="s1">dtypeC</span><span class="s3">, </span><span class="s1">bias</span><span class="s2">=</span><span class="s1">bias</span>
+<a name="l745"><span class="ln">745  </span></a>            <span class="s3">)</span>
+<a name="l746"><span class="ln">746  </span></a>
+<a name="l747"><span class="ln">747  </span></a>    <span class="s2">elif </span><span class="s1">op_sig </span><span class="s2">== </span><span class="s4">&quot;GemmAndBiasTunableOp&quot;</span><span class="s2">:</span>
+<a name="l748"><span class="ln">748  </span></a>        <span class="s0"># y = x*A^T + b</span>
+<a name="l749"><span class="ln">749  </span></a>        <span class="s2">assert </span><span class="s1">transA </span><span class="s2">!= </span><span class="s1">transB</span>
+<a name="l750"><span class="ln">750  </span></a>
+<a name="l751"><span class="ln">751  </span></a>        <span class="s0"># Resolve linter issue</span>
+<a name="l752"><span class="ln">752  </span></a>        <span class="s2">if </span><span class="s1">dtype </span><span class="s2">is None or not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l753"><span class="ln">753  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">f&quot;dtype must be a torch.dtype, but got {</span><span class="s1">dtype</span><span class="s4">}&quot;</span><span class="s3">)</span>
+<a name="l754"><span class="ln">754  </span></a>
+<a name="l755"><span class="ln">755  </span></a>        <span class="s1">bias </span><span class="s2">= </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">rand</span><span class="s3">(</span><span class="s1">n</span><span class="s3">, </span><span class="s1">dtype</span><span class="s2">=</span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">device</span><span class="s2">=</span><span class="s1">deviceid</span><span class="s3">)</span>
+<a name="l756"><span class="ln">756  </span></a>
+<a name="l757"><span class="ln">757  </span></a>        <span class="s1">X</span><span class="s3">, </span><span class="s1">matA </span><span class="s2">= </span><span class="s1">_create_matrices</span><span class="s3">(</span>
+<a name="l758"><span class="ln">758  </span></a>            <span class="s1">m</span><span class="s3">, </span><span class="s1">n</span><span class="s3">, </span><span class="s1">k</span><span class="s3">, </span><span class="s1">lda</span><span class="s3">, </span><span class="s1">ldb</span><span class="s3">, </span><span class="s1">ldc</span><span class="s3">, </span><span class="s1">transA</span><span class="s3">, </span><span class="s1">transB</span><span class="s3">, </span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">deviceid</span><span class="s3">, </span><span class="s1">subMatrix</span><span class="s2">=</span><span class="s1">subMatrix</span>
+<a name="l759"><span class="ln">759  </span></a>        <span class="s3">)</span>
+<a name="l760"><span class="ln">760  </span></a>        <span class="s1">matA </span><span class="s2">= </span><span class="s1">matA</span><span class="s3">.</span><span class="s1">t</span><span class="s3">()</span>
+<a name="l761"><span class="ln">761  </span></a>        <span class="s1">torch</span><span class="s3">.</span><span class="s1">nn</span><span class="s3">.</span><span class="s1">functional</span><span class="s3">.</span><span class="s1">linear</span><span class="s3">(</span><span class="s1">X</span><span class="s3">, </span><span class="s1">matA</span><span class="s3">, </span><span class="s1">bias</span><span class="s3">)</span>
+<a name="l762"><span class="ln">762  </span></a>    <span class="s2">else:</span>
+<a name="l763"><span class="ln">763  </span></a>        <span class="s1">warnings</span><span class="s3">.</span><span class="s1">warn</span><span class="s3">(</span><span class="s4">f&quot;error: unknown op {</span><span class="s1">op_sig</span><span class="s4">}&quot;</span><span class="s3">)</span>
+<a name="l764"><span class="ln">764  </span></a>
+<a name="l765"><span class="ln">765  </span></a>
+<a name="l766"><span class="ln">766  </span></a><span class="s2">def </span><span class="s1">_check_tuning_assertions</span><span class="s3">() </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l767"><span class="ln">767  </span></a>    <span class="s0">r&quot;&quot;&quot;Helper function for multi-GPU tuning case. Need to check that TunableOp feature 
+<a name="l768"><span class="ln">768  </span></a>    is enabled and that tuning is enabled. 
+<a name="l769"><span class="ln">769  </span></a>    &quot;&quot;&quot;</span>
+<a name="l770"><span class="ln">770  </span></a>
+<a name="l771"><span class="ln">771  </span></a>    <span class="s2">if </span><span class="s1">is_enabled</span><span class="s3">() </span><span class="s2">is False:</span>
+<a name="l772"><span class="ln">772  </span></a>        <span class="s1">warnings</span><span class="s3">.</span><span class="s1">warn</span><span class="s3">(</span><span class="s4">&quot;TunableOp was disabled. Trying to enable now.&quot;</span><span class="s3">)</span>
+<a name="l773"><span class="ln">773  </span></a>        <span class="s1">enable</span><span class="s3">(</span><span class="s2">True</span><span class="s3">)</span>
+<a name="l774"><span class="ln">774  </span></a>    <span class="s2">assert </span><span class="s1">is_enabled</span><span class="s3">() </span><span class="s2">is True</span>
+<a name="l775"><span class="ln">775  </span></a>    <span class="s2">assert </span><span class="s1">tuning_is_enabled</span><span class="s3">() </span><span class="s2">is True</span>
+<a name="l776"><span class="ln">776  </span></a>    <span class="s2">assert </span><span class="s1">record_untuned_is_enabled</span><span class="s3">() </span><span class="s2">is False</span>
+<a name="l777"><span class="ln">777  </span></a>
+<a name="l778"><span class="ln">778  </span></a>
+<a name="l779"><span class="ln">779  </span></a><span class="s2">def </span><span class="s1">mgpu_tune_gemm_in_file</span><span class="s3">(</span><span class="s1">filename_pattern</span><span class="s2">: </span><span class="s1">str</span><span class="s3">, </span><span class="s1">num_gpus</span><span class="s2">: </span><span class="s1">int</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l780"><span class="ln">780  </span></a>    <span class="s0">r&quot;&quot;&quot;Process one or more files and distribute work over one or more GPUs.&quot;&quot;&quot;</span>
+<a name="l781"><span class="ln">781  </span></a>    <span class="s1">unique_gemm_entries </span><span class="s2">= </span><span class="s1">_gather_unique_untuned_gemm_from_files</span><span class="s3">(</span><span class="s1">filename_pattern</span><span class="s3">)</span>
+<a name="l782"><span class="ln">782  </span></a>
+<a name="l783"><span class="ln">783  </span></a>    <span class="s1">total_gpus </span><span class="s2">= </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">cuda</span><span class="s3">.</span><span class="s1">device_count</span><span class="s3">()</span>
+<a name="l784"><span class="ln">784  </span></a>
+<a name="l785"><span class="ln">785  </span></a>    <span class="s2">assert </span><span class="s5">1 </span><span class="s2">&lt;= </span><span class="s1">num_gpus </span><span class="s2">&lt;= </span><span class="s1">total_gpus</span>
+<a name="l786"><span class="ln">786  </span></a>
+<a name="l787"><span class="ln">787  </span></a>    <span class="s1">mp_context </span><span class="s2">= </span><span class="s1">mp</span><span class="s3">.</span><span class="s1">get_context</span><span class="s3">(</span><span class="s4">&quot;spawn&quot;</span><span class="s3">)</span>
+<a name="l788"><span class="ln">788  </span></a>
+<a name="l789"><span class="ln">789  </span></a>    <span class="s1">futures </span><span class="s2">= </span><span class="s3">[]  </span><span class="s0"># empty list to hold futures</span>
+<a name="l790"><span class="ln">790  </span></a>    <span class="s1">flush_results </span><span class="s2">= </span><span class="s3">[]  </span><span class="s0"># empty list to hold futures</span>
+<a name="l791"><span class="ln">791  </span></a>
+<a name="l792"><span class="ln">792  </span></a>    <span class="s0"># GEMM are assigned to GPUs in a round robin manner</span>
+<a name="l793"><span class="ln">793  </span></a>    <span class="s1">h </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l794"><span class="ln">794  </span></a>    <span class="s2">with </span><span class="s1">concurrent</span><span class="s3">.</span><span class="s1">futures</span><span class="s3">.</span><span class="s1">ProcessPoolExecutor</span><span class="s3">(</span>
+<a name="l795"><span class="ln">795  </span></a>        <span class="s1">max_workers</span><span class="s2">=</span><span class="s1">num_gpus</span><span class="s3">,</span>
+<a name="l796"><span class="ln">796  </span></a>        <span class="s1">mp_context</span><span class="s2">=</span><span class="s1">mp_context</span><span class="s3">,</span>
+<a name="l797"><span class="ln">797  </span></a>        <span class="s1">initializer</span><span class="s2">=</span><span class="s1">_check_tuning_assertions</span><span class="s3">,</span>
+<a name="l798"><span class="ln">798  </span></a>    <span class="s3">) </span><span class="s2">as </span><span class="s1">executor</span><span class="s2">:</span>
+<a name="l799"><span class="ln">799  </span></a>        <span class="s0"># The workers are a separate process. TunableOp will be</span>
+<a name="l800"><span class="ln">800  </span></a>        <span class="s0"># enabled in the child processes if PYTORCH_TUNABLEOP_ENABLED=1</span>
+<a name="l801"><span class="ln">801  </span></a>        <span class="s0"># In the initializer, we also try to enable TunableOP if th</span>
+<a name="l802"><span class="ln">802  </span></a>        <span class="s0"># environment variable was NOT set.</span>
+<a name="l803"><span class="ln">803  </span></a>
+<a name="l804"><span class="ln">804  </span></a>        <span class="s2">for </span><span class="s1">line </span><span class="s2">in </span><span class="s1">unique_gemm_entries</span><span class="s2">:</span>
+<a name="l805"><span class="ln">805  </span></a>            <span class="s1">future </span><span class="s2">= </span><span class="s1">executor</span><span class="s3">.</span><span class="s1">submit</span><span class="s3">(</span><span class="s1">_process_single_offline_gemm</span><span class="s3">, </span><span class="s1">line</span><span class="s3">, </span><span class="s1">h</span><span class="s3">)</span>
+<a name="l806"><span class="ln">806  </span></a>            <span class="s1">futures</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">future</span><span class="s3">)</span>
+<a name="l807"><span class="ln">807  </span></a>            <span class="s1">h </span><span class="s2">= </span><span class="s3">(</span><span class="s1">h </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">) </span><span class="s2">% </span><span class="s1">num_gpus</span>
+<a name="l808"><span class="ln">808  </span></a>
+<a name="l809"><span class="ln">809  </span></a>        <span class="s2">for </span><span class="s1">future </span><span class="s2">in </span><span class="s1">concurrent</span><span class="s3">.</span><span class="s1">futures</span><span class="s3">.</span><span class="s1">as_completed</span><span class="s3">(</span><span class="s1">futures</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l810"><span class="ln">810  </span></a>            <span class="s1">future</span><span class="s3">.</span><span class="s1">result</span><span class="s3">()</span>
+<a name="l811"><span class="ln">811  </span></a>
+<a name="l812"><span class="ln">812  </span></a>        <span class="s2">for </span><span class="s1">g </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">num_gpus</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l813"><span class="ln">813  </span></a>            <span class="s1">flush_result </span><span class="s2">= </span><span class="s1">executor</span><span class="s3">.</span><span class="s1">submit</span><span class="s3">(</span><span class="s1">write_file</span><span class="s3">)</span>
+<a name="l814"><span class="ln">814  </span></a>            <span class="s1">flush_results</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">flush_result</span><span class="s3">)</span>
+<a name="l815"><span class="ln">815  </span></a>
+<a name="l816"><span class="ln">816  </span></a>        <span class="s2">for </span><span class="s1">flush_result </span><span class="s2">in </span><span class="s1">concurrent</span><span class="s3">.</span><span class="s1">futures</span><span class="s3">.</span><span class="s1">as_completed</span><span class="s3">(</span><span class="s1">flush_results</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l817"><span class="ln">817  </span></a>            <span class="s1">flush_result</span><span class="s3">.</span><span class="s1">result</span><span class="s3">()</span>
+<a name="l818"><span class="ln">818  </span></a>
+<a name="l819"><span class="ln">819  </span></a>    <span class="s1">torch</span><span class="s3">.</span><span class="s1">cuda</span><span class="s3">.</span><span class="s1">synchronize</span><span class="s3">()</span>
+<a name="l820"><span class="ln">820  </span></a>
+<a name="l821"><span class="ln">821  </span></a>    <span class="s1">_gather_tunableop_results</span><span class="s3">()</span>
+<a name="l822"><span class="ln">822  </span></a></pre>
+</body>
+</html>

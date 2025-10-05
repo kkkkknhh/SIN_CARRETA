@@ -1,0 +1,396 @@
+<html>
+<head>
+<title>Logging.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #000080; font-weight: bold;}
+.s1 { color: #333333;}
+.s2 { color: #969896; font-style: italic;}
+.s3 { color: #660e7a; font-weight: bold;}
+.s4 { color: #183691; font-weight: bold;}
+.s5 { color: #0086b3;}
+.s6 { color: #006666; font-weight: bold;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+Logging.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#ifndef </span><span class="s1">C10_UTIL_LOGGING_H_</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">#define </span><span class="s1">C10_UTIL_LOGGING_H_</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">#include </span><span class="s1">&lt;climits&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">#include </span><span class="s1">&lt;exception&gt;</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">#include </span><span class="s1">&lt;functional&gt;</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">#include </span><span class="s1">&lt;limits&gt;</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">#include </span><span class="s1">&lt;sstream&gt;</span>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">#include </span><span class="s1">&lt;c10/macros/Macros.h&gt;</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s0">#include </span><span class="s1">&lt;c10/util/Backtrace.h&gt;</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s0">#include </span><span class="s1">&lt;c10/util/Exception.h&gt;</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s0">#include </span><span class="s1">&lt;c10/util/Flags.h&gt;</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s0">#include </span><span class="s1">&lt;c10/util/StringUtil.h&gt;</span>
+<a name="l15"><span class="ln">15   </span></a>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">// CAFFE2_LOG_THRESHOLD is a compile time flag that would allow us to turn off</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">// logging at compile time so no logging message below that level is produced</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s2">// at all. The value should be between INT_MIN and CAFFE_FATAL.</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s0">#ifndef </span><span class="s1">CAFFE2_LOG_THRESHOLD</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s2">// If we have not defined the compile time log threshold, we keep all the</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s2">// log cases.</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s0">#define </span><span class="s1">CAFFE2_LOG_THRESHOLD INT_MIN</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s0">#endif </span><span class="s2">// CAFFE2_LOG_THRESHOLD</span>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a><span class="s2">// Below are different implementations for glog and non-glog cases.</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s0">#ifdef </span><span class="s1">C10_USE_GLOG</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s0">#include </span><span class="s1">&lt;c10/util/logging_is_google_glog.h&gt;</span>
+<a name="l28"><span class="ln">28   </span></a><span class="s0">#else </span><span class="s2">// !C10_USE_GLOG</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s0">#include </span><span class="s1">&lt;c10/util/logging_is_not_google_glog.h&gt;</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s0">#endif </span><span class="s2">// C10_USE_GLOG</span>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a><span class="s1">C10_DECLARE_int(caffe2_log_level);</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s1">C10_DECLARE_bool(caffe2_use_fatal_for_enforce);</span>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a><span class="s2">// Some versions of GLOG support less-spammy version of LOG_EVERY_MS. If it's</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s2">// not available - just short-circuit to the always working one one.</span>
+<a name="l37"><span class="ln">37   </span></a><span class="s2">// We define the C10_ name to avoid confusing other files</span>
+<a name="l38"><span class="ln">38   </span></a><span class="s0">#ifdef </span><span class="s1">LOG_EVERY_MS</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s0">#define </span><span class="s1">C10_LOG_EVERY_MS(severity, ms) LOG_EVERY_MS(severity, ms)</span>
+<a name="l40"><span class="ln">40   </span></a><span class="s0">#else</span>
+<a name="l41"><span class="ln">41   </span></a><span class="s0">#define </span><span class="s1">C10_LOG_EVERY_MS(severity, ms) LOG(severity)</span>
+<a name="l42"><span class="ln">42   </span></a><span class="s0">#endif</span>
+<a name="l43"><span class="ln">43   </span></a>
+<a name="l44"><span class="ln">44   </span></a><span class="s2">// Same for LOG_FIRST_N</span>
+<a name="l45"><span class="ln">45   </span></a><span class="s0">#ifdef </span><span class="s1">LOG_FIRST_N</span>
+<a name="l46"><span class="ln">46   </span></a><span class="s0">#define </span><span class="s1">C10_LOG_FIRST_N(severity, n) LOG_FIRST_N(severity, n)</span>
+<a name="l47"><span class="ln">47   </span></a><span class="s0">#else</span>
+<a name="l48"><span class="ln">48   </span></a><span class="s0">#define </span><span class="s1">C10_LOG_FIRST_N(severity, n) LOG(severity)</span>
+<a name="l49"><span class="ln">49   </span></a><span class="s0">#endif</span>
+<a name="l50"><span class="ln">50   </span></a>
+<a name="l51"><span class="ln">51   </span></a><span class="s2">// Same for LOG_EVERY_N</span>
+<a name="l52"><span class="ln">52   </span></a><span class="s0">#ifdef </span><span class="s1">LOG_EVERY_N</span>
+<a name="l53"><span class="ln">53   </span></a><span class="s0">#define </span><span class="s1">C10_LOG_EVERY_N(severity, n) LOG_EVERY_N(severity, n)</span>
+<a name="l54"><span class="ln">54   </span></a><span class="s0">#else</span>
+<a name="l55"><span class="ln">55   </span></a><span class="s0">#define </span><span class="s1">C10_LOG_EVERY_N(severity, n) LOG(severity)</span>
+<a name="l56"><span class="ln">56   </span></a><span class="s0">#endif</span>
+<a name="l57"><span class="ln">57   </span></a>
+<a name="l58"><span class="ln">58   </span></a><span class="s3">namespace </span><span class="s1">c10 {</span>
+<a name="l59"><span class="ln">59   </span></a>
+<a name="l60"><span class="ln">60   </span></a><span class="s0">#if </span><span class="s1">!defined(C10_NODEPRECATED)</span>
+<a name="l61"><span class="ln">61   </span></a><span class="s3">using </span><span class="s1">std::string;</span>
+<a name="l62"><span class="ln">62   </span></a><span class="s0">#endif</span>
+<a name="l63"><span class="ln">63   </span></a>
+<a name="l64"><span class="ln">64   </span></a><span class="s2">// Functions that we use for initialization.</span>
+<a name="l65"><span class="ln">65   </span></a><span class="s1">C10_API </span><span class="s0">bool </span><span class="s1">InitCaffeLogging(</span><span class="s0">int</span><span class="s1">* argc, </span><span class="s0">char</span><span class="s1">** argv);</span>
+<a name="l66"><span class="ln">66   </span></a><span class="s1">C10_API </span><span class="s0">void </span><span class="s1">UpdateLoggingLevelsFromFlags();</span>
+<a name="l67"><span class="ln">67   </span></a>
+<a name="l68"><span class="ln">68   </span></a><span class="s1">[[noreturn]] C10_API </span><span class="s0">void </span><span class="s1">ThrowEnforceNotMet(</span>
+<a name="l69"><span class="ln">69   </span></a>    <span class="s0">const char</span><span class="s1">* file,</span>
+<a name="l70"><span class="ln">70   </span></a>    <span class="s0">const int </span><span class="s1">line,</span>
+<a name="l71"><span class="ln">71   </span></a>    <span class="s0">const char</span><span class="s1">* condition,</span>
+<a name="l72"><span class="ln">72   </span></a>    <span class="s0">const </span><span class="s1">std::string&amp; msg,</span>
+<a name="l73"><span class="ln">73   </span></a>    <span class="s0">const void</span><span class="s1">* caller = nullptr);</span>
+<a name="l74"><span class="ln">74   </span></a>
+<a name="l75"><span class="ln">75   </span></a><span class="s1">[[noreturn]] C10_API </span><span class="s0">void </span><span class="s1">ThrowEnforceNotMet(</span>
+<a name="l76"><span class="ln">76   </span></a>    <span class="s0">const char</span><span class="s1">* file,</span>
+<a name="l77"><span class="ln">77   </span></a>    <span class="s0">const int </span><span class="s1">line,</span>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s0">const char</span><span class="s1">* condition,</span>
+<a name="l79"><span class="ln">79   </span></a>    <span class="s0">const char</span><span class="s1">* msg,</span>
+<a name="l80"><span class="ln">80   </span></a>    <span class="s0">const void</span><span class="s1">* caller = nullptr);</span>
+<a name="l81"><span class="ln">81   </span></a>
+<a name="l82"><span class="ln">82   </span></a><span class="s1">[[noreturn]] C10_API </span><span class="s3">inline </span><span class="s0">void </span><span class="s1">ThrowEnforceNotMet(</span>
+<a name="l83"><span class="ln">83   </span></a>    <span class="s0">const char</span><span class="s1">* file,</span>
+<a name="l84"><span class="ln">84   </span></a>    <span class="s0">const int </span><span class="s1">line,</span>
+<a name="l85"><span class="ln">85   </span></a>    <span class="s0">const char</span><span class="s1">* condition,</span>
+<a name="l86"><span class="ln">86   </span></a>    <span class="s1">detail::CompileTimeEmptyString </span><span class="s2">/*msg*/</span><span class="s1">,</span>
+<a name="l87"><span class="ln">87   </span></a>    <span class="s0">const void</span><span class="s1">* caller = nullptr) {</span>
+<a name="l88"><span class="ln">88   </span></a>  <span class="s1">ThrowEnforceNotMet(file, line, condition, </span><span class="s4">&quot;&quot;</span><span class="s1">, caller);</span>
+<a name="l89"><span class="ln">89   </span></a><span class="s1">}</span>
+<a name="l90"><span class="ln">90   </span></a>
+<a name="l91"><span class="ln">91   </span></a><span class="s1">[[noreturn]] C10_API </span><span class="s0">void </span><span class="s1">ThrowEnforceFiniteNotMet(</span>
+<a name="l92"><span class="ln">92   </span></a>    <span class="s0">const char</span><span class="s1">* file,</span>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s0">const int </span><span class="s1">line,</span>
+<a name="l94"><span class="ln">94   </span></a>    <span class="s0">const char</span><span class="s1">* condition,</span>
+<a name="l95"><span class="ln">95   </span></a>    <span class="s0">const </span><span class="s1">std::string&amp; msg,</span>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s0">const void</span><span class="s1">* caller = nullptr);</span>
+<a name="l97"><span class="ln">97   </span></a>
+<a name="l98"><span class="ln">98   </span></a><span class="s1">[[noreturn]] C10_API </span><span class="s0">void </span><span class="s1">ThrowEnforceFiniteNotMet(</span>
+<a name="l99"><span class="ln">99   </span></a>    <span class="s0">const char</span><span class="s1">* file,</span>
+<a name="l100"><span class="ln">100  </span></a>    <span class="s0">const int </span><span class="s1">line,</span>
+<a name="l101"><span class="ln">101  </span></a>    <span class="s0">const char</span><span class="s1">* condition,</span>
+<a name="l102"><span class="ln">102  </span></a>    <span class="s0">const char</span><span class="s1">* msg,</span>
+<a name="l103"><span class="ln">103  </span></a>    <span class="s0">const void</span><span class="s1">* caller = nullptr);</span>
+<a name="l104"><span class="ln">104  </span></a>
+<a name="l105"><span class="ln">105  </span></a><span class="s1">[[noreturn]] C10_API </span><span class="s3">inline </span><span class="s0">void </span><span class="s1">ThrowEnforceFiniteNotMet(</span>
+<a name="l106"><span class="ln">106  </span></a>    <span class="s0">const char</span><span class="s1">* file,</span>
+<a name="l107"><span class="ln">107  </span></a>    <span class="s0">const int </span><span class="s1">line,</span>
+<a name="l108"><span class="ln">108  </span></a>    <span class="s0">const char</span><span class="s1">* condition,</span>
+<a name="l109"><span class="ln">109  </span></a>    <span class="s1">detail::CompileTimeEmptyString </span><span class="s2">/*msg*/</span><span class="s1">,</span>
+<a name="l110"><span class="ln">110  </span></a>    <span class="s0">const void</span><span class="s1">* caller = nullptr) {</span>
+<a name="l111"><span class="ln">111  </span></a>  <span class="s1">ThrowEnforceFiniteNotMet(file, line, condition, </span><span class="s4">&quot;&quot;</span><span class="s1">, caller);</span>
+<a name="l112"><span class="ln">112  </span></a><span class="s1">}</span>
+<a name="l113"><span class="ln">113  </span></a>
+<a name="l114"><span class="ln">114  </span></a><span class="s1">constexpr </span><span class="s0">bool </span><span class="s1">IsUsingGoogleLogging() {</span>
+<a name="l115"><span class="ln">115  </span></a><span class="s0">#ifdef </span><span class="s1">C10_USE_GLOG</span>
+<a name="l116"><span class="ln">116  </span></a>  <span class="s0">return </span><span class="s3">true</span><span class="s1">;</span>
+<a name="l117"><span class="ln">117  </span></a><span class="s0">#else</span>
+<a name="l118"><span class="ln">118  </span></a>  <span class="s0">return false</span><span class="s1">;</span>
+<a name="l119"><span class="ln">119  </span></a><span class="s0">#endif</span>
+<a name="l120"><span class="ln">120  </span></a><span class="s1">}</span>
+<a name="l121"><span class="ln">121  </span></a>
+<a name="l122"><span class="ln">122  </span></a><span class="s2">/** 
+<a name="l123"><span class="ln">123  </span></a> * A utility to allow one to show log info to stderr after the program starts. 
+<a name="l124"><span class="ln">124  </span></a> * 
+<a name="l125"><span class="ln">125  </span></a> * This is similar to calling GLOG's --logtostderr, or setting caffe2_log_level 
+<a name="l126"><span class="ln">126  </span></a> * to smaller than INFO. You are recommended to only use this in a few sparse 
+<a name="l127"><span class="ln">127  </span></a> * cases, such as when you want to write a tutorial or something. Normally, use 
+<a name="l128"><span class="ln">128  </span></a> * the commandline flags to set the log level. 
+<a name="l129"><span class="ln">129  </span></a> */</span>
+<a name="l130"><span class="ln">130  </span></a><span class="s1">C10_API </span><span class="s0">void </span><span class="s1">ShowLogInfoToStderr();</span>
+<a name="l131"><span class="ln">131  </span></a>
+<a name="l132"><span class="ln">132  </span></a><span class="s1">C10_API </span><span class="s0">void </span><span class="s1">SetStackTraceFetcher(std::function&lt;::c10::Backtrace()&gt; fetcher);</span>
+<a name="l133"><span class="ln">133  </span></a>
+<a name="l134"><span class="ln">134  </span></a><span class="s2">/** 
+<a name="l135"><span class="ln">135  </span></a> * Convenience function for non-lazy stack trace fetchers. The Backtrace 
+<a name="l136"><span class="ln">136  </span></a> * overload should be preferred when stringifying the backtrace is expensive. 
+<a name="l137"><span class="ln">137  </span></a> */</span>
+<a name="l138"><span class="ln">138  </span></a><span class="s1">C10_API </span><span class="s0">void </span><span class="s1">SetStackTraceFetcher(std::function&lt;std::string()&gt; fetcher);</span>
+<a name="l139"><span class="ln">139  </span></a>
+<a name="l140"><span class="ln">140  </span></a><span class="s3">using </span><span class="s1">EnforceNotMet = ::c10::Error;</span>
+<a name="l141"><span class="ln">141  </span></a>
+<a name="l142"><span class="ln">142  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE(condition, ...)                               \</span>
+<a name="l143"><span class="ln">143  </span></a>  <span class="s0">do </span><span class="s1">{                                                              \</span>
+<a name="l144"><span class="ln">144  </span></a>    <span class="s0">if </span><span class="s1">(C10_UNLIKELY(!(condition))) {                               \</span>
+<a name="l145"><span class="ln">145  </span></a>      <span class="s1">::c10::ThrowEnforceNotMet(                                    \</span>
+<a name="l146"><span class="ln">146  </span></a>          <span class="s1">__FILE__, __LINE__, #condition, ::c10::str(__VA_ARGS__)); \</span>
+<a name="l147"><span class="ln">147  </span></a>    <span class="s1">}                                                               \</span>
+<a name="l148"><span class="ln">148  </span></a>  <span class="s1">} </span><span class="s0">while </span><span class="s1">(</span><span class="s0">false</span><span class="s1">)</span>
+<a name="l149"><span class="ln">149  </span></a>
+<a name="l150"><span class="ln">150  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_FINITE(condition, ...)                        \</span>
+<a name="l151"><span class="ln">151  </span></a>  <span class="s0">do </span><span class="s1">{                                                              \</span>
+<a name="l152"><span class="ln">152  </span></a>    <span class="s0">if </span><span class="s1">(C10_UNLIKELY(!(condition))) {                               \</span>
+<a name="l153"><span class="ln">153  </span></a>      <span class="s1">::c10::ThrowEnforceFiniteNotMet(                              \</span>
+<a name="l154"><span class="ln">154  </span></a>          <span class="s1">__FILE__, __LINE__, #condition, ::c10::str(__VA_ARGS__)); \</span>
+<a name="l155"><span class="ln">155  </span></a>    <span class="s1">}                                                               \</span>
+<a name="l156"><span class="ln">156  </span></a>  <span class="s1">} </span><span class="s0">while </span><span class="s1">(</span><span class="s0">false</span><span class="s1">)</span>
+<a name="l157"><span class="ln">157  </span></a>
+<a name="l158"><span class="ln">158  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_WITH_CALLER(condition, ...)                         \</span>
+<a name="l159"><span class="ln">159  </span></a>  <span class="s0">do </span><span class="s1">{                                                                    \</span>
+<a name="l160"><span class="ln">160  </span></a>    <span class="s0">if </span><span class="s1">(C10_UNLIKELY(!(condition))) {                                     \</span>
+<a name="l161"><span class="ln">161  </span></a>      <span class="s1">::c10::ThrowEnforceNotMet(                                          \</span>
+<a name="l162"><span class="ln">162  </span></a>          <span class="s1">__FILE__, __LINE__, #condition, ::c10::str(__VA_ARGS__), </span><span class="s3">this</span><span class="s1">); \</span>
+<a name="l163"><span class="ln">163  </span></a>    <span class="s1">}                                                                     \</span>
+<a name="l164"><span class="ln">164  </span></a>  <span class="s1">} </span><span class="s0">while </span><span class="s1">(</span><span class="s0">false</span><span class="s1">)</span>
+<a name="l165"><span class="ln">165  </span></a>
+<a name="l166"><span class="ln">166  </span></a><span class="s0">#define </span><span class="s1">CAFFE_THROW(...) \</span>
+<a name="l167"><span class="ln">167  </span></a>  <span class="s1">::c10::ThrowEnforceNotMet(__FILE__, __LINE__, </span><span class="s4">&quot;&quot;</span><span class="s1">, ::c10::str(__VA_ARGS__))</span>
+<a name="l168"><span class="ln">168  </span></a>
+<a name="l169"><span class="ln">169  </span></a><span class="s2">/** 
+<a name="l170"><span class="ln">170  </span></a> * Rich logging messages 
+<a name="l171"><span class="ln">171  </span></a> * 
+<a name="l172"><span class="ln">172  </span></a> * CAFFE_ENFORCE_THAT can be used with one of the &quot;checker functions&quot; that 
+<a name="l173"><span class="ln">173  </span></a> * capture input argument values and add it to the exception message. E.g. 
+<a name="l174"><span class="ln">174  </span></a> * `CAFFE_ENFORCE_THAT(Equals(foo(x), bar(y)), &quot;Optional additional message&quot;)` 
+<a name="l175"><span class="ln">175  </span></a> * would evaluate both foo and bar only once and if the results are not equal - 
+<a name="l176"><span class="ln">176  </span></a> * include them in the exception message. 
+<a name="l177"><span class="ln">177  </span></a> * 
+<a name="l178"><span class="ln">178  </span></a> * Some of the basic checker functions like Equals or Greater are already 
+<a name="l179"><span class="ln">179  </span></a> * defined below. Other header might define customized checkers by adding 
+<a name="l180"><span class="ln">180  </span></a> * functions to caffe2::enforce_detail namespace. For example: 
+<a name="l181"><span class="ln">181  </span></a> * 
+<a name="l182"><span class="ln">182  </span></a> *   namespace caffe2 { namespace enforce_detail { 
+<a name="l183"><span class="ln">183  </span></a> *   inline EnforceFailMessage IsVector(const vector&lt;int64_t&gt;&amp; shape) { 
+<a name="l184"><span class="ln">184  </span></a> *     if (shape.size() == 1) { return EnforceOK(); } 
+<a name="l185"><span class="ln">185  </span></a> *     return c10::str(&quot;Shape &quot;, shape, &quot; is not a vector&quot;); 
+<a name="l186"><span class="ln">186  </span></a> *   } 
+<a name="l187"><span class="ln">187  </span></a> *   }} 
+<a name="l188"><span class="ln">188  </span></a> * 
+<a name="l189"><span class="ln">189  </span></a> * With further usages like `CAFFE_ENFORCE_THAT(IsVector(Input(0).dims()))` 
+<a name="l190"><span class="ln">190  </span></a> * 
+<a name="l191"><span class="ln">191  </span></a> * Convenient wrappers for binary operations like CAFFE_ENFORCE_EQ are provided 
+<a name="l192"><span class="ln">192  </span></a> * too. Please use them instead of TORCH_CHECK_EQ and friends for failures in 
+<a name="l193"><span class="ln">193  </span></a> * user-provided input. 
+<a name="l194"><span class="ln">194  </span></a> */</span>
+<a name="l195"><span class="ln">195  </span></a>
+<a name="l196"><span class="ln">196  </span></a><span class="s3">namespace </span><span class="s1">enforce_detail {</span>
+<a name="l197"><span class="ln">197  </span></a>
+<a name="l198"><span class="ln">198  </span></a><span class="s1">template &lt;</span><span class="s3">typename </span><span class="s1">T1, </span><span class="s3">typename </span><span class="s1">T2&gt;</span>
+<a name="l199"><span class="ln">199  </span></a><span class="s1">std::string enforceFailMsgImpl(</span><span class="s0">const </span><span class="s1">T1&amp; x, </span><span class="s0">const </span><span class="s1">T2&amp; y) {</span>
+<a name="l200"><span class="ln">200  </span></a>  <span class="s0">return </span><span class="s1">c10::str(x, </span><span class="s4">&quot; vs &quot;</span><span class="s1">, y);</span>
+<a name="l201"><span class="ln">201  </span></a><span class="s1">}</span>
+<a name="l202"><span class="ln">202  </span></a>
+<a name="l203"><span class="ln">203  </span></a><span class="s1">template &lt;</span><span class="s3">typename </span><span class="s1">T1, </span><span class="s3">typename </span><span class="s1">T2, </span><span class="s3">typename</span><span class="s1">... Args&gt;</span>
+<a name="l204"><span class="ln">204  </span></a><span class="s1">std::string enforceFailMsgImpl(</span><span class="s0">const </span><span class="s1">T1&amp; x, </span><span class="s0">const </span><span class="s1">T2&amp; y, </span><span class="s0">const </span><span class="s1">Args&amp;... args) {</span>
+<a name="l205"><span class="ln">205  </span></a>  <span class="s0">return </span><span class="s1">c10::str(x, </span><span class="s4">&quot; vs &quot;</span><span class="s1">, y, </span><span class="s4">&quot;. &quot;</span><span class="s1">, args...);</span>
+<a name="l206"><span class="ln">206  </span></a><span class="s1">}</span>
+<a name="l207"><span class="ln">207  </span></a>
+<a name="l208"><span class="ln">208  </span></a><span class="s1">template &lt;</span><span class="s3">typename </span><span class="s1">Pred, </span><span class="s3">typename </span><span class="s1">T1, </span><span class="s3">typename </span><span class="s1">T2, </span><span class="s3">typename </span><span class="s1">GetFailMsgFunc&gt;</span>
+<a name="l209"><span class="ln">209  </span></a><span class="s0">void </span><span class="s1">enforceThatImpl(</span>
+<a name="l210"><span class="ln">210  </span></a>    <span class="s1">Pred p,</span>
+<a name="l211"><span class="ln">211  </span></a>    <span class="s0">const </span><span class="s1">T1&amp; lhs,</span>
+<a name="l212"><span class="ln">212  </span></a>    <span class="s0">const </span><span class="s1">T2&amp; rhs,</span>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s0">const char</span><span class="s1">* file,</span>
+<a name="l214"><span class="ln">214  </span></a>    <span class="s0">int </span><span class="s1">line,</span>
+<a name="l215"><span class="ln">215  </span></a>    <span class="s0">const char</span><span class="s1">* expr,</span>
+<a name="l216"><span class="ln">216  </span></a>    <span class="s0">const void</span><span class="s1">* caller,</span>
+<a name="l217"><span class="ln">217  </span></a>    <span class="s1">GetFailMsgFunc getFailMsg) {</span>
+<a name="l218"><span class="ln">218  </span></a>  <span class="s0">if </span><span class="s1">(C10_UNLIKELY(!(p(lhs, rhs)))) {</span>
+<a name="l219"><span class="ln">219  </span></a>    <span class="s1">::c10::ThrowEnforceNotMet(file, line, expr, getFailMsg(lhs, rhs), caller);</span>
+<a name="l220"><span class="ln">220  </span></a>  <span class="s1">}</span>
+<a name="l221"><span class="ln">221  </span></a><span class="s1">}</span>
+<a name="l222"><span class="ln">222  </span></a>
+<a name="l223"><span class="ln">223  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_THAT_IMPL(op, lhs, rhs, expr, ...)  \</span>
+<a name="l224"><span class="ln">224  </span></a>  <span class="s1">::c10::enforce_detail::enforceThatImpl(                 \</span>
+<a name="l225"><span class="ln">225  </span></a>      <span class="s1">op,                                                 \</span>
+<a name="l226"><span class="ln">226  </span></a>      <span class="s1">(lhs),                                              \</span>
+<a name="l227"><span class="ln">227  </span></a>      <span class="s1">(rhs),                                              \</span>
+<a name="l228"><span class="ln">228  </span></a>      <span class="s1">__FILE__,                                           \</span>
+<a name="l229"><span class="ln">229  </span></a>      <span class="s1">__LINE__,                                           \</span>
+<a name="l230"><span class="ln">230  </span></a>      <span class="s1">expr,                                               \</span>
+<a name="l231"><span class="ln">231  </span></a>      <span class="s1">nullptr,                                            \</span>
+<a name="l232"><span class="ln">232  </span></a>      <span class="s1">[&amp;](</span><span class="s0">const auto</span><span class="s1">&amp; arg1, </span><span class="s0">const auto</span><span class="s1">&amp; arg2) {           \</span>
+<a name="l233"><span class="ln">233  </span></a>        <span class="s0">return </span><span class="s1">::c10::enforce_detail::enforceFailMsgImpl( \</span>
+<a name="l234"><span class="ln">234  </span></a>            <span class="s1">arg1, arg2, ##__VA_ARGS__);                   \</span>
+<a name="l235"><span class="ln">235  </span></a>      <span class="s1">})</span>
+<a name="l236"><span class="ln">236  </span></a>
+<a name="l237"><span class="ln">237  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_THAT_IMPL_WITH_CALLER(op, lhs, rhs, expr, ...) \</span>
+<a name="l238"><span class="ln">238  </span></a>  <span class="s1">::c10::enforce_detail::enforceThatImpl(                            \</span>
+<a name="l239"><span class="ln">239  </span></a>      <span class="s1">op,                                                            \</span>
+<a name="l240"><span class="ln">240  </span></a>      <span class="s1">(lhs),                                                         \</span>
+<a name="l241"><span class="ln">241  </span></a>      <span class="s1">(rhs),                                                         \</span>
+<a name="l242"><span class="ln">242  </span></a>      <span class="s1">__FILE__,                                                      \</span>
+<a name="l243"><span class="ln">243  </span></a>      <span class="s1">__LINE__,                                                      \</span>
+<a name="l244"><span class="ln">244  </span></a>      <span class="s1">expr,                                                          \</span>
+<a name="l245"><span class="ln">245  </span></a>      <span class="s3">this</span><span class="s1">,                                                          \</span>
+<a name="l246"><span class="ln">246  </span></a>      <span class="s1">[&amp;](</span><span class="s0">const auto</span><span class="s1">&amp; arg1, </span><span class="s0">const auto</span><span class="s1">&amp; arg2) {                      \</span>
+<a name="l247"><span class="ln">247  </span></a>        <span class="s0">return </span><span class="s1">::c10::enforce_detail::enforceFailMsgImpl(            \</span>
+<a name="l248"><span class="ln">248  </span></a>            <span class="s1">arg1, arg2, ##__VA_ARGS__);                              \</span>
+<a name="l249"><span class="ln">249  </span></a>      <span class="s1">})</span>
+<a name="l250"><span class="ln">250  </span></a>
+<a name="l251"><span class="ln">251  </span></a><span class="s1">} </span><span class="s2">// namespace enforce_detail</span>
+<a name="l252"><span class="ln">252  </span></a>
+<a name="l253"><span class="ln">253  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_THAT(cmp, op, lhs, rhs, ...) \</span>
+<a name="l254"><span class="ln">254  </span></a>  <span class="s1">CAFFE_ENFORCE_THAT_IMPL(cmp, lhs, rhs, #lhs </span><span class="s4">&quot; &quot; </span><span class="s1">#op </span><span class="s4">&quot; &quot; </span><span class="s1">#rhs, ##__VA_ARGS__)</span>
+<a name="l255"><span class="ln">255  </span></a>
+<a name="l256"><span class="ln">256  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_BINARY_OP(cmp, op, x, y, ...) \</span>
+<a name="l257"><span class="ln">257  </span></a>  <span class="s1">CAFFE_ENFORCE_THAT_IMPL(cmp, x, y, #x </span><span class="s4">&quot; &quot; </span><span class="s1">#op </span><span class="s4">&quot; &quot; </span><span class="s1">#y, ##__VA_ARGS__)</span>
+<a name="l258"><span class="ln">258  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_EQ(x, y, ...) \</span>
+<a name="l259"><span class="ln">259  </span></a>  <span class="s1">CAFFE_ENFORCE_BINARY_OP(std::equal_to&lt;</span><span class="s0">void</span><span class="s1">&gt;(), ==, x, y, ##__VA_ARGS__)</span>
+<a name="l260"><span class="ln">260  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_NE(x, y, ...) \</span>
+<a name="l261"><span class="ln">261  </span></a>  <span class="s1">CAFFE_ENFORCE_BINARY_OP(std::not_equal_to&lt;</span><span class="s0">void</span><span class="s1">&gt;(), !=, x, y, ##__VA_ARGS__)</span>
+<a name="l262"><span class="ln">262  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_LE(x, y, ...) \</span>
+<a name="l263"><span class="ln">263  </span></a>  <span class="s1">CAFFE_ENFORCE_BINARY_OP(std::less_equal&lt;</span><span class="s0">void</span><span class="s1">&gt;(), &lt;=, x, y, ##__VA_ARGS__)</span>
+<a name="l264"><span class="ln">264  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_LT(x, y, ...) \</span>
+<a name="l265"><span class="ln">265  </span></a>  <span class="s1">CAFFE_ENFORCE_BINARY_OP(std::less&lt;</span><span class="s0">void</span><span class="s1">&gt;(), &lt;, x, y, ##__VA_ARGS__)</span>
+<a name="l266"><span class="ln">266  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_GE(x, y, ...) \</span>
+<a name="l267"><span class="ln">267  </span></a>  <span class="s1">CAFFE_ENFORCE_BINARY_OP(std::greater_equal&lt;</span><span class="s0">void</span><span class="s1">&gt;(), &gt;=, x, y, ##__VA_ARGS__)</span>
+<a name="l268"><span class="ln">268  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_GT(x, y, ...) \</span>
+<a name="l269"><span class="ln">269  </span></a>  <span class="s1">CAFFE_ENFORCE_BINARY_OP(std::greater&lt;</span><span class="s0">void</span><span class="s1">&gt;(), &gt;, x, y, ##__VA_ARGS__)</span>
+<a name="l270"><span class="ln">270  </span></a>
+<a name="l271"><span class="ln">271  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_BINARY_OP_WITH_CALLER(cmp, op, x, y, ...) \</span>
+<a name="l272"><span class="ln">272  </span></a>  <span class="s1">CAFFE_ENFORCE_THAT_IMPL_WITH_CALLER(                          \</span>
+<a name="l273"><span class="ln">273  </span></a>      <span class="s1">cmp, x, y, #x </span><span class="s4">&quot; &quot; </span><span class="s1">#op </span><span class="s4">&quot; &quot; </span><span class="s1">#y, ##__VA_ARGS__)</span>
+<a name="l274"><span class="ln">274  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_EQ_WITH_CALLER(x, y, ...) \</span>
+<a name="l275"><span class="ln">275  </span></a>  <span class="s1">CAFFE_ENFORCE_BINARY_OP_WITH_CALLER(          \</span>
+<a name="l276"><span class="ln">276  </span></a>      <span class="s1">std::equal_to&lt;</span><span class="s0">void</span><span class="s1">&gt;(), ==, x, y, ##__VA_ARGS__)</span>
+<a name="l277"><span class="ln">277  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_NE_WITH_CALLER(x, y, ...) \</span>
+<a name="l278"><span class="ln">278  </span></a>  <span class="s1">CAFFE_ENFORCE_BINARY_OP_WITH_CALLER(          \</span>
+<a name="l279"><span class="ln">279  </span></a>      <span class="s1">std::not_equal_to&lt;</span><span class="s0">void</span><span class="s1">&gt;(), !=, x, y, ##__VA_ARGS__)</span>
+<a name="l280"><span class="ln">280  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_LE_WITH_CALLER(x, y, ...) \</span>
+<a name="l281"><span class="ln">281  </span></a>  <span class="s1">CAFFE_ENFORCE_BINARY_OP_WITH_CALLER(          \</span>
+<a name="l282"><span class="ln">282  </span></a>      <span class="s1">std::less_equal&lt;</span><span class="s0">void</span><span class="s1">&gt;(), &lt;=, x, y, ##__VA_ARGS__)</span>
+<a name="l283"><span class="ln">283  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_LT_WITH_CALLER(x, y, ...) \</span>
+<a name="l284"><span class="ln">284  </span></a>  <span class="s1">CAFFE_ENFORCE_BINARY_OP_WITH_CALLER(std::less&lt;</span><span class="s0">void</span><span class="s1">&gt;(), &lt;, x, y, ##__VA_ARGS__)</span>
+<a name="l285"><span class="ln">285  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_GE_WITH_CALLER(x, y, ...) \</span>
+<a name="l286"><span class="ln">286  </span></a>  <span class="s1">CAFFE_ENFORCE_BINARY_OP_WITH_CALLER(          \</span>
+<a name="l287"><span class="ln">287  </span></a>      <span class="s1">std::greater_equal&lt;</span><span class="s0">void</span><span class="s1">&gt;(), &gt;=, x, y, ##__VA_ARGS__)</span>
+<a name="l288"><span class="ln">288  </span></a><span class="s0">#define </span><span class="s1">CAFFE_ENFORCE_GT_WITH_CALLER(x, y, ...) \</span>
+<a name="l289"><span class="ln">289  </span></a>  <span class="s1">CAFFE_ENFORCE_BINARY_OP_WITH_CALLER(          \</span>
+<a name="l290"><span class="ln">290  </span></a>      <span class="s1">std::greater&lt;</span><span class="s0">void</span><span class="s1">&gt;(), &gt;, x, y, ##__VA_ARGS__)</span>
+<a name="l291"><span class="ln">291  </span></a>
+<a name="l292"><span class="ln">292  </span></a><span class="s0">struct </span><span class="s1">IValue;</span>
+<a name="l293"><span class="ln">293  </span></a><span class="s3">class </span><span class="s1">C10_API EventSampledHandler {</span>
+<a name="l294"><span class="ln">294  </span></a> <span class="s3">public</span><span class="s1">:</span>
+<a name="l295"><span class="ln">295  </span></a>  <span class="s3">virtual </span><span class="s0">void </span><span class="s1">log(</span>
+<a name="l296"><span class="ln">296  </span></a>      <span class="s1">std::string_view model_id,</span>
+<a name="l297"><span class="ln">297  </span></a>      <span class="s0">const </span><span class="s1">std::vector&lt;c10::IValue&gt;&amp; args) = </span><span class="s5">0</span><span class="s1">;</span>
+<a name="l298"><span class="ln">298  </span></a>  <span class="s3">virtual </span><span class="s1">~EventSampledHandler() = </span><span class="s0">default</span><span class="s1">;</span>
+<a name="l299"><span class="ln">299  </span></a><span class="s1">};</span>
+<a name="l300"><span class="ln">300  </span></a>
+<a name="l301"><span class="ln">301  </span></a><span class="s0">#define </span><span class="s1">C10_LOG_EVENT_SAMPLED(event, ...)                                    \</span>
+<a name="l302"><span class="ln">302  </span></a>  <span class="s0">static const </span><span class="s1">std::unique_ptr&lt;::c10::EventSampledHandler&gt;&amp;                  \</span>
+<a name="l303"><span class="ln">303  </span></a>      <span class="s1">_##event##EventSampledHandler = ::c10::GetEventSampledHandler(#event); \</span>
+<a name="l304"><span class="ln">304  </span></a>  <span class="s0">if </span><span class="s1">(_##event##EventSampledHandler) {                                       \</span>
+<a name="l305"><span class="ln">305  </span></a>    <span class="s1">_##event##EventSampledHandler</span><span class="s6">-&gt;</span><span class="s1">log(__VA_ARGS__);                         \</span>
+<a name="l306"><span class="ln">306  </span></a>  <span class="s1">}</span>
+<a name="l307"><span class="ln">307  </span></a>
+<a name="l308"><span class="ln">308  </span></a><span class="s2">// Must be called in the main thread before any other threads are spawned.</span>
+<a name="l309"><span class="ln">309  </span></a><span class="s1">C10_API </span><span class="s0">void </span><span class="s1">InitEventSampledHandlers(</span>
+<a name="l310"><span class="ln">310  </span></a>    <span class="s1">std::vector&lt;</span>
+<a name="l311"><span class="ln">311  </span></a>        <span class="s1">std::pair&lt;std::string_view, std::unique_ptr&lt;EventSampledHandler&gt;&gt;&gt;);</span>
+<a name="l312"><span class="ln">312  </span></a><span class="s1">C10_API </span><span class="s0">const </span><span class="s1">std::unique_ptr&lt;EventSampledHandler&gt;&amp; GetEventSampledHandler(</span>
+<a name="l313"><span class="ln">313  </span></a>    <span class="s1">std::string_view);</span>
+<a name="l314"><span class="ln">314  </span></a>
+<a name="l315"><span class="ln">315  </span></a><span class="s2">/** 
+<a name="l316"><span class="ln">316  </span></a> * Very lightweight logging for the first time API usage. It's beneficial for 
+<a name="l317"><span class="ln">317  </span></a> * tracking of individual functionality usage in larger applications. 
+<a name="l318"><span class="ln">318  </span></a> * 
+<a name="l319"><span class="ln">319  </span></a> * In order to ensure light-weightedness of logging, we utilize static variable 
+<a name="l320"><span class="ln">320  </span></a> * trick - LogAPIUsage will be invoked only once and further invocations will 
+<a name="l321"><span class="ln">321  </span></a> * just do an atomic check. 
+<a name="l322"><span class="ln">322  </span></a> * 
+<a name="l323"><span class="ln">323  </span></a> * Example: 
+<a name="l324"><span class="ln">324  </span></a> *   // Logs caller info with an arbitrary text event, if there is a usage. 
+<a name="l325"><span class="ln">325  </span></a> *   C10_LOG_API_USAGE_ONCE(&quot;my_api&quot;); 
+<a name="l326"><span class="ln">326  </span></a> */</span>
+<a name="l327"><span class="ln">327  </span></a><span class="s0">#define </span><span class="s1">C10_LOG_API_USAGE_ONCE(...)                              \</span>
+<a name="l328"><span class="ln">328  </span></a>  <span class="s1">[[maybe_unused]] </span><span class="s0">static bool </span><span class="s1">C10_ANONYMOUS_VARIABLE(logFlag) = \</span>
+<a name="l329"><span class="ln">329  </span></a>      <span class="s1">::c10::detail::LogAPIUsageFakeReturn(__VA_ARGS__);</span>
+<a name="l330"><span class="ln">330  </span></a>
+<a name="l331"><span class="ln">331  </span></a><span class="s2">// API usage logging capabilities</span>
+<a name="l332"><span class="ln">332  </span></a><span class="s1">C10_API </span><span class="s0">void </span><span class="s1">SetAPIUsageLogger(std::function&lt;</span><span class="s0">void</span><span class="s1">(</span><span class="s0">const </span><span class="s1">std::string&amp;)&gt; logger);</span>
+<a name="l333"><span class="ln">333  </span></a><span class="s1">C10_API </span><span class="s0">void </span><span class="s1">LogAPIUsage(</span><span class="s0">const </span><span class="s1">std::string&amp; context);</span>
+<a name="l334"><span class="ln">334  </span></a>
+<a name="l335"><span class="ln">335  </span></a><span class="s1">C10_API </span><span class="s0">void </span><span class="s1">SetAPIUsageMetadataLogger(</span>
+<a name="l336"><span class="ln">336  </span></a>    <span class="s1">std::function&lt;</span><span class="s0">void</span><span class="s1">(</span>
+<a name="l337"><span class="ln">337  </span></a>        <span class="s0">const </span><span class="s1">std::string&amp;,</span>
+<a name="l338"><span class="ln">338  </span></a>        <span class="s0">const </span><span class="s1">std::map&lt;std::string, std::string&gt;&amp; metadata_map)&gt; logger);</span>
+<a name="l339"><span class="ln">339  </span></a><span class="s1">C10_API </span><span class="s0">void </span><span class="s1">LogAPIUsageMetadata(</span>
+<a name="l340"><span class="ln">340  </span></a>    <span class="s0">const </span><span class="s1">std::string&amp; context,</span>
+<a name="l341"><span class="ln">341  </span></a>    <span class="s0">const </span><span class="s1">std::map&lt;std::string, std::string&gt;&amp; metadata_map);</span>
+<a name="l342"><span class="ln">342  </span></a>
+<a name="l343"><span class="ln">343  </span></a><span class="s2">// PyTorch ddp usage logging capabilities</span>
+<a name="l344"><span class="ln">344  </span></a><span class="s2">// DDPLoggingData holds data that can be logged in applications</span>
+<a name="l345"><span class="ln">345  </span></a><span class="s2">// for analysis and debugging. Data structure is defined in</span>
+<a name="l346"><span class="ln">346  </span></a><span class="s2">// c10 directory so that it can be easily imported by both c10</span>
+<a name="l347"><span class="ln">347  </span></a><span class="s2">// and torch files.</span>
+<a name="l348"><span class="ln">348  </span></a><span class="s0">struct </span><span class="s1">DDPLoggingData {</span>
+<a name="l349"><span class="ln">349  </span></a>  <span class="s2">// logging fields that are string types.</span>
+<a name="l350"><span class="ln">350  </span></a>  <span class="s1">std::map&lt;std::string, std::string&gt; strs_map;</span>
+<a name="l351"><span class="ln">351  </span></a>  <span class="s2">// logging fields that are int64_t types.</span>
+<a name="l352"><span class="ln">352  </span></a>  <span class="s1">std::map&lt;std::string, int64_t&gt; ints_map;</span>
+<a name="l353"><span class="ln">353  </span></a><span class="s1">};</span>
+<a name="l354"><span class="ln">354  </span></a>
+<a name="l355"><span class="ln">355  </span></a><span class="s1">C10_API </span><span class="s0">void </span><span class="s1">SetPyTorchDDPUsageLogger(</span>
+<a name="l356"><span class="ln">356  </span></a>    <span class="s1">std::function&lt;</span><span class="s0">void</span><span class="s1">(</span><span class="s0">const </span><span class="s1">DDPLoggingData&amp;)&gt; logger);</span>
+<a name="l357"><span class="ln">357  </span></a><span class="s1">C10_API </span><span class="s0">void </span><span class="s1">LogPyTorchDDPUsage(</span><span class="s0">const </span><span class="s1">DDPLoggingData&amp; ddpData);</span>
+<a name="l358"><span class="ln">358  </span></a>
+<a name="l359"><span class="ln">359  </span></a><span class="s3">namespace </span><span class="s1">detail {</span>
+<a name="l360"><span class="ln">360  </span></a><span class="s2">// Return value is needed to do the static variable initialization trick</span>
+<a name="l361"><span class="ln">361  </span></a><span class="s1">C10_API </span><span class="s0">bool </span><span class="s1">LogAPIUsageFakeReturn(</span><span class="s0">const </span><span class="s1">std::string&amp; context);</span>
+<a name="l362"><span class="ln">362  </span></a><span class="s1">} </span><span class="s2">// namespace detail</span>
+<a name="l363"><span class="ln">363  </span></a>
+<a name="l364"><span class="ln">364  </span></a><span class="s2">// Initializes the c10 logger.</span>
+<a name="l365"><span class="ln">365  </span></a><span class="s1">C10_API </span><span class="s0">void </span><span class="s1">initLogging();</span>
+<a name="l366"><span class="ln">366  </span></a>
+<a name="l367"><span class="ln">367  </span></a><span class="s2">// Sets the rank, which will be included in log messages</span>
+<a name="l368"><span class="ln">368  </span></a><span class="s1">C10_API </span><span class="s0">void </span><span class="s1">SetGlobalRank(int64_t rank);</span>
+<a name="l369"><span class="ln">369  </span></a>
+<a name="l370"><span class="ln">370  </span></a><span class="s1">} </span><span class="s2">// namespace c10</span>
+<a name="l371"><span class="ln">371  </span></a>
+<a name="l372"><span class="ln">372  </span></a><span class="s0">#endif </span><span class="s2">// C10_UTIL_LOGGING_H_</span>
+<a name="l373"><span class="ln">373  </span></a></pre>
+</body>
+</html>

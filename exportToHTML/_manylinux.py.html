@@ -1,0 +1,285 @@
+<html>
+<head>
+<title>_manylinux.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #0086b3;}
+.s4 { color: #969896;}
+.s5 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_manylinux.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">from </span><span class="s1">__future__ </span><span class="s0">import </span><span class="s1">annotations</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">import </span><span class="s1">collections</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">import </span><span class="s1">contextlib</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">import </span><span class="s1">functools</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">import </span><span class="s1">os</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">import </span><span class="s1">re</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">import </span><span class="s1">sys</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">import </span><span class="s1">warnings</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">from </span><span class="s1">typing </span><span class="s0">import </span><span class="s1">Generator</span><span class="s2">, </span><span class="s1">Iterator</span><span class="s2">, </span><span class="s1">NamedTuple</span><span class="s2">, </span><span class="s1">Sequence</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">_elffile </span><span class="s0">import </span><span class="s1">EIClass</span><span class="s2">, </span><span class="s1">EIData</span><span class="s2">, </span><span class="s1">ELFFile</span><span class="s2">, </span><span class="s1">EMachine</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s1">EF_ARM_ABIMASK </span><span class="s0">= </span><span class="s3">0xFF000000</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s1">EF_ARM_ABI_VER5 </span><span class="s0">= </span><span class="s3">0x05000000</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s1">EF_ARM_ABI_FLOAT_HARD </span><span class="s0">= </span><span class="s3">0x00000400</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s4"># `os.PathLike` not a generic type until Python 3.9, so sticking with `str`</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s4"># as the type for `path` until then.</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s0">@</span><span class="s1">contextlib</span><span class="s2">.</span><span class="s1">contextmanager</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s0">def </span><span class="s1">_parse_elf</span><span class="s2">(</span><span class="s1">path</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; Generator</span><span class="s2">[</span><span class="s1">ELFFile </span><span class="s0">| None</span><span class="s2">, </span><span class="s0">None</span><span class="s2">, </span><span class="s0">None</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s0">try:</span>
+<a name="l24"><span class="ln">24   </span></a>        <span class="s0">with </span><span class="s1">open</span><span class="s2">(</span><span class="s1">path</span><span class="s2">, </span><span class="s5">&quot;rb&quot;</span><span class="s2">) </span><span class="s0">as </span><span class="s1">f</span><span class="s0">:</span>
+<a name="l25"><span class="ln">25   </span></a>            <span class="s0">yield </span><span class="s1">ELFFile</span><span class="s2">(</span><span class="s1">f</span><span class="s2">)</span>
+<a name="l26"><span class="ln">26   </span></a>    <span class="s0">except </span><span class="s2">(</span><span class="s1">OSError</span><span class="s2">, </span><span class="s1">TypeError</span><span class="s2">, </span><span class="s1">ValueError</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l27"><span class="ln">27   </span></a>        <span class="s0">yield None</span>
+<a name="l28"><span class="ln">28   </span></a>
+<a name="l29"><span class="ln">29   </span></a>
+<a name="l30"><span class="ln">30   </span></a><span class="s0">def </span><span class="s1">_is_linux_armhf</span><span class="s2">(</span><span class="s1">executable</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s4"># hard-float ABI can be detected from the ELF header of the running</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s4"># process</span>
+<a name="l33"><span class="ln">33   </span></a>    <span class="s4"># https://static.docs.arm.com/ihi0044/g/aaelf32.pdf</span>
+<a name="l34"><span class="ln">34   </span></a>    <span class="s0">with </span><span class="s1">_parse_elf</span><span class="s2">(</span><span class="s1">executable</span><span class="s2">) </span><span class="s0">as </span><span class="s1">f</span><span class="s0">:</span>
+<a name="l35"><span class="ln">35   </span></a>        <span class="s0">return </span><span class="s2">(</span>
+<a name="l36"><span class="ln">36   </span></a>            <span class="s1">f </span><span class="s0">is not None</span>
+<a name="l37"><span class="ln">37   </span></a>            <span class="s0">and </span><span class="s1">f</span><span class="s2">.</span><span class="s1">capacity </span><span class="s0">== </span><span class="s1">EIClass</span><span class="s2">.</span><span class="s1">C32</span>
+<a name="l38"><span class="ln">38   </span></a>            <span class="s0">and </span><span class="s1">f</span><span class="s2">.</span><span class="s1">encoding </span><span class="s0">== </span><span class="s1">EIData</span><span class="s2">.</span><span class="s1">Lsb</span>
+<a name="l39"><span class="ln">39   </span></a>            <span class="s0">and </span><span class="s1">f</span><span class="s2">.</span><span class="s1">machine </span><span class="s0">== </span><span class="s1">EMachine</span><span class="s2">.</span><span class="s1">Arm</span>
+<a name="l40"><span class="ln">40   </span></a>            <span class="s0">and </span><span class="s1">f</span><span class="s2">.</span><span class="s1">flags </span><span class="s0">&amp; </span><span class="s1">EF_ARM_ABIMASK </span><span class="s0">== </span><span class="s1">EF_ARM_ABI_VER5</span>
+<a name="l41"><span class="ln">41   </span></a>            <span class="s0">and </span><span class="s1">f</span><span class="s2">.</span><span class="s1">flags </span><span class="s0">&amp; </span><span class="s1">EF_ARM_ABI_FLOAT_HARD </span><span class="s0">== </span><span class="s1">EF_ARM_ABI_FLOAT_HARD</span>
+<a name="l42"><span class="ln">42   </span></a>        <span class="s2">)</span>
+<a name="l43"><span class="ln">43   </span></a>
+<a name="l44"><span class="ln">44   </span></a>
+<a name="l45"><span class="ln">45   </span></a><span class="s0">def </span><span class="s1">_is_linux_i686</span><span class="s2">(</span><span class="s1">executable</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l46"><span class="ln">46   </span></a>    <span class="s0">with </span><span class="s1">_parse_elf</span><span class="s2">(</span><span class="s1">executable</span><span class="s2">) </span><span class="s0">as </span><span class="s1">f</span><span class="s0">:</span>
+<a name="l47"><span class="ln">47   </span></a>        <span class="s0">return </span><span class="s2">(</span>
+<a name="l48"><span class="ln">48   </span></a>            <span class="s1">f </span><span class="s0">is not None</span>
+<a name="l49"><span class="ln">49   </span></a>            <span class="s0">and </span><span class="s1">f</span><span class="s2">.</span><span class="s1">capacity </span><span class="s0">== </span><span class="s1">EIClass</span><span class="s2">.</span><span class="s1">C32</span>
+<a name="l50"><span class="ln">50   </span></a>            <span class="s0">and </span><span class="s1">f</span><span class="s2">.</span><span class="s1">encoding </span><span class="s0">== </span><span class="s1">EIData</span><span class="s2">.</span><span class="s1">Lsb</span>
+<a name="l51"><span class="ln">51   </span></a>            <span class="s0">and </span><span class="s1">f</span><span class="s2">.</span><span class="s1">machine </span><span class="s0">== </span><span class="s1">EMachine</span><span class="s2">.</span><span class="s1">I386</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s2">)</span>
+<a name="l53"><span class="ln">53   </span></a>
+<a name="l54"><span class="ln">54   </span></a>
+<a name="l55"><span class="ln">55   </span></a><span class="s0">def </span><span class="s1">_have_compatible_abi</span><span class="s2">(</span><span class="s1">executable</span><span class="s0">: </span><span class="s1">str</span><span class="s2">, </span><span class="s1">archs</span><span class="s0">: </span><span class="s1">Sequence</span><span class="s2">[</span><span class="s1">str</span><span class="s2">]) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l56"><span class="ln">56   </span></a>    <span class="s0">if </span><span class="s5">&quot;armv7l&quot; </span><span class="s0">in </span><span class="s1">archs</span><span class="s0">:</span>
+<a name="l57"><span class="ln">57   </span></a>        <span class="s0">return </span><span class="s1">_is_linux_armhf</span><span class="s2">(</span><span class="s1">executable</span><span class="s2">)</span>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s0">if </span><span class="s5">&quot;i686&quot; </span><span class="s0">in </span><span class="s1">archs</span><span class="s0">:</span>
+<a name="l59"><span class="ln">59   </span></a>        <span class="s0">return </span><span class="s1">_is_linux_i686</span><span class="s2">(</span><span class="s1">executable</span><span class="s2">)</span>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s1">allowed_archs </span><span class="s0">= </span><span class="s2">{</span>
+<a name="l61"><span class="ln">61   </span></a>        <span class="s5">&quot;x86_64&quot;</span><span class="s2">,</span>
+<a name="l62"><span class="ln">62   </span></a>        <span class="s5">&quot;aarch64&quot;</span><span class="s2">,</span>
+<a name="l63"><span class="ln">63   </span></a>        <span class="s5">&quot;ppc64&quot;</span><span class="s2">,</span>
+<a name="l64"><span class="ln">64   </span></a>        <span class="s5">&quot;ppc64le&quot;</span><span class="s2">,</span>
+<a name="l65"><span class="ln">65   </span></a>        <span class="s5">&quot;s390x&quot;</span><span class="s2">,</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s5">&quot;loongarch64&quot;</span><span class="s2">,</span>
+<a name="l67"><span class="ln">67   </span></a>        <span class="s5">&quot;riscv64&quot;</span><span class="s2">,</span>
+<a name="l68"><span class="ln">68   </span></a>    <span class="s2">}</span>
+<a name="l69"><span class="ln">69   </span></a>    <span class="s0">return </span><span class="s1">any</span><span class="s2">(</span><span class="s1">arch </span><span class="s0">in </span><span class="s1">allowed_archs </span><span class="s0">for </span><span class="s1">arch </span><span class="s0">in </span><span class="s1">archs</span><span class="s2">)</span>
+<a name="l70"><span class="ln">70   </span></a>
+<a name="l71"><span class="ln">71   </span></a>
+<a name="l72"><span class="ln">72   </span></a><span class="s4"># If glibc ever changes its major version, we need to know what the last</span>
+<a name="l73"><span class="ln">73   </span></a><span class="s4"># minor version was, so we can build the complete list of all versions.</span>
+<a name="l74"><span class="ln">74   </span></a><span class="s4"># For now, guess what the highest minor version might be, assume it will</span>
+<a name="l75"><span class="ln">75   </span></a><span class="s4"># be 50 for testing. Once this actually happens, update the dictionary</span>
+<a name="l76"><span class="ln">76   </span></a><span class="s4"># with the actual value.</span>
+<a name="l77"><span class="ln">77   </span></a><span class="s1">_LAST_GLIBC_MINOR</span><span class="s0">: </span><span class="s1">dict</span><span class="s2">[</span><span class="s1">int</span><span class="s2">, </span><span class="s1">int</span><span class="s2">] </span><span class="s0">= </span><span class="s1">collections</span><span class="s2">.</span><span class="s1">defaultdict</span><span class="s2">(</span><span class="s0">lambda: </span><span class="s3">50</span><span class="s2">)</span>
+<a name="l78"><span class="ln">78   </span></a>
+<a name="l79"><span class="ln">79   </span></a>
+<a name="l80"><span class="ln">80   </span></a><span class="s0">class </span><span class="s1">_GLibCVersion</span><span class="s2">(</span><span class="s1">NamedTuple</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l81"><span class="ln">81   </span></a>    <span class="s1">major</span><span class="s0">: </span><span class="s1">int</span>
+<a name="l82"><span class="ln">82   </span></a>    <span class="s1">minor</span><span class="s0">: </span><span class="s1">int</span>
+<a name="l83"><span class="ln">83   </span></a>
+<a name="l84"><span class="ln">84   </span></a>
+<a name="l85"><span class="ln">85   </span></a><span class="s0">def </span><span class="s1">_glibc_version_string_confstr</span><span class="s2">() </span><span class="s1">-&gt; str </span><span class="s0">| None:</span>
+<a name="l86"><span class="ln">86   </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l87"><span class="ln">87   </span></a>    Primary implementation of glibc_version_string using os.confstr. 
+<a name="l88"><span class="ln">88   </span></a>    &quot;&quot;&quot;</span>
+<a name="l89"><span class="ln">89   </span></a>    <span class="s4"># os.confstr is quite a bit faster than ctypes.DLL. It's also less likely</span>
+<a name="l90"><span class="ln">90   </span></a>    <span class="s4"># to be broken or missing. This strategy is used in the standard library</span>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s4"># platform module.</span>
+<a name="l92"><span class="ln">92   </span></a>    <span class="s4"># https://github.com/python/cpython/blob/fcf1d003bf4f0100c/Lib/platform.py#L175-L183</span>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s0">try:</span>
+<a name="l94"><span class="ln">94   </span></a>        <span class="s4"># Should be a string like &quot;glibc 2.17&quot;.</span>
+<a name="l95"><span class="ln">95   </span></a>        <span class="s1">version_string</span><span class="s0">: </span><span class="s1">str </span><span class="s0">| None = </span><span class="s1">os</span><span class="s2">.</span><span class="s1">confstr</span><span class="s2">(</span><span class="s5">&quot;CS_GNU_LIBC_VERSION&quot;</span><span class="s2">)</span>
+<a name="l96"><span class="ln">96   </span></a>        <span class="s0">assert </span><span class="s1">version_string </span><span class="s0">is not None</span>
+<a name="l97"><span class="ln">97   </span></a>        <span class="s1">_</span><span class="s2">, </span><span class="s1">version </span><span class="s0">= </span><span class="s1">version_string</span><span class="s2">.</span><span class="s1">rsplit</span><span class="s2">()</span>
+<a name="l98"><span class="ln">98   </span></a>    <span class="s0">except </span><span class="s2">(</span><span class="s1">AssertionError</span><span class="s2">, </span><span class="s1">AttributeError</span><span class="s2">, </span><span class="s1">OSError</span><span class="s2">, </span><span class="s1">ValueError</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l99"><span class="ln">99   </span></a>        <span class="s4"># os.confstr() or CS_GNU_LIBC_VERSION not available (or a bad value)...</span>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s0">return None</span>
+<a name="l101"><span class="ln">101  </span></a>    <span class="s0">return </span><span class="s1">version</span>
+<a name="l102"><span class="ln">102  </span></a>
+<a name="l103"><span class="ln">103  </span></a>
+<a name="l104"><span class="ln">104  </span></a><span class="s0">def </span><span class="s1">_glibc_version_string_ctypes</span><span class="s2">() </span><span class="s1">-&gt; str </span><span class="s0">| None:</span>
+<a name="l105"><span class="ln">105  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l106"><span class="ln">106  </span></a>    Fallback implementation of glibc_version_string using ctypes. 
+<a name="l107"><span class="ln">107  </span></a>    &quot;&quot;&quot;</span>
+<a name="l108"><span class="ln">108  </span></a>    <span class="s0">try:</span>
+<a name="l109"><span class="ln">109  </span></a>        <span class="s0">import </span><span class="s1">ctypes</span>
+<a name="l110"><span class="ln">110  </span></a>    <span class="s0">except </span><span class="s1">ImportError</span><span class="s0">:</span>
+<a name="l111"><span class="ln">111  </span></a>        <span class="s0">return None</span>
+<a name="l112"><span class="ln">112  </span></a>
+<a name="l113"><span class="ln">113  </span></a>    <span class="s4"># ctypes.CDLL(None) internally calls dlopen(NULL), and as the dlopen</span>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s4"># manpage says, &quot;If filename is NULL, then the returned handle is for the</span>
+<a name="l115"><span class="ln">115  </span></a>    <span class="s4"># main program&quot;. This way we can let the linker do the work to figure out</span>
+<a name="l116"><span class="ln">116  </span></a>    <span class="s4"># which libc our process is actually using.</span>
+<a name="l117"><span class="ln">117  </span></a>    <span class="s4">#</span>
+<a name="l118"><span class="ln">118  </span></a>    <span class="s4"># We must also handle the special case where the executable is not a</span>
+<a name="l119"><span class="ln">119  </span></a>    <span class="s4"># dynamically linked executable. This can occur when using musl libc,</span>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s4"># for example. In this situation, dlopen() will error, leading to an</span>
+<a name="l121"><span class="ln">121  </span></a>    <span class="s4"># OSError. Interestingly, at least in the case of musl, there is no</span>
+<a name="l122"><span class="ln">122  </span></a>    <span class="s4"># errno set on the OSError. The single string argument used to construct</span>
+<a name="l123"><span class="ln">123  </span></a>    <span class="s4"># OSError comes from libc itself and is therefore not portable to</span>
+<a name="l124"><span class="ln">124  </span></a>    <span class="s4"># hard code here. In any case, failure to call dlopen() means we</span>
+<a name="l125"><span class="ln">125  </span></a>    <span class="s4"># can proceed, so we bail on our attempt.</span>
+<a name="l126"><span class="ln">126  </span></a>    <span class="s0">try:</span>
+<a name="l127"><span class="ln">127  </span></a>        <span class="s1">process_namespace </span><span class="s0">= </span><span class="s1">ctypes</span><span class="s2">.</span><span class="s1">CDLL</span><span class="s2">(</span><span class="s0">None</span><span class="s2">)</span>
+<a name="l128"><span class="ln">128  </span></a>    <span class="s0">except </span><span class="s1">OSError</span><span class="s0">:</span>
+<a name="l129"><span class="ln">129  </span></a>        <span class="s0">return None</span>
+<a name="l130"><span class="ln">130  </span></a>
+<a name="l131"><span class="ln">131  </span></a>    <span class="s0">try:</span>
+<a name="l132"><span class="ln">132  </span></a>        <span class="s1">gnu_get_libc_version </span><span class="s0">= </span><span class="s1">process_namespace</span><span class="s2">.</span><span class="s1">gnu_get_libc_version</span>
+<a name="l133"><span class="ln">133  </span></a>    <span class="s0">except </span><span class="s1">AttributeError</span><span class="s0">:</span>
+<a name="l134"><span class="ln">134  </span></a>        <span class="s4"># Symbol doesn't exist -&gt; therefore, we are not linked to</span>
+<a name="l135"><span class="ln">135  </span></a>        <span class="s4"># glibc.</span>
+<a name="l136"><span class="ln">136  </span></a>        <span class="s0">return None</span>
+<a name="l137"><span class="ln">137  </span></a>
+<a name="l138"><span class="ln">138  </span></a>    <span class="s4"># Call gnu_get_libc_version, which returns a string like &quot;2.5&quot;</span>
+<a name="l139"><span class="ln">139  </span></a>    <span class="s1">gnu_get_libc_version</span><span class="s2">.</span><span class="s1">restype </span><span class="s0">= </span><span class="s1">ctypes</span><span class="s2">.</span><span class="s1">c_char_p</span>
+<a name="l140"><span class="ln">140  </span></a>    <span class="s1">version_str</span><span class="s0">: </span><span class="s1">str </span><span class="s0">= </span><span class="s1">gnu_get_libc_version</span><span class="s2">()</span>
+<a name="l141"><span class="ln">141  </span></a>    <span class="s4"># py2 / py3 compatibility:</span>
+<a name="l142"><span class="ln">142  </span></a>    <span class="s0">if not </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">version_str</span><span class="s2">, </span><span class="s1">str</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s1">version_str </span><span class="s0">= </span><span class="s1">version_str</span><span class="s2">.</span><span class="s1">decode</span><span class="s2">(</span><span class="s5">&quot;ascii&quot;</span><span class="s2">)</span>
+<a name="l144"><span class="ln">144  </span></a>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s0">return </span><span class="s1">version_str</span>
+<a name="l146"><span class="ln">146  </span></a>
+<a name="l147"><span class="ln">147  </span></a>
+<a name="l148"><span class="ln">148  </span></a><span class="s0">def </span><span class="s1">_glibc_version_string</span><span class="s2">() </span><span class="s1">-&gt; str </span><span class="s0">| None:</span>
+<a name="l149"><span class="ln">149  </span></a>    <span class="s4">&quot;&quot;&quot;Returns glibc version string, or None if not using glibc.&quot;&quot;&quot;</span>
+<a name="l150"><span class="ln">150  </span></a>    <span class="s0">return </span><span class="s1">_glibc_version_string_confstr</span><span class="s2">() </span><span class="s0">or </span><span class="s1">_glibc_version_string_ctypes</span><span class="s2">()</span>
+<a name="l151"><span class="ln">151  </span></a>
+<a name="l152"><span class="ln">152  </span></a>
+<a name="l153"><span class="ln">153  </span></a><span class="s0">def </span><span class="s1">_parse_glibc_version</span><span class="s2">(</span><span class="s1">version_str</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; tuple</span><span class="s2">[</span><span class="s1">int</span><span class="s2">, </span><span class="s1">int</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s4">&quot;&quot;&quot;Parse glibc version. 
+<a name="l155"><span class="ln">155  </span></a> 
+<a name="l156"><span class="ln">156  </span></a>    We use a regexp instead of str.split because we want to discard any 
+<a name="l157"><span class="ln">157  </span></a>    random junk that might come after the minor version -- this might happen 
+<a name="l158"><span class="ln">158  </span></a>    in patched/forked versions of glibc (e.g. Linaro's version of glibc 
+<a name="l159"><span class="ln">159  </span></a>    uses version strings like &quot;2.20-2014.11&quot;). See gh-3588. 
+<a name="l160"><span class="ln">160  </span></a>    &quot;&quot;&quot;</span>
+<a name="l161"><span class="ln">161  </span></a>    <span class="s1">m </span><span class="s0">= </span><span class="s1">re</span><span class="s2">.</span><span class="s1">match</span><span class="s2">(</span><span class="s5">r&quot;(?P&lt;major&gt;[0-9]+)\.(?P&lt;minor&gt;[0-9]+)&quot;</span><span class="s2">, </span><span class="s1">version_str</span><span class="s2">)</span>
+<a name="l162"><span class="ln">162  </span></a>    <span class="s0">if not </span><span class="s1">m</span><span class="s0">:</span>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s1">warnings</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span>
+<a name="l164"><span class="ln">164  </span></a>            <span class="s5">f&quot;Expected glibc version with 2 components major.minor, got: {</span><span class="s1">version_str</span><span class="s5">}&quot;</span><span class="s2">,</span>
+<a name="l165"><span class="ln">165  </span></a>            <span class="s1">RuntimeWarning</span><span class="s2">,</span>
+<a name="l166"><span class="ln">166  </span></a>            <span class="s1">stacklevel</span><span class="s0">=</span><span class="s3">2</span><span class="s2">,</span>
+<a name="l167"><span class="ln">167  </span></a>        <span class="s2">)</span>
+<a name="l168"><span class="ln">168  </span></a>        <span class="s0">return -</span><span class="s3">1</span><span class="s2">, </span><span class="s0">-</span><span class="s3">1</span>
+<a name="l169"><span class="ln">169  </span></a>    <span class="s0">return </span><span class="s1">int</span><span class="s2">(</span><span class="s1">m</span><span class="s2">.</span><span class="s1">group</span><span class="s2">(</span><span class="s5">&quot;major&quot;</span><span class="s2">)), </span><span class="s1">int</span><span class="s2">(</span><span class="s1">m</span><span class="s2">.</span><span class="s1">group</span><span class="s2">(</span><span class="s5">&quot;minor&quot;</span><span class="s2">))</span>
+<a name="l170"><span class="ln">170  </span></a>
+<a name="l171"><span class="ln">171  </span></a>
+<a name="l172"><span class="ln">172  </span></a><span class="s0">@</span><span class="s1">functools</span><span class="s2">.</span><span class="s1">lru_cache</span>
+<a name="l173"><span class="ln">173  </span></a><span class="s0">def </span><span class="s1">_get_glibc_version</span><span class="s2">() </span><span class="s1">-&gt; tuple</span><span class="s2">[</span><span class="s1">int</span><span class="s2">, </span><span class="s1">int</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l174"><span class="ln">174  </span></a>    <span class="s1">version_str </span><span class="s0">= </span><span class="s1">_glibc_version_string</span><span class="s2">()</span>
+<a name="l175"><span class="ln">175  </span></a>    <span class="s0">if </span><span class="s1">version_str </span><span class="s0">is None:</span>
+<a name="l176"><span class="ln">176  </span></a>        <span class="s0">return </span><span class="s2">(</span><span class="s0">-</span><span class="s3">1</span><span class="s2">, </span><span class="s0">-</span><span class="s3">1</span><span class="s2">)</span>
+<a name="l177"><span class="ln">177  </span></a>    <span class="s0">return </span><span class="s1">_parse_glibc_version</span><span class="s2">(</span><span class="s1">version_str</span><span class="s2">)</span>
+<a name="l178"><span class="ln">178  </span></a>
+<a name="l179"><span class="ln">179  </span></a>
+<a name="l180"><span class="ln">180  </span></a><span class="s4"># From PEP 513, PEP 600</span>
+<a name="l181"><span class="ln">181  </span></a><span class="s0">def </span><span class="s1">_is_compatible</span><span class="s2">(</span><span class="s1">arch</span><span class="s0">: </span><span class="s1">str</span><span class="s2">, </span><span class="s1">version</span><span class="s0">: </span><span class="s1">_GLibCVersion</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l182"><span class="ln">182  </span></a>    <span class="s1">sys_glibc </span><span class="s0">= </span><span class="s1">_get_glibc_version</span><span class="s2">()</span>
+<a name="l183"><span class="ln">183  </span></a>    <span class="s0">if </span><span class="s1">sys_glibc </span><span class="s0">&lt; </span><span class="s1">version</span><span class="s0">:</span>
+<a name="l184"><span class="ln">184  </span></a>        <span class="s0">return False</span>
+<a name="l185"><span class="ln">185  </span></a>    <span class="s4"># Check for presence of _manylinux module.</span>
+<a name="l186"><span class="ln">186  </span></a>    <span class="s0">try:</span>
+<a name="l187"><span class="ln">187  </span></a>        <span class="s0">import </span><span class="s1">_manylinux</span>
+<a name="l188"><span class="ln">188  </span></a>    <span class="s0">except </span><span class="s1">ImportError</span><span class="s0">:</span>
+<a name="l189"><span class="ln">189  </span></a>        <span class="s0">return True</span>
+<a name="l190"><span class="ln">190  </span></a>    <span class="s0">if </span><span class="s1">hasattr</span><span class="s2">(</span><span class="s1">_manylinux</span><span class="s2">, </span><span class="s5">&quot;manylinux_compatible&quot;</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l191"><span class="ln">191  </span></a>        <span class="s1">result </span><span class="s0">= </span><span class="s1">_manylinux</span><span class="s2">.</span><span class="s1">manylinux_compatible</span><span class="s2">(</span><span class="s1">version</span><span class="s2">[</span><span class="s3">0</span><span class="s2">], </span><span class="s1">version</span><span class="s2">[</span><span class="s3">1</span><span class="s2">], </span><span class="s1">arch</span><span class="s2">)</span>
+<a name="l192"><span class="ln">192  </span></a>        <span class="s0">if </span><span class="s1">result </span><span class="s0">is not None:</span>
+<a name="l193"><span class="ln">193  </span></a>            <span class="s0">return </span><span class="s1">bool</span><span class="s2">(</span><span class="s1">result</span><span class="s2">)</span>
+<a name="l194"><span class="ln">194  </span></a>        <span class="s0">return True</span>
+<a name="l195"><span class="ln">195  </span></a>    <span class="s0">if </span><span class="s1">version </span><span class="s0">== </span><span class="s1">_GLibCVersion</span><span class="s2">(</span><span class="s3">2</span><span class="s2">, </span><span class="s3">5</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l196"><span class="ln">196  </span></a>        <span class="s0">if </span><span class="s1">hasattr</span><span class="s2">(</span><span class="s1">_manylinux</span><span class="s2">, </span><span class="s5">&quot;manylinux1_compatible&quot;</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l197"><span class="ln">197  </span></a>            <span class="s0">return </span><span class="s1">bool</span><span class="s2">(</span><span class="s1">_manylinux</span><span class="s2">.</span><span class="s1">manylinux1_compatible</span><span class="s2">)</span>
+<a name="l198"><span class="ln">198  </span></a>    <span class="s0">if </span><span class="s1">version </span><span class="s0">== </span><span class="s1">_GLibCVersion</span><span class="s2">(</span><span class="s3">2</span><span class="s2">, </span><span class="s3">12</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l199"><span class="ln">199  </span></a>        <span class="s0">if </span><span class="s1">hasattr</span><span class="s2">(</span><span class="s1">_manylinux</span><span class="s2">, </span><span class="s5">&quot;manylinux2010_compatible&quot;</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l200"><span class="ln">200  </span></a>            <span class="s0">return </span><span class="s1">bool</span><span class="s2">(</span><span class="s1">_manylinux</span><span class="s2">.</span><span class="s1">manylinux2010_compatible</span><span class="s2">)</span>
+<a name="l201"><span class="ln">201  </span></a>    <span class="s0">if </span><span class="s1">version </span><span class="s0">== </span><span class="s1">_GLibCVersion</span><span class="s2">(</span><span class="s3">2</span><span class="s2">, </span><span class="s3">17</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l202"><span class="ln">202  </span></a>        <span class="s0">if </span><span class="s1">hasattr</span><span class="s2">(</span><span class="s1">_manylinux</span><span class="s2">, </span><span class="s5">&quot;manylinux2014_compatible&quot;</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l203"><span class="ln">203  </span></a>            <span class="s0">return </span><span class="s1">bool</span><span class="s2">(</span><span class="s1">_manylinux</span><span class="s2">.</span><span class="s1">manylinux2014_compatible</span><span class="s2">)</span>
+<a name="l204"><span class="ln">204  </span></a>    <span class="s0">return True</span>
+<a name="l205"><span class="ln">205  </span></a>
+<a name="l206"><span class="ln">206  </span></a>
+<a name="l207"><span class="ln">207  </span></a><span class="s1">_LEGACY_MANYLINUX_MAP </span><span class="s0">= </span><span class="s2">{</span>
+<a name="l208"><span class="ln">208  </span></a>    <span class="s4"># CentOS 7 w/ glibc 2.17 (PEP 599)</span>
+<a name="l209"><span class="ln">209  </span></a>    <span class="s2">(</span><span class="s3">2</span><span class="s2">, </span><span class="s3">17</span><span class="s2">)</span><span class="s0">: </span><span class="s5">&quot;manylinux2014&quot;</span><span class="s2">,</span>
+<a name="l210"><span class="ln">210  </span></a>    <span class="s4"># CentOS 6 w/ glibc 2.12 (PEP 571)</span>
+<a name="l211"><span class="ln">211  </span></a>    <span class="s2">(</span><span class="s3">2</span><span class="s2">, </span><span class="s3">12</span><span class="s2">)</span><span class="s0">: </span><span class="s5">&quot;manylinux2010&quot;</span><span class="s2">,</span>
+<a name="l212"><span class="ln">212  </span></a>    <span class="s4"># CentOS 5 w/ glibc 2.5 (PEP 513)</span>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s2">(</span><span class="s3">2</span><span class="s2">, </span><span class="s3">5</span><span class="s2">)</span><span class="s0">: </span><span class="s5">&quot;manylinux1&quot;</span><span class="s2">,</span>
+<a name="l214"><span class="ln">214  </span></a><span class="s2">}</span>
+<a name="l215"><span class="ln">215  </span></a>
+<a name="l216"><span class="ln">216  </span></a>
+<a name="l217"><span class="ln">217  </span></a><span class="s0">def </span><span class="s1">platform_tags</span><span class="s2">(</span><span class="s1">archs</span><span class="s0">: </span><span class="s1">Sequence</span><span class="s2">[</span><span class="s1">str</span><span class="s2">]) </span><span class="s1">-&gt; Iterator</span><span class="s2">[</span><span class="s1">str</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l218"><span class="ln">218  </span></a>    <span class="s4">&quot;&quot;&quot;Generate manylinux tags compatible to the current platform. 
+<a name="l219"><span class="ln">219  </span></a> 
+<a name="l220"><span class="ln">220  </span></a>    :param archs: Sequence of compatible architectures. 
+<a name="l221"><span class="ln">221  </span></a>        The first one shall be the closest to the actual architecture and be the part of 
+<a name="l222"><span class="ln">222  </span></a>        platform tag after the ``linux_`` prefix, e.g. ``x86_64``. 
+<a name="l223"><span class="ln">223  </span></a>        The ``linux_`` prefix is assumed as a prerequisite for the current platform to 
+<a name="l224"><span class="ln">224  </span></a>        be manylinux-compatible. 
+<a name="l225"><span class="ln">225  </span></a> 
+<a name="l226"><span class="ln">226  </span></a>    :returns: An iterator of compatible manylinux tags. 
+<a name="l227"><span class="ln">227  </span></a>    &quot;&quot;&quot;</span>
+<a name="l228"><span class="ln">228  </span></a>    <span class="s0">if not </span><span class="s1">_have_compatible_abi</span><span class="s2">(</span><span class="s1">sys</span><span class="s2">.</span><span class="s1">executable</span><span class="s2">, </span><span class="s1">archs</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l229"><span class="ln">229  </span></a>        <span class="s0">return</span>
+<a name="l230"><span class="ln">230  </span></a>    <span class="s4"># Oldest glibc to be supported regardless of architecture is (2, 17).</span>
+<a name="l231"><span class="ln">231  </span></a>    <span class="s1">too_old_glibc2 </span><span class="s0">= </span><span class="s1">_GLibCVersion</span><span class="s2">(</span><span class="s3">2</span><span class="s2">, </span><span class="s3">16</span><span class="s2">)</span>
+<a name="l232"><span class="ln">232  </span></a>    <span class="s0">if </span><span class="s1">set</span><span class="s2">(</span><span class="s1">archs</span><span class="s2">) </span><span class="s0">&amp; </span><span class="s2">{</span><span class="s5">&quot;x86_64&quot;</span><span class="s2">, </span><span class="s5">&quot;i686&quot;</span><span class="s2">}</span><span class="s0">:</span>
+<a name="l233"><span class="ln">233  </span></a>        <span class="s4"># On x86/i686 also oldest glibc to be supported is (2, 5).</span>
+<a name="l234"><span class="ln">234  </span></a>        <span class="s1">too_old_glibc2 </span><span class="s0">= </span><span class="s1">_GLibCVersion</span><span class="s2">(</span><span class="s3">2</span><span class="s2">, </span><span class="s3">4</span><span class="s2">)</span>
+<a name="l235"><span class="ln">235  </span></a>    <span class="s1">current_glibc </span><span class="s0">= </span><span class="s1">_GLibCVersion</span><span class="s2">(</span><span class="s0">*</span><span class="s1">_get_glibc_version</span><span class="s2">())</span>
+<a name="l236"><span class="ln">236  </span></a>    <span class="s1">glibc_max_list </span><span class="s0">= </span><span class="s2">[</span><span class="s1">current_glibc</span><span class="s2">]</span>
+<a name="l237"><span class="ln">237  </span></a>    <span class="s4"># We can assume compatibility across glibc major versions.</span>
+<a name="l238"><span class="ln">238  </span></a>    <span class="s4"># https://sourceware.org/bugzilla/show_bug.cgi?id=24636</span>
+<a name="l239"><span class="ln">239  </span></a>    <span class="s4">#</span>
+<a name="l240"><span class="ln">240  </span></a>    <span class="s4"># Build a list of maximum glibc versions so that we can</span>
+<a name="l241"><span class="ln">241  </span></a>    <span class="s4"># output the canonical list of all glibc from current_glibc</span>
+<a name="l242"><span class="ln">242  </span></a>    <span class="s4"># down to too_old_glibc2, including all intermediary versions.</span>
+<a name="l243"><span class="ln">243  </span></a>    <span class="s0">for </span><span class="s1">glibc_major </span><span class="s0">in </span><span class="s1">range</span><span class="s2">(</span><span class="s1">current_glibc</span><span class="s2">.</span><span class="s1">major </span><span class="s0">- </span><span class="s3">1</span><span class="s2">, </span><span class="s3">1</span><span class="s2">, </span><span class="s0">-</span><span class="s3">1</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l244"><span class="ln">244  </span></a>        <span class="s1">glibc_minor </span><span class="s0">= </span><span class="s1">_LAST_GLIBC_MINOR</span><span class="s2">[</span><span class="s1">glibc_major</span><span class="s2">]</span>
+<a name="l245"><span class="ln">245  </span></a>        <span class="s1">glibc_max_list</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">_GLibCVersion</span><span class="s2">(</span><span class="s1">glibc_major</span><span class="s2">, </span><span class="s1">glibc_minor</span><span class="s2">))</span>
+<a name="l246"><span class="ln">246  </span></a>    <span class="s0">for </span><span class="s1">arch </span><span class="s0">in </span><span class="s1">archs</span><span class="s0">:</span>
+<a name="l247"><span class="ln">247  </span></a>        <span class="s0">for </span><span class="s1">glibc_max </span><span class="s0">in </span><span class="s1">glibc_max_list</span><span class="s0">:</span>
+<a name="l248"><span class="ln">248  </span></a>            <span class="s0">if </span><span class="s1">glibc_max</span><span class="s2">.</span><span class="s1">major </span><span class="s0">== </span><span class="s1">too_old_glibc2</span><span class="s2">.</span><span class="s1">major</span><span class="s0">:</span>
+<a name="l249"><span class="ln">249  </span></a>                <span class="s1">min_minor </span><span class="s0">= </span><span class="s1">too_old_glibc2</span><span class="s2">.</span><span class="s1">minor</span>
+<a name="l250"><span class="ln">250  </span></a>            <span class="s0">else:</span>
+<a name="l251"><span class="ln">251  </span></a>                <span class="s4"># For other glibc major versions oldest supported is (x, 0).</span>
+<a name="l252"><span class="ln">252  </span></a>                <span class="s1">min_minor </span><span class="s0">= -</span><span class="s3">1</span>
+<a name="l253"><span class="ln">253  </span></a>            <span class="s0">for </span><span class="s1">glibc_minor </span><span class="s0">in </span><span class="s1">range</span><span class="s2">(</span><span class="s1">glibc_max</span><span class="s2">.</span><span class="s1">minor</span><span class="s2">, </span><span class="s1">min_minor</span><span class="s2">, </span><span class="s0">-</span><span class="s3">1</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l254"><span class="ln">254  </span></a>                <span class="s1">glibc_version </span><span class="s0">= </span><span class="s1">_GLibCVersion</span><span class="s2">(</span><span class="s1">glibc_max</span><span class="s2">.</span><span class="s1">major</span><span class="s2">, </span><span class="s1">glibc_minor</span><span class="s2">)</span>
+<a name="l255"><span class="ln">255  </span></a>                <span class="s1">tag </span><span class="s0">= </span><span class="s5">&quot;manylinux_{}_{}&quot;</span><span class="s2">.</span><span class="s1">format</span><span class="s2">(</span><span class="s0">*</span><span class="s1">glibc_version</span><span class="s2">)</span>
+<a name="l256"><span class="ln">256  </span></a>                <span class="s0">if </span><span class="s1">_is_compatible</span><span class="s2">(</span><span class="s1">arch</span><span class="s2">, </span><span class="s1">glibc_version</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l257"><span class="ln">257  </span></a>                    <span class="s0">yield </span><span class="s5">f&quot;{</span><span class="s1">tag</span><span class="s5">}_{</span><span class="s1">arch</span><span class="s5">}&quot;</span>
+<a name="l258"><span class="ln">258  </span></a>                <span class="s4"># Handle the legacy manylinux1, manylinux2010, manylinux2014 tags.</span>
+<a name="l259"><span class="ln">259  </span></a>                <span class="s0">if </span><span class="s1">glibc_version </span><span class="s0">in </span><span class="s1">_LEGACY_MANYLINUX_MAP</span><span class="s0">:</span>
+<a name="l260"><span class="ln">260  </span></a>                    <span class="s1">legacy_tag </span><span class="s0">= </span><span class="s1">_LEGACY_MANYLINUX_MAP</span><span class="s2">[</span><span class="s1">glibc_version</span><span class="s2">]</span>
+<a name="l261"><span class="ln">261  </span></a>                    <span class="s0">if </span><span class="s1">_is_compatible</span><span class="s2">(</span><span class="s1">arch</span><span class="s2">, </span><span class="s1">glibc_version</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l262"><span class="ln">262  </span></a>                        <span class="s0">yield </span><span class="s5">f&quot;{</span><span class="s1">legacy_tag</span><span class="s5">}_{</span><span class="s1">arch</span><span class="s5">}&quot;</span>
+<a name="l263"><span class="ln">263  </span></a></pre>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<html>
+<head>
+<title>TensorTransformations.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #000080; font-weight: bold;}
+.s1 { color: #333333;}
+.s2 { color: #660e7a; font-weight: bold;}
+.s3 { color: #183691; font-weight: bold;}
+.s4 { color: #0086b3;}
+.s5 { color: #969896; font-style: italic;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+TensorTransformations.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#include </span><span class="s1">&lt;ATen/core/Tensor.h&gt;</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">#ifndef </span><span class="s1">AT_PER_OPERATOR_HEADERS</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">#include </span><span class="s1">&lt;ATen/Functions.h&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">#else</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">#include </span><span class="s1">&lt;ATen/ops/roll.h&gt;</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">#endif</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">#include </span><span class="s1">&lt;c10/util/Exception.h&gt;</span>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">namespace </span><span class="s1">at::native {</span>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a><span class="s0">static </span><span class="s2">inline </span><span class="s1">Tensor roll_common(</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s0">const </span><span class="s1">Tensor&amp; self,</span>
+<a name="l15"><span class="ln">15   </span></a>    <span class="s1">IntArrayRef shifts,</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s1">IntArrayRef dims) {</span>
+<a name="l17"><span class="ln">17   </span></a>  <span class="s1">TORCH_CHECK(!shifts.empty(), </span><span class="s3">&quot;`shifts` required&quot;</span><span class="s1">);</span>
+<a name="l18"><span class="ln">18   </span></a>  <span class="s0">if </span><span class="s1">(dims.empty() &amp;&amp; shifts.size() == </span><span class="s4">1</span><span class="s1">) {</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s0">auto </span><span class="s1">flattened = self.contiguous().view(self.numel());</span>
+<a name="l20"><span class="ln">20   </span></a>    <span class="s0">return </span><span class="s1">roll(flattened, shifts[</span><span class="s4">0</span><span class="s1">], </span><span class="s4">0</span><span class="s1">).view(self.sizes());</span>
+<a name="l21"><span class="ln">21   </span></a>  <span class="s1">}</span>
+<a name="l22"><span class="ln">22   </span></a>  <span class="s1">TORCH_CHECK(</span>
+<a name="l23"><span class="ln">23   </span></a>      <span class="s1">shifts.size() == dims.size(),</span>
+<a name="l24"><span class="ln">24   </span></a>      <span class="s3">&quot;shifts and dimensions must align. shifts: &quot;</span><span class="s1">,</span>
+<a name="l25"><span class="ln">25   </span></a>      <span class="s1">shifts.size(),</span>
+<a name="l26"><span class="ln">26   </span></a>      <span class="s3">&quot;, dims:&quot;</span><span class="s1">,</span>
+<a name="l27"><span class="ln">27   </span></a>      <span class="s1">dims.size());</span>
+<a name="l28"><span class="ln">28   </span></a>  <span class="s1">AT_ASSERT(dims.size() &gt; </span><span class="s4">1</span><span class="s1">);</span>
+<a name="l29"><span class="ln">29   </span></a>  <span class="s0">auto </span><span class="s1">tail_shifts = shifts.slice(</span><span class="s4">1</span><span class="s1">);</span>
+<a name="l30"><span class="ln">30   </span></a>  <span class="s0">auto </span><span class="s1">tail_dims = dims.slice(</span><span class="s4">1</span><span class="s1">);</span>
+<a name="l31"><span class="ln">31   </span></a>  <span class="s0">auto </span><span class="s1">first_dim_rolled = roll(self, shifts[</span><span class="s4">0</span><span class="s1">], dims[</span><span class="s4">0</span><span class="s1">]);</span>
+<a name="l32"><span class="ln">32   </span></a>  <span class="s0">return </span><span class="s1">at::roll(first_dim_rolled, tail_shifts, tail_dims);</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s1">}</span>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a><span class="s1">} </span><span class="s5">// namespace at::native</span>
+<a name="l36"><span class="ln">36   </span></a></pre>
+</body>
+</html>

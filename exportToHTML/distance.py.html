@@ -1,0 +1,117 @@
+<html>
+<head>
+<title>distance.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #969896;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+distance.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">import </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">nn</span><span class="s2">.</span><span class="s1">functional </span><span class="s0">as </span><span class="s1">F</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s1">torch </span><span class="s0">import </span><span class="s1">Tensor</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">module </span><span class="s0">import </span><span class="s1">Module</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span><span class="s3">&quot;PairwiseDistance&quot;</span><span class="s2">, </span><span class="s3">&quot;CosineSimilarity&quot;</span><span class="s2">]</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">class </span><span class="s1">PairwiseDistance</span><span class="s2">(</span><span class="s1">Module</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l11"><span class="ln">11   </span></a>    <span class="s4">r&quot;&quot;&quot; 
+<a name="l12"><span class="ln">12   </span></a>    Computes the pairwise distance between input vectors, or between columns of input matrices. 
+<a name="l13"><span class="ln">13   </span></a> 
+<a name="l14"><span class="ln">14   </span></a>    Distances are computed using ``p``-norm, with constant ``eps`` added to avoid division by zero 
+<a name="l15"><span class="ln">15   </span></a>    if ``p`` is negative, i.e.: 
+<a name="l16"><span class="ln">16   </span></a> 
+<a name="l17"><span class="ln">17   </span></a>    .. math :: 
+<a name="l18"><span class="ln">18   </span></a>        \mathrm{dist}\left(x, y\right) = \left\Vert x-y + \epsilon e \right\Vert_p, 
+<a name="l19"><span class="ln">19   </span></a> 
+<a name="l20"><span class="ln">20   </span></a>    where :math:`e` is the vector of ones and the ``p``-norm is given by. 
+<a name="l21"><span class="ln">21   </span></a> 
+<a name="l22"><span class="ln">22   </span></a>    .. math :: 
+<a name="l23"><span class="ln">23   </span></a>        \Vert x \Vert _p = \left( \sum_{i=1}^n  \vert x_i \vert ^ p \right) ^ {1/p}. 
+<a name="l24"><span class="ln">24   </span></a> 
+<a name="l25"><span class="ln">25   </span></a>    Args: 
+<a name="l26"><span class="ln">26   </span></a>        p (real, optional): the norm degree. Can be negative. Default: 2 
+<a name="l27"><span class="ln">27   </span></a>        eps (float, optional): Small value to avoid division by zero. 
+<a name="l28"><span class="ln">28   </span></a>            Default: 1e-6 
+<a name="l29"><span class="ln">29   </span></a>        keepdim (bool, optional): Determines whether or not to keep the vector dimension. 
+<a name="l30"><span class="ln">30   </span></a>            Default: False 
+<a name="l31"><span class="ln">31   </span></a>    Shape: 
+<a name="l32"><span class="ln">32   </span></a>        - Input1: :math:`(N, D)` or :math:`(D)` where `N = batch dimension` and `D = vector dimension` 
+<a name="l33"><span class="ln">33   </span></a>        - Input2: :math:`(N, D)` or :math:`(D)`, same shape as the Input1 
+<a name="l34"><span class="ln">34   </span></a>        - Output: :math:`(N)` or :math:`()` based on input dimension. 
+<a name="l35"><span class="ln">35   </span></a>          If :attr:`keepdim` is ``True``, then :math:`(N, 1)` or :math:`(1)` based on input dimension. 
+<a name="l36"><span class="ln">36   </span></a> 
+<a name="l37"><span class="ln">37   </span></a>    Examples: 
+<a name="l38"><span class="ln">38   </span></a>        &gt;&gt;&gt; pdist = nn.PairwiseDistance(p=2) 
+<a name="l39"><span class="ln">39   </span></a>        &gt;&gt;&gt; input1 = torch.randn(100, 128) 
+<a name="l40"><span class="ln">40   </span></a>        &gt;&gt;&gt; input2 = torch.randn(100, 128) 
+<a name="l41"><span class="ln">41   </span></a>        &gt;&gt;&gt; output = pdist(input1, input2) 
+<a name="l42"><span class="ln">42   </span></a>    &quot;&quot;&quot;</span>
+<a name="l43"><span class="ln">43   </span></a>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s1">__constants__ </span><span class="s0">= </span><span class="s2">[</span><span class="s3">&quot;norm&quot;</span><span class="s2">, </span><span class="s3">&quot;eps&quot;</span><span class="s2">, </span><span class="s3">&quot;keepdim&quot;</span><span class="s2">]</span>
+<a name="l45"><span class="ln">45   </span></a>    <span class="s1">norm</span><span class="s0">: </span><span class="s1">float</span>
+<a name="l46"><span class="ln">46   </span></a>    <span class="s1">eps</span><span class="s0">: </span><span class="s1">float</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s1">keepdim</span><span class="s0">: </span><span class="s1">bool</span>
+<a name="l48"><span class="ln">48   </span></a>
+<a name="l49"><span class="ln">49   </span></a>    <span class="s0">def </span><span class="s1">__init__</span><span class="s2">(</span>
+<a name="l50"><span class="ln">50   </span></a>        <span class="s1">self</span><span class="s2">, </span><span class="s1">p</span><span class="s0">: </span><span class="s1">float </span><span class="s0">= </span><span class="s5">2.0</span><span class="s2">, </span><span class="s1">eps</span><span class="s0">: </span><span class="s1">float </span><span class="s0">= </span><span class="s5">1e-6</span><span class="s2">, </span><span class="s1">keepdim</span><span class="s0">: </span><span class="s1">bool </span><span class="s0">= False</span>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s2">) </span><span class="s1">-&gt; </span><span class="s0">None:</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s1">super</span><span class="s2">().</span><span class="s1">__init__</span><span class="s2">()</span>
+<a name="l53"><span class="ln">53   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">norm </span><span class="s0">= </span><span class="s1">p</span>
+<a name="l54"><span class="ln">54   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">eps </span><span class="s0">= </span><span class="s1">eps</span>
+<a name="l55"><span class="ln">55   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">keepdim </span><span class="s0">= </span><span class="s1">keepdim</span>
+<a name="l56"><span class="ln">56   </span></a>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s0">def </span><span class="s1">forward</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">x1</span><span class="s0">: </span><span class="s1">Tensor</span><span class="s2">, </span><span class="s1">x2</span><span class="s0">: </span><span class="s1">Tensor</span><span class="s2">) </span><span class="s1">-&gt; Tensor</span><span class="s0">:</span>
+<a name="l58"><span class="ln">58   </span></a>        <span class="s0">return </span><span class="s1">F</span><span class="s2">.</span><span class="s1">pairwise_distance</span><span class="s2">(</span><span class="s1">x1</span><span class="s2">, </span><span class="s1">x2</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">norm</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">eps</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">keepdim</span><span class="s2">)</span>
+<a name="l59"><span class="ln">59   </span></a>
+<a name="l60"><span class="ln">60   </span></a>
+<a name="l61"><span class="ln">61   </span></a><span class="s0">class </span><span class="s1">CosineSimilarity</span><span class="s2">(</span><span class="s1">Module</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s4">r&quot;&quot;&quot;Returns cosine similarity between :math:`x_1` and :math:`x_2`, computed along `dim`. 
+<a name="l63"><span class="ln">63   </span></a> 
+<a name="l64"><span class="ln">64   </span></a>    .. math :: 
+<a name="l65"><span class="ln">65   </span></a>        \text{similarity} = \dfrac{x_1 \cdot x_2}{\max(\Vert x_1 \Vert _2 \cdot \Vert x_2 \Vert _2, \epsilon)}. 
+<a name="l66"><span class="ln">66   </span></a> 
+<a name="l67"><span class="ln">67   </span></a>    Args: 
+<a name="l68"><span class="ln">68   </span></a>        dim (int, optional): Dimension where cosine similarity is computed. Default: 1 
+<a name="l69"><span class="ln">69   </span></a>        eps (float, optional): Small value to avoid division by zero. 
+<a name="l70"><span class="ln">70   </span></a>            Default: 1e-8 
+<a name="l71"><span class="ln">71   </span></a>    Shape: 
+<a name="l72"><span class="ln">72   </span></a>        - Input1: :math:`(\ast_1, D, \ast_2)` where D is at position `dim` 
+<a name="l73"><span class="ln">73   </span></a>        - Input2: :math:`(\ast_1, D, \ast_2)`, same number of dimensions as x1, matching x1 size at dimension `dim`, 
+<a name="l74"><span class="ln">74   </span></a>          and broadcastable with x1 at other dimensions. 
+<a name="l75"><span class="ln">75   </span></a>        - Output: :math:`(\ast_1, \ast_2)` 
+<a name="l76"><span class="ln">76   </span></a> 
+<a name="l77"><span class="ln">77   </span></a>    Examples: 
+<a name="l78"><span class="ln">78   </span></a>        &gt;&gt;&gt; input1 = torch.randn(100, 128) 
+<a name="l79"><span class="ln">79   </span></a>        &gt;&gt;&gt; input2 = torch.randn(100, 128) 
+<a name="l80"><span class="ln">80   </span></a>        &gt;&gt;&gt; cos = nn.CosineSimilarity(dim=1, eps=1e-6) 
+<a name="l81"><span class="ln">81   </span></a>        &gt;&gt;&gt; output = cos(input1, input2) 
+<a name="l82"><span class="ln">82   </span></a>    &quot;&quot;&quot;</span>
+<a name="l83"><span class="ln">83   </span></a>
+<a name="l84"><span class="ln">84   </span></a>    <span class="s1">__constants__ </span><span class="s0">= </span><span class="s2">[</span><span class="s3">&quot;dim&quot;</span><span class="s2">, </span><span class="s3">&quot;eps&quot;</span><span class="s2">]</span>
+<a name="l85"><span class="ln">85   </span></a>    <span class="s1">dim</span><span class="s0">: </span><span class="s1">int</span>
+<a name="l86"><span class="ln">86   </span></a>    <span class="s1">eps</span><span class="s0">: </span><span class="s1">float</span>
+<a name="l87"><span class="ln">87   </span></a>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s0">def </span><span class="s1">__init__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">dim</span><span class="s0">: </span><span class="s1">int </span><span class="s0">= </span><span class="s5">1</span><span class="s2">, </span><span class="s1">eps</span><span class="s0">: </span><span class="s1">float </span><span class="s0">= </span><span class="s5">1e-8</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s0">None:</span>
+<a name="l89"><span class="ln">89   </span></a>        <span class="s1">super</span><span class="s2">().</span><span class="s1">__init__</span><span class="s2">()</span>
+<a name="l90"><span class="ln">90   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">dim </span><span class="s0">= </span><span class="s1">dim</span>
+<a name="l91"><span class="ln">91   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">eps </span><span class="s0">= </span><span class="s1">eps</span>
+<a name="l92"><span class="ln">92   </span></a>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s0">def </span><span class="s1">forward</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">x1</span><span class="s0">: </span><span class="s1">Tensor</span><span class="s2">, </span><span class="s1">x2</span><span class="s0">: </span><span class="s1">Tensor</span><span class="s2">) </span><span class="s1">-&gt; Tensor</span><span class="s0">:</span>
+<a name="l94"><span class="ln">94   </span></a>        <span class="s0">return </span><span class="s1">F</span><span class="s2">.</span><span class="s1">cosine_similarity</span><span class="s2">(</span><span class="s1">x1</span><span class="s2">, </span><span class="s1">x2</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">dim</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">eps</span><span class="s2">)</span>
+<a name="l95"><span class="ln">95   </span></a></pre>
+</body>
+</html>

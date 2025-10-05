@@ -1,0 +1,214 @@
+<html>
+<head>
+<title>_inspect.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_inspect.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot;Subset of inspect module from upstream python 
+<a name="l2"><span class="ln">2    </span></a> 
+<a name="l3"><span class="ln">3    </span></a>We use this instead of upstream because upstream inspect is slow to import, and 
+<a name="l4"><span class="ln">4    </span></a>significantly contributes to numpy import times. Importing this copy has almost 
+<a name="l5"><span class="ln">5    </span></a>no overhead. 
+<a name="l6"><span class="ln">6    </span></a> 
+<a name="l7"><span class="ln">7    </span></a>&quot;&quot;&quot;</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s2">import </span><span class="s1">types</span>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'getargspec'</span><span class="s3">, </span><span class="s4">'formatargspec'</span><span class="s3">]</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s0"># ----------------------------------------------------------- type-checking</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">def </span><span class="s1">ismethod</span><span class="s3">(</span><span class="s1">object</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s0">&quot;&quot;&quot;Return true if the object is an instance method. 
+<a name="l15"><span class="ln">15   </span></a> 
+<a name="l16"><span class="ln">16   </span></a>    Instance method objects provide these attributes: 
+<a name="l17"><span class="ln">17   </span></a>        __doc__         documentation string 
+<a name="l18"><span class="ln">18   </span></a>        __name__        name with which this method was defined 
+<a name="l19"><span class="ln">19   </span></a>        im_class        class object in which this method belongs 
+<a name="l20"><span class="ln">20   </span></a>        im_func         function object containing implementation of method 
+<a name="l21"><span class="ln">21   </span></a>        im_self         instance to which this method is bound, or None 
+<a name="l22"><span class="ln">22   </span></a> 
+<a name="l23"><span class="ln">23   </span></a>    &quot;&quot;&quot;</span>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s2">return </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">object</span><span class="s3">, </span><span class="s1">types</span><span class="s3">.</span><span class="s1">MethodType</span><span class="s3">)</span>
+<a name="l25"><span class="ln">25   </span></a>
+<a name="l26"><span class="ln">26   </span></a><span class="s2">def </span><span class="s1">isfunction</span><span class="s3">(</span><span class="s1">object</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s0">&quot;&quot;&quot;Return true if the object is a user-defined function. 
+<a name="l28"><span class="ln">28   </span></a> 
+<a name="l29"><span class="ln">29   </span></a>    Function objects provide these attributes: 
+<a name="l30"><span class="ln">30   </span></a>        __doc__         documentation string 
+<a name="l31"><span class="ln">31   </span></a>        __name__        name with which this function was defined 
+<a name="l32"><span class="ln">32   </span></a>        func_code       code object containing compiled function bytecode 
+<a name="l33"><span class="ln">33   </span></a>        func_defaults   tuple of any default values for arguments 
+<a name="l34"><span class="ln">34   </span></a>        func_doc        (same as __doc__) 
+<a name="l35"><span class="ln">35   </span></a>        func_globals    global namespace in which this function was defined 
+<a name="l36"><span class="ln">36   </span></a>        func_name       (same as __name__) 
+<a name="l37"><span class="ln">37   </span></a> 
+<a name="l38"><span class="ln">38   </span></a>    &quot;&quot;&quot;</span>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s2">return </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">object</span><span class="s3">, </span><span class="s1">types</span><span class="s3">.</span><span class="s1">FunctionType</span><span class="s3">)</span>
+<a name="l40"><span class="ln">40   </span></a>
+<a name="l41"><span class="ln">41   </span></a><span class="s2">def </span><span class="s1">iscode</span><span class="s3">(</span><span class="s1">object</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s0">&quot;&quot;&quot;Return true if the object is a code object. 
+<a name="l43"><span class="ln">43   </span></a> 
+<a name="l44"><span class="ln">44   </span></a>    Code objects provide these attributes: 
+<a name="l45"><span class="ln">45   </span></a>        co_argcount     number of arguments (not including * or ** args) 
+<a name="l46"><span class="ln">46   </span></a>        co_code         string of raw compiled bytecode 
+<a name="l47"><span class="ln">47   </span></a>        co_consts       tuple of constants used in the bytecode 
+<a name="l48"><span class="ln">48   </span></a>        co_filename     name of file in which this code object was created 
+<a name="l49"><span class="ln">49   </span></a>        co_firstlineno  number of first line in Python source code 
+<a name="l50"><span class="ln">50   </span></a>        co_flags        bitmap: 1=optimized | 2=newlocals | 4=*arg | 8=**arg 
+<a name="l51"><span class="ln">51   </span></a>        co_lnotab       encoded mapping of line numbers to bytecode indices 
+<a name="l52"><span class="ln">52   </span></a>        co_name         name with which this code object was defined 
+<a name="l53"><span class="ln">53   </span></a>        co_names        tuple of names of local variables 
+<a name="l54"><span class="ln">54   </span></a>        co_nlocals      number of local variables 
+<a name="l55"><span class="ln">55   </span></a>        co_stacksize    virtual machine stack space required 
+<a name="l56"><span class="ln">56   </span></a>        co_varnames     tuple of names of arguments and local variables 
+<a name="l57"><span class="ln">57   </span></a> 
+<a name="l58"><span class="ln">58   </span></a>    &quot;&quot;&quot;</span>
+<a name="l59"><span class="ln">59   </span></a>    <span class="s2">return </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">object</span><span class="s3">, </span><span class="s1">types</span><span class="s3">.</span><span class="s1">CodeType</span><span class="s3">)</span>
+<a name="l60"><span class="ln">60   </span></a>
+<a name="l61"><span class="ln">61   </span></a><span class="s0"># ------------------------------------------------ argument list extraction</span>
+<a name="l62"><span class="ln">62   </span></a><span class="s0"># These constants are from Python's compile.h.</span>
+<a name="l63"><span class="ln">63   </span></a><span class="s1">CO_OPTIMIZED</span><span class="s3">, </span><span class="s1">CO_NEWLOCALS</span><span class="s3">, </span><span class="s1">CO_VARARGS</span><span class="s3">, </span><span class="s1">CO_VARKEYWORDS </span><span class="s2">= </span><span class="s5">1</span><span class="s3">, </span><span class="s5">2</span><span class="s3">, </span><span class="s5">4</span><span class="s3">, </span><span class="s5">8</span>
+<a name="l64"><span class="ln">64   </span></a>
+<a name="l65"><span class="ln">65   </span></a><span class="s2">def </span><span class="s1">getargs</span><span class="s3">(</span><span class="s1">co</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>    <span class="s0">&quot;&quot;&quot;Get information about the arguments accepted by a code object. 
+<a name="l67"><span class="ln">67   </span></a> 
+<a name="l68"><span class="ln">68   </span></a>    Three things are returned: (args, varargs, varkw), where 'args' is 
+<a name="l69"><span class="ln">69   </span></a>    a list of argument names (possibly containing nested lists), and 
+<a name="l70"><span class="ln">70   </span></a>    'varargs' and 'varkw' are the names of the * and ** arguments or None. 
+<a name="l71"><span class="ln">71   </span></a> 
+<a name="l72"><span class="ln">72   </span></a>    &quot;&quot;&quot;</span>
+<a name="l73"><span class="ln">73   </span></a>
+<a name="l74"><span class="ln">74   </span></a>    <span class="s2">if not </span><span class="s1">iscode</span><span class="s3">(</span><span class="s1">co</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l75"><span class="ln">75   </span></a>        <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">'arg is not a code object'</span><span class="s3">)</span>
+<a name="l76"><span class="ln">76   </span></a>
+<a name="l77"><span class="ln">77   </span></a>    <span class="s1">nargs </span><span class="s2">= </span><span class="s1">co</span><span class="s3">.</span><span class="s1">co_argcount</span>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s1">names </span><span class="s2">= </span><span class="s1">co</span><span class="s3">.</span><span class="s1">co_varnames</span>
+<a name="l79"><span class="ln">79   </span></a>    <span class="s1">args </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">names</span><span class="s3">[</span><span class="s2">:</span><span class="s1">nargs</span><span class="s3">])</span>
+<a name="l80"><span class="ln">80   </span></a>
+<a name="l81"><span class="ln">81   </span></a>    <span class="s0"># The following acrobatics are for anonymous (tuple) arguments.</span>
+<a name="l82"><span class="ln">82   </span></a>    <span class="s0"># Which we do not need to support, so remove to avoid importing</span>
+<a name="l83"><span class="ln">83   </span></a>    <span class="s0"># the dis module.</span>
+<a name="l84"><span class="ln">84   </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">nargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l85"><span class="ln">85   </span></a>        <span class="s2">if </span><span class="s1">args</span><span class="s3">[</span><span class="s1">i</span><span class="s3">][</span><span class="s2">:</span><span class="s5">1</span><span class="s3">] </span><span class="s2">in </span><span class="s3">[</span><span class="s4">''</span><span class="s3">, </span><span class="s4">'.'</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l86"><span class="ln">86   </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;tuple function arguments are not supported&quot;</span><span class="s3">)</span>
+<a name="l87"><span class="ln">87   </span></a>    <span class="s1">varargs </span><span class="s2">= None</span>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s2">if </span><span class="s1">co</span><span class="s3">.</span><span class="s1">co_flags </span><span class="s2">&amp; </span><span class="s1">CO_VARARGS</span><span class="s2">:</span>
+<a name="l89"><span class="ln">89   </span></a>        <span class="s1">varargs </span><span class="s2">= </span><span class="s1">co</span><span class="s3">.</span><span class="s1">co_varnames</span><span class="s3">[</span><span class="s1">nargs</span><span class="s3">]</span>
+<a name="l90"><span class="ln">90   </span></a>        <span class="s1">nargs </span><span class="s2">= </span><span class="s1">nargs </span><span class="s2">+ </span><span class="s5">1</span>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s1">varkw </span><span class="s2">= None</span>
+<a name="l92"><span class="ln">92   </span></a>    <span class="s2">if </span><span class="s1">co</span><span class="s3">.</span><span class="s1">co_flags </span><span class="s2">&amp; </span><span class="s1">CO_VARKEYWORDS</span><span class="s2">:</span>
+<a name="l93"><span class="ln">93   </span></a>        <span class="s1">varkw </span><span class="s2">= </span><span class="s1">co</span><span class="s3">.</span><span class="s1">co_varnames</span><span class="s3">[</span><span class="s1">nargs</span><span class="s3">]</span>
+<a name="l94"><span class="ln">94   </span></a>    <span class="s2">return </span><span class="s1">args</span><span class="s3">, </span><span class="s1">varargs</span><span class="s3">, </span><span class="s1">varkw</span>
+<a name="l95"><span class="ln">95   </span></a>
+<a name="l96"><span class="ln">96   </span></a><span class="s2">def </span><span class="s1">getargspec</span><span class="s3">(</span><span class="s1">func</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s0">&quot;&quot;&quot;Get the names and default values of a function's arguments. 
+<a name="l98"><span class="ln">98   </span></a> 
+<a name="l99"><span class="ln">99   </span></a>    A tuple of four things is returned: (args, varargs, varkw, defaults). 
+<a name="l100"><span class="ln">100  </span></a>    'args' is a list of the argument names (it may contain nested lists). 
+<a name="l101"><span class="ln">101  </span></a>    'varargs' and 'varkw' are the names of the * and ** arguments or None. 
+<a name="l102"><span class="ln">102  </span></a>    'defaults' is an n-tuple of the default values of the last n arguments. 
+<a name="l103"><span class="ln">103  </span></a> 
+<a name="l104"><span class="ln">104  </span></a>    &quot;&quot;&quot;</span>
+<a name="l105"><span class="ln">105  </span></a>
+<a name="l106"><span class="ln">106  </span></a>    <span class="s2">if </span><span class="s1">ismethod</span><span class="s3">(</span><span class="s1">func</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l107"><span class="ln">107  </span></a>        <span class="s1">func </span><span class="s2">= </span><span class="s1">func</span><span class="s3">.</span><span class="s1">__func__</span>
+<a name="l108"><span class="ln">108  </span></a>    <span class="s2">if not </span><span class="s1">isfunction</span><span class="s3">(</span><span class="s1">func</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l109"><span class="ln">109  </span></a>        <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">'arg is not a Python function'</span><span class="s3">)</span>
+<a name="l110"><span class="ln">110  </span></a>    <span class="s1">args</span><span class="s3">, </span><span class="s1">varargs</span><span class="s3">, </span><span class="s1">varkw </span><span class="s2">= </span><span class="s1">getargs</span><span class="s3">(</span><span class="s1">func</span><span class="s3">.</span><span class="s1">__code__</span><span class="s3">)</span>
+<a name="l111"><span class="ln">111  </span></a>    <span class="s2">return </span><span class="s1">args</span><span class="s3">, </span><span class="s1">varargs</span><span class="s3">, </span><span class="s1">varkw</span><span class="s3">, </span><span class="s1">func</span><span class="s3">.</span><span class="s1">__defaults__</span>
+<a name="l112"><span class="ln">112  </span></a>
+<a name="l113"><span class="ln">113  </span></a><span class="s2">def </span><span class="s1">getargvalues</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s0">&quot;&quot;&quot;Get information about arguments passed into a particular frame. 
+<a name="l115"><span class="ln">115  </span></a> 
+<a name="l116"><span class="ln">116  </span></a>    A tuple of four things is returned: (args, varargs, varkw, locals). 
+<a name="l117"><span class="ln">117  </span></a>    'args' is a list of the argument names (it may contain nested lists). 
+<a name="l118"><span class="ln">118  </span></a>    'varargs' and 'varkw' are the names of the * and ** arguments or None. 
+<a name="l119"><span class="ln">119  </span></a>    'locals' is the locals dictionary of the given frame. 
+<a name="l120"><span class="ln">120  </span></a> 
+<a name="l121"><span class="ln">121  </span></a>    &quot;&quot;&quot;</span>
+<a name="l122"><span class="ln">122  </span></a>    <span class="s1">args</span><span class="s3">, </span><span class="s1">varargs</span><span class="s3">, </span><span class="s1">varkw </span><span class="s2">= </span><span class="s1">getargs</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">f_code</span><span class="s3">)</span>
+<a name="l123"><span class="ln">123  </span></a>    <span class="s2">return </span><span class="s1">args</span><span class="s3">, </span><span class="s1">varargs</span><span class="s3">, </span><span class="s1">varkw</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">f_locals</span>
+<a name="l124"><span class="ln">124  </span></a>
+<a name="l125"><span class="ln">125  </span></a><span class="s2">def </span><span class="s1">joinseq</span><span class="s3">(</span><span class="s1">seq</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l126"><span class="ln">126  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">seq</span><span class="s3">) </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l127"><span class="ln">127  </span></a>        <span class="s2">return </span><span class="s4">'(' </span><span class="s2">+ </span><span class="s1">seq</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">+ </span><span class="s4">',)'</span>
+<a name="l128"><span class="ln">128  </span></a>    <span class="s2">else:</span>
+<a name="l129"><span class="ln">129  </span></a>        <span class="s2">return </span><span class="s4">'(' </span><span class="s2">+ </span><span class="s4">', '</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">seq</span><span class="s3">) </span><span class="s2">+ </span><span class="s4">')'</span>
+<a name="l130"><span class="ln">130  </span></a>
+<a name="l131"><span class="ln">131  </span></a><span class="s2">def </span><span class="s1">strseq</span><span class="s3">(</span><span class="s1">object</span><span class="s3">, </span><span class="s1">convert</span><span class="s3">, </span><span class="s1">join</span><span class="s2">=</span><span class="s1">joinseq</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l132"><span class="ln">132  </span></a>    <span class="s0">&quot;&quot;&quot;Recursively walk a sequence, stringifying each element. 
+<a name="l133"><span class="ln">133  </span></a> 
+<a name="l134"><span class="ln">134  </span></a>    &quot;&quot;&quot;</span>
+<a name="l135"><span class="ln">135  </span></a>    <span class="s2">if </span><span class="s1">type</span><span class="s3">(</span><span class="s1">object</span><span class="s3">) </span><span class="s2">in </span><span class="s3">[</span><span class="s1">list</span><span class="s3">, </span><span class="s1">tuple</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l136"><span class="ln">136  </span></a>        <span class="s2">return </span><span class="s1">join</span><span class="s3">([</span><span class="s1">strseq</span><span class="s3">(</span><span class="s1">_o</span><span class="s3">, </span><span class="s1">convert</span><span class="s3">, </span><span class="s1">join</span><span class="s3">) </span><span class="s2">for </span><span class="s1">_o </span><span class="s2">in </span><span class="s1">object</span><span class="s3">])</span>
+<a name="l137"><span class="ln">137  </span></a>    <span class="s2">else:</span>
+<a name="l138"><span class="ln">138  </span></a>        <span class="s2">return </span><span class="s1">convert</span><span class="s3">(</span><span class="s1">object</span><span class="s3">)</span>
+<a name="l139"><span class="ln">139  </span></a>
+<a name="l140"><span class="ln">140  </span></a><span class="s2">def </span><span class="s1">formatargspec</span><span class="s3">(</span><span class="s1">args</span><span class="s3">, </span><span class="s1">varargs</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">varkw</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">defaults</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l141"><span class="ln">141  </span></a>                  <span class="s1">formatarg</span><span class="s2">=</span><span class="s1">str</span><span class="s3">,</span>
+<a name="l142"><span class="ln">142  </span></a>                  <span class="s1">formatvarargs</span><span class="s2">=lambda </span><span class="s1">name</span><span class="s2">: </span><span class="s4">'*' </span><span class="s2">+ </span><span class="s1">name</span><span class="s3">,</span>
+<a name="l143"><span class="ln">143  </span></a>                  <span class="s1">formatvarkw</span><span class="s2">=lambda </span><span class="s1">name</span><span class="s2">: </span><span class="s4">'**' </span><span class="s2">+ </span><span class="s1">name</span><span class="s3">,</span>
+<a name="l144"><span class="ln">144  </span></a>                  <span class="s1">formatvalue</span><span class="s2">=lambda </span><span class="s1">value</span><span class="s2">: </span><span class="s4">'=' </span><span class="s2">+ </span><span class="s1">repr</span><span class="s3">(</span><span class="s1">value</span><span class="s3">),</span>
+<a name="l145"><span class="ln">145  </span></a>                  <span class="s1">join</span><span class="s2">=</span><span class="s1">joinseq</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l146"><span class="ln">146  </span></a>    <span class="s0">&quot;&quot;&quot;Format an argument spec from the 4 values returned by getargspec. 
+<a name="l147"><span class="ln">147  </span></a> 
+<a name="l148"><span class="ln">148  </span></a>    The first four arguments are (args, varargs, varkw, defaults).  The 
+<a name="l149"><span class="ln">149  </span></a>    other four arguments are the corresponding optional formatting functions 
+<a name="l150"><span class="ln">150  </span></a>    that are called to turn names and values into strings.  The ninth 
+<a name="l151"><span class="ln">151  </span></a>    argument is an optional function to format the sequence of arguments. 
+<a name="l152"><span class="ln">152  </span></a> 
+<a name="l153"><span class="ln">153  </span></a>    &quot;&quot;&quot;</span>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s1">specs </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l155"><span class="ln">155  </span></a>    <span class="s2">if </span><span class="s1">defaults</span><span class="s2">:</span>
+<a name="l156"><span class="ln">156  </span></a>        <span class="s1">firstdefault </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">args</span><span class="s3">) </span><span class="s2">- </span><span class="s1">len</span><span class="s3">(</span><span class="s1">defaults</span><span class="s3">)</span>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">args</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s1">spec </span><span class="s2">= </span><span class="s1">strseq</span><span class="s3">(</span><span class="s1">args</span><span class="s3">[</span><span class="s1">i</span><span class="s3">], </span><span class="s1">formatarg</span><span class="s3">, </span><span class="s1">join</span><span class="s3">)</span>
+<a name="l159"><span class="ln">159  </span></a>        <span class="s2">if </span><span class="s1">defaults </span><span class="s2">and </span><span class="s1">i </span><span class="s2">&gt;= </span><span class="s1">firstdefault</span><span class="s2">:</span>
+<a name="l160"><span class="ln">160  </span></a>            <span class="s1">spec </span><span class="s2">= </span><span class="s1">spec </span><span class="s2">+ </span><span class="s1">formatvalue</span><span class="s3">(</span><span class="s1">defaults</span><span class="s3">[</span><span class="s1">i </span><span class="s2">- </span><span class="s1">firstdefault</span><span class="s3">])</span>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s1">specs</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">spec</span><span class="s3">)</span>
+<a name="l162"><span class="ln">162  </span></a>    <span class="s2">if </span><span class="s1">varargs </span><span class="s2">is not None:</span>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s1">specs</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">formatvarargs</span><span class="s3">(</span><span class="s1">varargs</span><span class="s3">))</span>
+<a name="l164"><span class="ln">164  </span></a>    <span class="s2">if </span><span class="s1">varkw </span><span class="s2">is not None:</span>
+<a name="l165"><span class="ln">165  </span></a>        <span class="s1">specs</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">formatvarkw</span><span class="s3">(</span><span class="s1">varkw</span><span class="s3">))</span>
+<a name="l166"><span class="ln">166  </span></a>    <span class="s2">return </span><span class="s4">'(' </span><span class="s2">+ </span><span class="s4">', '</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">specs</span><span class="s3">) </span><span class="s2">+ </span><span class="s4">')'</span>
+<a name="l167"><span class="ln">167  </span></a>
+<a name="l168"><span class="ln">168  </span></a><span class="s2">def </span><span class="s1">formatargvalues</span><span class="s3">(</span><span class="s1">args</span><span class="s3">, </span><span class="s1">varargs</span><span class="s3">, </span><span class="s1">varkw</span><span class="s3">, </span><span class="s1">locals</span><span class="s3">,</span>
+<a name="l169"><span class="ln">169  </span></a>                    <span class="s1">formatarg</span><span class="s2">=</span><span class="s1">str</span><span class="s3">,</span>
+<a name="l170"><span class="ln">170  </span></a>                    <span class="s1">formatvarargs</span><span class="s2">=lambda </span><span class="s1">name</span><span class="s2">: </span><span class="s4">'*' </span><span class="s2">+ </span><span class="s1">name</span><span class="s3">,</span>
+<a name="l171"><span class="ln">171  </span></a>                    <span class="s1">formatvarkw</span><span class="s2">=lambda </span><span class="s1">name</span><span class="s2">: </span><span class="s4">'**' </span><span class="s2">+ </span><span class="s1">name</span><span class="s3">,</span>
+<a name="l172"><span class="ln">172  </span></a>                    <span class="s1">formatvalue</span><span class="s2">=lambda </span><span class="s1">value</span><span class="s2">: </span><span class="s4">'=' </span><span class="s2">+ </span><span class="s1">repr</span><span class="s3">(</span><span class="s1">value</span><span class="s3">),</span>
+<a name="l173"><span class="ln">173  </span></a>                    <span class="s1">join</span><span class="s2">=</span><span class="s1">joinseq</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l174"><span class="ln">174  </span></a>    <span class="s0">&quot;&quot;&quot;Format an argument spec from the 4 values returned by getargvalues. 
+<a name="l175"><span class="ln">175  </span></a> 
+<a name="l176"><span class="ln">176  </span></a>    The first four arguments are (args, varargs, varkw, locals).  The 
+<a name="l177"><span class="ln">177  </span></a>    next four arguments are the corresponding optional formatting functions 
+<a name="l178"><span class="ln">178  </span></a>    that are called to turn names and values into strings.  The ninth 
+<a name="l179"><span class="ln">179  </span></a>    argument is an optional function to format the sequence of arguments. 
+<a name="l180"><span class="ln">180  </span></a> 
+<a name="l181"><span class="ln">181  </span></a>    &quot;&quot;&quot;</span>
+<a name="l182"><span class="ln">182  </span></a>    <span class="s2">def </span><span class="s1">convert</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, </span><span class="s1">locals</span><span class="s2">=</span><span class="s1">locals</span><span class="s3">,</span>
+<a name="l183"><span class="ln">183  </span></a>                <span class="s1">formatarg</span><span class="s2">=</span><span class="s1">formatarg</span><span class="s3">, </span><span class="s1">formatvalue</span><span class="s2">=</span><span class="s1">formatvalue</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l184"><span class="ln">184  </span></a>        <span class="s2">return </span><span class="s1">formatarg</span><span class="s3">(</span><span class="s1">name</span><span class="s3">) </span><span class="s2">+ </span><span class="s1">formatvalue</span><span class="s3">(</span><span class="s1">locals</span><span class="s3">[</span><span class="s1">name</span><span class="s3">])</span>
+<a name="l185"><span class="ln">185  </span></a>    <span class="s1">specs </span><span class="s2">= </span><span class="s3">[</span><span class="s1">strseq</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">convert</span><span class="s3">, </span><span class="s1">join</span><span class="s3">) </span><span class="s2">for </span><span class="s1">arg </span><span class="s2">in </span><span class="s1">args</span><span class="s3">]</span>
+<a name="l186"><span class="ln">186  </span></a>
+<a name="l187"><span class="ln">187  </span></a>    <span class="s2">if </span><span class="s1">varargs</span><span class="s2">:</span>
+<a name="l188"><span class="ln">188  </span></a>        <span class="s1">specs</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">formatvarargs</span><span class="s3">(</span><span class="s1">varargs</span><span class="s3">) </span><span class="s2">+ </span><span class="s1">formatvalue</span><span class="s3">(</span><span class="s1">locals</span><span class="s3">[</span><span class="s1">varargs</span><span class="s3">]))</span>
+<a name="l189"><span class="ln">189  </span></a>    <span class="s2">if </span><span class="s1">varkw</span><span class="s2">:</span>
+<a name="l190"><span class="ln">190  </span></a>        <span class="s1">specs</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">formatvarkw</span><span class="s3">(</span><span class="s1">varkw</span><span class="s3">) </span><span class="s2">+ </span><span class="s1">formatvalue</span><span class="s3">(</span><span class="s1">locals</span><span class="s3">[</span><span class="s1">varkw</span><span class="s3">]))</span>
+<a name="l191"><span class="ln">191  </span></a>    <span class="s2">return </span><span class="s4">'(' </span><span class="s2">+ </span><span class="s4">', '</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">specs</span><span class="s3">) </span><span class="s2">+ </span><span class="s4">')'</span>
+<a name="l192"><span class="ln">192  </span></a></pre>
+</body>
+</html>

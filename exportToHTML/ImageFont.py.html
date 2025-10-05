@@ -1,0 +1,1363 @@
+<html>
+<head>
+<title>ImageFont.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #0086b3;}
+.s5 { color: #183691;}
+.s6 { color: #8a822d;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+ImageFont.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0"># The Python Imaging Library.</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0"># $Id$</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">#</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0"># PIL raster font management</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">#</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0"># History:</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0"># 1996-08-07 fl   created (experimental)</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s0"># 1997-08-25 fl   minor adjustments to handle fonts from pilfont 0.3</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0"># 1999-02-06 fl   rewrote most font management stuff in C</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s0"># 1999-03-17 fl   take pth files into account in load_path (from Richard Jones)</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s0"># 2001-02-17 fl   added freetype support</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s0"># 2001-05-09 fl   added TransposedFont wrapper class</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s0"># 2002-03-04 fl   make sure we have a &quot;L&quot; or &quot;1&quot; font</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s0"># 2002-12-04 fl   skip non-directory entries in the system path</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s0"># 2003-04-29 fl   add embedded default font</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s0"># 2003-09-27 fl   added support for truetype charmap encodings</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s0">#</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s0"># Todo:</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s0"># Adapt to PILFONT2 format (16-bit fonts, compressed, single file)</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s0">#</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s0"># Copyright (c) 1997-2003 by Secret Labs AB</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s0"># Copyright (c) 1996-2003 by Fredrik Lundh</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s0">#</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s0"># See the README file for information on usage and redistribution.</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s0">#</span>
+<a name="l27"><span class="ln">27   </span></a>
+<a name="l28"><span class="ln">28   </span></a><span class="s2">from </span><span class="s1">__future__ </span><span class="s2">import </span><span class="s1">annotations</span>
+<a name="l29"><span class="ln">29   </span></a>
+<a name="l30"><span class="ln">30   </span></a><span class="s2">import </span><span class="s1">base64</span>
+<a name="l31"><span class="ln">31   </span></a><span class="s2">import </span><span class="s1">os</span>
+<a name="l32"><span class="ln">32   </span></a><span class="s2">import </span><span class="s1">sys</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s2">import </span><span class="s1">warnings</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s2">from </span><span class="s1">enum </span><span class="s2">import </span><span class="s1">IntEnum</span>
+<a name="l35"><span class="ln">35   </span></a><span class="s2">from </span><span class="s1">io </span><span class="s2">import </span><span class="s1">BytesIO</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s2">from </span><span class="s1">types </span><span class="s2">import </span><span class="s1">ModuleType</span>
+<a name="l37"><span class="ln">37   </span></a><span class="s2">from </span><span class="s1">typing </span><span class="s2">import </span><span class="s1">IO</span><span class="s3">, </span><span class="s1">Any</span><span class="s3">, </span><span class="s1">BinaryIO</span><span class="s3">, </span><span class="s1">TypedDict</span><span class="s3">, </span><span class="s1">cast</span>
+<a name="l38"><span class="ln">38   </span></a>
+<a name="l39"><span class="ln">39   </span></a><span class="s2">from </span><span class="s3">. </span><span class="s2">import </span><span class="s1">Image</span><span class="s3">, </span><span class="s1">features</span>
+<a name="l40"><span class="ln">40   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">_typing </span><span class="s2">import </span><span class="s1">StrOrBytesPath</span>
+<a name="l41"><span class="ln">41   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">_util </span><span class="s2">import </span><span class="s1">DeferredError</span><span class="s3">, </span><span class="s1">is_path</span>
+<a name="l42"><span class="ln">42   </span></a>
+<a name="l43"><span class="ln">43   </span></a><span class="s1">TYPE_CHECKING </span><span class="s2">= False</span>
+<a name="l44"><span class="ln">44   </span></a><span class="s2">if </span><span class="s1">TYPE_CHECKING</span><span class="s2">:</span>
+<a name="l45"><span class="ln">45   </span></a>    <span class="s2">from </span><span class="s3">. </span><span class="s2">import </span><span class="s1">ImageFile</span>
+<a name="l46"><span class="ln">46   </span></a>    <span class="s2">from </span><span class="s3">.</span><span class="s1">_imaging </span><span class="s2">import </span><span class="s1">ImagingFont</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s2">from </span><span class="s3">.</span><span class="s1">_imagingft </span><span class="s2">import </span><span class="s1">Font</span>
+<a name="l48"><span class="ln">48   </span></a>
+<a name="l49"><span class="ln">49   </span></a>
+<a name="l50"><span class="ln">50   </span></a><span class="s2">class </span><span class="s1">Axis</span><span class="s3">(</span><span class="s1">TypedDict</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s1">minimum</span><span class="s2">: </span><span class="s1">int </span><span class="s2">| None</span>
+<a name="l52"><span class="ln">52   </span></a>    <span class="s1">default</span><span class="s2">: </span><span class="s1">int </span><span class="s2">| None</span>
+<a name="l53"><span class="ln">53   </span></a>    <span class="s1">maximum</span><span class="s2">: </span><span class="s1">int </span><span class="s2">| None</span>
+<a name="l54"><span class="ln">54   </span></a>    <span class="s1">name</span><span class="s2">: </span><span class="s1">bytes </span><span class="s2">| None</span>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a>
+<a name="l57"><span class="ln">57   </span></a><span class="s2">class </span><span class="s1">Layout</span><span class="s3">(</span><span class="s1">IntEnum</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s1">BASIC </span><span class="s2">= </span><span class="s4">0</span>
+<a name="l59"><span class="ln">59   </span></a>    <span class="s1">RAQM </span><span class="s2">= </span><span class="s4">1</span>
+<a name="l60"><span class="ln">60   </span></a>
+<a name="l61"><span class="ln">61   </span></a>
+<a name="l62"><span class="ln">62   </span></a><span class="s1">MAX_STRING_LENGTH </span><span class="s2">= </span><span class="s4">1_000_000</span>
+<a name="l63"><span class="ln">63   </span></a>
+<a name="l64"><span class="ln">64   </span></a>
+<a name="l65"><span class="ln">65   </span></a><span class="s1">core</span><span class="s2">: </span><span class="s1">ModuleType </span><span class="s2">| </span><span class="s1">DeferredError</span>
+<a name="l66"><span class="ln">66   </span></a><span class="s2">try:</span>
+<a name="l67"><span class="ln">67   </span></a>    <span class="s2">from </span><span class="s3">. </span><span class="s2">import </span><span class="s1">_imagingft </span><span class="s2">as </span><span class="s1">core</span>
+<a name="l68"><span class="ln">68   </span></a><span class="s2">except </span><span class="s1">ImportError </span><span class="s2">as </span><span class="s1">ex</span><span class="s2">:</span>
+<a name="l69"><span class="ln">69   </span></a>    <span class="s1">core </span><span class="s2">= </span><span class="s1">DeferredError</span><span class="s3">.</span><span class="s1">new</span><span class="s3">(</span><span class="s1">ex</span><span class="s3">)</span>
+<a name="l70"><span class="ln">70   </span></a>
+<a name="l71"><span class="ln">71   </span></a>
+<a name="l72"><span class="ln">72   </span></a><span class="s2">def </span><span class="s1">_string_length_check</span><span class="s3">(</span><span class="s1">text</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">bytes </span><span class="s2">| </span><span class="s1">bytearray</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l73"><span class="ln">73   </span></a>    <span class="s2">if </span><span class="s1">MAX_STRING_LENGTH </span><span class="s2">is not None and </span><span class="s1">len</span><span class="s3">(</span><span class="s1">text</span><span class="s3">) </span><span class="s2">&gt; </span><span class="s1">MAX_STRING_LENGTH</span><span class="s2">:</span>
+<a name="l74"><span class="ln">74   </span></a>        <span class="s1">msg </span><span class="s2">= </span><span class="s5">&quot;too many characters in string&quot;</span>
+<a name="l75"><span class="ln">75   </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l76"><span class="ln">76   </span></a>
+<a name="l77"><span class="ln">77   </span></a>
+<a name="l78"><span class="ln">78   </span></a><span class="s0"># FIXME: add support for pilfont2 format (see FontFile.py)</span>
+<a name="l79"><span class="ln">79   </span></a>
+<a name="l80"><span class="ln">80   </span></a><span class="s0"># --------------------------------------------------------------------</span>
+<a name="l81"><span class="ln">81   </span></a><span class="s0"># Font metrics format:</span>
+<a name="l82"><span class="ln">82   </span></a><span class="s0">#       &quot;PILfont&quot; LF</span>
+<a name="l83"><span class="ln">83   </span></a><span class="s0">#       fontdescriptor LF</span>
+<a name="l84"><span class="ln">84   </span></a><span class="s0">#       (optional) key=value... LF</span>
+<a name="l85"><span class="ln">85   </span></a><span class="s0">#       &quot;DATA&quot; LF</span>
+<a name="l86"><span class="ln">86   </span></a><span class="s0">#       binary data: 256*10*2 bytes (dx, dy, dstbox, srcbox)</span>
+<a name="l87"><span class="ln">87   </span></a><span class="s0">#</span>
+<a name="l88"><span class="ln">88   </span></a><span class="s0"># To place a character, cut out srcbox and paste at dstbox,</span>
+<a name="l89"><span class="ln">89   </span></a><span class="s0"># relative to the character position.  Then move the character</span>
+<a name="l90"><span class="ln">90   </span></a><span class="s0"># position according to dx, dy.</span>
+<a name="l91"><span class="ln">91   </span></a><span class="s0"># --------------------------------------------------------------------</span>
+<a name="l92"><span class="ln">92   </span></a>
+<a name="l93"><span class="ln">93   </span></a>
+<a name="l94"><span class="ln">94   </span></a><span class="s2">class </span><span class="s1">ImageFont</span><span class="s2">:</span>
+<a name="l95"><span class="ln">95   </span></a>    <span class="s0">&quot;&quot;&quot;PIL font wrapper&quot;&quot;&quot;</span>
+<a name="l96"><span class="ln">96   </span></a>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s1">font</span><span class="s2">: </span><span class="s1">ImagingFont</span>
+<a name="l98"><span class="ln">98   </span></a>
+<a name="l99"><span class="ln">99   </span></a>    <span class="s2">def </span><span class="s1">_load_pilfont</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">filename</span><span class="s2">: </span><span class="s1">str</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s2">with </span><span class="s1">open</span><span class="s3">(</span><span class="s1">filename</span><span class="s3">, </span><span class="s5">&quot;rb&quot;</span><span class="s3">) </span><span class="s2">as </span><span class="s1">fp</span><span class="s2">:</span>
+<a name="l101"><span class="ln">101  </span></a>            <span class="s1">image</span><span class="s2">: </span><span class="s1">ImageFile</span><span class="s3">.</span><span class="s1">ImageFile </span><span class="s2">| None = None</span>
+<a name="l102"><span class="ln">102  </span></a>            <span class="s1">root </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">splitext</span><span class="s3">(</span><span class="s1">filename</span><span class="s3">)[</span><span class="s4">0</span><span class="s3">]</span>
+<a name="l103"><span class="ln">103  </span></a>
+<a name="l104"><span class="ln">104  </span></a>            <span class="s2">for </span><span class="s1">ext </span><span class="s2">in </span><span class="s3">(</span><span class="s5">&quot;.png&quot;</span><span class="s3">, </span><span class="s5">&quot;.gif&quot;</span><span class="s3">, </span><span class="s5">&quot;.pbm&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l105"><span class="ln">105  </span></a>                <span class="s2">if </span><span class="s1">image</span><span class="s2">:</span>
+<a name="l106"><span class="ln">106  </span></a>                    <span class="s1">image</span><span class="s3">.</span><span class="s1">close</span><span class="s3">()</span>
+<a name="l107"><span class="ln">107  </span></a>                <span class="s2">try:</span>
+<a name="l108"><span class="ln">108  </span></a>                    <span class="s1">fullname </span><span class="s2">= </span><span class="s1">root </span><span class="s2">+ </span><span class="s1">ext</span>
+<a name="l109"><span class="ln">109  </span></a>                    <span class="s1">image </span><span class="s2">= </span><span class="s1">Image</span><span class="s3">.</span><span class="s1">open</span><span class="s3">(</span><span class="s1">fullname</span><span class="s3">)</span>
+<a name="l110"><span class="ln">110  </span></a>                <span class="s2">except </span><span class="s1">Exception</span><span class="s2">:</span>
+<a name="l111"><span class="ln">111  </span></a>                    <span class="s2">pass</span>
+<a name="l112"><span class="ln">112  </span></a>                <span class="s2">else:</span>
+<a name="l113"><span class="ln">113  </span></a>                    <span class="s2">if </span><span class="s1">image </span><span class="s2">and </span><span class="s1">image</span><span class="s3">.</span><span class="s1">mode </span><span class="s2">in </span><span class="s3">(</span><span class="s5">&quot;1&quot;</span><span class="s3">, </span><span class="s5">&quot;L&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l114"><span class="ln">114  </span></a>                        <span class="s2">break</span>
+<a name="l115"><span class="ln">115  </span></a>            <span class="s2">else:</span>
+<a name="l116"><span class="ln">116  </span></a>                <span class="s2">if </span><span class="s1">image</span><span class="s2">:</span>
+<a name="l117"><span class="ln">117  </span></a>                    <span class="s1">image</span><span class="s3">.</span><span class="s1">close</span><span class="s3">()</span>
+<a name="l118"><span class="ln">118  </span></a>
+<a name="l119"><span class="ln">119  </span></a>                <span class="s1">msg </span><span class="s2">= </span><span class="s5">f&quot;cannot find glyph data file {</span><span class="s1">root</span><span class="s5">}.{{gif|pbm|png}}&quot;</span>
+<a name="l120"><span class="ln">120  </span></a>                <span class="s2">raise </span><span class="s1">OSError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l121"><span class="ln">121  </span></a>
+<a name="l122"><span class="ln">122  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">file </span><span class="s2">= </span><span class="s1">fullname</span>
+<a name="l123"><span class="ln">123  </span></a>
+<a name="l124"><span class="ln">124  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_load_pilfont_data</span><span class="s3">(</span><span class="s1">fp</span><span class="s3">, </span><span class="s1">image</span><span class="s3">)</span>
+<a name="l125"><span class="ln">125  </span></a>            <span class="s1">image</span><span class="s3">.</span><span class="s1">close</span><span class="s3">()</span>
+<a name="l126"><span class="ln">126  </span></a>
+<a name="l127"><span class="ln">127  </span></a>    <span class="s2">def </span><span class="s1">_load_pilfont_data</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">file</span><span class="s2">: </span><span class="s1">IO</span><span class="s3">[</span><span class="s1">bytes</span><span class="s3">], </span><span class="s1">image</span><span class="s2">: </span><span class="s1">Image</span><span class="s3">.</span><span class="s1">Image</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l128"><span class="ln">128  </span></a>        <span class="s0"># read PILfont header</span>
+<a name="l129"><span class="ln">129  </span></a>        <span class="s2">if </span><span class="s1">file</span><span class="s3">.</span><span class="s1">readline</span><span class="s3">() </span><span class="s2">!= </span><span class="s6">b&quot;PILfont</span><span class="s5">\n</span><span class="s6">&quot;</span><span class="s2">:</span>
+<a name="l130"><span class="ln">130  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s5">&quot;Not a PILfont file&quot;</span>
+<a name="l131"><span class="ln">131  </span></a>            <span class="s2">raise </span><span class="s1">SyntaxError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l132"><span class="ln">132  </span></a>        <span class="s1">file</span><span class="s3">.</span><span class="s1">readline</span><span class="s3">().</span><span class="s1">split</span><span class="s3">(</span><span class="s6">b&quot;;&quot;</span><span class="s3">)</span>
+<a name="l133"><span class="ln">133  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">info </span><span class="s2">= </span><span class="s3">[]  </span><span class="s0"># FIXME: should be a dictionary</span>
+<a name="l134"><span class="ln">134  </span></a>        <span class="s2">while True:</span>
+<a name="l135"><span class="ln">135  </span></a>            <span class="s1">s </span><span class="s2">= </span><span class="s1">file</span><span class="s3">.</span><span class="s1">readline</span><span class="s3">()</span>
+<a name="l136"><span class="ln">136  </span></a>            <span class="s2">if not </span><span class="s1">s </span><span class="s2">or </span><span class="s1">s </span><span class="s2">== </span><span class="s6">b&quot;DATA</span><span class="s5">\n</span><span class="s6">&quot;</span><span class="s2">:</span>
+<a name="l137"><span class="ln">137  </span></a>                <span class="s2">break</span>
+<a name="l138"><span class="ln">138  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">info</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">s</span><span class="s3">)</span>
+<a name="l139"><span class="ln">139  </span></a>
+<a name="l140"><span class="ln">140  </span></a>        <span class="s0"># read PILfont metrics</span>
+<a name="l141"><span class="ln">141  </span></a>        <span class="s1">data </span><span class="s2">= </span><span class="s1">file</span><span class="s3">.</span><span class="s1">read</span><span class="s3">(</span><span class="s4">256 </span><span class="s2">* </span><span class="s4">20</span><span class="s3">)</span>
+<a name="l142"><span class="ln">142  </span></a>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s0"># check image</span>
+<a name="l144"><span class="ln">144  </span></a>        <span class="s2">if </span><span class="s1">image</span><span class="s3">.</span><span class="s1">mode </span><span class="s2">not in </span><span class="s3">(</span><span class="s5">&quot;1&quot;</span><span class="s3">, </span><span class="s5">&quot;L&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l145"><span class="ln">145  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s5">&quot;invalid font image mode&quot;</span>
+<a name="l146"><span class="ln">146  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l147"><span class="ln">147  </span></a>
+<a name="l148"><span class="ln">148  </span></a>        <span class="s1">image</span><span class="s3">.</span><span class="s1">load</span><span class="s3">()</span>
+<a name="l149"><span class="ln">149  </span></a>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">font </span><span class="s2">= </span><span class="s1">Image</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">font</span><span class="s3">(</span><span class="s1">image</span><span class="s3">.</span><span class="s1">im</span><span class="s3">, </span><span class="s1">data</span><span class="s3">)</span>
+<a name="l151"><span class="ln">151  </span></a>
+<a name="l152"><span class="ln">152  </span></a>    <span class="s2">def </span><span class="s1">getmask</span><span class="s3">(</span>
+<a name="l153"><span class="ln">153  </span></a>        <span class="s1">self</span><span class="s3">, </span><span class="s1">text</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">bytes</span><span class="s3">, </span><span class="s1">mode</span><span class="s2">: </span><span class="s1">str </span><span class="s2">= </span><span class="s5">&quot;&quot;</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s2">: </span><span class="s1">Any</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s2">: </span><span class="s1">Any</span>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s3">) </span><span class="s1">-&gt; Image</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">ImagingCore</span><span class="s2">:</span>
+<a name="l155"><span class="ln">155  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l156"><span class="ln">156  </span></a>        Create a bitmap for the text. 
+<a name="l157"><span class="ln">157  </span></a> 
+<a name="l158"><span class="ln">158  </span></a>        If the font uses antialiasing, the bitmap should have mode ``L`` and use a 
+<a name="l159"><span class="ln">159  </span></a>        maximum value of 255. Otherwise, it should have mode ``1``. 
+<a name="l160"><span class="ln">160  </span></a> 
+<a name="l161"><span class="ln">161  </span></a>        :param text: Text to render. 
+<a name="l162"><span class="ln">162  </span></a>        :param mode: Used by some graphics drivers to indicate what mode the 
+<a name="l163"><span class="ln">163  </span></a>                     driver prefers; if empty, the renderer may return either 
+<a name="l164"><span class="ln">164  </span></a>                     mode. Note that the mode is always a string, to simplify 
+<a name="l165"><span class="ln">165  </span></a>                     C-level implementations. 
+<a name="l166"><span class="ln">166  </span></a> 
+<a name="l167"><span class="ln">167  </span></a>                     .. versionadded:: 1.1.5 
+<a name="l168"><span class="ln">168  </span></a> 
+<a name="l169"><span class="ln">169  </span></a>        :return: An internal PIL storage memory instance as defined by the 
+<a name="l170"><span class="ln">170  </span></a>                 :py:mod:`PIL.Image.core` interface module. 
+<a name="l171"><span class="ln">171  </span></a>        &quot;&quot;&quot;</span>
+<a name="l172"><span class="ln">172  </span></a>        <span class="s1">_string_length_check</span><span class="s3">(</span><span class="s1">text</span><span class="s3">)</span>
+<a name="l173"><span class="ln">173  </span></a>        <span class="s1">Image</span><span class="s3">.</span><span class="s1">_decompression_bomb_check</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">getsize</span><span class="s3">(</span><span class="s1">text</span><span class="s3">))</span>
+<a name="l174"><span class="ln">174  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">getmask</span><span class="s3">(</span><span class="s1">text</span><span class="s3">, </span><span class="s1">mode</span><span class="s3">)</span>
+<a name="l175"><span class="ln">175  </span></a>
+<a name="l176"><span class="ln">176  </span></a>    <span class="s2">def </span><span class="s1">getbbox</span><span class="s3">(</span>
+<a name="l177"><span class="ln">177  </span></a>        <span class="s1">self</span><span class="s3">, </span><span class="s1">text</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">bytes </span><span class="s2">| </span><span class="s1">bytearray</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s2">: </span><span class="s1">Any</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s2">: </span><span class="s1">Any</span>
+<a name="l178"><span class="ln">178  </span></a>    <span class="s3">) </span><span class="s1">-&gt; tuple</span><span class="s3">[</span><span class="s1">int</span><span class="s3">, </span><span class="s1">int</span><span class="s3">, </span><span class="s1">int</span><span class="s3">, </span><span class="s1">int</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l179"><span class="ln">179  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l180"><span class="ln">180  </span></a>        Returns bounding box (in pixels) of given text. 
+<a name="l181"><span class="ln">181  </span></a> 
+<a name="l182"><span class="ln">182  </span></a>        .. versionadded:: 9.2.0 
+<a name="l183"><span class="ln">183  </span></a> 
+<a name="l184"><span class="ln">184  </span></a>        :param text: Text to render. 
+<a name="l185"><span class="ln">185  </span></a> 
+<a name="l186"><span class="ln">186  </span></a>        :return: ``(left, top, right, bottom)`` bounding box 
+<a name="l187"><span class="ln">187  </span></a>        &quot;&quot;&quot;</span>
+<a name="l188"><span class="ln">188  </span></a>        <span class="s1">_string_length_check</span><span class="s3">(</span><span class="s1">text</span><span class="s3">)</span>
+<a name="l189"><span class="ln">189  </span></a>        <span class="s1">width</span><span class="s3">, </span><span class="s1">height </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">getsize</span><span class="s3">(</span><span class="s1">text</span><span class="s3">)</span>
+<a name="l190"><span class="ln">190  </span></a>        <span class="s2">return </span><span class="s4">0</span><span class="s3">, </span><span class="s4">0</span><span class="s3">, </span><span class="s1">width</span><span class="s3">, </span><span class="s1">height</span>
+<a name="l191"><span class="ln">191  </span></a>
+<a name="l192"><span class="ln">192  </span></a>    <span class="s2">def </span><span class="s1">getlength</span><span class="s3">(</span>
+<a name="l193"><span class="ln">193  </span></a>        <span class="s1">self</span><span class="s3">, </span><span class="s1">text</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">bytes </span><span class="s2">| </span><span class="s1">bytearray</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s2">: </span><span class="s1">Any</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s2">: </span><span class="s1">Any</span>
+<a name="l194"><span class="ln">194  </span></a>    <span class="s3">) </span><span class="s1">-&gt; int</span><span class="s2">:</span>
+<a name="l195"><span class="ln">195  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l196"><span class="ln">196  </span></a>        Returns length (in pixels) of given text. 
+<a name="l197"><span class="ln">197  </span></a>        This is the amount by which following text should be offset. 
+<a name="l198"><span class="ln">198  </span></a> 
+<a name="l199"><span class="ln">199  </span></a>        .. versionadded:: 9.2.0 
+<a name="l200"><span class="ln">200  </span></a>        &quot;&quot;&quot;</span>
+<a name="l201"><span class="ln">201  </span></a>        <span class="s1">_string_length_check</span><span class="s3">(</span><span class="s1">text</span><span class="s3">)</span>
+<a name="l202"><span class="ln">202  </span></a>        <span class="s1">width</span><span class="s3">, </span><span class="s1">height </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">getsize</span><span class="s3">(</span><span class="s1">text</span><span class="s3">)</span>
+<a name="l203"><span class="ln">203  </span></a>        <span class="s2">return </span><span class="s1">width</span>
+<a name="l204"><span class="ln">204  </span></a>
+<a name="l205"><span class="ln">205  </span></a>
+<a name="l206"><span class="ln">206  </span></a><span class="s0">##</span>
+<a name="l207"><span class="ln">207  </span></a><span class="s0"># Wrapper for FreeType fonts.  Application code should use the</span>
+<a name="l208"><span class="ln">208  </span></a><span class="s0"># &lt;b&gt;truetype&lt;/b&gt; factory function to create font objects.</span>
+<a name="l209"><span class="ln">209  </span></a>
+<a name="l210"><span class="ln">210  </span></a>
+<a name="l211"><span class="ln">211  </span></a><span class="s2">class </span><span class="s1">FreeTypeFont</span><span class="s2">:</span>
+<a name="l212"><span class="ln">212  </span></a>    <span class="s0">&quot;&quot;&quot;FreeType font wrapper (requires _imagingft service)&quot;&quot;&quot;</span>
+<a name="l213"><span class="ln">213  </span></a>
+<a name="l214"><span class="ln">214  </span></a>    <span class="s1">font</span><span class="s2">: </span><span class="s1">Font</span>
+<a name="l215"><span class="ln">215  </span></a>    <span class="s1">font_bytes</span><span class="s2">: </span><span class="s1">bytes</span>
+<a name="l216"><span class="ln">216  </span></a>
+<a name="l217"><span class="ln">217  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span>
+<a name="l218"><span class="ln">218  </span></a>        <span class="s1">self</span><span class="s3">,</span>
+<a name="l219"><span class="ln">219  </span></a>        <span class="s1">font</span><span class="s2">: </span><span class="s1">StrOrBytesPath </span><span class="s2">| </span><span class="s1">BinaryIO</span><span class="s3">,</span>
+<a name="l220"><span class="ln">220  </span></a>        <span class="s1">size</span><span class="s2">: </span><span class="s1">float </span><span class="s2">= </span><span class="s4">10</span><span class="s3">,</span>
+<a name="l221"><span class="ln">221  </span></a>        <span class="s1">index</span><span class="s2">: </span><span class="s1">int </span><span class="s2">= </span><span class="s4">0</span><span class="s3">,</span>
+<a name="l222"><span class="ln">222  </span></a>        <span class="s1">encoding</span><span class="s2">: </span><span class="s1">str </span><span class="s2">= </span><span class="s5">&quot;&quot;</span><span class="s3">,</span>
+<a name="l223"><span class="ln">223  </span></a>        <span class="s1">layout_engine</span><span class="s2">: </span><span class="s1">Layout </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l224"><span class="ln">224  </span></a>    <span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l225"><span class="ln">225  </span></a>        <span class="s0"># FIXME: use service provider instead</span>
+<a name="l226"><span class="ln">226  </span></a>
+<a name="l227"><span class="ln">227  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">core</span><span class="s3">, </span><span class="s1">DeferredError</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l228"><span class="ln">228  </span></a>            <span class="s2">raise </span><span class="s1">core</span><span class="s3">.</span><span class="s1">ex</span>
+<a name="l229"><span class="ln">229  </span></a>
+<a name="l230"><span class="ln">230  </span></a>        <span class="s2">if </span><span class="s1">size </span><span class="s2">&lt;= </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l231"><span class="ln">231  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s5">f&quot;font size must be greater than 0, not {</span><span class="s1">size</span><span class="s5">}&quot;</span>
+<a name="l232"><span class="ln">232  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l233"><span class="ln">233  </span></a>
+<a name="l234"><span class="ln">234  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">path </span><span class="s2">= </span><span class="s1">font</span>
+<a name="l235"><span class="ln">235  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">size </span><span class="s2">= </span><span class="s1">size</span>
+<a name="l236"><span class="ln">236  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">index </span><span class="s2">= </span><span class="s1">index</span>
+<a name="l237"><span class="ln">237  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">encoding </span><span class="s2">= </span><span class="s1">encoding</span>
+<a name="l238"><span class="ln">238  </span></a>
+<a name="l239"><span class="ln">239  </span></a>        <span class="s2">try:</span>
+<a name="l240"><span class="ln">240  </span></a>            <span class="s2">from </span><span class="s1">packaging</span><span class="s3">.</span><span class="s1">version </span><span class="s2">import </span><span class="s1">parse </span><span class="s2">as </span><span class="s1">parse_version</span>
+<a name="l241"><span class="ln">241  </span></a>        <span class="s2">except </span><span class="s1">ImportError</span><span class="s2">:</span>
+<a name="l242"><span class="ln">242  </span></a>            <span class="s2">pass</span>
+<a name="l243"><span class="ln">243  </span></a>        <span class="s2">else:</span>
+<a name="l244"><span class="ln">244  </span></a>            <span class="s2">if </span><span class="s1">freetype_version </span><span class="s2">:= </span><span class="s1">features</span><span class="s3">.</span><span class="s1">version_module</span><span class="s3">(</span><span class="s5">&quot;freetype2&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l245"><span class="ln">245  </span></a>                <span class="s2">if </span><span class="s1">parse_version</span><span class="s3">(</span><span class="s1">freetype_version</span><span class="s3">) </span><span class="s2">&lt; </span><span class="s1">parse_version</span><span class="s3">(</span><span class="s5">&quot;2.9.1&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l246"><span class="ln">246  </span></a>                    <span class="s1">warnings</span><span class="s3">.</span><span class="s1">warn</span><span class="s3">(</span>
+<a name="l247"><span class="ln">247  </span></a>                        <span class="s5">&quot;Support for FreeType 2.9.0 is deprecated and will be removed &quot;</span>
+<a name="l248"><span class="ln">248  </span></a>                        <span class="s5">&quot;in Pillow 12 (2025-10-15). Please upgrade to FreeType 2.9.1 &quot;</span>
+<a name="l249"><span class="ln">249  </span></a>                        <span class="s5">&quot;or newer, preferably FreeType 2.10.4 which fixes &quot;</span>
+<a name="l250"><span class="ln">250  </span></a>                        <span class="s5">&quot;CVE-2020-15999.&quot;</span><span class="s3">,</span>
+<a name="l251"><span class="ln">251  </span></a>                        <span class="s1">DeprecationWarning</span><span class="s3">,</span>
+<a name="l252"><span class="ln">252  </span></a>                    <span class="s3">)</span>
+<a name="l253"><span class="ln">253  </span></a>
+<a name="l254"><span class="ln">254  </span></a>        <span class="s2">if </span><span class="s1">layout_engine </span><span class="s2">not in </span><span class="s3">(</span><span class="s1">Layout</span><span class="s3">.</span><span class="s1">BASIC</span><span class="s3">, </span><span class="s1">Layout</span><span class="s3">.</span><span class="s1">RAQM</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l255"><span class="ln">255  </span></a>            <span class="s1">layout_engine </span><span class="s2">= </span><span class="s1">Layout</span><span class="s3">.</span><span class="s1">BASIC</span>
+<a name="l256"><span class="ln">256  </span></a>            <span class="s2">if </span><span class="s1">core</span><span class="s3">.</span><span class="s1">HAVE_RAQM</span><span class="s2">:</span>
+<a name="l257"><span class="ln">257  </span></a>                <span class="s1">layout_engine </span><span class="s2">= </span><span class="s1">Layout</span><span class="s3">.</span><span class="s1">RAQM</span>
+<a name="l258"><span class="ln">258  </span></a>        <span class="s2">elif </span><span class="s1">layout_engine </span><span class="s2">== </span><span class="s1">Layout</span><span class="s3">.</span><span class="s1">RAQM </span><span class="s2">and not </span><span class="s1">core</span><span class="s3">.</span><span class="s1">HAVE_RAQM</span><span class="s2">:</span>
+<a name="l259"><span class="ln">259  </span></a>            <span class="s1">warnings</span><span class="s3">.</span><span class="s1">warn</span><span class="s3">(</span>
+<a name="l260"><span class="ln">260  </span></a>                <span class="s5">&quot;Raqm layout was requested, but Raqm is not available. &quot;</span>
+<a name="l261"><span class="ln">261  </span></a>                <span class="s5">&quot;Falling back to basic layout.&quot;</span>
+<a name="l262"><span class="ln">262  </span></a>            <span class="s3">)</span>
+<a name="l263"><span class="ln">263  </span></a>            <span class="s1">layout_engine </span><span class="s2">= </span><span class="s1">Layout</span><span class="s3">.</span><span class="s1">BASIC</span>
+<a name="l264"><span class="ln">264  </span></a>
+<a name="l265"><span class="ln">265  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">layout_engine </span><span class="s2">= </span><span class="s1">layout_engine</span>
+<a name="l266"><span class="ln">266  </span></a>
+<a name="l267"><span class="ln">267  </span></a>        <span class="s2">def </span><span class="s1">load_from_bytes</span><span class="s3">(</span><span class="s1">f</span><span class="s2">: </span><span class="s1">IO</span><span class="s3">[</span><span class="s1">bytes</span><span class="s3">]) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l268"><span class="ln">268  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">font_bytes </span><span class="s2">= </span><span class="s1">f</span><span class="s3">.</span><span class="s1">read</span><span class="s3">()</span>
+<a name="l269"><span class="ln">269  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">font </span><span class="s2">= </span><span class="s1">core</span><span class="s3">.</span><span class="s1">getfont</span><span class="s3">(</span>
+<a name="l270"><span class="ln">270  </span></a>                <span class="s5">&quot;&quot;</span><span class="s3">, </span><span class="s1">size</span><span class="s3">, </span><span class="s1">index</span><span class="s3">, </span><span class="s1">encoding</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font_bytes</span><span class="s3">, </span><span class="s1">layout_engine</span>
+<a name="l271"><span class="ln">271  </span></a>            <span class="s3">)</span>
+<a name="l272"><span class="ln">272  </span></a>
+<a name="l273"><span class="ln">273  </span></a>        <span class="s2">if </span><span class="s1">is_path</span><span class="s3">(</span><span class="s1">font</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l274"><span class="ln">274  </span></a>            <span class="s1">font </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">fspath</span><span class="s3">(</span><span class="s1">font</span><span class="s3">)</span>
+<a name="l275"><span class="ln">275  </span></a>            <span class="s2">if </span><span class="s1">sys</span><span class="s3">.</span><span class="s1">platform </span><span class="s2">== </span><span class="s5">&quot;win32&quot;</span><span class="s2">:</span>
+<a name="l276"><span class="ln">276  </span></a>                <span class="s1">font_bytes_path </span><span class="s2">= </span><span class="s1">font </span><span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">font</span><span class="s3">, </span><span class="s1">bytes</span><span class="s3">) </span><span class="s2">else </span><span class="s1">font</span><span class="s3">.</span><span class="s1">encode</span><span class="s3">()</span>
+<a name="l277"><span class="ln">277  </span></a>                <span class="s2">try:</span>
+<a name="l278"><span class="ln">278  </span></a>                    <span class="s1">font_bytes_path</span><span class="s3">.</span><span class="s1">decode</span><span class="s3">(</span><span class="s5">&quot;ascii&quot;</span><span class="s3">)</span>
+<a name="l279"><span class="ln">279  </span></a>                <span class="s2">except </span><span class="s1">UnicodeDecodeError</span><span class="s2">:</span>
+<a name="l280"><span class="ln">280  </span></a>                    <span class="s0"># FreeType cannot load fonts with non-ASCII characters on Windows</span>
+<a name="l281"><span class="ln">281  </span></a>                    <span class="s0"># So load it into memory first</span>
+<a name="l282"><span class="ln">282  </span></a>                    <span class="s2">with </span><span class="s1">open</span><span class="s3">(</span><span class="s1">font</span><span class="s3">, </span><span class="s5">&quot;rb&quot;</span><span class="s3">) </span><span class="s2">as </span><span class="s1">f</span><span class="s2">:</span>
+<a name="l283"><span class="ln">283  </span></a>                        <span class="s1">load_from_bytes</span><span class="s3">(</span><span class="s1">f</span><span class="s3">)</span>
+<a name="l284"><span class="ln">284  </span></a>                    <span class="s2">return</span>
+<a name="l285"><span class="ln">285  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">font </span><span class="s2">= </span><span class="s1">core</span><span class="s3">.</span><span class="s1">getfont</span><span class="s3">(</span>
+<a name="l286"><span class="ln">286  </span></a>                <span class="s1">font</span><span class="s3">, </span><span class="s1">size</span><span class="s3">, </span><span class="s1">index</span><span class="s3">, </span><span class="s1">encoding</span><span class="s3">, </span><span class="s1">layout_engine</span><span class="s2">=</span><span class="s1">layout_engine</span>
+<a name="l287"><span class="ln">287  </span></a>            <span class="s3">)</span>
+<a name="l288"><span class="ln">288  </span></a>        <span class="s2">else:</span>
+<a name="l289"><span class="ln">289  </span></a>            <span class="s1">load_from_bytes</span><span class="s3">(</span><span class="s1">cast</span><span class="s3">(</span><span class="s1">IO</span><span class="s3">[</span><span class="s1">bytes</span><span class="s3">], </span><span class="s1">font</span><span class="s3">))</span>
+<a name="l290"><span class="ln">290  </span></a>
+<a name="l291"><span class="ln">291  </span></a>    <span class="s2">def </span><span class="s1">__getstate__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; list</span><span class="s3">[</span><span class="s1">Any</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l292"><span class="ln">292  </span></a>        <span class="s2">return </span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">path</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">size</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">index</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">encoding</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">layout_engine</span><span class="s3">]</span>
+<a name="l293"><span class="ln">293  </span></a>
+<a name="l294"><span class="ln">294  </span></a>    <span class="s2">def </span><span class="s1">__setstate__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">state</span><span class="s2">: </span><span class="s1">list</span><span class="s3">[</span><span class="s1">Any</span><span class="s3">]) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l295"><span class="ln">295  </span></a>        <span class="s1">path</span><span class="s3">, </span><span class="s1">size</span><span class="s3">, </span><span class="s1">index</span><span class="s3">, </span><span class="s1">encoding</span><span class="s3">, </span><span class="s1">layout_engine </span><span class="s2">= </span><span class="s1">state</span>
+<a name="l296"><span class="ln">296  </span></a>        <span class="s1">FreeTypeFont</span><span class="s3">.</span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">path</span><span class="s3">, </span><span class="s1">size</span><span class="s3">, </span><span class="s1">index</span><span class="s3">, </span><span class="s1">encoding</span><span class="s3">, </span><span class="s1">layout_engine</span><span class="s3">)</span>
+<a name="l297"><span class="ln">297  </span></a>
+<a name="l298"><span class="ln">298  </span></a>    <span class="s2">def </span><span class="s1">getname</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; tuple</span><span class="s3">[</span><span class="s1">str </span><span class="s2">| None</span><span class="s3">, </span><span class="s1">str </span><span class="s2">| None</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l299"><span class="ln">299  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l300"><span class="ln">300  </span></a>        :return: A tuple of the font family (e.g. Helvetica) and the font style 
+<a name="l301"><span class="ln">301  </span></a>            (e.g. Bold) 
+<a name="l302"><span class="ln">302  </span></a>        &quot;&quot;&quot;</span>
+<a name="l303"><span class="ln">303  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">family</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">style</span>
+<a name="l304"><span class="ln">304  </span></a>
+<a name="l305"><span class="ln">305  </span></a>    <span class="s2">def </span><span class="s1">getmetrics</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; tuple</span><span class="s3">[</span><span class="s1">int</span><span class="s3">, </span><span class="s1">int</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l306"><span class="ln">306  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l307"><span class="ln">307  </span></a>        :return: A tuple of the font ascent (the distance from the baseline to 
+<a name="l308"><span class="ln">308  </span></a>            the highest outline point) and descent (the distance from the 
+<a name="l309"><span class="ln">309  </span></a>            baseline to the lowest outline point, a negative value) 
+<a name="l310"><span class="ln">310  </span></a>        &quot;&quot;&quot;</span>
+<a name="l311"><span class="ln">311  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">ascent</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">descent</span>
+<a name="l312"><span class="ln">312  </span></a>
+<a name="l313"><span class="ln">313  </span></a>    <span class="s2">def </span><span class="s1">getlength</span><span class="s3">(</span>
+<a name="l314"><span class="ln">314  </span></a>        <span class="s1">self</span><span class="s3">,</span>
+<a name="l315"><span class="ln">315  </span></a>        <span class="s1">text</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">bytes</span><span class="s3">,</span>
+<a name="l316"><span class="ln">316  </span></a>        <span class="s1">mode</span><span class="s2">: </span><span class="s1">str </span><span class="s2">= </span><span class="s5">&quot;&quot;</span><span class="s3">,</span>
+<a name="l317"><span class="ln">317  </span></a>        <span class="s1">direction</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l318"><span class="ln">318  </span></a>        <span class="s1">features</span><span class="s2">: </span><span class="s1">list</span><span class="s3">[</span><span class="s1">str</span><span class="s3">] </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l319"><span class="ln">319  </span></a>        <span class="s1">language</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l320"><span class="ln">320  </span></a>    <span class="s3">) </span><span class="s1">-&gt; float</span><span class="s2">:</span>
+<a name="l321"><span class="ln">321  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l322"><span class="ln">322  </span></a>        Returns length (in pixels with 1/64 precision) of given text when rendered 
+<a name="l323"><span class="ln">323  </span></a>        in font with provided direction, features, and language. 
+<a name="l324"><span class="ln">324  </span></a> 
+<a name="l325"><span class="ln">325  </span></a>        This is the amount by which following text should be offset. 
+<a name="l326"><span class="ln">326  </span></a>        Text bounding box may extend past the length in some fonts, 
+<a name="l327"><span class="ln">327  </span></a>        e.g. when using italics or accents. 
+<a name="l328"><span class="ln">328  </span></a> 
+<a name="l329"><span class="ln">329  </span></a>        The result is returned as a float; it is a whole number if using basic layout. 
+<a name="l330"><span class="ln">330  </span></a> 
+<a name="l331"><span class="ln">331  </span></a>        Note that the sum of two lengths may not equal the length of a concatenated 
+<a name="l332"><span class="ln">332  </span></a>        string due to kerning. If you need to adjust for kerning, include the following 
+<a name="l333"><span class="ln">333  </span></a>        character and subtract its length. 
+<a name="l334"><span class="ln">334  </span></a> 
+<a name="l335"><span class="ln">335  </span></a>        For example, instead of :: 
+<a name="l336"><span class="ln">336  </span></a> 
+<a name="l337"><span class="ln">337  </span></a>          hello = font.getlength(&quot;Hello&quot;) 
+<a name="l338"><span class="ln">338  </span></a>          world = font.getlength(&quot;World&quot;) 
+<a name="l339"><span class="ln">339  </span></a>          hello_world = hello + world  # not adjusted for kerning 
+<a name="l340"><span class="ln">340  </span></a>          assert hello_world == font.getlength(&quot;HelloWorld&quot;)  # may fail 
+<a name="l341"><span class="ln">341  </span></a> 
+<a name="l342"><span class="ln">342  </span></a>        use :: 
+<a name="l343"><span class="ln">343  </span></a> 
+<a name="l344"><span class="ln">344  </span></a>          hello = font.getlength(&quot;HelloW&quot;) - font.getlength(&quot;W&quot;)  # adjusted for kerning 
+<a name="l345"><span class="ln">345  </span></a>          world = font.getlength(&quot;World&quot;) 
+<a name="l346"><span class="ln">346  </span></a>          hello_world = hello + world  # adjusted for kerning 
+<a name="l347"><span class="ln">347  </span></a>          assert hello_world == font.getlength(&quot;HelloWorld&quot;)  # True 
+<a name="l348"><span class="ln">348  </span></a> 
+<a name="l349"><span class="ln">349  </span></a>        or disable kerning with (requires libraqm) :: 
+<a name="l350"><span class="ln">350  </span></a> 
+<a name="l351"><span class="ln">351  </span></a>          hello = draw.textlength(&quot;Hello&quot;, font, features=[&quot;-kern&quot;]) 
+<a name="l352"><span class="ln">352  </span></a>          world = draw.textlength(&quot;World&quot;, font, features=[&quot;-kern&quot;]) 
+<a name="l353"><span class="ln">353  </span></a>          hello_world = hello + world  # kerning is disabled, no need to adjust 
+<a name="l354"><span class="ln">354  </span></a>          assert hello_world == draw.textlength(&quot;HelloWorld&quot;, font, features=[&quot;-kern&quot;]) 
+<a name="l355"><span class="ln">355  </span></a> 
+<a name="l356"><span class="ln">356  </span></a>        .. versionadded:: 8.0.0 
+<a name="l357"><span class="ln">357  </span></a> 
+<a name="l358"><span class="ln">358  </span></a>        :param text: Text to measure. 
+<a name="l359"><span class="ln">359  </span></a>        :param mode: Used by some graphics drivers to indicate what mode the 
+<a name="l360"><span class="ln">360  </span></a>                     driver prefers; if empty, the renderer may return either 
+<a name="l361"><span class="ln">361  </span></a>                     mode. Note that the mode is always a string, to simplify 
+<a name="l362"><span class="ln">362  </span></a>                     C-level implementations. 
+<a name="l363"><span class="ln">363  </span></a> 
+<a name="l364"><span class="ln">364  </span></a>        :param direction: Direction of the text. It can be 'rtl' (right to 
+<a name="l365"><span class="ln">365  </span></a>                          left), 'ltr' (left to right) or 'ttb' (top to bottom). 
+<a name="l366"><span class="ln">366  </span></a>                          Requires libraqm. 
+<a name="l367"><span class="ln">367  </span></a> 
+<a name="l368"><span class="ln">368  </span></a>        :param features: A list of OpenType font features to be used during text 
+<a name="l369"><span class="ln">369  </span></a>                         layout. This is usually used to turn on optional 
+<a name="l370"><span class="ln">370  </span></a>                         font features that are not enabled by default, 
+<a name="l371"><span class="ln">371  </span></a>                         for example 'dlig' or 'ss01', but can be also 
+<a name="l372"><span class="ln">372  </span></a>                         used to turn off default font features for 
+<a name="l373"><span class="ln">373  </span></a>                         example '-liga' to disable ligatures or '-kern' 
+<a name="l374"><span class="ln">374  </span></a>                         to disable kerning.  To get all supported 
+<a name="l375"><span class="ln">375  </span></a>                         features, see 
+<a name="l376"><span class="ln">376  </span></a>                         https://learn.microsoft.com/en-us/typography/opentype/spec/featurelist 
+<a name="l377"><span class="ln">377  </span></a>                         Requires libraqm. 
+<a name="l378"><span class="ln">378  </span></a> 
+<a name="l379"><span class="ln">379  </span></a>        :param language: Language of the text. Different languages may use 
+<a name="l380"><span class="ln">380  </span></a>                         different glyph shapes or ligatures. This parameter tells 
+<a name="l381"><span class="ln">381  </span></a>                         the font which language the text is in, and to apply the 
+<a name="l382"><span class="ln">382  </span></a>                         correct substitutions as appropriate, if available. 
+<a name="l383"><span class="ln">383  </span></a>                         It should be a `BCP 47 language code 
+<a name="l384"><span class="ln">384  </span></a>                         &lt;https://www.w3.org/International/articles/language-tags/&gt;`_ 
+<a name="l385"><span class="ln">385  </span></a>                         Requires libraqm. 
+<a name="l386"><span class="ln">386  </span></a> 
+<a name="l387"><span class="ln">387  </span></a>        :return: Either width for horizontal text, or height for vertical text. 
+<a name="l388"><span class="ln">388  </span></a>        &quot;&quot;&quot;</span>
+<a name="l389"><span class="ln">389  </span></a>        <span class="s1">_string_length_check</span><span class="s3">(</span><span class="s1">text</span><span class="s3">)</span>
+<a name="l390"><span class="ln">390  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">getlength</span><span class="s3">(</span><span class="s1">text</span><span class="s3">, </span><span class="s1">mode</span><span class="s3">, </span><span class="s1">direction</span><span class="s3">, </span><span class="s1">features</span><span class="s3">, </span><span class="s1">language</span><span class="s3">) </span><span class="s2">/ </span><span class="s4">64</span>
+<a name="l391"><span class="ln">391  </span></a>
+<a name="l392"><span class="ln">392  </span></a>    <span class="s2">def </span><span class="s1">getbbox</span><span class="s3">(</span>
+<a name="l393"><span class="ln">393  </span></a>        <span class="s1">self</span><span class="s3">,</span>
+<a name="l394"><span class="ln">394  </span></a>        <span class="s1">text</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">bytes</span><span class="s3">,</span>
+<a name="l395"><span class="ln">395  </span></a>        <span class="s1">mode</span><span class="s2">: </span><span class="s1">str </span><span class="s2">= </span><span class="s5">&quot;&quot;</span><span class="s3">,</span>
+<a name="l396"><span class="ln">396  </span></a>        <span class="s1">direction</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l397"><span class="ln">397  </span></a>        <span class="s1">features</span><span class="s2">: </span><span class="s1">list</span><span class="s3">[</span><span class="s1">str</span><span class="s3">] </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l398"><span class="ln">398  </span></a>        <span class="s1">language</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l399"><span class="ln">399  </span></a>        <span class="s1">stroke_width</span><span class="s2">: </span><span class="s1">float </span><span class="s2">= </span><span class="s4">0</span><span class="s3">,</span>
+<a name="l400"><span class="ln">400  </span></a>        <span class="s1">anchor</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l401"><span class="ln">401  </span></a>    <span class="s3">) </span><span class="s1">-&gt; tuple</span><span class="s3">[</span><span class="s1">float</span><span class="s3">, </span><span class="s1">float</span><span class="s3">, </span><span class="s1">float</span><span class="s3">, </span><span class="s1">float</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l402"><span class="ln">402  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l403"><span class="ln">403  </span></a>        Returns bounding box (in pixels) of given text relative to given anchor 
+<a name="l404"><span class="ln">404  </span></a>        when rendered in font with provided direction, features, and language. 
+<a name="l405"><span class="ln">405  </span></a> 
+<a name="l406"><span class="ln">406  </span></a>        Use :py:meth:`getlength()` to get the offset of following text with 
+<a name="l407"><span class="ln">407  </span></a>        1/64 pixel precision. The bounding box includes extra margins for 
+<a name="l408"><span class="ln">408  </span></a>        some fonts, e.g. italics or accents. 
+<a name="l409"><span class="ln">409  </span></a> 
+<a name="l410"><span class="ln">410  </span></a>        .. versionadded:: 8.0.0 
+<a name="l411"><span class="ln">411  </span></a> 
+<a name="l412"><span class="ln">412  </span></a>        :param text: Text to render. 
+<a name="l413"><span class="ln">413  </span></a>        :param mode: Used by some graphics drivers to indicate what mode the 
+<a name="l414"><span class="ln">414  </span></a>                     driver prefers; if empty, the renderer may return either 
+<a name="l415"><span class="ln">415  </span></a>                     mode. Note that the mode is always a string, to simplify 
+<a name="l416"><span class="ln">416  </span></a>                     C-level implementations. 
+<a name="l417"><span class="ln">417  </span></a> 
+<a name="l418"><span class="ln">418  </span></a>        :param direction: Direction of the text. It can be 'rtl' (right to 
+<a name="l419"><span class="ln">419  </span></a>                          left), 'ltr' (left to right) or 'ttb' (top to bottom). 
+<a name="l420"><span class="ln">420  </span></a>                          Requires libraqm. 
+<a name="l421"><span class="ln">421  </span></a> 
+<a name="l422"><span class="ln">422  </span></a>        :param features: A list of OpenType font features to be used during text 
+<a name="l423"><span class="ln">423  </span></a>                         layout. This is usually used to turn on optional 
+<a name="l424"><span class="ln">424  </span></a>                         font features that are not enabled by default, 
+<a name="l425"><span class="ln">425  </span></a>                         for example 'dlig' or 'ss01', but can be also 
+<a name="l426"><span class="ln">426  </span></a>                         used to turn off default font features for 
+<a name="l427"><span class="ln">427  </span></a>                         example '-liga' to disable ligatures or '-kern' 
+<a name="l428"><span class="ln">428  </span></a>                         to disable kerning.  To get all supported 
+<a name="l429"><span class="ln">429  </span></a>                         features, see 
+<a name="l430"><span class="ln">430  </span></a>                         https://learn.microsoft.com/en-us/typography/opentype/spec/featurelist 
+<a name="l431"><span class="ln">431  </span></a>                         Requires libraqm. 
+<a name="l432"><span class="ln">432  </span></a> 
+<a name="l433"><span class="ln">433  </span></a>        :param language: Language of the text. Different languages may use 
+<a name="l434"><span class="ln">434  </span></a>                         different glyph shapes or ligatures. This parameter tells 
+<a name="l435"><span class="ln">435  </span></a>                         the font which language the text is in, and to apply the 
+<a name="l436"><span class="ln">436  </span></a>                         correct substitutions as appropriate, if available. 
+<a name="l437"><span class="ln">437  </span></a>                         It should be a `BCP 47 language code 
+<a name="l438"><span class="ln">438  </span></a>                         &lt;https://www.w3.org/International/articles/language-tags/&gt;`_ 
+<a name="l439"><span class="ln">439  </span></a>                         Requires libraqm. 
+<a name="l440"><span class="ln">440  </span></a> 
+<a name="l441"><span class="ln">441  </span></a>        :param stroke_width: The width of the text stroke. 
+<a name="l442"><span class="ln">442  </span></a> 
+<a name="l443"><span class="ln">443  </span></a>        :param anchor:  The text anchor alignment. Determines the relative location of 
+<a name="l444"><span class="ln">444  </span></a>                        the anchor to the text. The default alignment is top left, 
+<a name="l445"><span class="ln">445  </span></a>                        specifically ``la`` for horizontal text and ``lt`` for 
+<a name="l446"><span class="ln">446  </span></a>                        vertical text. See :ref:`text-anchors` for details. 
+<a name="l447"><span class="ln">447  </span></a> 
+<a name="l448"><span class="ln">448  </span></a>        :return: ``(left, top, right, bottom)`` bounding box 
+<a name="l449"><span class="ln">449  </span></a>        &quot;&quot;&quot;</span>
+<a name="l450"><span class="ln">450  </span></a>        <span class="s1">_string_length_check</span><span class="s3">(</span><span class="s1">text</span><span class="s3">)</span>
+<a name="l451"><span class="ln">451  </span></a>        <span class="s1">size</span><span class="s3">, </span><span class="s1">offset </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">getsize</span><span class="s3">(</span>
+<a name="l452"><span class="ln">452  </span></a>            <span class="s1">text</span><span class="s3">, </span><span class="s1">mode</span><span class="s3">, </span><span class="s1">direction</span><span class="s3">, </span><span class="s1">features</span><span class="s3">, </span><span class="s1">language</span><span class="s3">, </span><span class="s1">anchor</span>
+<a name="l453"><span class="ln">453  </span></a>        <span class="s3">)</span>
+<a name="l454"><span class="ln">454  </span></a>        <span class="s1">left</span><span class="s3">, </span><span class="s1">top </span><span class="s2">= </span><span class="s1">offset</span><span class="s3">[</span><span class="s4">0</span><span class="s3">] </span><span class="s2">- </span><span class="s1">stroke_width</span><span class="s3">, </span><span class="s1">offset</span><span class="s3">[</span><span class="s4">1</span><span class="s3">] </span><span class="s2">- </span><span class="s1">stroke_width</span>
+<a name="l455"><span class="ln">455  </span></a>        <span class="s1">width</span><span class="s3">, </span><span class="s1">height </span><span class="s2">= </span><span class="s1">size</span><span class="s3">[</span><span class="s4">0</span><span class="s3">] </span><span class="s2">+ </span><span class="s4">2 </span><span class="s2">* </span><span class="s1">stroke_width</span><span class="s3">, </span><span class="s1">size</span><span class="s3">[</span><span class="s4">1</span><span class="s3">] </span><span class="s2">+ </span><span class="s4">2 </span><span class="s2">* </span><span class="s1">stroke_width</span>
+<a name="l456"><span class="ln">456  </span></a>        <span class="s2">return </span><span class="s1">left</span><span class="s3">, </span><span class="s1">top</span><span class="s3">, </span><span class="s1">left </span><span class="s2">+ </span><span class="s1">width</span><span class="s3">, </span><span class="s1">top </span><span class="s2">+ </span><span class="s1">height</span>
+<a name="l457"><span class="ln">457  </span></a>
+<a name="l458"><span class="ln">458  </span></a>    <span class="s2">def </span><span class="s1">getmask</span><span class="s3">(</span>
+<a name="l459"><span class="ln">459  </span></a>        <span class="s1">self</span><span class="s3">,</span>
+<a name="l460"><span class="ln">460  </span></a>        <span class="s1">text</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">bytes</span><span class="s3">,</span>
+<a name="l461"><span class="ln">461  </span></a>        <span class="s1">mode</span><span class="s2">: </span><span class="s1">str </span><span class="s2">= </span><span class="s5">&quot;&quot;</span><span class="s3">,</span>
+<a name="l462"><span class="ln">462  </span></a>        <span class="s1">direction</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l463"><span class="ln">463  </span></a>        <span class="s1">features</span><span class="s2">: </span><span class="s1">list</span><span class="s3">[</span><span class="s1">str</span><span class="s3">] </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l464"><span class="ln">464  </span></a>        <span class="s1">language</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l465"><span class="ln">465  </span></a>        <span class="s1">stroke_width</span><span class="s2">: </span><span class="s1">float </span><span class="s2">= </span><span class="s4">0</span><span class="s3">,</span>
+<a name="l466"><span class="ln">466  </span></a>        <span class="s1">anchor</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l467"><span class="ln">467  </span></a>        <span class="s1">ink</span><span class="s2">: </span><span class="s1">int </span><span class="s2">= </span><span class="s4">0</span><span class="s3">,</span>
+<a name="l468"><span class="ln">468  </span></a>        <span class="s1">start</span><span class="s2">: </span><span class="s1">tuple</span><span class="s3">[</span><span class="s1">float</span><span class="s3">, </span><span class="s1">float</span><span class="s3">] </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l469"><span class="ln">469  </span></a>    <span class="s3">) </span><span class="s1">-&gt; Image</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">ImagingCore</span><span class="s2">:</span>
+<a name="l470"><span class="ln">470  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l471"><span class="ln">471  </span></a>        Create a bitmap for the text. 
+<a name="l472"><span class="ln">472  </span></a> 
+<a name="l473"><span class="ln">473  </span></a>        If the font uses antialiasing, the bitmap should have mode ``L`` and use a 
+<a name="l474"><span class="ln">474  </span></a>        maximum value of 255. If the font has embedded color data, the bitmap 
+<a name="l475"><span class="ln">475  </span></a>        should have mode ``RGBA``. Otherwise, it should have mode ``1``. 
+<a name="l476"><span class="ln">476  </span></a> 
+<a name="l477"><span class="ln">477  </span></a>        :param text: Text to render. 
+<a name="l478"><span class="ln">478  </span></a>        :param mode: Used by some graphics drivers to indicate what mode the 
+<a name="l479"><span class="ln">479  </span></a>                     driver prefers; if empty, the renderer may return either 
+<a name="l480"><span class="ln">480  </span></a>                     mode. Note that the mode is always a string, to simplify 
+<a name="l481"><span class="ln">481  </span></a>                     C-level implementations. 
+<a name="l482"><span class="ln">482  </span></a> 
+<a name="l483"><span class="ln">483  </span></a>                     .. versionadded:: 1.1.5 
+<a name="l484"><span class="ln">484  </span></a> 
+<a name="l485"><span class="ln">485  </span></a>        :param direction: Direction of the text. It can be 'rtl' (right to 
+<a name="l486"><span class="ln">486  </span></a>                          left), 'ltr' (left to right) or 'ttb' (top to bottom). 
+<a name="l487"><span class="ln">487  </span></a>                          Requires libraqm. 
+<a name="l488"><span class="ln">488  </span></a> 
+<a name="l489"><span class="ln">489  </span></a>                          .. versionadded:: 4.2.0 
+<a name="l490"><span class="ln">490  </span></a> 
+<a name="l491"><span class="ln">491  </span></a>        :param features: A list of OpenType font features to be used during text 
+<a name="l492"><span class="ln">492  </span></a>                         layout. This is usually used to turn on optional 
+<a name="l493"><span class="ln">493  </span></a>                         font features that are not enabled by default, 
+<a name="l494"><span class="ln">494  </span></a>                         for example 'dlig' or 'ss01', but can be also 
+<a name="l495"><span class="ln">495  </span></a>                         used to turn off default font features for 
+<a name="l496"><span class="ln">496  </span></a>                         example '-liga' to disable ligatures or '-kern' 
+<a name="l497"><span class="ln">497  </span></a>                         to disable kerning.  To get all supported 
+<a name="l498"><span class="ln">498  </span></a>                         features, see 
+<a name="l499"><span class="ln">499  </span></a>                         https://learn.microsoft.com/en-us/typography/opentype/spec/featurelist 
+<a name="l500"><span class="ln">500  </span></a>                         Requires libraqm. 
+<a name="l501"><span class="ln">501  </span></a> 
+<a name="l502"><span class="ln">502  </span></a>                         .. versionadded:: 4.2.0 
+<a name="l503"><span class="ln">503  </span></a> 
+<a name="l504"><span class="ln">504  </span></a>        :param language: Language of the text. Different languages may use 
+<a name="l505"><span class="ln">505  </span></a>                         different glyph shapes or ligatures. This parameter tells 
+<a name="l506"><span class="ln">506  </span></a>                         the font which language the text is in, and to apply the 
+<a name="l507"><span class="ln">507  </span></a>                         correct substitutions as appropriate, if available. 
+<a name="l508"><span class="ln">508  </span></a>                         It should be a `BCP 47 language code 
+<a name="l509"><span class="ln">509  </span></a>                         &lt;https://www.w3.org/International/articles/language-tags/&gt;`_ 
+<a name="l510"><span class="ln">510  </span></a>                         Requires libraqm. 
+<a name="l511"><span class="ln">511  </span></a> 
+<a name="l512"><span class="ln">512  </span></a>                         .. versionadded:: 6.0.0 
+<a name="l513"><span class="ln">513  </span></a> 
+<a name="l514"><span class="ln">514  </span></a>        :param stroke_width: The width of the text stroke. 
+<a name="l515"><span class="ln">515  </span></a> 
+<a name="l516"><span class="ln">516  </span></a>                         .. versionadded:: 6.2.0 
+<a name="l517"><span class="ln">517  </span></a> 
+<a name="l518"><span class="ln">518  </span></a>        :param anchor:  The text anchor alignment. Determines the relative location of 
+<a name="l519"><span class="ln">519  </span></a>                        the anchor to the text. The default alignment is top left, 
+<a name="l520"><span class="ln">520  </span></a>                        specifically ``la`` for horizontal text and ``lt`` for 
+<a name="l521"><span class="ln">521  </span></a>                        vertical text. See :ref:`text-anchors` for details. 
+<a name="l522"><span class="ln">522  </span></a> 
+<a name="l523"><span class="ln">523  </span></a>                         .. versionadded:: 8.0.0 
+<a name="l524"><span class="ln">524  </span></a> 
+<a name="l525"><span class="ln">525  </span></a>        :param ink: Foreground ink for rendering in RGBA mode. 
+<a name="l526"><span class="ln">526  </span></a> 
+<a name="l527"><span class="ln">527  </span></a>                         .. versionadded:: 8.0.0 
+<a name="l528"><span class="ln">528  </span></a> 
+<a name="l529"><span class="ln">529  </span></a>        :param start: Tuple of horizontal and vertical offset, as text may render 
+<a name="l530"><span class="ln">530  </span></a>                      differently when starting at fractional coordinates. 
+<a name="l531"><span class="ln">531  </span></a> 
+<a name="l532"><span class="ln">532  </span></a>                         .. versionadded:: 9.4.0 
+<a name="l533"><span class="ln">533  </span></a> 
+<a name="l534"><span class="ln">534  </span></a>        :return: An internal PIL storage memory instance as defined by the 
+<a name="l535"><span class="ln">535  </span></a>                 :py:mod:`PIL.Image.core` interface module. 
+<a name="l536"><span class="ln">536  </span></a>        &quot;&quot;&quot;</span>
+<a name="l537"><span class="ln">537  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">getmask2</span><span class="s3">(</span>
+<a name="l538"><span class="ln">538  </span></a>            <span class="s1">text</span><span class="s3">,</span>
+<a name="l539"><span class="ln">539  </span></a>            <span class="s1">mode</span><span class="s3">,</span>
+<a name="l540"><span class="ln">540  </span></a>            <span class="s1">direction</span><span class="s2">=</span><span class="s1">direction</span><span class="s3">,</span>
+<a name="l541"><span class="ln">541  </span></a>            <span class="s1">features</span><span class="s2">=</span><span class="s1">features</span><span class="s3">,</span>
+<a name="l542"><span class="ln">542  </span></a>            <span class="s1">language</span><span class="s2">=</span><span class="s1">language</span><span class="s3">,</span>
+<a name="l543"><span class="ln">543  </span></a>            <span class="s1">stroke_width</span><span class="s2">=</span><span class="s1">stroke_width</span><span class="s3">,</span>
+<a name="l544"><span class="ln">544  </span></a>            <span class="s1">anchor</span><span class="s2">=</span><span class="s1">anchor</span><span class="s3">,</span>
+<a name="l545"><span class="ln">545  </span></a>            <span class="s1">ink</span><span class="s2">=</span><span class="s1">ink</span><span class="s3">,</span>
+<a name="l546"><span class="ln">546  </span></a>            <span class="s1">start</span><span class="s2">=</span><span class="s1">start</span><span class="s3">,</span>
+<a name="l547"><span class="ln">547  </span></a>        <span class="s3">)[</span><span class="s4">0</span><span class="s3">]</span>
+<a name="l548"><span class="ln">548  </span></a>
+<a name="l549"><span class="ln">549  </span></a>    <span class="s2">def </span><span class="s1">getmask2</span><span class="s3">(</span>
+<a name="l550"><span class="ln">550  </span></a>        <span class="s1">self</span><span class="s3">,</span>
+<a name="l551"><span class="ln">551  </span></a>        <span class="s1">text</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">bytes</span><span class="s3">,</span>
+<a name="l552"><span class="ln">552  </span></a>        <span class="s1">mode</span><span class="s2">: </span><span class="s1">str </span><span class="s2">= </span><span class="s5">&quot;&quot;</span><span class="s3">,</span>
+<a name="l553"><span class="ln">553  </span></a>        <span class="s1">direction</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l554"><span class="ln">554  </span></a>        <span class="s1">features</span><span class="s2">: </span><span class="s1">list</span><span class="s3">[</span><span class="s1">str</span><span class="s3">] </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l555"><span class="ln">555  </span></a>        <span class="s1">language</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l556"><span class="ln">556  </span></a>        <span class="s1">stroke_width</span><span class="s2">: </span><span class="s1">float </span><span class="s2">= </span><span class="s4">0</span><span class="s3">,</span>
+<a name="l557"><span class="ln">557  </span></a>        <span class="s1">anchor</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l558"><span class="ln">558  </span></a>        <span class="s1">ink</span><span class="s2">: </span><span class="s1">int </span><span class="s2">= </span><span class="s4">0</span><span class="s3">,</span>
+<a name="l559"><span class="ln">559  </span></a>        <span class="s1">start</span><span class="s2">: </span><span class="s1">tuple</span><span class="s3">[</span><span class="s1">float</span><span class="s3">, </span><span class="s1">float</span><span class="s3">] </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l560"><span class="ln">560  </span></a>        <span class="s2">*</span><span class="s1">args</span><span class="s2">: </span><span class="s1">Any</span><span class="s3">,</span>
+<a name="l561"><span class="ln">561  </span></a>        <span class="s2">**</span><span class="s1">kwargs</span><span class="s2">: </span><span class="s1">Any</span><span class="s3">,</span>
+<a name="l562"><span class="ln">562  </span></a>    <span class="s3">) </span><span class="s1">-&gt; tuple</span><span class="s3">[</span><span class="s1">Image</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">ImagingCore</span><span class="s3">, </span><span class="s1">tuple</span><span class="s3">[</span><span class="s1">int</span><span class="s3">, </span><span class="s1">int</span><span class="s3">]]</span><span class="s2">:</span>
+<a name="l563"><span class="ln">563  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l564"><span class="ln">564  </span></a>        Create a bitmap for the text. 
+<a name="l565"><span class="ln">565  </span></a> 
+<a name="l566"><span class="ln">566  </span></a>        If the font uses antialiasing, the bitmap should have mode ``L`` and use a 
+<a name="l567"><span class="ln">567  </span></a>        maximum value of 255. If the font has embedded color data, the bitmap 
+<a name="l568"><span class="ln">568  </span></a>        should have mode ``RGBA``. Otherwise, it should have mode ``1``. 
+<a name="l569"><span class="ln">569  </span></a> 
+<a name="l570"><span class="ln">570  </span></a>        :param text: Text to render. 
+<a name="l571"><span class="ln">571  </span></a>        :param mode: Used by some graphics drivers to indicate what mode the 
+<a name="l572"><span class="ln">572  </span></a>                     driver prefers; if empty, the renderer may return either 
+<a name="l573"><span class="ln">573  </span></a>                     mode. Note that the mode is always a string, to simplify 
+<a name="l574"><span class="ln">574  </span></a>                     C-level implementations. 
+<a name="l575"><span class="ln">575  </span></a> 
+<a name="l576"><span class="ln">576  </span></a>                     .. versionadded:: 1.1.5 
+<a name="l577"><span class="ln">577  </span></a> 
+<a name="l578"><span class="ln">578  </span></a>        :param direction: Direction of the text. It can be 'rtl' (right to 
+<a name="l579"><span class="ln">579  </span></a>                          left), 'ltr' (left to right) or 'ttb' (top to bottom). 
+<a name="l580"><span class="ln">580  </span></a>                          Requires libraqm. 
+<a name="l581"><span class="ln">581  </span></a> 
+<a name="l582"><span class="ln">582  </span></a>                          .. versionadded:: 4.2.0 
+<a name="l583"><span class="ln">583  </span></a> 
+<a name="l584"><span class="ln">584  </span></a>        :param features: A list of OpenType font features to be used during text 
+<a name="l585"><span class="ln">585  </span></a>                         layout. This is usually used to turn on optional 
+<a name="l586"><span class="ln">586  </span></a>                         font features that are not enabled by default, 
+<a name="l587"><span class="ln">587  </span></a>                         for example 'dlig' or 'ss01', but can be also 
+<a name="l588"><span class="ln">588  </span></a>                         used to turn off default font features for 
+<a name="l589"><span class="ln">589  </span></a>                         example '-liga' to disable ligatures or '-kern' 
+<a name="l590"><span class="ln">590  </span></a>                         to disable kerning.  To get all supported 
+<a name="l591"><span class="ln">591  </span></a>                         features, see 
+<a name="l592"><span class="ln">592  </span></a>                         https://learn.microsoft.com/en-us/typography/opentype/spec/featurelist 
+<a name="l593"><span class="ln">593  </span></a>                         Requires libraqm. 
+<a name="l594"><span class="ln">594  </span></a> 
+<a name="l595"><span class="ln">595  </span></a>                         .. versionadded:: 4.2.0 
+<a name="l596"><span class="ln">596  </span></a> 
+<a name="l597"><span class="ln">597  </span></a>        :param language: Language of the text. Different languages may use 
+<a name="l598"><span class="ln">598  </span></a>                         different glyph shapes or ligatures. This parameter tells 
+<a name="l599"><span class="ln">599  </span></a>                         the font which language the text is in, and to apply the 
+<a name="l600"><span class="ln">600  </span></a>                         correct substitutions as appropriate, if available. 
+<a name="l601"><span class="ln">601  </span></a>                         It should be a `BCP 47 language code 
+<a name="l602"><span class="ln">602  </span></a>                         &lt;https://www.w3.org/International/articles/language-tags/&gt;`_ 
+<a name="l603"><span class="ln">603  </span></a>                         Requires libraqm. 
+<a name="l604"><span class="ln">604  </span></a> 
+<a name="l605"><span class="ln">605  </span></a>                         .. versionadded:: 6.0.0 
+<a name="l606"><span class="ln">606  </span></a> 
+<a name="l607"><span class="ln">607  </span></a>        :param stroke_width: The width of the text stroke. 
+<a name="l608"><span class="ln">608  </span></a> 
+<a name="l609"><span class="ln">609  </span></a>                         .. versionadded:: 6.2.0 
+<a name="l610"><span class="ln">610  </span></a> 
+<a name="l611"><span class="ln">611  </span></a>        :param anchor:  The text anchor alignment. Determines the relative location of 
+<a name="l612"><span class="ln">612  </span></a>                        the anchor to the text. The default alignment is top left, 
+<a name="l613"><span class="ln">613  </span></a>                        specifically ``la`` for horizontal text and ``lt`` for 
+<a name="l614"><span class="ln">614  </span></a>                        vertical text. See :ref:`text-anchors` for details. 
+<a name="l615"><span class="ln">615  </span></a> 
+<a name="l616"><span class="ln">616  </span></a>                         .. versionadded:: 8.0.0 
+<a name="l617"><span class="ln">617  </span></a> 
+<a name="l618"><span class="ln">618  </span></a>        :param ink: Foreground ink for rendering in RGBA mode. 
+<a name="l619"><span class="ln">619  </span></a> 
+<a name="l620"><span class="ln">620  </span></a>                         .. versionadded:: 8.0.0 
+<a name="l621"><span class="ln">621  </span></a> 
+<a name="l622"><span class="ln">622  </span></a>        :param start: Tuple of horizontal and vertical offset, as text may render 
+<a name="l623"><span class="ln">623  </span></a>                      differently when starting at fractional coordinates. 
+<a name="l624"><span class="ln">624  </span></a> 
+<a name="l625"><span class="ln">625  </span></a>                         .. versionadded:: 9.4.0 
+<a name="l626"><span class="ln">626  </span></a> 
+<a name="l627"><span class="ln">627  </span></a>        :return: A tuple of an internal PIL storage memory instance as defined by the 
+<a name="l628"><span class="ln">628  </span></a>                 :py:mod:`PIL.Image.core` interface module, and the text offset, the 
+<a name="l629"><span class="ln">629  </span></a>                 gap between the starting coordinate and the first marking 
+<a name="l630"><span class="ln">630  </span></a>        &quot;&quot;&quot;</span>
+<a name="l631"><span class="ln">631  </span></a>        <span class="s1">_string_length_check</span><span class="s3">(</span><span class="s1">text</span><span class="s3">)</span>
+<a name="l632"><span class="ln">632  </span></a>        <span class="s2">if </span><span class="s1">start </span><span class="s2">is None:</span>
+<a name="l633"><span class="ln">633  </span></a>            <span class="s1">start </span><span class="s2">= </span><span class="s3">(</span><span class="s4">0</span><span class="s3">, </span><span class="s4">0</span><span class="s3">)</span>
+<a name="l634"><span class="ln">634  </span></a>
+<a name="l635"><span class="ln">635  </span></a>        <span class="s2">def </span><span class="s1">fill</span><span class="s3">(</span><span class="s1">width</span><span class="s2">: </span><span class="s1">int</span><span class="s3">, </span><span class="s1">height</span><span class="s2">: </span><span class="s1">int</span><span class="s3">) </span><span class="s1">-&gt; Image</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">ImagingCore</span><span class="s2">:</span>
+<a name="l636"><span class="ln">636  </span></a>            <span class="s1">size </span><span class="s2">= </span><span class="s3">(</span><span class="s1">width</span><span class="s3">, </span><span class="s1">height</span><span class="s3">)</span>
+<a name="l637"><span class="ln">637  </span></a>            <span class="s1">Image</span><span class="s3">.</span><span class="s1">_decompression_bomb_check</span><span class="s3">(</span><span class="s1">size</span><span class="s3">)</span>
+<a name="l638"><span class="ln">638  </span></a>            <span class="s2">return </span><span class="s1">Image</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">fill</span><span class="s3">(</span><span class="s5">&quot;RGBA&quot; </span><span class="s2">if </span><span class="s1">mode </span><span class="s2">== </span><span class="s5">&quot;RGBA&quot; </span><span class="s2">else </span><span class="s5">&quot;L&quot;</span><span class="s3">, </span><span class="s1">size</span><span class="s3">)</span>
+<a name="l639"><span class="ln">639  </span></a>
+<a name="l640"><span class="ln">640  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">render</span><span class="s3">(</span>
+<a name="l641"><span class="ln">641  </span></a>            <span class="s1">text</span><span class="s3">,</span>
+<a name="l642"><span class="ln">642  </span></a>            <span class="s1">fill</span><span class="s3">,</span>
+<a name="l643"><span class="ln">643  </span></a>            <span class="s1">mode</span><span class="s3">,</span>
+<a name="l644"><span class="ln">644  </span></a>            <span class="s1">direction</span><span class="s3">,</span>
+<a name="l645"><span class="ln">645  </span></a>            <span class="s1">features</span><span class="s3">,</span>
+<a name="l646"><span class="ln">646  </span></a>            <span class="s1">language</span><span class="s3">,</span>
+<a name="l647"><span class="ln">647  </span></a>            <span class="s1">stroke_width</span><span class="s3">,</span>
+<a name="l648"><span class="ln">648  </span></a>            <span class="s1">kwargs</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s5">&quot;stroke_filled&quot;</span><span class="s3">, </span><span class="s2">False</span><span class="s3">),</span>
+<a name="l649"><span class="ln">649  </span></a>            <span class="s1">anchor</span><span class="s3">,</span>
+<a name="l650"><span class="ln">650  </span></a>            <span class="s1">ink</span><span class="s3">,</span>
+<a name="l651"><span class="ln">651  </span></a>            <span class="s1">start</span><span class="s3">,</span>
+<a name="l652"><span class="ln">652  </span></a>        <span class="s3">)</span>
+<a name="l653"><span class="ln">653  </span></a>
+<a name="l654"><span class="ln">654  </span></a>    <span class="s2">def </span><span class="s1">font_variant</span><span class="s3">(</span>
+<a name="l655"><span class="ln">655  </span></a>        <span class="s1">self</span><span class="s3">,</span>
+<a name="l656"><span class="ln">656  </span></a>        <span class="s1">font</span><span class="s2">: </span><span class="s1">StrOrBytesPath </span><span class="s2">| </span><span class="s1">BinaryIO </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l657"><span class="ln">657  </span></a>        <span class="s1">size</span><span class="s2">: </span><span class="s1">float </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l658"><span class="ln">658  </span></a>        <span class="s1">index</span><span class="s2">: </span><span class="s1">int </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l659"><span class="ln">659  </span></a>        <span class="s1">encoding</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l660"><span class="ln">660  </span></a>        <span class="s1">layout_engine</span><span class="s2">: </span><span class="s1">Layout </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l661"><span class="ln">661  </span></a>    <span class="s3">) </span><span class="s1">-&gt; FreeTypeFont</span><span class="s2">:</span>
+<a name="l662"><span class="ln">662  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l663"><span class="ln">663  </span></a>        Create a copy of this FreeTypeFont object, 
+<a name="l664"><span class="ln">664  </span></a>        using any specified arguments to override the settings. 
+<a name="l665"><span class="ln">665  </span></a> 
+<a name="l666"><span class="ln">666  </span></a>        Parameters are identical to the parameters used to initialize this 
+<a name="l667"><span class="ln">667  </span></a>        object. 
+<a name="l668"><span class="ln">668  </span></a> 
+<a name="l669"><span class="ln">669  </span></a>        :return: A FreeTypeFont object. 
+<a name="l670"><span class="ln">670  </span></a>        &quot;&quot;&quot;</span>
+<a name="l671"><span class="ln">671  </span></a>        <span class="s2">if </span><span class="s1">font </span><span class="s2">is None:</span>
+<a name="l672"><span class="ln">672  </span></a>            <span class="s2">try:</span>
+<a name="l673"><span class="ln">673  </span></a>                <span class="s1">font </span><span class="s2">= </span><span class="s1">BytesIO</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">font_bytes</span><span class="s3">)</span>
+<a name="l674"><span class="ln">674  </span></a>            <span class="s2">except </span><span class="s1">AttributeError</span><span class="s2">:</span>
+<a name="l675"><span class="ln">675  </span></a>                <span class="s1">font </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">path</span>
+<a name="l676"><span class="ln">676  </span></a>        <span class="s2">return </span><span class="s1">FreeTypeFont</span><span class="s3">(</span>
+<a name="l677"><span class="ln">677  </span></a>            <span class="s1">font</span><span class="s2">=</span><span class="s1">font</span><span class="s3">,</span>
+<a name="l678"><span class="ln">678  </span></a>            <span class="s1">size</span><span class="s2">=</span><span class="s1">self</span><span class="s3">.</span><span class="s1">size </span><span class="s2">if </span><span class="s1">size </span><span class="s2">is None else </span><span class="s1">size</span><span class="s3">,</span>
+<a name="l679"><span class="ln">679  </span></a>            <span class="s1">index</span><span class="s2">=</span><span class="s1">self</span><span class="s3">.</span><span class="s1">index </span><span class="s2">if </span><span class="s1">index </span><span class="s2">is None else </span><span class="s1">index</span><span class="s3">,</span>
+<a name="l680"><span class="ln">680  </span></a>            <span class="s1">encoding</span><span class="s2">=</span><span class="s1">self</span><span class="s3">.</span><span class="s1">encoding </span><span class="s2">if </span><span class="s1">encoding </span><span class="s2">is None else </span><span class="s1">encoding</span><span class="s3">,</span>
+<a name="l681"><span class="ln">681  </span></a>            <span class="s1">layout_engine</span><span class="s2">=</span><span class="s1">layout_engine </span><span class="s2">or </span><span class="s1">self</span><span class="s3">.</span><span class="s1">layout_engine</span><span class="s3">,</span>
+<a name="l682"><span class="ln">682  </span></a>        <span class="s3">)</span>
+<a name="l683"><span class="ln">683  </span></a>
+<a name="l684"><span class="ln">684  </span></a>    <span class="s2">def </span><span class="s1">get_variation_names</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; list</span><span class="s3">[</span><span class="s1">bytes</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l685"><span class="ln">685  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l686"><span class="ln">686  </span></a>        :returns: A list of the named styles in a variation font. 
+<a name="l687"><span class="ln">687  </span></a>        :exception OSError: If the font is not a variation font. 
+<a name="l688"><span class="ln">688  </span></a>        &quot;&quot;&quot;</span>
+<a name="l689"><span class="ln">689  </span></a>        <span class="s2">try:</span>
+<a name="l690"><span class="ln">690  </span></a>            <span class="s1">names </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">getvarnames</span><span class="s3">()</span>
+<a name="l691"><span class="ln">691  </span></a>        <span class="s2">except </span><span class="s1">AttributeError </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l692"><span class="ln">692  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s5">&quot;FreeType 2.9.1 or greater is required&quot;</span>
+<a name="l693"><span class="ln">693  </span></a>            <span class="s2">raise </span><span class="s1">NotImplementedError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">) </span><span class="s2">from </span><span class="s1">e</span>
+<a name="l694"><span class="ln">694  </span></a>        <span class="s2">return </span><span class="s3">[</span><span class="s1">name</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s6">b&quot;</span><span class="s5">\x00</span><span class="s6">&quot;</span><span class="s3">, </span><span class="s6">b&quot;&quot;</span><span class="s3">) </span><span class="s2">for </span><span class="s1">name </span><span class="s2">in </span><span class="s1">names</span><span class="s3">]</span>
+<a name="l695"><span class="ln">695  </span></a>
+<a name="l696"><span class="ln">696  </span></a>    <span class="s2">def </span><span class="s1">set_variation_by_name</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">name</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">bytes</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l697"><span class="ln">697  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l698"><span class="ln">698  </span></a>        :param name: The name of the style. 
+<a name="l699"><span class="ln">699  </span></a>        :exception OSError: If the font is not a variation font. 
+<a name="l700"><span class="ln">700  </span></a>        &quot;&quot;&quot;</span>
+<a name="l701"><span class="ln">701  </span></a>        <span class="s1">names </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">get_variation_names</span><span class="s3">()</span>
+<a name="l702"><span class="ln">702  </span></a>        <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, </span><span class="s1">bytes</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l703"><span class="ln">703  </span></a>            <span class="s1">name </span><span class="s2">= </span><span class="s1">name</span><span class="s3">.</span><span class="s1">encode</span><span class="s3">()</span>
+<a name="l704"><span class="ln">704  </span></a>        <span class="s1">index </span><span class="s2">= </span><span class="s1">names</span><span class="s3">.</span><span class="s1">index</span><span class="s3">(</span><span class="s1">name</span><span class="s3">) </span><span class="s2">+ </span><span class="s4">1</span>
+<a name="l705"><span class="ln">705  </span></a>
+<a name="l706"><span class="ln">706  </span></a>        <span class="s2">if </span><span class="s1">index </span><span class="s2">== </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s5">&quot;_last_variation_index&quot;</span><span class="s3">, </span><span class="s2">None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l707"><span class="ln">707  </span></a>            <span class="s0"># When the same name is set twice in a row,</span>
+<a name="l708"><span class="ln">708  </span></a>            <span class="s0"># there is an 'unknown freetype error'</span>
+<a name="l709"><span class="ln">709  </span></a>            <span class="s0"># https://savannah.nongnu.org/bugs/?56186</span>
+<a name="l710"><span class="ln">710  </span></a>            <span class="s2">return</span>
+<a name="l711"><span class="ln">711  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_last_variation_index </span><span class="s2">= </span><span class="s1">index</span>
+<a name="l712"><span class="ln">712  </span></a>
+<a name="l713"><span class="ln">713  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">setvarname</span><span class="s3">(</span><span class="s1">index</span><span class="s3">)</span>
+<a name="l714"><span class="ln">714  </span></a>
+<a name="l715"><span class="ln">715  </span></a>    <span class="s2">def </span><span class="s1">get_variation_axes</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; list</span><span class="s3">[</span><span class="s1">Axis</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l716"><span class="ln">716  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l717"><span class="ln">717  </span></a>        :returns: A list of the axes in a variation font. 
+<a name="l718"><span class="ln">718  </span></a>        :exception OSError: If the font is not a variation font. 
+<a name="l719"><span class="ln">719  </span></a>        &quot;&quot;&quot;</span>
+<a name="l720"><span class="ln">720  </span></a>        <span class="s2">try:</span>
+<a name="l721"><span class="ln">721  </span></a>            <span class="s1">axes </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">getvaraxes</span><span class="s3">()</span>
+<a name="l722"><span class="ln">722  </span></a>        <span class="s2">except </span><span class="s1">AttributeError </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l723"><span class="ln">723  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s5">&quot;FreeType 2.9.1 or greater is required&quot;</span>
+<a name="l724"><span class="ln">724  </span></a>            <span class="s2">raise </span><span class="s1">NotImplementedError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">) </span><span class="s2">from </span><span class="s1">e</span>
+<a name="l725"><span class="ln">725  </span></a>        <span class="s2">for </span><span class="s1">axis </span><span class="s2">in </span><span class="s1">axes</span><span class="s2">:</span>
+<a name="l726"><span class="ln">726  </span></a>            <span class="s2">if </span><span class="s1">axis</span><span class="s3">[</span><span class="s5">&quot;name&quot;</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l727"><span class="ln">727  </span></a>                <span class="s1">axis</span><span class="s3">[</span><span class="s5">&quot;name&quot;</span><span class="s3">] </span><span class="s2">= </span><span class="s1">axis</span><span class="s3">[</span><span class="s5">&quot;name&quot;</span><span class="s3">].</span><span class="s1">replace</span><span class="s3">(</span><span class="s6">b&quot;</span><span class="s5">\x00</span><span class="s6">&quot;</span><span class="s3">, </span><span class="s6">b&quot;&quot;</span><span class="s3">)</span>
+<a name="l728"><span class="ln">728  </span></a>        <span class="s2">return </span><span class="s1">axes</span>
+<a name="l729"><span class="ln">729  </span></a>
+<a name="l730"><span class="ln">730  </span></a>    <span class="s2">def </span><span class="s1">set_variation_by_axes</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">axes</span><span class="s2">: </span><span class="s1">list</span><span class="s3">[</span><span class="s1">float</span><span class="s3">]) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l731"><span class="ln">731  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l732"><span class="ln">732  </span></a>        :param axes: A list of values for each axis. 
+<a name="l733"><span class="ln">733  </span></a>        :exception OSError: If the font is not a variation font. 
+<a name="l734"><span class="ln">734  </span></a>        &quot;&quot;&quot;</span>
+<a name="l735"><span class="ln">735  </span></a>        <span class="s2">try:</span>
+<a name="l736"><span class="ln">736  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">setvaraxes</span><span class="s3">(</span><span class="s1">axes</span><span class="s3">)</span>
+<a name="l737"><span class="ln">737  </span></a>        <span class="s2">except </span><span class="s1">AttributeError </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l738"><span class="ln">738  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s5">&quot;FreeType 2.9.1 or greater is required&quot;</span>
+<a name="l739"><span class="ln">739  </span></a>            <span class="s2">raise </span><span class="s1">NotImplementedError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">) </span><span class="s2">from </span><span class="s1">e</span>
+<a name="l740"><span class="ln">740  </span></a>
+<a name="l741"><span class="ln">741  </span></a>
+<a name="l742"><span class="ln">742  </span></a><span class="s2">class </span><span class="s1">TransposedFont</span><span class="s2">:</span>
+<a name="l743"><span class="ln">743  </span></a>    <span class="s0">&quot;&quot;&quot;Wrapper for writing rotated or mirrored text&quot;&quot;&quot;</span>
+<a name="l744"><span class="ln">744  </span></a>
+<a name="l745"><span class="ln">745  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span>
+<a name="l746"><span class="ln">746  </span></a>        <span class="s1">self</span><span class="s3">, </span><span class="s1">font</span><span class="s2">: </span><span class="s1">ImageFont </span><span class="s2">| </span><span class="s1">FreeTypeFont</span><span class="s3">, </span><span class="s1">orientation</span><span class="s2">: </span><span class="s1">Image</span><span class="s3">.</span><span class="s1">Transpose </span><span class="s2">| None = None</span>
+<a name="l747"><span class="ln">747  </span></a>    <span class="s3">)</span><span class="s2">:</span>
+<a name="l748"><span class="ln">748  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l749"><span class="ln">749  </span></a>        Wrapper that creates a transposed font from any existing font 
+<a name="l750"><span class="ln">750  </span></a>        object. 
+<a name="l751"><span class="ln">751  </span></a> 
+<a name="l752"><span class="ln">752  </span></a>        :param font: A font object. 
+<a name="l753"><span class="ln">753  </span></a>        :param orientation: An optional orientation.  If given, this should 
+<a name="l754"><span class="ln">754  </span></a>            be one of Image.Transpose.FLIP_LEFT_RIGHT, Image.Transpose.FLIP_TOP_BOTTOM, 
+<a name="l755"><span class="ln">755  </span></a>            Image.Transpose.ROTATE_90, Image.Transpose.ROTATE_180, or 
+<a name="l756"><span class="ln">756  </span></a>            Image.Transpose.ROTATE_270. 
+<a name="l757"><span class="ln">757  </span></a>        &quot;&quot;&quot;</span>
+<a name="l758"><span class="ln">758  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">font </span><span class="s2">= </span><span class="s1">font</span>
+<a name="l759"><span class="ln">759  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">orientation </span><span class="s2">= </span><span class="s1">orientation  </span><span class="s0"># any 'transpose' argument, or None</span>
+<a name="l760"><span class="ln">760  </span></a>
+<a name="l761"><span class="ln">761  </span></a>    <span class="s2">def </span><span class="s1">getmask</span><span class="s3">(</span>
+<a name="l762"><span class="ln">762  </span></a>        <span class="s1">self</span><span class="s3">, </span><span class="s1">text</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">bytes</span><span class="s3">, </span><span class="s1">mode</span><span class="s2">: </span><span class="s1">str </span><span class="s2">= </span><span class="s5">&quot;&quot;</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s2">: </span><span class="s1">Any</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s2">: </span><span class="s1">Any</span>
+<a name="l763"><span class="ln">763  </span></a>    <span class="s3">) </span><span class="s1">-&gt; Image</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">ImagingCore</span><span class="s2">:</span>
+<a name="l764"><span class="ln">764  </span></a>        <span class="s1">im </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">getmask</span><span class="s3">(</span><span class="s1">text</span><span class="s3">, </span><span class="s1">mode</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l765"><span class="ln">765  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">orientation </span><span class="s2">is not None:</span>
+<a name="l766"><span class="ln">766  </span></a>            <span class="s2">return </span><span class="s1">im</span><span class="s3">.</span><span class="s1">transpose</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">orientation</span><span class="s3">)</span>
+<a name="l767"><span class="ln">767  </span></a>        <span class="s2">return </span><span class="s1">im</span>
+<a name="l768"><span class="ln">768  </span></a>
+<a name="l769"><span class="ln">769  </span></a>    <span class="s2">def </span><span class="s1">getbbox</span><span class="s3">(</span>
+<a name="l770"><span class="ln">770  </span></a>        <span class="s1">self</span><span class="s3">, </span><span class="s1">text</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">bytes</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s2">: </span><span class="s1">Any</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s2">: </span><span class="s1">Any</span>
+<a name="l771"><span class="ln">771  </span></a>    <span class="s3">) </span><span class="s1">-&gt; tuple</span><span class="s3">[</span><span class="s1">int</span><span class="s3">, </span><span class="s1">int</span><span class="s3">, </span><span class="s1">float</span><span class="s3">, </span><span class="s1">float</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l772"><span class="ln">772  </span></a>        <span class="s0"># TransposedFont doesn't support getmask2, move top-left point to (0, 0)</span>
+<a name="l773"><span class="ln">773  </span></a>        <span class="s0"># this has no effect on ImageFont and simulates anchor=&quot;lt&quot; for FreeTypeFont</span>
+<a name="l774"><span class="ln">774  </span></a>        <span class="s1">left</span><span class="s3">, </span><span class="s1">top</span><span class="s3">, </span><span class="s1">right</span><span class="s3">, </span><span class="s1">bottom </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">getbbox</span><span class="s3">(</span><span class="s1">text</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l775"><span class="ln">775  </span></a>        <span class="s1">width </span><span class="s2">= </span><span class="s1">right </span><span class="s2">- </span><span class="s1">left</span>
+<a name="l776"><span class="ln">776  </span></a>        <span class="s1">height </span><span class="s2">= </span><span class="s1">bottom </span><span class="s2">- </span><span class="s1">top</span>
+<a name="l777"><span class="ln">777  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">orientation </span><span class="s2">in </span><span class="s3">(</span><span class="s1">Image</span><span class="s3">.</span><span class="s1">Transpose</span><span class="s3">.</span><span class="s1">ROTATE_90</span><span class="s3">, </span><span class="s1">Image</span><span class="s3">.</span><span class="s1">Transpose</span><span class="s3">.</span><span class="s1">ROTATE_270</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l778"><span class="ln">778  </span></a>            <span class="s2">return </span><span class="s4">0</span><span class="s3">, </span><span class="s4">0</span><span class="s3">, </span><span class="s1">height</span><span class="s3">, </span><span class="s1">width</span>
+<a name="l779"><span class="ln">779  </span></a>        <span class="s2">return </span><span class="s4">0</span><span class="s3">, </span><span class="s4">0</span><span class="s3">, </span><span class="s1">width</span><span class="s3">, </span><span class="s1">height</span>
+<a name="l780"><span class="ln">780  </span></a>
+<a name="l781"><span class="ln">781  </span></a>    <span class="s2">def </span><span class="s1">getlength</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">text</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">bytes</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s2">: </span><span class="s1">Any</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s2">: </span><span class="s1">Any</span><span class="s3">) </span><span class="s1">-&gt; float</span><span class="s2">:</span>
+<a name="l782"><span class="ln">782  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">orientation </span><span class="s2">in </span><span class="s3">(</span><span class="s1">Image</span><span class="s3">.</span><span class="s1">Transpose</span><span class="s3">.</span><span class="s1">ROTATE_90</span><span class="s3">, </span><span class="s1">Image</span><span class="s3">.</span><span class="s1">Transpose</span><span class="s3">.</span><span class="s1">ROTATE_270</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l783"><span class="ln">783  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s5">&quot;text length is undefined for text rotated by 90 or 270 degrees&quot;</span>
+<a name="l784"><span class="ln">784  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l785"><span class="ln">785  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">font</span><span class="s3">.</span><span class="s1">getlength</span><span class="s3">(</span><span class="s1">text</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l786"><span class="ln">786  </span></a>
+<a name="l787"><span class="ln">787  </span></a>
+<a name="l788"><span class="ln">788  </span></a><span class="s2">def </span><span class="s1">load</span><span class="s3">(</span><span class="s1">filename</span><span class="s2">: </span><span class="s1">str</span><span class="s3">) </span><span class="s1">-&gt; ImageFont</span><span class="s2">:</span>
+<a name="l789"><span class="ln">789  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l790"><span class="ln">790  </span></a>    Load a font file. This function loads a font object from the given 
+<a name="l791"><span class="ln">791  </span></a>    bitmap font file, and returns the corresponding font object. For loading TrueType 
+<a name="l792"><span class="ln">792  </span></a>    or OpenType fonts instead, see :py:func:`~PIL.ImageFont.truetype`. 
+<a name="l793"><span class="ln">793  </span></a> 
+<a name="l794"><span class="ln">794  </span></a>    :param filename: Name of font file. 
+<a name="l795"><span class="ln">795  </span></a>    :return: A font object. 
+<a name="l796"><span class="ln">796  </span></a>    :exception OSError: If the file could not be read. 
+<a name="l797"><span class="ln">797  </span></a>    &quot;&quot;&quot;</span>
+<a name="l798"><span class="ln">798  </span></a>    <span class="s1">f </span><span class="s2">= </span><span class="s1">ImageFont</span><span class="s3">()</span>
+<a name="l799"><span class="ln">799  </span></a>    <span class="s1">f</span><span class="s3">.</span><span class="s1">_load_pilfont</span><span class="s3">(</span><span class="s1">filename</span><span class="s3">)</span>
+<a name="l800"><span class="ln">800  </span></a>    <span class="s2">return </span><span class="s1">f</span>
+<a name="l801"><span class="ln">801  </span></a>
+<a name="l802"><span class="ln">802  </span></a>
+<a name="l803"><span class="ln">803  </span></a><span class="s2">def </span><span class="s1">truetype</span><span class="s3">(</span>
+<a name="l804"><span class="ln">804  </span></a>    <span class="s1">font</span><span class="s2">: </span><span class="s1">StrOrBytesPath </span><span class="s2">| </span><span class="s1">BinaryIO</span><span class="s3">,</span>
+<a name="l805"><span class="ln">805  </span></a>    <span class="s1">size</span><span class="s2">: </span><span class="s1">float </span><span class="s2">= </span><span class="s4">10</span><span class="s3">,</span>
+<a name="l806"><span class="ln">806  </span></a>    <span class="s1">index</span><span class="s2">: </span><span class="s1">int </span><span class="s2">= </span><span class="s4">0</span><span class="s3">,</span>
+<a name="l807"><span class="ln">807  </span></a>    <span class="s1">encoding</span><span class="s2">: </span><span class="s1">str </span><span class="s2">= </span><span class="s5">&quot;&quot;</span><span class="s3">,</span>
+<a name="l808"><span class="ln">808  </span></a>    <span class="s1">layout_engine</span><span class="s2">: </span><span class="s1">Layout </span><span class="s2">| None = None</span><span class="s3">,</span>
+<a name="l809"><span class="ln">809  </span></a><span class="s3">) </span><span class="s1">-&gt; FreeTypeFont</span><span class="s2">:</span>
+<a name="l810"><span class="ln">810  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l811"><span class="ln">811  </span></a>    Load a TrueType or OpenType font from a file or file-like object, 
+<a name="l812"><span class="ln">812  </span></a>    and create a font object. This function loads a font object from the given 
+<a name="l813"><span class="ln">813  </span></a>    file or file-like object, and creates a font object for a font of the given 
+<a name="l814"><span class="ln">814  </span></a>    size. For loading bitmap fonts instead, see :py:func:`~PIL.ImageFont.load` 
+<a name="l815"><span class="ln">815  </span></a>    and :py:func:`~PIL.ImageFont.load_path`. 
+<a name="l816"><span class="ln">816  </span></a> 
+<a name="l817"><span class="ln">817  </span></a>    Pillow uses FreeType to open font files. On Windows, be aware that FreeType 
+<a name="l818"><span class="ln">818  </span></a>    will keep the file open as long as the FreeTypeFont object exists. Windows 
+<a name="l819"><span class="ln">819  </span></a>    limits the number of files that can be open in C at once to 512, so if many 
+<a name="l820"><span class="ln">820  </span></a>    fonts are opened simultaneously and that limit is approached, an 
+<a name="l821"><span class="ln">821  </span></a>    ``OSError`` may be thrown, reporting that FreeType &quot;cannot open resource&quot;. 
+<a name="l822"><span class="ln">822  </span></a>    A workaround would be to copy the file(s) into memory, and open that instead. 
+<a name="l823"><span class="ln">823  </span></a> 
+<a name="l824"><span class="ln">824  </span></a>    This function requires the _imagingft service. 
+<a name="l825"><span class="ln">825  </span></a> 
+<a name="l826"><span class="ln">826  </span></a>    :param font: A filename or file-like object containing a TrueType font. 
+<a name="l827"><span class="ln">827  </span></a>                 If the file is not found in this filename, the loader may also 
+<a name="l828"><span class="ln">828  </span></a>                 search in other directories, such as: 
+<a name="l829"><span class="ln">829  </span></a> 
+<a name="l830"><span class="ln">830  </span></a>                 * The :file:`fonts/` directory on Windows, 
+<a name="l831"><span class="ln">831  </span></a>                 * :file:`/Library/Fonts/`, :file:`/System/Library/Fonts/` 
+<a name="l832"><span class="ln">832  </span></a>                   and :file:`~/Library/Fonts/` on macOS. 
+<a name="l833"><span class="ln">833  </span></a>                 * :file:`~/.local/share/fonts`, :file:`/usr/local/share/fonts`, 
+<a name="l834"><span class="ln">834  </span></a>                   and :file:`/usr/share/fonts` on Linux; or those specified by 
+<a name="l835"><span class="ln">835  </span></a>                   the ``XDG_DATA_HOME`` and ``XDG_DATA_DIRS`` environment variables 
+<a name="l836"><span class="ln">836  </span></a>                   for user-installed and system-wide fonts, respectively. 
+<a name="l837"><span class="ln">837  </span></a> 
+<a name="l838"><span class="ln">838  </span></a>    :param size: The requested size, in pixels. 
+<a name="l839"><span class="ln">839  </span></a>    :param index: Which font face to load (default is first available face). 
+<a name="l840"><span class="ln">840  </span></a>    :param encoding: Which font encoding to use (default is Unicode). Possible 
+<a name="l841"><span class="ln">841  </span></a>                     encodings include (see the FreeType documentation for more 
+<a name="l842"><span class="ln">842  </span></a>                     information): 
+<a name="l843"><span class="ln">843  </span></a> 
+<a name="l844"><span class="ln">844  </span></a>                     * &quot;unic&quot; (Unicode) 
+<a name="l845"><span class="ln">845  </span></a>                     * &quot;symb&quot; (Microsoft Symbol) 
+<a name="l846"><span class="ln">846  </span></a>                     * &quot;ADOB&quot; (Adobe Standard) 
+<a name="l847"><span class="ln">847  </span></a>                     * &quot;ADBE&quot; (Adobe Expert) 
+<a name="l848"><span class="ln">848  </span></a>                     * &quot;ADBC&quot; (Adobe Custom) 
+<a name="l849"><span class="ln">849  </span></a>                     * &quot;armn&quot; (Apple Roman) 
+<a name="l850"><span class="ln">850  </span></a>                     * &quot;sjis&quot; (Shift JIS) 
+<a name="l851"><span class="ln">851  </span></a>                     * &quot;gb  &quot; (PRC) 
+<a name="l852"><span class="ln">852  </span></a>                     * &quot;big5&quot; 
+<a name="l853"><span class="ln">853  </span></a>                     * &quot;wans&quot; (Extended Wansung) 
+<a name="l854"><span class="ln">854  </span></a>                     * &quot;joha&quot; (Johab) 
+<a name="l855"><span class="ln">855  </span></a>                     * &quot;lat1&quot; (Latin-1) 
+<a name="l856"><span class="ln">856  </span></a> 
+<a name="l857"><span class="ln">857  </span></a>                     This specifies the character set to use. It does not alter the 
+<a name="l858"><span class="ln">858  </span></a>                     encoding of any text provided in subsequent operations. 
+<a name="l859"><span class="ln">859  </span></a>    :param layout_engine: Which layout engine to use, if available: 
+<a name="l860"><span class="ln">860  </span></a>                     :attr:`.ImageFont.Layout.BASIC` or :attr:`.ImageFont.Layout.RAQM`. 
+<a name="l861"><span class="ln">861  </span></a>                     If it is available, Raqm layout will be used by default. 
+<a name="l862"><span class="ln">862  </span></a>                     Otherwise, basic layout will be used. 
+<a name="l863"><span class="ln">863  </span></a> 
+<a name="l864"><span class="ln">864  </span></a>                     Raqm layout is recommended for all non-English text. If Raqm layout 
+<a name="l865"><span class="ln">865  </span></a>                     is not required, basic layout will have better performance. 
+<a name="l866"><span class="ln">866  </span></a> 
+<a name="l867"><span class="ln">867  </span></a>                     You can check support for Raqm layout using 
+<a name="l868"><span class="ln">868  </span></a>                     :py:func:`PIL.features.check_feature` with ``feature=&quot;raqm&quot;``. 
+<a name="l869"><span class="ln">869  </span></a> 
+<a name="l870"><span class="ln">870  </span></a>                     .. versionadded:: 4.2.0 
+<a name="l871"><span class="ln">871  </span></a>    :return: A font object. 
+<a name="l872"><span class="ln">872  </span></a>    :exception OSError: If the file could not be read. 
+<a name="l873"><span class="ln">873  </span></a>    :exception ValueError: If the font size is not greater than zero. 
+<a name="l874"><span class="ln">874  </span></a>    &quot;&quot;&quot;</span>
+<a name="l875"><span class="ln">875  </span></a>
+<a name="l876"><span class="ln">876  </span></a>    <span class="s2">def </span><span class="s1">freetype</span><span class="s3">(</span><span class="s1">font</span><span class="s2">: </span><span class="s1">StrOrBytesPath </span><span class="s2">| </span><span class="s1">BinaryIO</span><span class="s3">) </span><span class="s1">-&gt; FreeTypeFont</span><span class="s2">:</span>
+<a name="l877"><span class="ln">877  </span></a>        <span class="s2">return </span><span class="s1">FreeTypeFont</span><span class="s3">(</span><span class="s1">font</span><span class="s3">, </span><span class="s1">size</span><span class="s3">, </span><span class="s1">index</span><span class="s3">, </span><span class="s1">encoding</span><span class="s3">, </span><span class="s1">layout_engine</span><span class="s3">)</span>
+<a name="l878"><span class="ln">878  </span></a>
+<a name="l879"><span class="ln">879  </span></a>    <span class="s2">try:</span>
+<a name="l880"><span class="ln">880  </span></a>        <span class="s2">return </span><span class="s1">freetype</span><span class="s3">(</span><span class="s1">font</span><span class="s3">)</span>
+<a name="l881"><span class="ln">881  </span></a>    <span class="s2">except </span><span class="s1">OSError</span><span class="s2">:</span>
+<a name="l882"><span class="ln">882  </span></a>        <span class="s2">if not </span><span class="s1">is_path</span><span class="s3">(</span><span class="s1">font</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l883"><span class="ln">883  </span></a>            <span class="s2">raise</span>
+<a name="l884"><span class="ln">884  </span></a>        <span class="s1">ttf_filename </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">basename</span><span class="s3">(</span><span class="s1">font</span><span class="s3">)</span>
+<a name="l885"><span class="ln">885  </span></a>
+<a name="l886"><span class="ln">886  </span></a>        <span class="s1">dirs </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l887"><span class="ln">887  </span></a>        <span class="s2">if </span><span class="s1">sys</span><span class="s3">.</span><span class="s1">platform </span><span class="s2">== </span><span class="s5">&quot;win32&quot;</span><span class="s2">:</span>
+<a name="l888"><span class="ln">888  </span></a>            <span class="s0"># check the windows font repository</span>
+<a name="l889"><span class="ln">889  </span></a>            <span class="s0"># NOTE: must use uppercase WINDIR, to work around bugs in</span>
+<a name="l890"><span class="ln">890  </span></a>            <span class="s0"># 1.5.2's os.environ.get()</span>
+<a name="l891"><span class="ln">891  </span></a>            <span class="s1">windir </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s5">&quot;WINDIR&quot;</span><span class="s3">)</span>
+<a name="l892"><span class="ln">892  </span></a>            <span class="s2">if </span><span class="s1">windir</span><span class="s2">:</span>
+<a name="l893"><span class="ln">893  </span></a>                <span class="s1">dirs</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">windir</span><span class="s3">, </span><span class="s5">&quot;fonts&quot;</span><span class="s3">))</span>
+<a name="l894"><span class="ln">894  </span></a>        <span class="s2">elif </span><span class="s1">sys</span><span class="s3">.</span><span class="s1">platform </span><span class="s2">in </span><span class="s3">(</span><span class="s5">&quot;linux&quot;</span><span class="s3">, </span><span class="s5">&quot;linux2&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l895"><span class="ln">895  </span></a>            <span class="s1">data_home </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s5">&quot;XDG_DATA_HOME&quot;</span><span class="s3">)</span>
+<a name="l896"><span class="ln">896  </span></a>            <span class="s2">if not </span><span class="s1">data_home</span><span class="s2">:</span>
+<a name="l897"><span class="ln">897  </span></a>                <span class="s0"># The freedesktop spec defines the following default directory for</span>
+<a name="l898"><span class="ln">898  </span></a>                <span class="s0"># when XDG_DATA_HOME is unset or empty. This user-level directory</span>
+<a name="l899"><span class="ln">899  </span></a>                <span class="s0"># takes precedence over system-level directories.</span>
+<a name="l900"><span class="ln">900  </span></a>                <span class="s1">data_home </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">expanduser</span><span class="s3">(</span><span class="s5">&quot;~/.local/share&quot;</span><span class="s3">)</span>
+<a name="l901"><span class="ln">901  </span></a>            <span class="s1">xdg_dirs </span><span class="s2">= </span><span class="s3">[</span><span class="s1">data_home</span><span class="s3">]</span>
+<a name="l902"><span class="ln">902  </span></a>
+<a name="l903"><span class="ln">903  </span></a>            <span class="s1">data_dirs </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s5">&quot;XDG_DATA_DIRS&quot;</span><span class="s3">)</span>
+<a name="l904"><span class="ln">904  </span></a>            <span class="s2">if not </span><span class="s1">data_dirs</span><span class="s2">:</span>
+<a name="l905"><span class="ln">905  </span></a>                <span class="s0"># Similarly, defaults are defined for the system-level directories</span>
+<a name="l906"><span class="ln">906  </span></a>                <span class="s1">data_dirs </span><span class="s2">= </span><span class="s5">&quot;/usr/local/share:/usr/share&quot;</span>
+<a name="l907"><span class="ln">907  </span></a>            <span class="s1">xdg_dirs </span><span class="s2">+= </span><span class="s1">data_dirs</span><span class="s3">.</span><span class="s1">split</span><span class="s3">(</span><span class="s5">&quot;:&quot;</span><span class="s3">)</span>
+<a name="l908"><span class="ln">908  </span></a>
+<a name="l909"><span class="ln">909  </span></a>            <span class="s1">dirs </span><span class="s2">+= </span><span class="s3">[</span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">xdg_dir</span><span class="s3">, </span><span class="s5">&quot;fonts&quot;</span><span class="s3">) </span><span class="s2">for </span><span class="s1">xdg_dir </span><span class="s2">in </span><span class="s1">xdg_dirs</span><span class="s3">]</span>
+<a name="l910"><span class="ln">910  </span></a>        <span class="s2">elif </span><span class="s1">sys</span><span class="s3">.</span><span class="s1">platform </span><span class="s2">== </span><span class="s5">&quot;darwin&quot;</span><span class="s2">:</span>
+<a name="l911"><span class="ln">911  </span></a>            <span class="s1">dirs </span><span class="s2">+= </span><span class="s3">[</span>
+<a name="l912"><span class="ln">912  </span></a>                <span class="s5">&quot;/Library/Fonts&quot;</span><span class="s3">,</span>
+<a name="l913"><span class="ln">913  </span></a>                <span class="s5">&quot;/System/Library/Fonts&quot;</span><span class="s3">,</span>
+<a name="l914"><span class="ln">914  </span></a>                <span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">expanduser</span><span class="s3">(</span><span class="s5">&quot;~/Library/Fonts&quot;</span><span class="s3">),</span>
+<a name="l915"><span class="ln">915  </span></a>            <span class="s3">]</span>
+<a name="l916"><span class="ln">916  </span></a>
+<a name="l917"><span class="ln">917  </span></a>        <span class="s1">ext </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">splitext</span><span class="s3">(</span><span class="s1">ttf_filename</span><span class="s3">)[</span><span class="s4">1</span><span class="s3">]</span>
+<a name="l918"><span class="ln">918  </span></a>        <span class="s1">first_font_with_a_different_extension </span><span class="s2">= None</span>
+<a name="l919"><span class="ln">919  </span></a>        <span class="s2">for </span><span class="s1">directory </span><span class="s2">in </span><span class="s1">dirs</span><span class="s2">:</span>
+<a name="l920"><span class="ln">920  </span></a>            <span class="s2">for </span><span class="s1">walkroot</span><span class="s3">, </span><span class="s1">walkdir</span><span class="s3">, </span><span class="s1">walkfilenames </span><span class="s2">in </span><span class="s1">os</span><span class="s3">.</span><span class="s1">walk</span><span class="s3">(</span><span class="s1">directory</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l921"><span class="ln">921  </span></a>                <span class="s2">for </span><span class="s1">walkfilename </span><span class="s2">in </span><span class="s1">walkfilenames</span><span class="s2">:</span>
+<a name="l922"><span class="ln">922  </span></a>                    <span class="s2">if </span><span class="s1">ext </span><span class="s2">and </span><span class="s1">walkfilename </span><span class="s2">== </span><span class="s1">ttf_filename</span><span class="s2">:</span>
+<a name="l923"><span class="ln">923  </span></a>                        <span class="s2">return </span><span class="s1">freetype</span><span class="s3">(</span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">walkroot</span><span class="s3">, </span><span class="s1">walkfilename</span><span class="s3">))</span>
+<a name="l924"><span class="ln">924  </span></a>                    <span class="s2">elif not </span><span class="s1">ext </span><span class="s2">and </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">splitext</span><span class="s3">(</span><span class="s1">walkfilename</span><span class="s3">)[</span><span class="s4">0</span><span class="s3">] </span><span class="s2">== </span><span class="s1">ttf_filename</span><span class="s2">:</span>
+<a name="l925"><span class="ln">925  </span></a>                        <span class="s1">fontpath </span><span class="s2">= </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">walkroot</span><span class="s3">, </span><span class="s1">walkfilename</span><span class="s3">)</span>
+<a name="l926"><span class="ln">926  </span></a>                        <span class="s2">if </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">splitext</span><span class="s3">(</span><span class="s1">fontpath</span><span class="s3">)[</span><span class="s4">1</span><span class="s3">] </span><span class="s2">== </span><span class="s5">&quot;.ttf&quot;</span><span class="s2">:</span>
+<a name="l927"><span class="ln">927  </span></a>                            <span class="s2">return </span><span class="s1">freetype</span><span class="s3">(</span><span class="s1">fontpath</span><span class="s3">)</span>
+<a name="l928"><span class="ln">928  </span></a>                        <span class="s2">if not </span><span class="s1">ext </span><span class="s2">and </span><span class="s1">first_font_with_a_different_extension </span><span class="s2">is None:</span>
+<a name="l929"><span class="ln">929  </span></a>                            <span class="s1">first_font_with_a_different_extension </span><span class="s2">= </span><span class="s1">fontpath</span>
+<a name="l930"><span class="ln">930  </span></a>        <span class="s2">if </span><span class="s1">first_font_with_a_different_extension</span><span class="s2">:</span>
+<a name="l931"><span class="ln">931  </span></a>            <span class="s2">return </span><span class="s1">freetype</span><span class="s3">(</span><span class="s1">first_font_with_a_different_extension</span><span class="s3">)</span>
+<a name="l932"><span class="ln">932  </span></a>        <span class="s2">raise</span>
+<a name="l933"><span class="ln">933  </span></a>
+<a name="l934"><span class="ln">934  </span></a>
+<a name="l935"><span class="ln">935  </span></a><span class="s2">def </span><span class="s1">load_path</span><span class="s3">(</span><span class="s1">filename</span><span class="s2">: </span><span class="s1">str </span><span class="s2">| </span><span class="s1">bytes</span><span class="s3">) </span><span class="s1">-&gt; ImageFont</span><span class="s2">:</span>
+<a name="l936"><span class="ln">936  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l937"><span class="ln">937  </span></a>    Load font file. Same as :py:func:`~PIL.ImageFont.load`, but searches for a 
+<a name="l938"><span class="ln">938  </span></a>    bitmap font along the Python path. 
+<a name="l939"><span class="ln">939  </span></a> 
+<a name="l940"><span class="ln">940  </span></a>    :param filename: Name of font file. 
+<a name="l941"><span class="ln">941  </span></a>    :return: A font object. 
+<a name="l942"><span class="ln">942  </span></a>    :exception OSError: If the file could not be read. 
+<a name="l943"><span class="ln">943  </span></a>    &quot;&quot;&quot;</span>
+<a name="l944"><span class="ln">944  </span></a>    <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">filename</span><span class="s3">, </span><span class="s1">str</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l945"><span class="ln">945  </span></a>        <span class="s1">filename </span><span class="s2">= </span><span class="s1">filename</span><span class="s3">.</span><span class="s1">decode</span><span class="s3">(</span><span class="s5">&quot;utf-8&quot;</span><span class="s3">)</span>
+<a name="l946"><span class="ln">946  </span></a>    <span class="s2">for </span><span class="s1">directory </span><span class="s2">in </span><span class="s1">sys</span><span class="s3">.</span><span class="s1">path</span><span class="s2">:</span>
+<a name="l947"><span class="ln">947  </span></a>        <span class="s2">try:</span>
+<a name="l948"><span class="ln">948  </span></a>            <span class="s2">return </span><span class="s1">load</span><span class="s3">(</span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">directory</span><span class="s3">, </span><span class="s1">filename</span><span class="s3">))</span>
+<a name="l949"><span class="ln">949  </span></a>        <span class="s2">except </span><span class="s1">OSError</span><span class="s2">:</span>
+<a name="l950"><span class="ln">950  </span></a>            <span class="s2">pass</span>
+<a name="l951"><span class="ln">951  </span></a>    <span class="s1">msg </span><span class="s2">= </span><span class="s5">f'cannot find font file &quot;{</span><span class="s1">filename</span><span class="s5">}&quot; in sys.path'</span>
+<a name="l952"><span class="ln">952  </span></a>    <span class="s2">if </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">exists</span><span class="s3">(</span><span class="s1">filename</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l953"><span class="ln">953  </span></a>        <span class="s1">msg </span><span class="s2">+= </span><span class="s5">f', did you mean ImageFont.load(&quot;{</span><span class="s1">filename</span><span class="s5">}&quot;) instead?'</span>
+<a name="l954"><span class="ln">954  </span></a>
+<a name="l955"><span class="ln">955  </span></a>    <span class="s2">raise </span><span class="s1">OSError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l956"><span class="ln">956  </span></a>
+<a name="l957"><span class="ln">957  </span></a>
+<a name="l958"><span class="ln">958  </span></a><span class="s2">def </span><span class="s1">load_default_imagefont</span><span class="s3">() </span><span class="s1">-&gt; ImageFont</span><span class="s2">:</span>
+<a name="l959"><span class="ln">959  </span></a>    <span class="s1">f </span><span class="s2">= </span><span class="s1">ImageFont</span><span class="s3">()</span>
+<a name="l960"><span class="ln">960  </span></a>    <span class="s1">f</span><span class="s3">.</span><span class="s1">_load_pilfont_data</span><span class="s3">(</span>
+<a name="l961"><span class="ln">961  </span></a>        <span class="s0"># courB08</span>
+<a name="l962"><span class="ln">962  </span></a>        <span class="s1">BytesIO</span><span class="s3">(</span>
+<a name="l963"><span class="ln">963  </span></a>            <span class="s1">base64</span><span class="s3">.</span><span class="s1">b64decode</span><span class="s3">(</span>
+<a name="l964"><span class="ln">964  </span></a>                <span class="s6">b&quot;&quot;&quot; 
+<a name="l965"><span class="ln">965  </span></a>UElMZm9udAo7Ozs7OzsxMDsKREFUQQoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l966"><span class="ln">966  </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l967"><span class="ln">967  </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l968"><span class="ln">968  </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l969"><span class="ln">969  </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l970"><span class="ln">970  </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l971"><span class="ln">971  </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l972"><span class="ln">972  </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l973"><span class="ln">973  </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l974"><span class="ln">974  </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l975"><span class="ln">975  </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l976"><span class="ln">976  </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAAAA//8AAQAAAAAAAAABAAEA 
+<a name="l977"><span class="ln">977  </span></a>BgAAAAH/+gADAAAAAQAAAAMABgAGAAAAAf/6AAT//QADAAAABgADAAYAAAAA//kABQABAAYAAAAL 
+<a name="l978"><span class="ln">978  </span></a>AAgABgAAAAD/+AAFAAEACwAAABAACQAGAAAAAP/5AAUAAAAQAAAAFQAHAAYAAP////oABQAAABUA 
+<a name="l979"><span class="ln">979  </span></a>AAAbAAYABgAAAAH/+QAE//wAGwAAAB4AAwAGAAAAAf/5AAQAAQAeAAAAIQAIAAYAAAAB//kABAAB 
+<a name="l980"><span class="ln">980  </span></a>ACEAAAAkAAgABgAAAAD/+QAE//0AJAAAACgABAAGAAAAAP/6AAX//wAoAAAALQAFAAYAAAAB//8A 
+<a name="l981"><span class="ln">981  </span></a>BAACAC0AAAAwAAMABgAAAAD//AAF//0AMAAAADUAAQAGAAAAAf//AAMAAAA1AAAANwABAAYAAAAB 
+<a name="l982"><span class="ln">982  </span></a>//kABQABADcAAAA7AAgABgAAAAD/+QAFAAAAOwAAAEAABwAGAAAAAP/5AAYAAABAAAAARgAHAAYA 
+<a name="l983"><span class="ln">983  </span></a>AAAA//kABQAAAEYAAABLAAcABgAAAAD/+QAFAAAASwAAAFAABwAGAAAAAP/5AAYAAABQAAAAVgAH 
+<a name="l984"><span class="ln">984  </span></a>AAYAAAAA//kABQAAAFYAAABbAAcABgAAAAD/+QAFAAAAWwAAAGAABwAGAAAAAP/5AAUAAABgAAAA 
+<a name="l985"><span class="ln">985  </span></a>ZQAHAAYAAAAA//kABQAAAGUAAABqAAcABgAAAAD/+QAFAAAAagAAAG8ABwAGAAAAAf/8AAMAAABv 
+<a name="l986"><span class="ln">986  </span></a>AAAAcQAEAAYAAAAA//wAAwACAHEAAAB0AAYABgAAAAD/+gAE//8AdAAAAHgABQAGAAAAAP/7AAT/ 
+<a name="l987"><span class="ln">987  </span></a>/gB4AAAAfAADAAYAAAAB//oABf//AHwAAACAAAUABgAAAAD/+gAFAAAAgAAAAIUABgAGAAAAAP/5 
+<a name="l988"><span class="ln">988  </span></a>AAYAAQCFAAAAiwAIAAYAAP////oABgAAAIsAAACSAAYABgAA////+gAFAAAAkgAAAJgABgAGAAAA 
+<a name="l989"><span class="ln">989  </span></a>AP/6AAUAAACYAAAAnQAGAAYAAP////oABQAAAJ0AAACjAAYABgAA////+gAFAAAAowAAAKkABgAG 
+<a name="l990"><span class="ln">990  </span></a>AAD////6AAUAAACpAAAArwAGAAYAAAAA//oABQAAAK8AAAC0AAYABgAA////+gAGAAAAtAAAALsA 
+<a name="l991"><span class="ln">991  </span></a>BgAGAAAAAP/6AAQAAAC7AAAAvwAGAAYAAP////oABQAAAL8AAADFAAYABgAA////+gAGAAAAxQAA 
+<a name="l992"><span class="ln">992  </span></a>AMwABgAGAAD////6AAUAAADMAAAA0gAGAAYAAP////oABQAAANIAAADYAAYABgAA////+gAGAAAA 
+<a name="l993"><span class="ln">993  </span></a>2AAAAN8ABgAGAAAAAP/6AAUAAADfAAAA5AAGAAYAAP////oABQAAAOQAAADqAAYABgAAAAD/+gAF 
+<a name="l994"><span class="ln">994  </span></a>AAEA6gAAAO8ABwAGAAD////6AAYAAADvAAAA9gAGAAYAAAAA//oABQAAAPYAAAD7AAYABgAA//// 
+<a name="l995"><span class="ln">995  </span></a>+gAFAAAA+wAAAQEABgAGAAD////6AAYAAAEBAAABCAAGAAYAAP////oABgAAAQgAAAEPAAYABgAA 
+<a name="l996"><span class="ln">996  </span></a>////+gAGAAABDwAAARYABgAGAAAAAP/6AAYAAAEWAAABHAAGAAYAAP////oABgAAARwAAAEjAAYA 
+<a name="l997"><span class="ln">997  </span></a>BgAAAAD/+gAFAAABIwAAASgABgAGAAAAAf/5AAQAAQEoAAABKwAIAAYAAAAA//kABAABASsAAAEv 
+<a name="l998"><span class="ln">998  </span></a>AAgABgAAAAH/+QAEAAEBLwAAATIACAAGAAAAAP/5AAX//AEyAAABNwADAAYAAAAAAAEABgACATcA 
+<a name="l999"><span class="ln">999  </span></a>AAE9AAEABgAAAAH/+QAE//wBPQAAAUAAAwAGAAAAAP/7AAYAAAFAAAABRgAFAAYAAP////kABQAA 
+<a name="l1000"><span class="ln">1000 </span></a>AUYAAAFMAAcABgAAAAD/+wAFAAABTAAAAVEABQAGAAAAAP/5AAYAAAFRAAABVwAHAAYAAAAA//sA 
+<a name="l1001"><span class="ln">1001 </span></a>BQAAAVcAAAFcAAUABgAAAAD/+QAFAAABXAAAAWEABwAGAAAAAP/7AAYAAgFhAAABZwAHAAYAAP// 
+<a name="l1002"><span class="ln">1002 </span></a>//kABQAAAWcAAAFtAAcABgAAAAD/+QAGAAABbQAAAXMABwAGAAAAAP/5AAQAAgFzAAABdwAJAAYA 
+<a name="l1003"><span class="ln">1003 </span></a>AP////kABgAAAXcAAAF+AAcABgAAAAD/+QAGAAABfgAAAYQABwAGAAD////7AAUAAAGEAAABigAF 
+<a name="l1004"><span class="ln">1004 </span></a>AAYAAP////sABQAAAYoAAAGQAAUABgAAAAD/+wAFAAABkAAAAZUABQAGAAD////7AAUAAgGVAAAB 
+<a name="l1005"><span class="ln">1005 </span></a>mwAHAAYAAAAA//sABgACAZsAAAGhAAcABgAAAAD/+wAGAAABoQAAAacABQAGAAAAAP/7AAYAAAGn 
+<a name="l1006"><span class="ln">1006 </span></a>AAABrQAFAAYAAAAA//kABgAAAa0AAAGzAAcABgAA////+wAGAAABswAAAboABQAGAAD////7AAUA 
+<a name="l1007"><span class="ln">1007 </span></a>AAG6AAABwAAFAAYAAP////sABgAAAcAAAAHHAAUABgAAAAD/+wAGAAABxwAAAc0ABQAGAAD////7 
+<a name="l1008"><span class="ln">1008 </span></a>AAYAAgHNAAAB1AAHAAYAAAAA//sABQAAAdQAAAHZAAUABgAAAAH/+QAFAAEB2QAAAd0ACAAGAAAA 
+<a name="l1009"><span class="ln">1009 </span></a>Av/6AAMAAQHdAAAB3gAHAAYAAAAA//kABAABAd4AAAHiAAgABgAAAAD/+wAF//0B4gAAAecAAgAA 
+<a name="l1010"><span class="ln">1010 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1011"><span class="ln">1011 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1012"><span class="ln">1012 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1013"><span class="ln">1013 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1014"><span class="ln">1014 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1015"><span class="ln">1015 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1016"><span class="ln">1016 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1017"><span class="ln">1017 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1018"><span class="ln">1018 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1019"><span class="ln">1019 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1020"><span class="ln">1020 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1021"><span class="ln">1021 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAAAB 
+<a name="l1022"><span class="ln">1022 </span></a>//sAAwACAecAAAHpAAcABgAAAAD/+QAFAAEB6QAAAe4ACAAGAAAAAP/5AAYAAAHuAAAB9AAHAAYA 
+<a name="l1023"><span class="ln">1023 </span></a>AAAA//oABf//AfQAAAH5AAUABgAAAAD/+QAGAAAB+QAAAf8ABwAGAAAAAv/5AAMAAgH/AAACAAAJ 
+<a name="l1024"><span class="ln">1024 </span></a>AAYAAAAA//kABQABAgAAAAIFAAgABgAAAAH/+gAE//sCBQAAAggAAQAGAAAAAP/5AAYAAAIIAAAC 
+<a name="l1025"><span class="ln">1025 </span></a>DgAHAAYAAAAB//kABf/+Ag4AAAISAAUABgAA////+wAGAAACEgAAAhkABQAGAAAAAP/7AAX//gIZ 
+<a name="l1026"><span class="ln">1026 </span></a>AAACHgADAAYAAAAA//wABf/9Ah4AAAIjAAEABgAAAAD/+QAHAAACIwAAAioABwAGAAAAAP/6AAT/ 
+<a name="l1027"><span class="ln">1027 </span></a>+wIqAAACLgABAAYAAAAA//kABP/8Ai4AAAIyAAMABgAAAAD/+gAFAAACMgAAAjcABgAGAAAAAf/5 
+<a name="l1028"><span class="ln">1028 </span></a>AAT//QI3AAACOgAEAAYAAAAB//kABP/9AjoAAAI9AAQABgAAAAL/+QAE//sCPQAAAj8AAgAGAAD/ 
+<a name="l1029"><span class="ln">1029 </span></a>///7AAYAAgI/AAACRgAHAAYAAAAA//kABgABAkYAAAJMAAgABgAAAAH//AAD//0CTAAAAk4AAQAG 
+<a name="l1030"><span class="ln">1030 </span></a>AAAAAf//AAQAAgJOAAACUQADAAYAAAAB//kABP/9AlEAAAJUAAQABgAAAAH/+QAF//4CVAAAAlgA 
+<a name="l1031"><span class="ln">1031 </span></a>BQAGAAD////7AAYAAAJYAAACXwAFAAYAAP////kABgAAAl8AAAJmAAcABgAA////+QAGAAACZgAA 
+<a name="l1032"><span class="ln">1032 </span></a>Am0ABwAGAAD////5AAYAAAJtAAACdAAHAAYAAAAA//sABQACAnQAAAJ5AAcABgAA////9wAGAAAC 
+<a name="l1033"><span class="ln">1033 </span></a>eQAAAoAACQAGAAD////3AAYAAAKAAAAChwAJAAYAAP////cABgAAAocAAAKOAAkABgAA////9wAG 
+<a name="l1034"><span class="ln">1034 </span></a>AAACjgAAApUACQAGAAD////4AAYAAAKVAAACnAAIAAYAAP////cABgAAApwAAAKjAAkABgAA//// 
+<a name="l1035"><span class="ln">1035 </span></a>+gAGAAACowAAAqoABgAGAAAAAP/6AAUAAgKqAAACrwAIAAYAAP////cABQAAAq8AAAK1AAkABgAA 
+<a name="l1036"><span class="ln">1036 </span></a>////9wAFAAACtQAAArsACQAGAAD////3AAUAAAK7AAACwQAJAAYAAP////gABQAAAsEAAALHAAgA 
+<a name="l1037"><span class="ln">1037 </span></a>BgAAAAD/9wAEAAACxwAAAssACQAGAAAAAP/3AAQAAALLAAACzwAJAAYAAAAA//cABAAAAs8AAALT 
+<a name="l1038"><span class="ln">1038 </span></a>AAkABgAAAAD/+AAEAAAC0wAAAtcACAAGAAD////6AAUAAALXAAAC3QAGAAYAAP////cABgAAAt0A 
+<a name="l1039"><span class="ln">1039 </span></a>AALkAAkABgAAAAD/9wAFAAAC5AAAAukACQAGAAAAAP/3AAUAAALpAAAC7gAJAAYAAAAA//cABQAA 
+<a name="l1040"><span class="ln">1040 </span></a>Au4AAALzAAkABgAAAAD/9wAFAAAC8wAAAvgACQAGAAAAAP/4AAUAAAL4AAAC/QAIAAYAAAAA//oA 
+<a name="l1041"><span class="ln">1041 </span></a>Bf//Av0AAAMCAAUABgAA////+gAGAAADAgAAAwkABgAGAAD////3AAYAAAMJAAADEAAJAAYAAP// 
+<a name="l1042"><span class="ln">1042 </span></a>//cABgAAAxAAAAMXAAkABgAA////9wAGAAADFwAAAx4ACQAGAAD////4AAYAAAAAAAoABwASAAYA 
+<a name="l1043"><span class="ln">1043 </span></a>AP////cABgAAAAcACgAOABMABgAA////+gAFAAAADgAKABQAEAAGAAD////6AAYAAAAUAAoAGwAQ 
+<a name="l1044"><span class="ln">1044 </span></a>AAYAAAAA//gABgAAABsACgAhABIABgAAAAD/+AAGAAAAIQAKACcAEgAGAAAAAP/4AAYAAAAnAAoA 
+<a name="l1045"><span class="ln">1045 </span></a>LQASAAYAAAAA//gABgAAAC0ACgAzABIABgAAAAD/+QAGAAAAMwAKADkAEQAGAAAAAP/3AAYAAAA5 
+<a name="l1046"><span class="ln">1046 </span></a>AAoAPwATAAYAAP////sABQAAAD8ACgBFAA8ABgAAAAD/+wAFAAIARQAKAEoAEQAGAAAAAP/4AAUA 
+<a name="l1047"><span class="ln">1047 </span></a>AABKAAoATwASAAYAAAAA//gABQAAAE8ACgBUABIABgAAAAD/+AAFAAAAVAAKAFkAEgAGAAAAAP/5 
+<a name="l1048"><span class="ln">1048 </span></a>AAUAAABZAAoAXgARAAYAAAAA//gABgAAAF4ACgBkABIABgAAAAD/+AAGAAAAZAAKAGoAEgAGAAAA 
+<a name="l1049"><span class="ln">1049 </span></a>AP/4AAYAAABqAAoAcAASAAYAAAAA//kABgAAAHAACgB2ABEABgAAAAD/+AAFAAAAdgAKAHsAEgAG 
+<a name="l1050"><span class="ln">1050 </span></a>AAD////4AAYAAAB7AAoAggASAAYAAAAA//gABQAAAIIACgCHABIABgAAAAD/+AAFAAAAhwAKAIwA 
+<a name="l1051"><span class="ln">1051 </span></a>EgAGAAAAAP/4AAUAAACMAAoAkQASAAYAAAAA//gABQAAAJEACgCWABIABgAAAAD/+QAFAAAAlgAK 
+<a name="l1052"><span class="ln">1052 </span></a>AJsAEQAGAAAAAP/6AAX//wCbAAoAoAAPAAYAAAAA//oABQABAKAACgClABEABgAA////+AAGAAAA 
+<a name="l1053"><span class="ln">1053 </span></a>pQAKAKwAEgAGAAD////4AAYAAACsAAoAswASAAYAAP////gABgAAALMACgC6ABIABgAA////+QAG 
+<a name="l1054"><span class="ln">1054 </span></a>AAAAugAKAMEAEQAGAAD////4AAYAAgDBAAoAyAAUAAYAAP////kABQACAMgACgDOABMABgAA//// 
+<a name="l1055"><span class="ln">1055 </span></a>+QAGAAIAzgAKANUAEw== 
+<a name="l1056"><span class="ln">1056 </span></a>&quot;&quot;&quot;</span>
+<a name="l1057"><span class="ln">1057 </span></a>            <span class="s3">)</span>
+<a name="l1058"><span class="ln">1058 </span></a>        <span class="s3">),</span>
+<a name="l1059"><span class="ln">1059 </span></a>        <span class="s1">Image</span><span class="s3">.</span><span class="s1">open</span><span class="s3">(</span>
+<a name="l1060"><span class="ln">1060 </span></a>            <span class="s1">BytesIO</span><span class="s3">(</span>
+<a name="l1061"><span class="ln">1061 </span></a>                <span class="s1">base64</span><span class="s3">.</span><span class="s1">b64decode</span><span class="s3">(</span>
+<a name="l1062"><span class="ln">1062 </span></a>                    <span class="s6">b&quot;&quot;&quot; 
+<a name="l1063"><span class="ln">1063 </span></a>iVBORw0KGgoAAAANSUhEUgAAAx4AAAAUAQAAAAArMtZoAAAEwElEQVR4nABlAJr/AHVE4czCI/4u 
+<a name="l1064"><span class="ln">1064 </span></a>Mc4b7vuds/xzjz5/3/7u/n9vMe7vnfH/9++vPn/xyf5zhxzjt8GHw8+2d83u8x27199/nxuQ6Od9 
+<a name="l1065"><span class="ln">1065 </span></a>M43/5z2I+9n9ZtmDBwMQECDRQw/eQIQohJXxpBCNVE6QCCAAAAD//wBlAJr/AgALyj1t/wINwq0g 
+<a name="l1066"><span class="ln">1066 </span></a>LeNZUworuN1cjTPIzrTX6ofHWeo3v336qPzfEwRmBnHTtf95/fglZK5N0PDgfRTslpGBvz7LFc4F 
+<a name="l1067"><span class="ln">1067 </span></a>IUXBWQGjQ5MGCx34EDFPwXiY4YbYxavpnhHFrk14CDAAAAD//wBlAJr/AgKqRooH2gAgPeggvUAA 
+<a name="l1068"><span class="ln">1068 </span></a>Bu2WfgPoAwzRAABAAAAAAACQgLz/3Uv4Gv+gX7BJgDeeGP6AAAD1NMDzKHD7ANWr3loYbxsAD791 
+<a name="l1069"><span class="ln">1069 </span></a>NAADfcoIDyP44K/jv4Y63/Z+t98Ovt+ub4T48LAAAAD//wBlAJr/AuplMlADJAAAAGuAphWpqhMx 
+<a name="l1070"><span class="ln">1070 </span></a>in0A/fRvAYBABPgBwBUgABBQ/sYAyv9g0bCHgOLoGAAAAAAAREAAwI7nr0ArYpow7aX8//9LaP/9 
+<a name="l1071"><span class="ln">1071 </span></a>SjdavWA8ePHeBIKB//81/83ndznOaXx379wAAAD//wBlAJr/AqDxW+D3AABAAbUh/QMnbQag/gAY 
+<a name="l1072"><span class="ln">1072 </span></a>AYDAAACgtgD/gOqAAAB5IA/8AAAk+n9w0AAA8AAAmFRJuPo27ciC0cD5oeW4E7KA/wD3ECMAn2tt 
+<a name="l1073"><span class="ln">1073 </span></a>y8PgwH8AfAxFzC0JzeAMtratAsC/ffwAAAD//wBlAJr/BGKAyCAA4AAAAvgeYTAwHd1kmQF5chkG 
+<a name="l1074"><span class="ln">1074 </span></a>ABoMIHcL5xVpTfQbUqzlAAAErwAQBgAAEOClA5D9il08AEh/tUzdCBsXkbgACED+woQg8Si9VeqY 
+<a name="l1075"><span class="ln">1075 </span></a>lODCn7lmF6NhnAEYgAAA/NMIAAAAAAD//2JgjLZgVGBg5Pv/Tvpc8hwGBjYGJADjHDrAwPzAjv/H 
+<a name="l1076"><span class="ln">1076 </span></a>/Wf3PzCwtzcwHmBgYGcwbZz8wHaCAQMDOwMDQ8MCBgYOC3W7mp+f0w+wHOYxO3OG+e376hsMZjk3 
+<a name="l1077"><span class="ln">1077 </span></a>AAAAAP//YmCMY2A4wMAIN5e5gQETPD6AZisDAwMDgzSDAAPjByiHcQMDAwMDg1nOze1lByRu5/47 
+<a name="l1078"><span class="ln">1078 </span></a>c4859311AYNZzg0AAAAA//9iYGDBYihOIIMuwIjGL39/fwffA8b//xv/P2BPtzzHwCBjUQAAAAD/ 
+<a name="l1079"><span class="ln">1079 </span></a>/yLFBrIBAAAA//9i1HhcwdhizX7u8NZNzyLbvT97bfrMf/QHI8evOwcSqGUJAAAA//9iYBB81iSw 
+<a name="l1080"><span class="ln">1080 </span></a>pEE170Qrg5MIYydHqwdDQRMrAwcVrQAAAAD//2J4x7j9AAMDn8Q/BgYLBoaiAwwMjPdvMDBYM1Tv 
+<a name="l1081"><span class="ln">1081 </span></a>oJodAAAAAP//Yqo/83+dxePWlxl3npsel9lvLfPcqlE9725C+acfVLMEAAAA//9i+s9gwCoaaGMR 
+<a name="l1082"><span class="ln">1082 </span></a>evta/58PTEWzr21hufPjA8N+qlnBwAAAAAD//2JiWLci5v1+HmFXDqcnULE/MxgYGBj+f6CaJQAA 
+<a name="l1083"><span class="ln">1083 </span></a>AAD//2Ji2FrkY3iYpYC5qDeGgeEMAwPDvwQBBoYvcTwOVLMEAAAA//9isDBgkP///0EOg9z35v// 
+<a name="l1084"><span class="ln">1084 </span></a>Gc/eeW7BwPj5+QGZhANUswMAAAD//2JgqGBgYGBgqEMXlvhMPUsAAAAA//8iYDd1AAAAAP//AwDR 
+<a name="l1085"><span class="ln">1085 </span></a>w7IkEbzhVQAAAABJRU5ErkJggg== 
+<a name="l1086"><span class="ln">1086 </span></a>&quot;&quot;&quot;</span>
+<a name="l1087"><span class="ln">1087 </span></a>                <span class="s3">)</span>
+<a name="l1088"><span class="ln">1088 </span></a>            <span class="s3">)</span>
+<a name="l1089"><span class="ln">1089 </span></a>        <span class="s3">),</span>
+<a name="l1090"><span class="ln">1090 </span></a>    <span class="s3">)</span>
+<a name="l1091"><span class="ln">1091 </span></a>    <span class="s2">return </span><span class="s1">f</span>
+<a name="l1092"><span class="ln">1092 </span></a>
+<a name="l1093"><span class="ln">1093 </span></a>
+<a name="l1094"><span class="ln">1094 </span></a><span class="s2">def </span><span class="s1">load_default</span><span class="s3">(</span><span class="s1">size</span><span class="s2">: </span><span class="s1">float </span><span class="s2">| None = None</span><span class="s3">) </span><span class="s1">-&gt; FreeTypeFont </span><span class="s2">| </span><span class="s1">ImageFont</span><span class="s2">:</span>
+<a name="l1095"><span class="ln">1095 </span></a>    <span class="s0">&quot;&quot;&quot;If FreeType support is available, load a version of Aileron Regular, 
+<a name="l1096"><span class="ln">1096 </span></a>    https://dotcolon.net/fonts/aileron, with a more limited character set. 
+<a name="l1097"><span class="ln">1097 </span></a> 
+<a name="l1098"><span class="ln">1098 </span></a>    Otherwise, load a &quot;better than nothing&quot; font. 
+<a name="l1099"><span class="ln">1099 </span></a> 
+<a name="l1100"><span class="ln">1100 </span></a>    .. versionadded:: 1.1.4 
+<a name="l1101"><span class="ln">1101 </span></a> 
+<a name="l1102"><span class="ln">1102 </span></a>    :param size: The font size of Aileron Regular. 
+<a name="l1103"><span class="ln">1103 </span></a> 
+<a name="l1104"><span class="ln">1104 </span></a>        .. versionadded:: 10.1.0 
+<a name="l1105"><span class="ln">1105 </span></a> 
+<a name="l1106"><span class="ln">1106 </span></a>    :return: A font object. 
+<a name="l1107"><span class="ln">1107 </span></a>    &quot;&quot;&quot;</span>
+<a name="l1108"><span class="ln">1108 </span></a>    <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">core</span><span class="s3">, </span><span class="s1">ModuleType</span><span class="s3">) </span><span class="s2">or </span><span class="s1">size </span><span class="s2">is not None:</span>
+<a name="l1109"><span class="ln">1109 </span></a>        <span class="s2">return </span><span class="s1">truetype</span><span class="s3">(</span>
+<a name="l1110"><span class="ln">1110 </span></a>            <span class="s1">BytesIO</span><span class="s3">(</span>
+<a name="l1111"><span class="ln">1111 </span></a>                <span class="s1">base64</span><span class="s3">.</span><span class="s1">b64decode</span><span class="s3">(</span>
+<a name="l1112"><span class="ln">1112 </span></a>                    <span class="s6">b&quot;&quot;&quot; 
+<a name="l1113"><span class="ln">1113 </span></a>AAEAAAAPAIAAAwBwRkZUTYwDlUAAADFoAAAAHEdERUYAqADnAAAo8AAAACRHUE9ThhmITwAAKfgAA 
+<a name="l1114"><span class="ln">1114 </span></a>AduR1NVQnHxefoAACkUAAAA4k9TLzJovoHLAAABeAAAAGBjbWFw5lFQMQAAA6gAAAGqZ2FzcP//AA 
+<a name="l1115"><span class="ln">1115 </span></a>MAACjoAAAACGdseWYmRXoPAAAGQAAAHfhoZWFkE18ayQAAAPwAAAA2aGhlYQboArEAAAE0AAAAJGh 
+<a name="l1116"><span class="ln">1116 </span></a>tdHjjERZ8AAAB2AAAAdBsb2NhuOexrgAABVQAAADqbWF4cAC7AEYAAAFYAAAAIG5hbWUr+h5lAAAk 
+<a name="l1117"><span class="ln">1117 </span></a>OAAAA6Jwb3N0D3oPTQAAJ9wAAAEKAAEAAAABGhxJDqIhXw889QALA+gAAAAA0Bqf2QAAAADhCh2h/ 
+<a name="l1118"><span class="ln">1118 </span></a>2r/LgOxAyAAAAAIAAIAAAAAAAAAAQAAA8r/GgAAA7j/av9qA7EAAQAAAAAAAAAAAAAAAAAAAHQAAQ 
+<a name="l1119"><span class="ln">1119 </span></a>AAAHQAQwAFAAAAAAACAAAAAQABAAAAQAAAAAAAAAADAfoBkAAFAAgCigJYAAAASwKKAlgAAAFeADI 
+<a name="l1120"><span class="ln">1120 </span></a>BPgAAAAAFAAAAAAAAAAAAAAcAAAAAAAAAAAAAAABVS1dOAEAAIPsCAwL/GgDIA8oA5iAAAJMAAAAA 
+<a name="l1121"><span class="ln">1121 </span></a>AhICsgAAACAAAwH0AAAAAAAAAU0AAADYAAAA8gA5AVMAVgJEAEYCRAA1AuQAKQKOAEAAsAArATsAZ 
+<a name="l1122"><span class="ln">1122 </span></a>AE7AB4CMABVAkQAUADc/+EBEgAgANwAJQEv//sCRAApAkQAggJEADwCRAAtAkQAIQJEADkCRAArAk 
+<a name="l1123"><span class="ln">1123 </span></a>QAMgJEACwCRAAxANwAJQDc/+ECRABnAkQAUAJEAEQB8wAjA1QANgJ/AB0CcwBkArsALwLFAGQCSwB 
+<a name="l1124"><span class="ln">1124 </span></a>kAjcAZALGAC8C2gBkAQgAZAIgADcCYQBkAj8AZANiAGQCzgBkAuEALwJWAGQC3QAvAmsAZAJJADQC 
+<a name="l1125"><span class="ln">1125 </span></a>ZAAiAqoAXgJuACADuAAaAnEAGQJFABMCTwAuATMAYgEv//sBJwAiAkQAUAH0ADIBLAApAhMAJAJjA 
+<a name="l1126"><span class="ln">1126 </span></a>EoCEQAeAmcAHgIlAB4BIgAVAmcAHgJRAEoA7gA+AOn/8wIKAEoA9wBGA1cASgJRAEoCSgAeAmMASg 
+<a name="l1127"><span class="ln">1127 </span></a>JnAB4BSgBKAcsAGAE5ABQCUABCAgIAAQMRAAEB4v/6AgEAAQHOABQBLwBAAPoAYAEvACECRABNA0Y 
+<a name="l1128"><span class="ln">1128 </span></a>AJAItAHgBKgAcAkQAUAEsAHQAygAgAi0AOQD3ADYA9wAWAaEANgGhABYCbAAlAYMAeAGDADkA6/9q 
+<a name="l1129"><span class="ln">1129 </span></a>AhsAFAIKABUB/QAVAAAAAwAAAAMAAAAcAAEAAAAAAKQAAwABAAAAHAAEAIgAAAAeABAAAwAOAH4Aq 
+<a name="l1130"><span class="ln">1130 </span></a>QCrALEAtAC3ALsgGSAdICYgOiBEISL7Av//AAAAIACpAKsAsAC0ALcAuyAYIBwgJiA5IEQhIvsB// 
+<a name="l1131"><span class="ln">1131 </span></a>//4/+5/7j/tP+y/7D/reBR4E/gR+A14CzfTwVxAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1132"><span class="ln">1132 </span></a>AAAAAAAEGAAABAAAAAAAAAAECAAAAAgAAAAAAAAAAAAAAAAAAAAEAAAMEBQYHCAkKCwwNDg8QERIT 
+<a name="l1133"><span class="ln">1133 </span></a>FBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMT 
+<a name="l1134"><span class="ln">1134 </span></a>U5PUFFSU1RVVldYWVpbXF1eX2BhAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGQAAA 
+<a name="l1135"><span class="ln">1135 </span></a>AAAAAAYnFmAAAAAABlAAAAAAAAAAAAAAAAAAAAAAAAAAAAY2htAAAAAAAAAABrbGlqAAAAAHAAbm9 
+<a name="l1136"><span class="ln">1136 </span></a>ycwBnAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAmACYAJgAmAD4AUgCCAMoBCgFO 
+<a name="l1137"><span class="ln">1137 </span></a>AVwBcgGIAaYBvAHKAdYB6AH2AgwCIAJKAogCpgLWAw4DIgNkA5wDugPUA+gD/AQQBEYEogS8BPoFJ 
+<a name="l1138"><span class="ln">1138 </span></a>gVSBWoFgAWwBcoF1gX6BhQGJAZMBmgGiga0BuIHGgdUB2YHkAeiB8AH3AfyCAoIHAgqCDoITghcCG 
+<a name="l1139"><span class="ln">1139 </span></a>oIogjSCPoJKglYCXwJwgnqCgIKKApACl4Klgq8CtwLDAs8C1YLjAuyC9oL7gwMDCYMSAxgDKAMrAz 
+<a name="l1140"><span class="ln">1140 </span></a>qDQoNTA1mDYQNoA2uDcAN2g3oDfYODA4iDkoOXA5sDnoOnA7EDvwAAAAFAAAAAAH0ArwAAwAGAAkA 
+<a name="l1141"><span class="ln">1141 </span></a>DAAPAAAxESERAxMhExcRASELARETAfT6qv6syKr+jgFUqsiqArz9RAGLAP/+1P8B/v3VAP8BLP4CA 
+<a name="l1142"><span class="ln">1142 </span></a>P8AAgA5//IAuQKyAAMACwAANyMDMwIyFhQGIiY0oE4MZk84JCQ4JLQB/v3AJDgkJDgAAgBWAeUBPA 
+<a name="l1143"><span class="ln">1143 </span></a>LfAAMABwAAEyMnMxcjJzOmRgpagkYKWgHl+vr6AAAAAAIARgAAAf4CsgAbAB8AAAEHMxUjByM3Iwc 
+<a name="l1144"><span class="ln">1144 </span></a>jNyM1MzcjNTM3MwczNzMHMxUrAQczAZgdZXEvOi9bLzovWmYdZXEvOi9bLzovWp9bHlsBn4w429vb 
+<a name="l1145"><span class="ln">1145 </span></a>2ziMONvb29s4jAAAAAMANf+mAg4DDAAfACYALAAAJRQGBxUjNS4BJzMeARcRLgE0Njc1MxUeARcjJ 
+<a name="l1146"><span class="ln">1146 </span></a>icVHgEBFBYXNQ4BExU+ATU0Ag5xWDpgcgRcBz41Xl9oVTpVYwpcC1ttXP6cLTQuM5szOrVRZwlOTQ 
+<a name="l1147"><span class="ln">1147 </span></a>ZqVzZECAEAGlukZAlOTQdrUG8O7iNlAQgxNhDlCDj+8/YGOjReAAAAAAUAKf/yArsCvAAHAAsAFQA 
+<a name="l1148"><span class="ln">1148 </span></a>dACcAABIyFhQGIiY0EyMBMwQiBhUUFjI2NTQSMhYUBiImNDYiBhUUFjI2NTR5iFBQiFCVVwHAV/5c 
+<a name="l1149"><span class="ln">1149 </span></a>OiMjOiPmiFBQiFCxOiMjOiMCvFaSVlaS/ZoCsjIzMC80NC8w/uNWklZWkhozMC80NC8wAAAAAgBA/ 
+<a name="l1150"><span class="ln">1150 </span></a>/ICbgLAACIALgAAARUjEQYjIiY1NDY3LgE1NDYzMhcVJiMiBhUUFhcWOwE1MxUFFBYzMjc1IyIHDg 
+<a name="l1151"><span class="ln">1151 </span></a>ECbmBcYYOOVkg7R4hsQjY4Q0RNRD4SLDxW/pJUXzksPCkUUk0BgUb+zBVUZ0BkDw5RO1huCkULQzp 
+<a name="l1152"><span class="ln">1152 </span></a>COAMBcHDHRz0J/AIHRQAAAAEAKwHlAIUC3wADAAATIycze0YKWgHl+gAAAAABAGT/sAEXAwwACQAA 
+<a name="l1153"><span class="ln">1153 </span></a>EzMGEBcjLgE0Nt06dXU6OUBAAwzG/jDGVePs4wAAAAEAHv+wANEDDAAJAAATMx4BFAYHIzYQHjo5Q 
+<a name="l1154"><span class="ln">1154 </span></a>EA5OnUDDFXj7ONVxgHQAAAAAQBVAFIB2wHbAA4AAAE3FwcXBycHJzcnNxcnMwEtmxOfcTJjYzJxnx 
+<a name="l1155"><span class="ln">1155 </span></a>ObCj4BKD07KYolmZkliik7PbMAAQBQAFUB9AIlAAsAAAEjFSM1IzUzNTMVMwH0tTq1tTq1AR/Kyjj 
+<a name="l1156"><span class="ln">1156 </span></a>OzgAAAAAB/+H/iACMAGQABAAANwcjNzOMWlFOXVrS3AAAAQAgAP8A8gE3AAMAABMjNTPy0tIA/zgA 
+<a name="l1157"><span class="ln">1157 </span></a>AQAl//IApQByAAcAADYyFhQGIiY0STgkJDgkciQ4JCQ4AAAAAf/7/+IBNALQAAMAABcjEzM5Pvs+H 
+<a name="l1158"><span class="ln">1158 </span></a>gLuAAAAAAIAKf/yAhsCwAADAAcAABIgECA2IBAgKQHy/g5gATL+zgLA/TJEAkYAAAAAAQCCAAABlg 
+<a name="l1159"><span class="ln">1159 </span></a>KyAAgAAAERIxEHNTc2MwGWVr6SIygCsv1OAldxW1sWAAEAPAAAAg4CwAAZAAA3IRUhNRM+ATU0JiM 
+<a name="l1160"><span class="ln">1160 </span></a>iDwEjNz4BMzIWFRQGB7kBUv4x+kI2QTt+EAFWAQp8aGVtSl5GRjEA/0RVLzlLmAoKa3FsUkNxXQAA 
+<a name="l1161"><span class="ln">1161 </span></a>AAEALf/yAhYCwAAqAAABHgEVFAYjIi8BMxceATMyNjU0KwE1MzI2NTQmIyIGDwEjNz4BMzIWFRQGA 
+<a name="l1162"><span class="ln">1162 </span></a>YxBSZJo2RUBVgEHV0JBUaQREUBUQzc5TQcBVgEKfGhfcEMBbxJbQl1x0AoKRkZHPn9GSD80QUVCCg 
+<a name="l1163"><span class="ln">1163 </span></a>pfbGBPOlgAAAACACEAAAIkArIACgAPAAAlIxUjNSE1ATMRMyMRBg8BAiRXVv6qAVZWV60dHLCurq4 
+<a name="l1164"><span class="ln">1164 </span></a>rAdn+QgFLMibzAAABADn/8gIZArIAHQAAATIWFRQGIyIvATMXFjMyNjU0JiMiByMTIRUhBzc2ATNv 
+<a name="l1165"><span class="ln">1165 </span></a>d5Fl1RQBVgIad0VSTkVhL1IwAYj+vh8rMAHHgGdtgcUKCoFXTU5bYgGRRvAuHQAAAAACACv/8gITA 
+<a name="l1166"><span class="ln">1166 </span></a>sAAFwAjAAABMhYVFAYjIhE0NjMyFh8BIycmIyIDNzYTMjY1NCYjIgYVFBYBLmp7imr0l3RZdAgBXA 
+<a name="l1167"><span class="ln">1167 </span></a>IYZ5wKJzU6QVNJSz5SUAHSgWltiQFGxcNlVQoKdv7sPiz+ZF1LTmJbU0lhAAAAAQAyAAACGgKyAAY 
+<a name="l1168"><span class="ln">1168 </span></a>AAAEVASMBITUCGv6oXAFL/oECsij9dgJsRgAAAAMALP/xAhgCwAAWACAALAAAAR4BFRQGIyImNTQ2 
+<a name="l1169"><span class="ln">1169 </span></a>Ny4BNTQ2MhYVFAYmIgYVFBYyNjU0AzI2NTQmIyIGFRQWAZQ5S5BmbIpPOjA7ecp5P2F8Q0J8RIVJS 
+<a name="l1170"><span class="ln">1170 </span></a>0pLTEtOAW0TXTxpZ2ZqPF0SE1A3VWVlVTdQ/UU0N0RENzT9/ko+Ok1NOj1LAAIAMf/yAhkCwAAXAC 
+<a name="l1171"><span class="ln">1171 </span></a>MAAAEyERQGIyImLwEzFxYzMhMHBiMiJjU0NhMyNjU0JiMiBhUUFgEl9Jd0WXQIAVwCGGecCic1SWp 
+<a name="l1172"><span class="ln">1172 </span></a>7imo+UlBAQVNJAsD+usXDZVUKCnYBFD4sgWltif5kW1NJYV1LTmIAAAACACX/8gClAiAABwAPAAAS 
+<a name="l1173"><span class="ln">1173 </span></a>MhYUBiImNBIyFhQGIiY0STgkJDgkJDgkJDgkAiAkOCQkOP52JDgkJDgAAAAC/+H/iAClAiAABwAMA 
+<a name="l1174"><span class="ln">1174 </span></a>AASMhYUBiImNBMHIzczSTgkJDgkaFpSTl4CICQ4JCQ4/mba5gAAAQBnAB4B+AH0AAYAAAENARUlNS 
+<a name="l1175"><span class="ln">1175 </span></a>UB+P6qAVb+bwGRAbCmpkbJRMkAAAIAUAC7AfQBuwADAAcAAAEhNSERITUhAfT+XAGk/lwBpAGDOP8 
+<a name="l1176"><span class="ln">1176 </span></a>AOAABAEQAHgHVAfQABgAAARUFNS0BNQHV/m8BVv6qAStEyUSmpkYAAAAAAgAj//IB1ALAABgAIAAA 
+<a name="l1177"><span class="ln">1177 </span></a>ATIWFRQHDgEHIz4BNz4BNTQmIyIGByM+ARIyFhQGIiY0AQRibmktIAJWBSEqNig+NTlHBFoDezQ4J 
+<a name="l1178"><span class="ln">1178 </span></a>CQ4JALAZ1BjaS03JS1DMD5LLDQ/SUVgcv2yJDgkJDgAAAAAAgA2/5gDFgKYADYAQgAAAQMGFRQzMj 
+<a name="l1179"><span class="ln">1179 </span></a>Y1NCYjIg4CFRQWMzI2NxcGIyImNTQ+AjMyFhUUBiMiJwcGIyImNTQ2MzIfATcHNzYmIyIGFRQzMjY 
+<a name="l1180"><span class="ln">1180 </span></a>Cej8EJjJJlnBAfGQ+oHtAhjUYg5OPx0h2k06Os3xRWQsVLjY5VHtdPBwJETcJDyUoOkZEJz8B0f74 
+<a name="l1181"><span class="ln">1181 </span></a>EQ8kZl6EkTFZjVOLlyknMVm1pmCiaTq4lX6CSCknTVRmmR8wPdYnQzxuSWVGAAIAHQAAAncCsgAHA 
+<a name="l1182"><span class="ln">1182 </span></a>AoAACUjByMTMxMjATMDAcj+UVz4dO5d/sjPZPT0ArL9TgE6ATQAAAADAGQAAAJMArIAEAAbACcAAA 
+<a name="l1183"><span class="ln">1183 </span></a>EeARUUBgcGKwERMzIXFhUUJRUzMjc2NTQnJiMTPgE1NCcmKwEVMzIBvkdHZkwiNt7LOSGq/oeFHBt 
+<a name="l1184"><span class="ln">1184 </span></a>hahIlSTM+cB8Yj5UWAW8QT0VYYgwFArIEF5Fv1eMED2NfDAL93AU+N24PBP0AAAAAAQAv//ICjwLA 
+<a name="l1185"><span class="ln">1185 </span></a>ABsAAAEyFh8BIycmIyIGFRQWMzI/ATMHDgEjIiY1NDYBdX+PCwFWAiKiaHx5ZaIiAlYBCpWBk6a0A 
+<a name="l1186"><span class="ln">1186 </span></a>sCAagoKpqN/gaOmCgplhcicn8sAAAIAZAAAAp8CsgAMABkAAAEeARUUBgcGKwERMzITPgE1NCYnJi 
+<a name="l1187"><span class="ln">1187 </span></a>sBETMyAY59lJp8IzXN0jUVWmdjWRs5d3I4Aq4QqJWUug8EArL9mQ+PeHGHDgX92gAAAAABAGQAAAI 
+<a name="l1188"><span class="ln">1188 </span></a>vArIACwAAJRUhESEVIRUhFSEVAi/+NQHB/pUBTf6zRkYCskbwRvAAAAABAGQAAAIlArIACQAAExUh 
+<a name="l1189"><span class="ln">1189 </span></a>FSERIxEhFboBQ/69VgHBAmzwRv7KArJGAAAAAAEAL//yAo8CwAAfAAABMxEjNQcGIyImNTQ2MzIWH 
+<a name="l1190"><span class="ln">1190 </span></a>wEjJyYjIgYVFBYzMjY1IwGP90wfPnWTprSSf48LAVYCIqJofHllVG+hAU3+s3hARsicn8uAagoKpq 
+<a name="l1191"><span class="ln">1191 </span></a>N/gaN1XAAAAAEAZAAAAowCsgALAAABESMRIREjETMRIRECjFb+hFZWAXwCsv1OAS7+0gKy/sQBPAA 
+<a name="l1192"><span class="ln">1192 </span></a>AAAABAGQAAAC6ArIAAwAAMyMRM7pWVgKyAAABADf/8gHoArIAEwAAAREUBw4BIyImLwEzFxYzMjc2 
+<a name="l1193"><span class="ln">1193 </span></a>NREB6AIFcGpgbQIBVgIHfXQKAQKy/lYxIltob2EpKYyEFD0BpwAAAAABAGQAAAJ0ArIACwAACQEjA 
+<a name="l1194"><span class="ln">1194 </span></a>wcVIxEzEQEzATsBJ3ntQlZWAVVlAWH+nwEnR+ACsv6RAW8AAQBkAAACLwKyAAUAACUVIREzEQIv/j 
+<a name="l1195"><span class="ln">1195 </span></a>VWRkYCsv2UAAABAGQAAAMUArIAFAAAAREjETQ3BgcDIwMmJxYVESMRMxsBAxRWAiMxemx8NxsCVo7 
+<a name="l1196"><span class="ln">1196 </span></a>MywKy/U4BY7ZLco7+nAFmoFxLtP6dArL9lwJpAAAAAAEAZAAAAoACsgANAAAhIwEWFREjETMBJjUR 
+<a name="l1197"><span class="ln">1197 </span></a>MwKAhP67A1aEAUUDVAJeeov+pwKy/aJ5jAFZAAAAAgAv//ICuwLAAAkAEwAAEiAWFRQGICY1NBIyN 
+<a name="l1198"><span class="ln">1198 </span></a>jU0JiIGFRTbATSsrP7MrNrYenrYegLAxaKhxsahov47nIeIm5uIhwACAGQAAAJHArIADgAYAAABHg 
+<a name="l1199"><span class="ln">1199 </span></a>EVFAYHBisBESMRMzITNjQnJisBETMyAZRUX2VOHzuAVtY7GlxcGDWIiDUCrgtnVlVpCgT+5gKy/rU 
+<a name="l1200"><span class="ln">1200 </span></a>V1BUF/vgAAAACAC//zAK9AsAAEgAcAAAlFhcHJiMiBwYjIiY1NDYgFhUUJRQWMjY1NCYiBgI9PUMx 
+<a name="l1201"><span class="ln">1201 </span></a>UDcfKh8omqysATSs/dR62Hp62HpICTg7NgkHxqGixcWitbWHnJyHiJubAAIAZAAAAlgCsgAXACMAA 
+<a name="l1202"><span class="ln">1202 </span></a>CUWFyMmJyYnJisBESMRMzIXHgEVFAYHFiUzMjc+ATU0JyYrAQIqDCJfGQwNWhAhglbiOx9QXEY1Tv 
+<a name="l1203"><span class="ln">1203 </span></a>6bhDATMj1lGSyMtYgtOXR0BwH+1wKyBApbU0BSESRAAgVAOGoQBAABADT/8gIoAsAAJQAAATIWFyM 
+<a name="l1204"><span class="ln">1204 </span></a>uASMiBhUUFhceARUUBiMiJiczHgEzMjY1NCYnLgE1NDYBOmd2ClwGS0E6SUNRdW+HZnKKC1wPWkQ9 
+<a name="l1205"><span class="ln">1205 </span></a>Uk1cZGuEAsBwXUJHNjQ3OhIbZVZZbm5kREo+NT5DFRdYUFdrAAAAAAEAIgAAAmQCsgAHAAABIxEjE 
+<a name="l1206"><span class="ln">1206 </span></a>SM1IQJk9lb2AkICbP2UAmxGAAEAXv/yAmQCsgAXAAABERQHDgEiJicmNREzERQXHgEyNjc2NRECZA 
+<a name="l1207"><span class="ln">1207 </span></a>IIgfCBCAJWAgZYmlgGAgKy/k0qFFxzc1wUKgGz/lUrEkRQUEQSKwGrAAAAAAEAIAAAAnoCsgAGAAA 
+<a name="l1208"><span class="ln">1208 </span></a>hIwMzGwEzAYJ07l3N1FwCsv2PAnEAAAEAGgAAA7ECsgAMAAABAyMLASMDMxsBMxsBA7HAcZyicrZi 
+<a name="l1209"><span class="ln">1209 </span></a>kaB0nJkCsv1OAlP9rQKy/ZsCW/2kAmYAAAEAGQAAAm8CsgALAAAhCwEjEwMzGwEzAxMCCsrEY/bkY 
+<a name="l1210"><span class="ln">1210 </span></a>re+Y/D6AST+3AFcAVb+5gEa/q3+oQAAAQATAAACUQKyAAgAAAERIxEDMxsBMwFdVvRjwLphARD+8A 
+<a name="l1211"><span class="ln">1211 </span></a>EQAaL+sQFPAAABAC4AAAI5ArIACQAAJRUhNQEhNSEVAQI5/fUBof57Aen+YUZGQgIqRkX92QAAAAA 
+<a name="l1212"><span class="ln">1212 </span></a>BAGL/sAEFAwwABwAAARUjETMVIxEBBWlpowMMOP0UOANcAAAB//v/4gE0AtAAAwAABSMDMwE0Pvs+ 
+<a name="l1213"><span class="ln">1213 </span></a>HgLuAAAAAQAi/7AAxQMMAAcAABcjNTMRIzUzxaNpaaNQOALsOAABAFAA1wH0AmgABgAAJQsBIxMzE 
+<a name="l1214"><span class="ln">1214 </span></a>wGwjY1GsESw1wFZ/qcBkf5vAAAAAQAy/6oBwv/iAAMAAAUhNSEBwv5wAZBWOAAAAAEAKQJEALYCsg 
+<a name="l1215"><span class="ln">1215 </span></a>ADAAATIycztjhVUAJEbgAAAAACACT/8gHQAiAAHQAlAAAhJwcGIyImNTQ2OwE1NCcmIyIHIz4BMzI 
+<a name="l1216"><span class="ln">1216 </span></a>XFh0BFBcnMjY9ASYVFAF6CR0wVUtgkJoiAgdgaQlaBm1Zrg4DCuQ9R+5MOSFQR1tbDiwUUXBUXowf 
+<a name="l1217"><span class="ln">1217 </span></a>J8c9SjRORzYSgVwAAAAAAgBK//ICRQLfABEAHgAAATIWFRQGIyImLwEVIxEzETc2EzI2NTQmIyIGH 
+<a name="l1218"><span class="ln">1218 </span></a>QEUFgFUcYCVbiNJEyNWVigySElcU01JXmECIJd4i5QTEDRJAt/+3jkq/hRuZV55ZWsdX14AAQAe// 
+<a name="l1219"><span class="ln">1219 </span></a>IB9wIgABgAAAEyFhcjJiMiBhUUFjMyNjczDgEjIiY1NDYBF152DFocbEJXU0A1Rw1aE3pbaoKQAiB 
+<a name="l1220"><span class="ln">1220 </span></a>oWH5qZm1tPDlaXYuLgZcAAAACAB7/8gIZAt8AEQAeAAABESM1BwYjIiY1NDYzMhYfAREDMjY9ATQm 
+<a name="l1221"><span class="ln">1221 </span></a>IyIGFRQWAhlWKDJacYCVbiNJEyOnSV5hQUlcUwLf/SFVOSqXeIuUExA0ARb9VWVrHV9ebmVeeQACA 
+<a name="l1222"><span class="ln">1222 </span></a>B7/8gH9AiAAFQAbAAABFAchHgEzMjY3Mw4BIyImNTQ2MzIWJyIGByEmAf0C/oAGUkA1SwlaD4FXbI 
+<a name="l1223"><span class="ln">1223 </span></a>WObmt45UBVBwEqDQEYFhNjWD84W16Oh3+akU9aU60AAAEAFQAAARoC8gAWAAATBh0BMxUjESMRIzU 
+<a name="l1224"><span class="ln">1224 </span></a>zNTQ3PgEzMhcVJqcDbW1WOTkDB0k8Hx5oAngVITRC/jQBzEIsJRs5PwVHEwAAAAIAHv8uAhkCIAAi 
+<a name="l1225"><span class="ln">1225 </span></a>AC8AAAERFAcOASMiLwEzFx4BMzI2NzY9AQcGIyImNTQ2MzIWHwE1AzI2PQE0JiMiBhUUFgIZAQSEd 
+<a name="l1226"><span class="ln">1226 </span></a>NwRAVcBBU5DTlUDASgyWnGAlW4jSRMjp0leYUFJXFMCEv5wSh1zeq8KCTI8VU0ZIQk5Kpd4i5QTED 
+<a name="l1227"><span class="ln">1227 </span></a>RJ/iJlax1fXm5lXnkAAQBKAAACCgLkABcAAAEWFREjETQnLgEHDgEdASMRMxE3NjMyFgIIAlYCBDs 
+<a name="l1228"><span class="ln">1228 </span></a>6RVRWViE5UVViAYUbQP7WASQxGzI7AQJyf+kC5P7TPSxUAAACAD4AAACsAsAABwALAAASMhYUBiIm 
+<a name="l1229"><span class="ln">1229 </span></a>NBMjETNeLiAgLiBiVlYCwCAuICAu/WACEgAC//P/LgCnAsAABwAVAAASMhYUBiImNBcRFAcGIyInN 
+<a name="l1230"><span class="ln">1230 </span></a>RY3NjURWS4gIC4gYgMLcRwNSgYCAsAgLiAgLo79wCUbZAJGBzMOHgJEAAAAAQBKAAACCALfAAsAAC 
+<a name="l1231"><span class="ln">1231 </span></a>EnBxUjETMREzMHEwGTwTJWVvdu9/rgN6kC3/4oAQv6/ugAAQBG//wA3gLfAA8AABMRFBceATcVBiM 
+<a name="l1232"><span class="ln">1232 </span></a>iJicmNRGcAQIcIxkkKi4CAQLf/bkhERoSBD4EJC8SNAJKAAAAAQBKAAADEAIgACQAAAEWFREjETQn 
+<a name="l1233"><span class="ln">1233 </span></a>JiMiFREjETQnJiMiFREjETMVNzYzMhYXNzYzMhYDCwVWBAxedFYEDF50VlYiJko7ThAvJkpEVAGfI 
+<a name="l1234"><span class="ln">1234 </span></a>jn+vAEcQyRZ1v76ARxDJFnW/voCEk08HzYtRB9HAAAAAAEASgAAAgoCIAAWAAABFhURIxE0JyYjIg 
+<a name="l1235"><span class="ln">1235 </span></a>YdASMRMxU3NjMyFgIIAlYCCXBEVVZWITlRVWIBhRtA/tYBJDEbbHR/6QISWz0sVAAAAAACAB7/8gI 
+<a name="l1236"><span class="ln">1236 </span></a>sAiAABwARAAASIBYUBiAmNBIyNjU0JiIGFRSlAQCHh/8Ah7ieWlqeWgIgn/Cfn/D+s3ZfYHV1YF8A 
+<a name="l1237"><span class="ln">1237 </span></a>AgBK/zwCRQIgABEAHgAAATIWFRQGIyImLwERIxEzFTc2EzI2NTQmIyIGHQEUFgFUcYCVbiNJEyNWV 
+<a name="l1238"><span class="ln">1238 </span></a>igySElcU01JXmECIJd4i5QTEDT+8wLWVTkq/hRuZV55ZWsdX14AAgAe/zwCGQIgABEAHgAAAREjEQ 
+<a name="l1239"><span class="ln">1239 </span></a>cGIyImNTQ2MzIWHwE1AzI2PQE0JiMiBhUUFgIZVigyWnGAlW4jSRMjp0leYUFJXFMCEv0qARk5Kpd 
+<a name="l1240"><span class="ln">1240 </span></a>4i5QTEDRJ/iJlax1fXm5lXnkAAQBKAAABPgIeAA0AAAEyFxUmBhURIxEzFTc2ARoWDkdXVlYwIwIe 
+<a name="l1241"><span class="ln">1241 </span></a>B0EFVlf+0gISU0cYAAEAGP/yAa0CIAAjAAATMhYXIyYjIgYVFBYXHgEVFAYjIiYnMxYzMjY1NCYnL 
+<a name="l1242"><span class="ln">1242 </span></a>gE1NDbkV2MJWhNdKy04PF1XbVhWbgxaE2ktOjlEUllkAiBaS2MrJCUoEBlPQkhOVFZoKCUmLhIWSE 
+<a name="l1243"><span class="ln">1243 </span></a>BIUwAAAAEAFP/4ARQCiQAXAAATERQXHgE3FQYjIiYnJjURIzUzNTMVMxWxAQMmMx8qMjMEAUdHVmM 
+<a name="l1244"><span class="ln">1244 </span></a>BzP7PGw4mFgY/BSwxDjQBNUJ7e0IAAAABAEL/8gICAhIAFwAAAREjNQcGIyImJyY1ETMRFBceATMy 
+<a name="l1245"><span class="ln">1245 </span></a>Nj0BAgJWITlRT2EKBVYEBkA1RFECEv3uWj4qTToiOQE+/tIlJC43c4DpAAAAAAEAAQAAAfwCEgAGA 
+<a name="l1246"><span class="ln">1246 </span></a>AABAyMDMxsBAfzJaclfop8CEv3uAhL+LQHTAAABAAEAAAMLAhIADAAAAQMjCwEjAzMbATMbAQMLqW 
+<a name="l1247"><span class="ln">1247 </span></a>Z2dmapY3t0a3Z7AhL97gG+/kICEv5AAcD+QwG9AAAB//oAAAHWAhIACwAAARMjJwcjEwMzFzczARq 
+<a name="l1248"><span class="ln">1248 </span></a>8ZIuKY763ZoWFYwEO/vLV1QEMAQbNzQAAAQAB/y4B+wISABEAAAEDDgEjIic1FjMyNj8BAzMbAQH7 
+<a name="l1249"><span class="ln">1249 </span></a>2iFZQB8NDRIpNhQH02GenQIS/cFVUAJGASozEwIt/i4B0gABABQAAAGxAg4ACQAAJRUhNQEhNSEVA 
+<a name="l1250"><span class="ln">1250 </span></a>QGx/mMBNP7iAYL+zkREQgGIREX+ewAAAAABAED/sAEOAwwALAAAASMiBhUUFxYVFAYHHgEVFAcGFR 
+<a name="l1251"><span class="ln">1251 </span></a>QWOwEVIyImNTQ3NjU0JzU2NTQnJjU0NjsBAQ4MKiMLDS4pKS4NCyMqDAtERAwLUlILDERECwLUGBk 
+<a name="l1252"><span class="ln">1252 </span></a>WTlsgKzUFBTcrIFtOFhkYOC87GFVMIkUIOAhFIkxVGDsvAAAAAAEAYP84AJoDIAADAAAXIxEzmjo6 
+<a name="l1253"><span class="ln">1253 </span></a>yAPoAAEAIf+wAO8DDAAsAAATFQYVFBcWFRQGKwE1MzI2NTQnJjU0NjcuATU0NzY1NCYrATUzMhYVF 
+<a name="l1254"><span class="ln">1254 </span></a>AcGFRTvUgsMREQLDCojCw0uKSkuDQsjKgwLREQMCwF6OAhFIkxVGDsvOBgZFk5bICs1BQU3KyBbTh 
+<a name="l1255"><span class="ln">1255 </span></a>YZGDgvOxhVTCJFAAABAE0A3wH2AWQAEwAAATMUIyImJyYjIhUjNDMyFhcWMzIBvjhuGywtQR0xOG4 
+<a name="l1256"><span class="ln">1256 </span></a>bLC1BHTEBZIURGCNMhREYIwAAAwAk/94DIgLoAAcAEQApAAAAIBYQBiAmECQgBhUUFiA2NTQlMhYX 
+<a name="l1257"><span class="ln">1257 </span></a>IyYjIgYUFjMyNjczDgEjIiY1NDYBAQFE3d3+vN0CB/7wubkBELn+xVBnD1wSWDo+QTcqOQZcEmZWX 
+<a name="l1258"><span class="ln">1258 </span></a>HN2Aujg/rbg4AFKpr+Mjb6+jYxbWEldV5ZZNShLVn5na34AAgB4AFIB9AGeAAUACwAAAQcXIyc3Mw 
+<a name="l1259"><span class="ln">1259 </span></a>cXIyc3AUqJiUmJifOJiUmJiQGepqampqampqYAAAIAHAHSAQ4CwAAHAA8AABIyFhQGIiY0NiIGFBY 
+<a name="l1260"><span class="ln">1260 </span></a>yNjRgakREakSTNCEhNCECwEJqQkJqCiM4IyM4AAAAAAIAUAAAAfQCCwALAA8AAAEzFSMVIzUjNTM1 
+<a name="l1261"><span class="ln">1261 </span></a>MxMhNSEBP7W1OrW1OrX+XAGkAVs4tLQ4sP31OAAAAQB0AkQBAQKyAAMAABMjNzOsOD1QAkRuAAAAA 
+<a name="l1262"><span class="ln">1262 </span></a>AEAIADsAKoBdgAHAAASMhYUBiImNEg6KCg6KAF2KDooKDoAAAIAOQBSAbUBngAFAAsAACUHIzcnMw 
+<a name="l1263"><span class="ln">1263 </span></a>UHIzcnMwELiUmJiUkBM4lJiYlJ+KampqampqYAAAABADYB5QDhAt8ABAAAEzczByM2Xk1OXQHv8Po 
+<a name="l1264"><span class="ln">1264 </span></a>AAQAWAeUAwQLfAAQAABMHIzczwV5NTl0C1fD6AAIANgHlAYsC3wAEAAkAABM3MwcjPwEzByM2Xk1O 
+<a name="l1265"><span class="ln">1265 </span></a>XapeTU5dAe/w+grw+gAAAgAWAeUBawLfAAQACQAAEwcjNzMXByM3M8FeTU5dql5NTl0C1fD6CvD6A 
+<a name="l1266"><span class="ln">1266 </span></a>AADACX/8gI1AHIABwAPABcAADYyFhQGIiY0NjIWFAYiJjQ2MhYUBiImNEk4JCQ4JOw4JCQ4JOw4JC 
+<a name="l1267"><span class="ln">1267 </span></a>Q4JHIkOCQkOCQkOCQkOCQkOCQkOAAAAAEAeABSAUoBngAFAAABBxcjJzcBSomJSYmJAZ6mpqamAAA 
+<a name="l1268"><span class="ln">1268 </span></a>AAAEAOQBSAQsBngAFAAAlByM3JzMBC4lJiYlJ+KampgAAAf9qAAABgQKyAAMAACsBATM/VwHAVwKy 
+<a name="l1269"><span class="ln">1269 </span></a>AAAAAAIAFAHIAdwClAAHABQAABMVIxUjNSM1BRUjNwcjJxcjNTMXN9pKMkoByDICKzQqATJLKysCl 
+<a name="l1270"><span class="ln">1270 </span></a>CmjoykBy46KiY3Lm5sAAQAVAAABvALyABgAAAERIxEjESMRIzUzNTQ3NjMyFxUmBgcGHQEBvFbCVj 
+<a name="l1271"><span class="ln">1271 </span></a>k5AxHHHx5iVgcDAg798gHM/jQBzEIOJRuWBUcIJDAVIRYAAAABABX//AHkAvIAJQAAJR4BNxUGIyI 
+<a name="l1272"><span class="ln">1272 </span></a>mJyY1ESYjIgcGHQEzFSMRIxEjNTM1NDc2MzIXERQBowIcIxkkKi4CAR4nXgwDbW1WLy8DEbNdOmYa 
+<a name="l1273"><span class="ln">1273 </span></a>EQQ/BCQvEjQCFQZWFSEWQv40AcxCDiUblhP9uSEAAAAAAAAWAQ4AAQAAAAAAAAATACgAAQAAAAAAA 
+<a name="l1274"><span class="ln">1274 </span></a>QAHAEwAAQAAAAAAAgAHAGQAAQAAAAAAAwAaAKIAAQAAAAAABAAHAM0AAQAAAAAABQA8AU8AAQAAAA 
+<a name="l1275"><span class="ln">1275 </span></a>AABgAPAawAAQAAAAAACAALAdQAAQAAAAAACQALAfgAAQAAAAAACwAXAjQAAQAAAAAADAAXAnwAAwA 
+<a name="l1276"><span class="ln">1276 </span></a>BBAkAAAAmAAAAAwABBAkAAQAOADwAAwABBAkAAgAOAFQAAwABBAkAAwA0AGwAAwABBAkABAAOAL0A 
+<a name="l1277"><span class="ln">1277 </span></a>AwABBAkABQB4ANUAAwABBAkABgAeAYwAAwABBAkACAAWAbwAAwABBAkACQAWAeAAAwABBAkACwAuA 
+<a name="l1278"><span class="ln">1278 </span></a>gQAAwABBAkADAAuAkwATgBvACAAUgBpAGcAaAB0AHMAIABSAGUAcwBlAHIAdgBlAGQALgAATm8gUm 
+<a name="l1279"><span class="ln">1279 </span></a>lnaHRzIFJlc2VydmVkLgAAQQBpAGwAZQByAG8AbgAAQWlsZXJvbgAAUgBlAGcAdQBsAGEAcgAAUmV 
+<a name="l1280"><span class="ln">1280 </span></a>ndWxhcgAAMQAuADEAMAAyADsAVQBLAFcATgA7AEEAaQBsAGUAcgBvAG4ALQBSAGUAZwB1AGwAYQBy 
+<a name="l1281"><span class="ln">1281 </span></a>AAAxLjEwMjtVS1dOO0FpbGVyb24tUmVndWxhcgAAQQBpAGwAZQByAG8AbgAAQWlsZXJvbgAAVgBlA 
+<a name="l1282"><span class="ln">1282 </span></a>HIAcwBpAG8AbgAgADEALgAxADAAMgA7AFAAUwAgADAAMAAxAC4AMQAwADIAOwBoAG8AdABjAG8Abg 
+<a name="l1283"><span class="ln">1283 </span></a>B2ACAAMQAuADAALgA3ADAAOwBtAGEAawBlAG8AdABmAC4AbABpAGIAMgAuADUALgA1ADgAMwAyADk 
+<a name="l1284"><span class="ln">1284 </span></a>AAFZlcnNpb24gMS4xMDI7UFMgMDAxLjEwMjtob3Rjb252IDEuMC43MDttYWtlb3RmLmxpYjIuNS41 
+<a name="l1285"><span class="ln">1285 </span></a>ODMyOQAAQQBpAGwAZQByAG8AbgAtAFIAZQBnAHUAbABhAHIAAEFpbGVyb24tUmVndWxhcgAAUwBvA 
+<a name="l1286"><span class="ln">1286 </span></a>HIAYQAgAFMAYQBnAGEAbgBvAABTb3JhIFNhZ2FubwAAUwBvAHIAYQAgAFMAYQBnAGEAbgBvAABTb3 
+<a name="l1287"><span class="ln">1287 </span></a>JhIFNhZ2FubwAAaAB0AHQAcAA6AC8ALwB3AHcAdwAuAGQAbwB0AGMAbwBsAG8AbgAuAG4AZQB0AAB 
+<a name="l1288"><span class="ln">1288 </span></a>odHRwOi8vd3d3LmRvdGNvbG9uLm5ldAAAaAB0AHQAcAA6AC8ALwB3AHcAdwAuAGQAbwB0AGMAbwBs 
+<a name="l1289"><span class="ln">1289 </span></a>AG8AbgAuAG4AZQB0AABodHRwOi8vd3d3LmRvdGNvbG9uLm5ldAAAAAACAAAAAAAA/4MAMgAAAAAAA 
+<a name="l1290"><span class="ln">1290 </span></a>AAAAAAAAAAAAAAAAAAAAHQAAAABAAIAAwAEAAUABgAHAAgACQAKAAsADAANAA4ADwAQABEAEgATAB 
+<a name="l1291"><span class="ln">1291 </span></a>QAFQAWABcAGAAZABoAGwAcAB0AHgAfACAAIQAiACMAJAAlACYAJwAoACkAKgArACwALQAuAC8AMAA 
+<a name="l1292"><span class="ln">1292 </span></a>xADIAMwA0ADUANgA3ADgAOQA6ADsAPAA9AD4APwBAAEEAQgBDAEQARQBGAEcASABJAEoASwBMAE0A 
+<a name="l1293"><span class="ln">1293 </span></a>TgBPAFAAUQBSAFMAVABVAFYAVwBYAFkAWgBbAFwAXQBeAF8AYABhAIsAqQCDAJMAjQDDAKoAtgC3A 
+<a name="l1294"><span class="ln">1294 </span></a>LQAtQCrAL4AvwC8AIwAwADBAAAAAAAB//8AAgABAAAADAAAABwAAAACAAIAAwBxAAEAcgBzAAIABA 
+<a name="l1295"><span class="ln">1295 </span></a>AAAAIAAAABAAAACgBMAGYAAkRGTFQADmxhdG4AGgAEAAAAAP//AAEAAAAWAANDQVQgAB5NT0wgABZ 
+<a name="l1296"><span class="ln">1296 </span></a>ST00gABYAAP//AAEAAAAA//8AAgAAAAEAAmxpZ2EADmxvY2wAFAAAAAEAAQAAAAEAAAACAAYAEAAG 
+<a name="l1297"><span class="ln">1297 </span></a>AAAAAgASADQABAAAAAEATAADAAAAAgAQABYAAQAcAAAAAQABAE8AAQABAGcAAQABAE8AAwAAAAIAE 
+<a name="l1298"><span class="ln">1298 </span></a>AAWAAEAHAAAAAEAAQAvAAEAAQBnAAEAAQAvAAEAGgABAAgAAgAGAAwAcwACAE8AcgACAEwAAQABAE 
+<a name="l1299"><span class="ln">1299 </span></a>kAAAABAAAACgBGAGAAAkRGTFQADmxhdG4AHAAEAAAAAP//AAIAAAABABYAA0NBVCAAFk1PTCAAFlJ 
+<a name="l1300"><span class="ln">1300 </span></a>PTSAAFgAA//8AAgAAAAEAAmNwc3AADmtlcm4AFAAAAAEAAAAAAAEAAQACAAYADgABAAAAAQASAAIA 
+<a name="l1301"><span class="ln">1301 </span></a>AAACAB4ANgABAAoABQAFAAoAAgABACQAPQAAAAEAEgAEAAAAAQAMAAEAOP/nAAEAAQAkAAIGigAEA 
+<a name="l1302"><span class="ln">1302 </span></a>AAFJAXKABoAGQAA//gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1303"><span class="ln">1303 </span></a>AAAAD/sv+4/+z/7v/MAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1304"><span class="ln">1304 </span></a>AAAAAAAD/xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/9T/6AAAAAD/8QAA 
+<a name="l1305"><span class="ln">1305 </span></a>ABD/vQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/7gAAAAAAAAAAAAAAAAAA//MAA 
+<a name="l1306"><span class="ln">1306 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABIAAAAAAAAAAP/5AAAAAAAAAA 
+<a name="l1307"><span class="ln">1307 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/gAAD/4AAAAAAAAAAAAAAAAAA 
+<a name="l1308"><span class="ln">1308 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//L/9AAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1309"><span class="ln">1309 </span></a>AAAAAAAAAAAA/+gAAAAAAAkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1310"><span class="ln">1310 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/zAAAAAA 
+<a name="l1311"><span class="ln">1311 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/mAAAAAAAAAAAAAAAAAAD 
+<a name="l1312"><span class="ln">1312 </span></a>/4gAA//AAAAAA//YAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+AAAAAAAAP/OAAAAAAAAAAAAAAAA 
+<a name="l1313"><span class="ln">1313 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/zv/qAAAAAP/0AAAACAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1314"><span class="ln">1314 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/ZAAD/egAA/1kAAAAA/5D/rgAAAAAAAAAAAA 
+<a name="l1315"><span class="ln">1315 </span></a>AAAAAAAAAAAAAAAAD/9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1316"><span class="ln">1316 </span></a>AAAAAAAAAAAAAAAAAAAD/8AAA/7b/8P+wAAD/8P/E/98AAAAA/8P/+P/0//oAAAAAAAAAAAAA//gA 
+<a name="l1317"><span class="ln">1317 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+AAAAAAAAAAAAAAA 
+<a name="l1318"><span class="ln">1318 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/w//C/9MAAP/SAAD/9wAAAAAAAA 
+<a name="l1319"><span class="ln">1319 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAD/yAAA/+kAAAAA//QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1320"><span class="ln">1320 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/9wAAAAD//QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1321"><span class="ln">1321 </span></a>AAAAAAAAAAAAAAAAAAAAAP/2AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1322"><span class="ln">1322 </span></a>AAAAAAAAP/cAAAAAAAAAAAAAAAA/7YAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1323"><span class="ln">1323 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAP/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/6AAAAAAAAAA 
+<a name="l1324"><span class="ln">1324 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAkAFAAEAAAAAQACwAAABcA 
+<a name="l1325"><span class="ln">1325 </span></a>BgAAAAAAAAAIAA4AAAAAAAsAEgAAAAAAAAATABkAAwANAAAAAQAJAAAAAAAAAAAAAAAAAAAAGAAAA 
+<a name="l1326"><span class="ln">1326 </span></a>AAABwAAAAAAAAAAAAAAFQAFAAAAAAAYABgAAAAUAAAACgAAAAwAAgAPABEAFgAAAAAAAAAAAAAAAA 
+<a name="l1327"><span class="ln">1327 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFAAEAEQBdAAYAAAAAAAAAAAAAAAAAAAAAAAA 
+<a name="l1328"><span class="ln">1328 </span></a>AAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAcAAAAAAAAABwAAAAAACAAAAAAAAAAAAAcAAAAHAAAAEwAJ 
+<a name="l1329"><span class="ln">1329 </span></a>ABUADgAPAAAACwAQAAAAAAAAAAAAAAAAAAUAGAACAAIAAgAAAAIAGAAXAAAAGAAAABYAFgACABYAA 
+<a name="l1330"><span class="ln">1330 </span></a>gAWAAAAEQADAAoAFAAMAA0ABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASAAAAEgAGAAEAHgAkAC 
+<a name="l1331"><span class="ln">1331 </span></a>YAJwApACoALQAuAC8AMgAzADcAOAA5ADoAPAA9AEUASABOAE8AUgBTAFUAVwBZAFoAWwBcAF0AcwA 
+<a name="l1332"><span class="ln">1332 </span></a>AAAAAAQAAAADa3tfFAAAAANAan9kAAAAA4QodoQ== 
+<a name="l1333"><span class="ln">1333 </span></a>&quot;&quot;&quot;</span>
+<a name="l1334"><span class="ln">1334 </span></a>                <span class="s3">)</span>
+<a name="l1335"><span class="ln">1335 </span></a>            <span class="s3">),</span>
+<a name="l1336"><span class="ln">1336 </span></a>            <span class="s4">10 </span><span class="s2">if </span><span class="s1">size </span><span class="s2">is None else </span><span class="s1">size</span><span class="s3">,</span>
+<a name="l1337"><span class="ln">1337 </span></a>            <span class="s1">layout_engine</span><span class="s2">=</span><span class="s1">Layout</span><span class="s3">.</span><span class="s1">BASIC</span><span class="s3">,</span>
+<a name="l1338"><span class="ln">1338 </span></a>        <span class="s3">)</span>
+<a name="l1339"><span class="ln">1339 </span></a>    <span class="s2">return </span><span class="s1">load_default_imagefont</span><span class="s3">()</span>
+<a name="l1340"><span class="ln">1340 </span></a></pre>
+</body>
+</html>

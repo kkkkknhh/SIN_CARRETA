@@ -1,0 +1,707 @@
+<html>
+<head>
+<title>MemoryAccess.cuh</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #63a35c;}
+.s1 { color: #a71d5d;}
+.s2 { color: #333333;}
+.s3 { color: #795da3;}
+.s4 { color: #183691;}
+.s5 { color: #969896;}
+.s6 { color: #333333;}
+.s7 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+MemoryAccess.cuh</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#</span><span class="s1">pragma </span><span class="s3">once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">array</span><span class="s0">&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">cstdint</span><span class="s0">&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">type_traits</span><span class="s0">&gt;</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">c10/core/DynamicCast.h</span><span class="s0">&gt;</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">c10/util/Exception.h</span><span class="s0">&gt;</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">c10/util/TypeCast.h</span><span class="s0">&gt;</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">c10/macros/Macros.h</span><span class="s0">&gt;</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">ATen/detail/FunctionTraits.h</span><span class="s0">&gt;</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">ATen/cuda/detail/OffsetCalculator.cuh</span><span class="s0">&gt;</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">ATen/native/cuda/thread_constants.h</span><span class="s0">&gt;</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s0">#</span><span class="s1">include </span><span class="s0">&lt;</span><span class="s4">thrust/tuple.h</span><span class="s0">&gt;</span>
+<a name="l15"><span class="ln">15   </span></a>
+<a name="l16"><span class="ln">16   </span></a><span class="s0">// </span><span class="s5">References: 
+<a name="l17"><span class="ln">17   </span></a></span><span class="s0">// </span><span class="s5">https://devblogs.nvidia.com/cuda-pro-tip-increase-performance-with-vectorized-memory-access/ 
+<a name="l18"><span class="ln">18   </span></a></span>
+<a name="l19"><span class="ln">19   </span></a><span class="s1">namespace </span><span class="s6">at</span><span class="s0">::</span><span class="s6">native</span><span class="s0">::</span><span class="s6">memory </span><span class="s0">{</span>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s1">namespace </span><span class="s6">detail </span><span class="s0">{</span>
+<a name="l22"><span class="ln">22   </span></a>
+<a name="l23"><span class="ln">23   </span></a><span class="s0">// </span><span class="s5">What does the `static_unroll` do? 
+<a name="l24"><span class="ln">24   </span></a></span><span class="s0">//</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s0">// </span><span class="s5">We want to do something like: 
+<a name="l26"><span class="ln">26   </span></a></span><span class="s0">//</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s0">//    </span><span class="s5">using args_t = typename traits::ArgsTuple; 
+<a name="l28"><span class="ln">28   </span></a></span><span class="s0">//    </span><span class="s5">args_t args; 
+<a name="l29"><span class="ln">29   </span></a></span><span class="s0">//    </span><span class="s5">#pragma unroll 
+<a name="l30"><span class="ln">30   </span></a></span><span class="s0">//    </span><span class="s5">for (int i = 0; i &lt; traits::arity; i++) { 
+<a name="l31"><span class="ln">31   </span></a></span><span class="s0">//      </span><span class="s5">std::get&lt;i&gt;(args) = .... 
+<a name="l32"><span class="ln">32   </span></a></span><span class="s0">//    </span><span class="s5">} 
+<a name="l33"><span class="ln">33   </span></a></span><span class="s0">//</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s0">// </span><span class="s5">but unfortunately the above code does not work because 
+<a name="l35"><span class="ln">35   </span></a></span><span class="s0">// </span><span class="s5">the template argument has to be a compile time constant 
+<a name="l36"><span class="ln">36   </span></a></span><span class="s0">// </span><span class="s5">so `static_unroll` is created to simulate `#pragma unroll` 
+<a name="l37"><span class="ln">37   </span></a></span><span class="s0">// </span><span class="s5">using template metaprogramming. 
+<a name="l38"><span class="ln">38   </span></a></span>
+<a name="l39"><span class="ln">39   </span></a><span class="s1">template</span><span class="s0">&lt;</span><span class="s2">template&lt;int i&gt; typename func, int end, int current=0</span><span class="s0">&gt; 
+<a name="l40"><span class="ln">40   </span></a></span><span class="s1">struct </span><span class="s6">static_unroll </span><span class="s0">{</span>
+<a name="l41"><span class="ln">41   </span></a>  <span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename... Args</span><span class="s0">&gt; 
+<a name="l42"><span class="ln">42   </span></a>  </span><span class="s1">static inline </span><span class="s2">C10_HOST_DEVICE </span><span class="s1">void </span><span class="s3">with_args</span><span class="s0">(</span><span class="s2">Args</span><span class="s1">&amp;&amp;</span><span class="s2">... args</span><span class="s0">) {</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s6">func</span><span class="s2">&lt;current&gt;</span><span class="s0">::</span><span class="s3">apply</span><span class="s0">(</span><span class="s6">std</span><span class="s0">::</span><span class="s3">forward</span><span class="s2">&lt;Args&gt;</span><span class="s0">(</span><span class="s2">args</span><span class="s0">)</span><span class="s2">...</span><span class="s0">);</span>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s6">static_unroll</span><span class="s2">&lt;func, end, current+1&gt;</span><span class="s0">::</span><span class="s3">with_args</span><span class="s0">(</span><span class="s2">args...</span><span class="s0">);</span>
+<a name="l45"><span class="ln">45   </span></a>  <span class="s0">}</span>
+<a name="l46"><span class="ln">46   </span></a><span class="s0">};</span>
+<a name="l47"><span class="ln">47   </span></a>
+<a name="l48"><span class="ln">48   </span></a><span class="s1">template</span><span class="s0">&lt;</span><span class="s2">template&lt;int i&gt; typename func, int end</span><span class="s0">&gt; 
+<a name="l49"><span class="ln">49   </span></a></span><span class="s1">struct </span><span class="s6">static_unroll</span><span class="s0">&lt;</span><span class="s6">func</span><span class="s0">, </span><span class="s6">end</span><span class="s0">, </span><span class="s6">end</span><span class="s0">&gt; {</span>
+<a name="l50"><span class="ln">50   </span></a>  <span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename... Args</span><span class="s0">&gt; 
+<a name="l51"><span class="ln">51   </span></a>  </span><span class="s1">static inline </span><span class="s2">C10_HOST_DEVICE </span><span class="s1">void </span><span class="s3">with_args</span><span class="s0">(</span><span class="s2">Args... </span><span class="s0">/*</span><span class="s5">args</span><span class="s0">*/) {}</span>
+<a name="l52"><span class="ln">52   </span></a><span class="s0">};</span>
+<a name="l53"><span class="ln">53   </span></a>
+<a name="l54"><span class="ln">54   </span></a><span class="s0">// </span><span class="s5">helper structs to be used with static_unroll to load arguments 
+<a name="l55"><span class="ln">55   </span></a></span><span class="s0">// </span><span class="s5">one by one 
+<a name="l56"><span class="ln">56   </span></a></span>
+<a name="l57"><span class="ln">57   </span></a><span class="s1">template</span><span class="s0">&lt;</span><span class="s2">int arg_index</span><span class="s0">&gt; 
+<a name="l58"><span class="ln">58   </span></a></span><span class="s1">struct </span><span class="s6">vectorized_load_helper </span><span class="s0">{</span>
+<a name="l59"><span class="ln">59   </span></a>  <span class="s1">template </span><span class="s0">&lt;</span><span class="s2">typename args_t, typename policy_t</span><span class="s0">&gt; 
+<a name="l60"><span class="ln">60   </span></a>  </span><span class="s1">static __device__ </span><span class="s2">void </span><span class="s3">apply</span><span class="s0">(</span><span class="s7">policy_t </span><span class="s1">&amp;</span><span class="s7">self</span><span class="s0">, </span><span class="s7">args_t </span><span class="s1">*</span><span class="s7">args</span><span class="s0">, </span><span class="s1">int </span><span class="s7">idx</span><span class="s0">, </span><span class="s1">int </span><span class="s7">block_work_size</span><span class="s0">) {</span>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s1">using </span><span class="s2">arg_t </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">tuple_element_t&lt;arg_index, args_t&gt;</span><span class="s0">;</span>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s0">// </span><span class="s5">`data` hold the data_ptr for tensors [output, input0, input1, ...], so we 
+<a name="l63"><span class="ln">63   </span></a>    </span><span class="s0">// </span><span class="s5">need a +1 offset to get the input 
+<a name="l64"><span class="ln">64   </span></a>    </span><span class="s1">auto </span><span class="s2">ptr </span><span class="s1">= reinterpret_cast&lt;</span><span class="s7">arg_t </span><span class="s1">*&gt;</span><span class="s0">(</span><span class="s7">self</span><span class="s0">.</span><span class="s7">data</span><span class="s0">[</span><span class="s2">arg_index </span><span class="s1">+ </span><span class="s7">1</span><span class="s0">]) </span><span class="s1">+ </span><span class="s2">block_work_size </span><span class="s1">* </span><span class="s2">idx</span><span class="s0">;</span>
+<a name="l65"><span class="ln">65   </span></a>    <span class="s1">auto </span><span class="s2">args_accessor </span><span class="s1">= </span><span class="s0">[</span><span class="s2">&amp;args</span><span class="s0">] </span><span class="s2">__device__ </span><span class="s0">(</span><span class="s1">int </span><span class="s7">thread_unroll_idx</span><span class="s0">) -&gt; </span><span class="s1">arg_t &amp; </span><span class="s0">{ </span><span class="s1">return </span><span class="s6">std</span><span class="s0">::</span><span class="s3">get</span><span class="s2">&lt;arg_index&gt;</span><span class="s0">(</span><span class="s7">args</span><span class="s0">[</span><span class="s2">thread_unroll_idx</span><span class="s0">]); };</span>
+<a name="l66"><span class="ln">66   </span></a>    <span class="s7">self</span><span class="s0">.</span><span class="s3">load_single_arg</span><span class="s0">(</span><span class="s2">args_accessor</span><span class="s0">, </span><span class="s2">ptr</span><span class="s0">);</span>
+<a name="l67"><span class="ln">67   </span></a>  <span class="s0">}</span>
+<a name="l68"><span class="ln">68   </span></a><span class="s0">};</span>
+<a name="l69"><span class="ln">69   </span></a>
+<a name="l70"><span class="ln">70   </span></a><span class="s0">#</span><span class="s1">ifdef </span><span class="s3">USE_ROCM</span>
+<a name="l71"><span class="ln">71   </span></a><span class="s0">// </span><span class="s5">Templated version of vectorized load helper. 
+<a name="l72"><span class="ln">72   </span></a></span><span class="s0">// </span><span class="s5">It can be used on heterogeneous input tensor element types. 
+<a name="l73"><span class="ln">73   </span></a></span><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">int arg_index</span><span class="s0">&gt; 
+<a name="l74"><span class="ln">74   </span></a></span><span class="s1">struct </span><span class="s6">vectorized_templated_load_helper </span><span class="s0">{</span>
+<a name="l75"><span class="ln">75   </span></a>  <span class="s1">template </span><span class="s0">&lt;</span><span class="s2">typename args_t, typename policy_t</span><span class="s0">&gt; 
+<a name="l76"><span class="ln">76   </span></a>  </span><span class="s1">static __device__ </span><span class="s2">void </span><span class="s3">apply</span><span class="s0">(</span><span class="s7">policy_t</span><span class="s1">&amp; </span><span class="s7">self</span><span class="s0">, </span><span class="s7">args_t</span><span class="s1">* </span><span class="s7">args</span><span class="s0">, </span><span class="s1">int </span><span class="s7">idx</span><span class="s0">) {</span>
+<a name="l77"><span class="ln">77   </span></a>    <span class="s1">using </span><span class="s2">arg_t </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">tuple_element_t&lt;arg_index, args_t&gt;</span><span class="s0">;</span>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s0">// </span><span class="s5">`data` hold the data_ptr for tensors [output, input0, input1, ...], so we 
+<a name="l79"><span class="ln">79   </span></a>    </span><span class="s0">// </span><span class="s5">need a +1 offset to get the input 
+<a name="l80"><span class="ln">80   </span></a></span>
+<a name="l81"><span class="ln">81   </span></a>    <span class="s0">// </span><span class="s5">Delay pointer arithmetic to the policy loader where we know the actual 
+<a name="l82"><span class="ln">82   </span></a>    </span><span class="s0">// </span><span class="s5">type of the current argument. 
+<a name="l83"><span class="ln">83   </span></a>    </span><span class="s1">char* </span><span class="s2">ptr </span><span class="s1">= </span><span class="s0">(</span><span class="s7">self</span><span class="s0">.</span><span class="s7">data</span><span class="s0">[</span><span class="s2">arg_index </span><span class="s1">+ </span><span class="s7">1</span><span class="s0">]);</span>
+<a name="l84"><span class="ln">84   </span></a>    <span class="s1">auto </span><span class="s2">args_accessor </span><span class="s1">= </span><span class="s0">[</span><span class="s2">&amp;args</span><span class="s0">] </span><span class="s2">__device__</span><span class="s0">(</span><span class="s1">int </span><span class="s7">thread_unroll_idx</span><span class="s0">) -&gt; </span><span class="s1">arg_t&amp; </span><span class="s0">{</span>
+<a name="l85"><span class="ln">85   </span></a>      <span class="s1">return </span><span class="s6">std</span><span class="s0">::</span><span class="s3">get</span><span class="s2">&lt;arg_index&gt;</span><span class="s0">(</span><span class="s7">args</span><span class="s0">[</span><span class="s2">thread_unroll_idx</span><span class="s0">]);</span>
+<a name="l86"><span class="ln">86   </span></a>    <span class="s0">};</span>
+<a name="l87"><span class="ln">87   </span></a>    <span class="s7">self</span><span class="s0">.</span><span class="s7">template </span><span class="s3">load_single_arg</span><span class="s2">&lt;arg_index&gt;</span><span class="s0">(</span><span class="s2">args_accessor</span><span class="s0">, </span><span class="s2">ptr</span><span class="s0">, </span><span class="s2">idx</span><span class="s0">);</span>
+<a name="l88"><span class="ln">88   </span></a>  <span class="s0">}</span>
+<a name="l89"><span class="ln">89   </span></a><span class="s0">};</span>
+<a name="l90"><span class="ln">90   </span></a><span class="s0">#</span><span class="s1">endif</span>
+<a name="l91"><span class="ln">91   </span></a>
+<a name="l92"><span class="ln">92   </span></a><span class="s1">template</span><span class="s0">&lt;</span><span class="s2">int arg_index</span><span class="s0">&gt; 
+<a name="l93"><span class="ln">93   </span></a></span><span class="s1">struct </span><span class="s6">unroll_load_helper </span><span class="s0">{</span>
+<a name="l94"><span class="ln">94   </span></a>  <span class="s1">template </span><span class="s0">&lt;</span><span class="s2">typename args_t, typename policy_t, typename offset_t, typename loader_t</span><span class="s0">&gt; 
+<a name="l95"><span class="ln">95   </span></a>  </span><span class="s1">static __device__ </span><span class="s2">void </span><span class="s3">apply</span><span class="s0">(</span><span class="s7">policy_t </span><span class="s1">&amp;</span><span class="s7">self</span><span class="s0">, </span><span class="s7">args_t </span><span class="s1">*</span><span class="s7">args</span><span class="s0">, </span><span class="s7">offset_t offset</span><span class="s0">, </span><span class="s7">loader_t loader</span><span class="s0">, </span><span class="s1">int </span><span class="s7">j</span><span class="s0">, </span><span class="s1">int </span><span class="s7">num_outputs</span><span class="s0">) {</span>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s1">using </span><span class="s2">arg_t </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">tuple_element_t&lt;arg_index, args_t&gt;</span><span class="s0">;</span>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s0">// </span><span class="s5">`data` hold the data_ptr for tensors [output, input0, input1, ...], so we 
+<a name="l98"><span class="ln">98   </span></a>    </span><span class="s0">// </span><span class="s5">need a +1 offset to get the input 
+<a name="l99"><span class="ln">99   </span></a>    </span><span class="s6">std</span><span class="s0">::</span><span class="s3">get</span><span class="s2">&lt;arg_index&gt;</span><span class="s0">(</span><span class="s7">args</span><span class="s0">[</span><span class="s2">j</span><span class="s0">]) </span><span class="s1">= </span><span class="s7">loader</span><span class="s0">.</span><span class="s7">template </span><span class="s3">load</span><span class="s2">&lt;arg_t&gt;</span><span class="s0">(</span><span class="s7">self</span><span class="s0">.</span><span class="s7">data</span><span class="s0">[</span><span class="s2">arg_index </span><span class="s1">+ </span><span class="s2">num_outputs</span><span class="s0">], </span><span class="s7">offset</span><span class="s0">[</span><span class="s2">arg_index</span><span class="s0">], </span><span class="s2">arg_index</span><span class="s0">);</span>
+<a name="l100"><span class="ln">100  </span></a>  <span class="s0">}</span>
+<a name="l101"><span class="ln">101  </span></a><span class="s0">};</span>
+<a name="l102"><span class="ln">102  </span></a>
+<a name="l103"><span class="ln">103  </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">int current</span><span class="s0">&gt; 
+<a name="l104"><span class="ln">104  </span></a></span><span class="s1">struct </span><span class="s6">multi_outputs_store_helper </span><span class="s0">{</span>
+<a name="l105"><span class="ln">105  </span></a>  <span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename data_t, typename offsets_t, typename ...Args</span><span class="s0">&gt; 
+<a name="l106"><span class="ln">106  </span></a>  </span><span class="s2">C10_HOST_DEVICE </span><span class="s1">static </span><span class="s2">void </span><span class="s3">apply</span><span class="s0">(</span>
+<a name="l107"><span class="ln">107  </span></a>      <span class="s1">const </span><span class="s7">data_t</span><span class="s1">&amp; </span><span class="s7">data</span><span class="s0">,</span>
+<a name="l108"><span class="ln">108  </span></a>      <span class="s1">const </span><span class="s7">offsets_t</span><span class="s1">&amp; </span><span class="s7">offsets</span><span class="s0">,</span>
+<a name="l109"><span class="ln">109  </span></a>      <span class="s6">thrust</span><span class="s0">::</span><span class="s6">tuple</span><span class="s0">&lt;</span><span class="s2">Args...</span><span class="s0">&gt; </span><span class="s7">ret</span><span class="s0">) {</span>
+<a name="l110"><span class="ln">110  </span></a>    <span class="s1">using </span><span class="s2">T </span><span class="s1">= typename </span><span class="s6">thrust</span><span class="s0">::</span><span class="s6">tuple_element</span><span class="s0">&lt;</span><span class="s6">current</span><span class="s0">, </span><span class="s6">thrust</span><span class="s0">::</span><span class="s6">tuple</span><span class="s0">&lt;</span><span class="s2">Args...</span><span class="s0">&gt;&gt;::</span><span class="s2">type</span><span class="s0">;</span>
+<a name="l111"><span class="ln">111  </span></a>    <span class="s2">T </span><span class="s1">*</span><span class="s2">to </span><span class="s1">= reinterpret_cast&lt;</span><span class="s2">T </span><span class="s1">*&gt;</span><span class="s0">(</span><span class="s6">data</span><span class="s0">[</span><span class="s2">current</span><span class="s0">]) </span><span class="s1">+ </span><span class="s7">offsets</span><span class="s0">[</span><span class="s2">current</span><span class="s0">];</span>
+<a name="l112"><span class="ln">112  </span></a>    <span class="s1">*</span><span class="s2">to </span><span class="s1">= </span><span class="s6">thrust</span><span class="s0">::</span><span class="s3">get</span><span class="s2">&lt;current&gt;</span><span class="s0">(</span><span class="s2">ret</span><span class="s0">);</span>
+<a name="l113"><span class="ln">113  </span></a>  <span class="s0">}</span>
+<a name="l114"><span class="ln">114  </span></a><span class="s2">}</span><span class="s0">;</span>
+<a name="l115"><span class="ln">115  </span></a>
+<a name="l116"><span class="ln">116  </span></a><span class="s0">}  // </span><span class="s5">namespace detail 
+<a name="l117"><span class="ln">117  </span></a></span>
+<a name="l118"><span class="ln">118  </span></a><span class="s1">struct </span><span class="s6">LoadWithoutCast </span><span class="s0">{</span>
+<a name="l119"><span class="ln">119  </span></a>  <span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename scalar_t</span><span class="s0">&gt; 
+<a name="l120"><span class="ln">120  </span></a>  </span><span class="s1">__device__ </span><span class="s2">scalar_t </span><span class="s3">load</span><span class="s0">(</span><span class="s1">char *</span><span class="s7">base_ptr</span><span class="s0">, </span><span class="s1">uint32_t </span><span class="s7">offset</span><span class="s0">, </span><span class="s1">int </span><span class="s7">arg</span><span class="s0">) {</span>
+<a name="l121"><span class="ln">121  </span></a>    <span class="s1">return </span><span class="s6">c10</span><span class="s0">::</span><span class="s3">load</span><span class="s0">(</span><span class="s1">reinterpret_cast&lt;</span><span class="s7">scalar_t </span><span class="s1">*&gt;</span><span class="s0">(</span><span class="s2">base_ptr</span><span class="s0">) </span><span class="s1">+ </span><span class="s2">offset</span><span class="s0">);</span>
+<a name="l122"><span class="ln">122  </span></a>  <span class="s0">}</span>
+<a name="l123"><span class="ln">123  </span></a><span class="s0">};</span>
+<a name="l124"><span class="ln">124  </span></a>
+<a name="l125"><span class="ln">125  </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">int N</span><span class="s0">&gt; 
+<a name="l126"><span class="ln">126  </span></a></span><span class="s1">struct </span><span class="s6">LoadWithCast </span><span class="s0">{</span>
+<a name="l127"><span class="ln">127  </span></a>  <span class="s1">using </span><span class="s2">array_t </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">array&lt;at::ScalarType, std::max&lt;int&gt;(N, 1)&gt;</span><span class="s0">;</span>
+<a name="l128"><span class="ln">128  </span></a>  <span class="s1">using </span><span class="s2">size_array_t </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">array&lt;uint32_t, std::max&lt;int&gt;(N, 1)&gt;</span><span class="s0">;</span>
+<a name="l129"><span class="ln">129  </span></a>
+<a name="l130"><span class="ln">130  </span></a>  <span class="s7">array_t </span><span class="s2">dtypes</span><span class="s0">;</span>
+<a name="l131"><span class="ln">131  </span></a>  <span class="s7">size_array_t </span><span class="s2">element_sizes</span><span class="s0">;</span>
+<a name="l132"><span class="ln">132  </span></a>
+<a name="l133"><span class="ln">133  </span></a>  <span class="s3">LoadWithCast</span><span class="s0">(</span><span class="s1">const </span><span class="s6">TensorIteratorBase</span><span class="s1">&amp; </span><span class="s7">iter</span><span class="s0">) {</span>
+<a name="l134"><span class="ln">134  </span></a>    <span class="s3">CUDA_KERNEL_ASSERT</span><span class="s0">(</span><span class="s7">iter</span><span class="s0">.</span><span class="s3">ninputs</span><span class="s0">() </span><span class="s1">== </span><span class="s2">N</span><span class="s0">);</span>
+<a name="l135"><span class="ln">135  </span></a>    <span class="s0">#</span><span class="s1">pragma </span><span class="s3">unroll</span>
+<a name="l136"><span class="ln">136  </span></a>    <span class="s1">for </span><span class="s0">(</span><span class="s1">auto </span><span class="s2">i </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s2">N</span><span class="s0">; </span><span class="s1">++</span><span class="s2">i</span><span class="s0">) {</span>
+<a name="l137"><span class="ln">137  </span></a>      <span class="s7">this</span><span class="s0">-&gt;</span><span class="s7">dtypes</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] </span><span class="s1">= </span><span class="s7">iter</span><span class="s0">.</span><span class="s3">dtype</span><span class="s0">(</span><span class="s2">i </span><span class="s1">+ </span><span class="s7">iter</span><span class="s0">.</span><span class="s3">noutputs</span><span class="s0">());</span>
+<a name="l138"><span class="ln">138  </span></a>      <span class="s7">element_sizes</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] </span><span class="s1">= </span><span class="s6">c10</span><span class="s0">::</span><span class="s3">elementSize</span><span class="s0">(</span><span class="s7">iter</span><span class="s0">.</span><span class="s3">dtype</span><span class="s0">(</span><span class="s2">i </span><span class="s1">+ </span><span class="s7">iter</span><span class="s0">.</span><span class="s3">noutputs</span><span class="s0">()));</span>
+<a name="l139"><span class="ln">139  </span></a>    <span class="s0">}</span>
+<a name="l140"><span class="ln">140  </span></a>  <span class="s0">}</span>
+<a name="l141"><span class="ln">141  </span></a>
+<a name="l142"><span class="ln">142  </span></a>  <span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename scalar_t</span><span class="s0">&gt; 
+<a name="l143"><span class="ln">143  </span></a>  </span><span class="s1">__device__ </span><span class="s2">scalar_t </span><span class="s3">load</span><span class="s0">(</span><span class="s1">char *</span><span class="s7">base_ptr</span><span class="s0">, </span><span class="s1">uint32_t </span><span class="s7">offset</span><span class="s0">, </span><span class="s1">int </span><span class="s7">arg</span><span class="s0">) {</span>
+<a name="l144"><span class="ln">144  </span></a>    <span class="s1">void *</span><span class="s2">ptr </span><span class="s1">= </span><span class="s2">base_ptr </span><span class="s1">+ </span><span class="s7">element_sizes</span><span class="s0">[</span><span class="s2">arg</span><span class="s0">] </span><span class="s1">* </span><span class="s2">offset</span><span class="s0">;</span>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s1">return </span><span class="s6">c10</span><span class="s0">::</span><span class="s3">fetch_and_cast</span><span class="s2">&lt;scalar_t&gt;</span><span class="s0">(</span><span class="s7">dtypes</span><span class="s0">[</span><span class="s2">arg</span><span class="s0">], </span><span class="s2">ptr</span><span class="s0">);</span>
+<a name="l146"><span class="ln">146  </span></a>  <span class="s0">}</span>
+<a name="l147"><span class="ln">147  </span></a><span class="s0">};</span>
+<a name="l148"><span class="ln">148  </span></a>
+<a name="l149"><span class="ln">149  </span></a><span class="s1">struct </span><span class="s6">StoreWithoutCast </span><span class="s0">{</span>
+<a name="l150"><span class="ln">150  </span></a>  <span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename scalar_t</span><span class="s0">&gt; 
+<a name="l151"><span class="ln">151  </span></a>  </span><span class="s1">__device__ </span><span class="s2">void </span><span class="s3">store</span><span class="s0">(</span><span class="s7">scalar_t value</span><span class="s0">, </span><span class="s1">char *</span><span class="s7">base_ptr</span><span class="s0">, </span><span class="s1">uint32_t </span><span class="s7">offset</span><span class="s0">, </span><span class="s1">int </span><span class="s7">arg </span><span class="s1">= </span><span class="s7">0</span><span class="s0">) {</span>
+<a name="l152"><span class="ln">152  </span></a>    <span class="s1">*</span><span class="s0">(</span><span class="s1">reinterpret_cast&lt;</span><span class="s7">scalar_t </span><span class="s1">*&gt;</span><span class="s0">(</span><span class="s2">base_ptr</span><span class="s0">) </span><span class="s1">+ </span><span class="s2">offset</span><span class="s0">) </span><span class="s1">= </span><span class="s2">value</span><span class="s0">;</span>
+<a name="l153"><span class="ln">153  </span></a>  <span class="s0">}</span>
+<a name="l154"><span class="ln">154  </span></a><span class="s0">};</span>
+<a name="l155"><span class="ln">155  </span></a>
+<a name="l156"><span class="ln">156  </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">int N = 1</span><span class="s0">&gt; 
+<a name="l157"><span class="ln">157  </span></a></span><span class="s1">struct </span><span class="s6">StoreWithCast </span><span class="s0">{</span>
+<a name="l158"><span class="ln">158  </span></a>  <span class="s1">using </span><span class="s2">array_t </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">array&lt;at::ScalarType, std::max&lt;int&gt;(N, 1)&gt;</span><span class="s0">;</span>
+<a name="l159"><span class="ln">159  </span></a>  <span class="s1">using </span><span class="s2">size_array_t </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">array&lt;uint32_t, std::max&lt;int&gt;(N, 1)&gt;</span><span class="s0">;</span>
+<a name="l160"><span class="ln">160  </span></a>
+<a name="l161"><span class="ln">161  </span></a>  <span class="s7">array_t </span><span class="s2">dtypes</span><span class="s0">;</span>
+<a name="l162"><span class="ln">162  </span></a>  <span class="s7">size_array_t </span><span class="s2">element_sizes</span><span class="s0">;</span>
+<a name="l163"><span class="ln">163  </span></a>
+<a name="l164"><span class="ln">164  </span></a>  <span class="s3">StoreWithCast</span><span class="s0">(</span><span class="s1">const </span><span class="s6">TensorIteratorBase</span><span class="s1">&amp; </span><span class="s7">iter</span><span class="s0">) {</span>
+<a name="l165"><span class="ln">165  </span></a>    <span class="s3">CUDA_KERNEL_ASSERT</span><span class="s0">(</span><span class="s7">iter</span><span class="s0">.</span><span class="s3">noutputs</span><span class="s0">() </span><span class="s1">== </span><span class="s2">N</span><span class="s0">);</span>
+<a name="l166"><span class="ln">166  </span></a>    <span class="s0">#</span><span class="s1">pragma </span><span class="s3">unroll</span>
+<a name="l167"><span class="ln">167  </span></a>    <span class="s1">for </span><span class="s0">(</span><span class="s1">auto </span><span class="s2">i </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s2">N</span><span class="s0">; </span><span class="s1">++</span><span class="s2">i</span><span class="s0">) {</span>
+<a name="l168"><span class="ln">168  </span></a>      <span class="s7">this</span><span class="s0">-&gt;</span><span class="s7">dtypes</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] </span><span class="s1">= </span><span class="s7">iter</span><span class="s0">.</span><span class="s3">dtype</span><span class="s0">(</span><span class="s2">i</span><span class="s0">);</span>
+<a name="l169"><span class="ln">169  </span></a>      <span class="s7">element_sizes</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] </span><span class="s1">= </span><span class="s6">c10</span><span class="s0">::</span><span class="s3">elementSize</span><span class="s0">(</span><span class="s7">iter</span><span class="s0">.</span><span class="s3">dtype</span><span class="s0">(</span><span class="s2">i</span><span class="s0">));</span>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s0">}</span>
+<a name="l171"><span class="ln">171  </span></a>  <span class="s0">}</span>
+<a name="l172"><span class="ln">172  </span></a>
+<a name="l173"><span class="ln">173  </span></a>  <span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename scalar_t</span><span class="s0">&gt; 
+<a name="l174"><span class="ln">174  </span></a>  </span><span class="s1">__device__ </span><span class="s2">void </span><span class="s3">store</span><span class="s0">(</span><span class="s7">scalar_t value</span><span class="s0">, </span><span class="s1">char *</span><span class="s7">base_ptr</span><span class="s0">, </span><span class="s1">uint32_t </span><span class="s7">offset</span><span class="s0">, </span><span class="s1">int </span><span class="s7">arg </span><span class="s1">= </span><span class="s7">0</span><span class="s0">) {</span>
+<a name="l175"><span class="ln">175  </span></a>    <span class="s1">void *</span><span class="s2">ptr </span><span class="s1">= </span><span class="s2">base_ptr </span><span class="s1">+ </span><span class="s7">element_sizes</span><span class="s0">[</span><span class="s2">arg</span><span class="s0">] </span><span class="s1">* </span><span class="s2">offset</span><span class="s0">;</span>
+<a name="l176"><span class="ln">176  </span></a>    <span class="s6">c10</span><span class="s0">::</span><span class="s3">cast_and_store</span><span class="s2">&lt;scalar_t&gt;</span><span class="s0">(</span><span class="s7">dtypes</span><span class="s0">[</span><span class="s2">arg</span><span class="s0">], </span><span class="s2">ptr</span><span class="s0">, </span><span class="s2">value</span><span class="s0">);</span>
+<a name="l177"><span class="ln">177  </span></a>  <span class="s0">}</span>
+<a name="l178"><span class="ln">178  </span></a><span class="s0">};</span>
+<a name="l179"><span class="ln">179  </span></a>
+<a name="l180"><span class="ln">180  </span></a><span class="s0">// </span><span class="s5">aligned vector generates vectorized load/store on CUDA 
+<a name="l181"><span class="ln">181  </span></a></span><span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename scalar_t, int vec_size</span><span class="s0">&gt; 
+<a name="l182"><span class="ln">182  </span></a></span><span class="s1">struct </span><span class="s0">alignas(</span><span class="s3">sizeof</span><span class="s2">(scalar_t) * vec_size) aligned_vector </span><span class="s0">{</span>
+<a name="l183"><span class="ln">183  </span></a>  <span class="s7">scalar_t val</span><span class="s0">[</span><span class="s2">vec_size</span><span class="s0">];</span>
+<a name="l184"><span class="ln">184  </span></a><span class="s0">};</span>
+<a name="l185"><span class="ln">185  </span></a>
+<a name="l186"><span class="ln">186  </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">int vec_size, typename scalar_t</span><span class="s0">&gt; 
+<a name="l187"><span class="ln">187  </span></a></span><span class="s1">__device__ </span><span class="s2">aligned_vector&lt;scalar_t, vec_size&gt; </span><span class="s3">load_vector</span><span class="s0">(</span><span class="s1">const </span><span class="s7">scalar_t </span><span class="s1">*</span><span class="s7">base_ptr</span><span class="s0">, </span><span class="s1">uint32_t </span><span class="s7">offset</span><span class="s0">) {</span>
+<a name="l188"><span class="ln">188  </span></a>  <span class="s1">using </span><span class="s2">vec_t </span><span class="s1">= </span><span class="s2">aligned_vector&lt;scalar_t, vec_size&gt;</span><span class="s0">;</span>
+<a name="l189"><span class="ln">189  </span></a>  <span class="s1">auto *</span><span class="s2">from </span><span class="s1">= reinterpret_cast&lt;const </span><span class="s7">vec_t </span><span class="s1">*&gt;</span><span class="s0">(</span><span class="s2">base_ptr</span><span class="s0">);</span>
+<a name="l190"><span class="ln">190  </span></a><span class="s0">#</span><span class="s1">if defined</span><span class="s0">(</span><span class="s3">USE_ROCM</span><span class="s0">) </span><span class="s1">&amp;&amp; defined</span><span class="s0">(</span><span class="s3">__gfx942__</span><span class="s0">)</span>
+<a name="l191"><span class="ln">191  </span></a>  <span class="s1">using </span><span class="s2">longx2 </span><span class="s1">= </span><span class="s0">__attribute__((</span><span class="s3">__vector_size__</span><span class="s2">(4*sizeof(int)</span><span class="s0">))</span><span class="s2">) int</span><span class="s0">;</span>
+<a name="l192"><span class="ln">192  </span></a>  <span class="s1">if constexpr </span><span class="s0">(</span><span class="s1">sizeof</span><span class="s0">(</span><span class="s7">vec_t</span><span class="s0">) </span><span class="s1">== sizeof</span><span class="s0">(</span><span class="s1">int</span><span class="s0">)) {</span>
+<a name="l193"><span class="ln">193  </span></a>   <span class="s1">union </span><span class="s0">{</span>
+<a name="l194"><span class="ln">194  </span></a>     <span class="s7">vec_t </span><span class="s2">v</span><span class="s0">;</span>
+<a name="l195"><span class="ln">195  </span></a>     <span class="s1">int   </span><span class="s2">i</span><span class="s0">;</span>
+<a name="l196"><span class="ln">196  </span></a>   <span class="s0">} </span><span class="s2">tmpt </span><span class="s1">= </span><span class="s0">{ </span><span class="s2">.i </span><span class="s1">= </span><span class="s3">__builtin_nontemporal_load</span><span class="s0">(</span><span class="s1">reinterpret_cast&lt;const int *&gt;</span><span class="s0">(</span><span class="s1">&amp;</span><span class="s0">(</span><span class="s7">from</span><span class="s0">[</span><span class="s2">offset</span><span class="s0">]))) };</span>
+<a name="l197"><span class="ln">197  </span></a>   <span class="s1">return </span><span class="s7">tmpt</span><span class="s0">.</span><span class="s7">v</span><span class="s0">;</span>
+<a name="l198"><span class="ln">198  </span></a>  <span class="s0">}</span>
+<a name="l199"><span class="ln">199  </span></a>  <span class="s1">else if constexpr </span><span class="s0">(</span><span class="s1">sizeof</span><span class="s0">(</span><span class="s7">vec_t</span><span class="s0">) </span><span class="s1">== sizeof</span><span class="s0">(</span><span class="s1">long</span><span class="s0">)) {</span>
+<a name="l200"><span class="ln">200  </span></a>   <span class="s1">union </span><span class="s0">{</span>
+<a name="l201"><span class="ln">201  </span></a>     <span class="s7">vec_t </span><span class="s2">v</span><span class="s0">;</span>
+<a name="l202"><span class="ln">202  </span></a>     <span class="s1">long   </span><span class="s2">i</span><span class="s0">;</span>
+<a name="l203"><span class="ln">203  </span></a>   <span class="s0">} </span><span class="s2">tmpt </span><span class="s1">= </span><span class="s0">{ </span><span class="s2">.i </span><span class="s1">= </span><span class="s3">__builtin_nontemporal_load</span><span class="s0">(</span><span class="s1">reinterpret_cast&lt;const long *&gt;</span><span class="s0">(</span><span class="s1">&amp;</span><span class="s0">(</span><span class="s7">from</span><span class="s0">[</span><span class="s2">offset</span><span class="s0">]))) };</span>
+<a name="l204"><span class="ln">204  </span></a>   <span class="s1">return </span><span class="s7">tmpt</span><span class="s0">.</span><span class="s7">v</span><span class="s0">;</span>
+<a name="l205"><span class="ln">205  </span></a>  <span class="s0">}</span>
+<a name="l206"><span class="ln">206  </span></a>  <span class="s1">else if constexpr </span><span class="s0">(</span><span class="s1">sizeof</span><span class="s0">(</span><span class="s7">vec_t</span><span class="s0">) </span><span class="s1">== sizeof</span><span class="s0">(</span><span class="s2">longx2</span><span class="s0">)) {</span>
+<a name="l207"><span class="ln">207  </span></a>   <span class="s1">union </span><span class="s0">{</span>
+<a name="l208"><span class="ln">208  </span></a>     <span class="s7">vec_t </span><span class="s2">v</span><span class="s0">;</span>
+<a name="l209"><span class="ln">209  </span></a>     <span class="s2">longx2  i</span><span class="s0">;</span>
+<a name="l210"><span class="ln">210  </span></a>   <span class="s0">} </span><span class="s2">tmpt </span><span class="s1">= </span><span class="s0">{ </span><span class="s2">.i </span><span class="s1">= </span><span class="s3">__builtin_nontemporal_load</span><span class="s0">(</span><span class="s1">reinterpret_cast&lt;const </span><span class="s2">longx2 </span><span class="s1">*&gt;</span><span class="s0">(</span><span class="s1">&amp;</span><span class="s0">(</span><span class="s7">from</span><span class="s0">[</span><span class="s2">offset</span><span class="s0">]))) };</span>
+<a name="l211"><span class="ln">211  </span></a>   <span class="s1">return </span><span class="s7">tmpt</span><span class="s0">.</span><span class="s7">v</span><span class="s0">;</span>
+<a name="l212"><span class="ln">212  </span></a>  <span class="s0">}</span>
+<a name="l213"><span class="ln">213  </span></a><span class="s0">#</span><span class="s1">endif</span>
+<a name="l214"><span class="ln">214  </span></a>  <span class="s1">return </span><span class="s7">from</span><span class="s0">[</span><span class="s2">offset</span><span class="s0">];</span>
+<a name="l215"><span class="ln">215  </span></a><span class="s0">}</span>
+<a name="l216"><span class="ln">216  </span></a>
+<a name="l217"><span class="ln">217  </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">int vec_size</span><span class="s0">&gt; 
+<a name="l218"><span class="ln">218  </span></a></span><span class="s1">__device__ </span><span class="s2">aligned_vector&lt;bool, vec_size&gt; </span><span class="s3">load_vector</span><span class="s0">(</span><span class="s1">const bool *</span><span class="s7">base_ptr</span><span class="s0">, </span><span class="s1">uint32_t </span><span class="s7">offset</span><span class="s0">) {</span>
+<a name="l219"><span class="ln">219  </span></a>  <span class="s0">// </span><span class="s5">See NOTE [Loading boolean values] 
+<a name="l220"><span class="ln">220  </span></a>  </span><span class="s1">auto </span><span class="s2">tmp </span><span class="s1">= </span><span class="s3">load_vector</span><span class="s2">&lt;vec_size&gt;</span><span class="s0">(</span><span class="s1">reinterpret_cast&lt;const uint8_t*&gt;</span><span class="s0">(</span><span class="s2">base_ptr</span><span class="s0">), </span><span class="s2">offset</span><span class="s0">);</span>
+<a name="l221"><span class="ln">221  </span></a>  <span class="s2">aligned_vector</span><span class="s1">&lt;bool</span><span class="s0">, </span><span class="s2">vec_size</span><span class="s1">&gt; </span><span class="s2">ret</span><span class="s0">;</span>
+<a name="l222"><span class="ln">222  </span></a>  <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">i </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s2">vec_size</span><span class="s0">; </span><span class="s1">++</span><span class="s2">i</span><span class="s0">) {</span>
+<a name="l223"><span class="ln">223  </span></a>    <span class="s7">ret</span><span class="s0">.</span><span class="s7">val</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] </span><span class="s1">= bool</span><span class="s0">(</span><span class="s7">tmp</span><span class="s0">.</span><span class="s7">val</span><span class="s0">[</span><span class="s2">i</span><span class="s0">]);</span>
+<a name="l224"><span class="ln">224  </span></a>  <span class="s0">}</span>
+<a name="l225"><span class="ln">225  </span></a>  <span class="s1">return </span><span class="s2">ret</span><span class="s0">;</span>
+<a name="l226"><span class="ln">226  </span></a><span class="s0">}</span>
+<a name="l227"><span class="ln">227  </span></a>
+<a name="l228"><span class="ln">228  </span></a><span class="s1">namespace </span><span class="s6">policies </span><span class="s0">{</span>
+<a name="l229"><span class="ln">229  </span></a>
+<a name="l230"><span class="ln">230  </span></a><span class="s1">template </span><span class="s0">&lt;</span>
+<a name="l231"><span class="ln">231  </span></a>    <span class="s1">int </span><span class="s6">num_threads</span><span class="s0">,</span>
+<a name="l232"><span class="ln">232  </span></a>    <span class="s1">typename </span><span class="s6">data_t</span><span class="s0">,</span>
+<a name="l233"><span class="ln">233  </span></a>    <span class="s1">typename </span><span class="s6">inp_calc_t</span><span class="s0">,</span>
+<a name="l234"><span class="ln">234  </span></a>    <span class="s1">typename </span><span class="s6">out_calc_t</span><span class="s0">,</span>
+<a name="l235"><span class="ln">235  </span></a>    <span class="s1">typename </span><span class="s6">loader_t</span><span class="s0">,</span>
+<a name="l236"><span class="ln">236  </span></a>    <span class="s1">typename </span><span class="s6">storer_t</span><span class="s0">,</span>
+<a name="l237"><span class="ln">237  </span></a>    <span class="s1">int </span><span class="s6">elems_per_thread</span><span class="s0">,</span>
+<a name="l238"><span class="ln">238  </span></a>    <span class="s1">int </span><span class="s2">num_outputs </span><span class="s1">= </span><span class="s7">1</span><span class="s0">&gt;</span>
+<a name="l239"><span class="ln">239  </span></a><span class="s1">struct </span><span class="s6">unroll_base </span><span class="s0">{</span>
+<a name="l240"><span class="ln">240  </span></a>  <span class="s7">data_t </span><span class="s2">data</span><span class="s0">;</span>
+<a name="l241"><span class="ln">241  </span></a>  <span class="s1">int </span><span class="s2">remaining</span><span class="s0">;</span>
+<a name="l242"><span class="ln">242  </span></a>  <span class="s7">inp_calc_t </span><span class="s2">input_offset_calculator</span><span class="s0">;</span>
+<a name="l243"><span class="ln">243  </span></a>  <span class="s7">out_calc_t </span><span class="s2">output_offset_calculator</span><span class="s0">;</span>
+<a name="l244"><span class="ln">244  </span></a>  <span class="s7">loader_t </span><span class="s2">loader</span><span class="s0">;</span>
+<a name="l245"><span class="ln">245  </span></a>  <span class="s7">storer_t </span><span class="s2">storer</span><span class="s0">;</span>
+<a name="l246"><span class="ln">246  </span></a>  <span class="s1">static constexpr int </span><span class="s2">tws </span><span class="s1">= </span><span class="s2">elems_per_thread</span><span class="s0">;</span>
+<a name="l247"><span class="ln">247  </span></a>  <span class="s1">static constexpr int </span><span class="s2">block_work_size </span><span class="s1">= </span><span class="s2">elems_per_thread </span><span class="s1">* </span><span class="s2">num_threads</span><span class="s0">;</span>
+<a name="l248"><span class="ln">248  </span></a>
+<a name="l249"><span class="ln">249  </span></a>  <span class="s1">__device__ </span><span class="s3">unroll_base</span><span class="s0">(</span>
+<a name="l250"><span class="ln">250  </span></a>      <span class="s7">data_t data</span><span class="s0">,</span>
+<a name="l251"><span class="ln">251  </span></a>      <span class="s1">int </span><span class="s7">remaining</span><span class="s0">,</span>
+<a name="l252"><span class="ln">252  </span></a>      <span class="s7">inp_calc_t ic</span><span class="s0">,</span>
+<a name="l253"><span class="ln">253  </span></a>      <span class="s7">out_calc_t oc</span><span class="s0">,</span>
+<a name="l254"><span class="ln">254  </span></a>      <span class="s7">loader_t l</span><span class="s0">,</span>
+<a name="l255"><span class="ln">255  </span></a>      <span class="s7">storer_t s</span><span class="s0">)</span>
+<a name="l256"><span class="ln">256  </span></a>      <span class="s0">: </span><span class="s3">data</span><span class="s0">(</span><span class="s2">data</span><span class="s0">),</span>
+<a name="l257"><span class="ln">257  </span></a>        <span class="s3">remaining</span><span class="s0">(</span><span class="s2">remaining</span><span class="s0">),</span>
+<a name="l258"><span class="ln">258  </span></a>        <span class="s3">input_offset_calculator</span><span class="s0">(</span><span class="s2">ic</span><span class="s0">),</span>
+<a name="l259"><span class="ln">259  </span></a>        <span class="s3">output_offset_calculator</span><span class="s0">(</span><span class="s2">oc</span><span class="s0">),</span>
+<a name="l260"><span class="ln">260  </span></a>        <span class="s3">loader</span><span class="s0">(</span><span class="s2">l</span><span class="s0">),</span>
+<a name="l261"><span class="ln">261  </span></a>        <span class="s3">storer</span><span class="s0">(</span><span class="s2">s</span><span class="s0">) {}</span>
+<a name="l262"><span class="ln">262  </span></a>
+<a name="l263"><span class="ln">263  </span></a>  <span class="s1">__device__ inline </span><span class="s2">bool </span><span class="s3">check_inbounds</span><span class="s0">(</span><span class="s1">int </span><span class="s7">thread_work_elem</span><span class="s0">) {</span>
+<a name="l264"><span class="ln">264  </span></a>    <span class="s1">return </span><span class="s0">((</span><span class="s1">int</span><span class="s0">)(</span><span class="s7">threadIdx</span><span class="s0">.</span><span class="s7">x </span><span class="s1">+ </span><span class="s2">thread_work_elem </span><span class="s1">* </span><span class="s2">num_threads</span><span class="s0">) </span><span class="s1">&lt; </span><span class="s2">remaining</span><span class="s0">);</span>
+<a name="l265"><span class="ln">265  </span></a>  <span class="s0">}</span>
+<a name="l266"><span class="ln">266  </span></a>
+<a name="l267"><span class="ln">267  </span></a>  <span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename args_t</span><span class="s0">&gt; 
+<a name="l268"><span class="ln">268  </span></a>  </span><span class="s1">__device__ inline </span><span class="s2">void </span><span class="s3">load</span><span class="s0">(</span><span class="s7">args_t </span><span class="s1">*</span><span class="s7">args</span><span class="s0">, </span><span class="s1">int </span><span class="s7">idx</span><span class="s0">) {</span>
+<a name="l269"><span class="ln">269  </span></a>    <span class="s1">constexpr int </span><span class="s2">arity </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">tuple_size_v</span><span class="s1">&lt;</span><span class="s7">args_t</span><span class="s1">&gt;</span><span class="s0">;</span>
+<a name="l270"><span class="ln">270  </span></a>    <span class="s1">int </span><span class="s2">thread_idx </span><span class="s1">= threadIdx</span><span class="s2">.x</span><span class="s0">;</span>
+<a name="l271"><span class="ln">271  </span></a>    <span class="s0">#</span><span class="s1">pragma </span><span class="s3">unroll</span>
+<a name="l272"><span class="ln">272  </span></a>    <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">i </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s2">elems_per_thread</span><span class="s0">; </span><span class="s2">i</span><span class="s1">++</span><span class="s0">) {</span>
+<a name="l273"><span class="ln">273  </span></a>      <span class="s1">if </span><span class="s0">(</span><span class="s2">thread_idx </span><span class="s1">&lt; </span><span class="s2">remaining</span><span class="s0">) {</span>
+<a name="l274"><span class="ln">274  </span></a>        <span class="s1">int </span><span class="s2">linear_idx </span><span class="s1">= </span><span class="s2">thread_idx </span><span class="s1">+ </span><span class="s2">block_work_size </span><span class="s1">* </span><span class="s2">idx</span><span class="s0">;</span>
+<a name="l275"><span class="ln">275  </span></a>        <span class="s1">auto </span><span class="s2">offset </span><span class="s1">= </span><span class="s7">input_offset_calculator</span><span class="s0">.</span><span class="s3">get</span><span class="s0">(</span><span class="s2">linear_idx</span><span class="s0">);</span>
+<a name="l276"><span class="ln">276  </span></a>        <span class="s6">detail</span><span class="s0">::</span><span class="s6">static_unroll</span><span class="s2">&lt;detail::unroll_load_helper, arity&gt;</span><span class="s0">::</span><span class="s3">with_args</span><span class="s0">(</span>
+<a name="l277"><span class="ln">277  </span></a>            <span class="s1">*</span><span class="s7">this</span><span class="s0">, </span><span class="s2">args</span><span class="s0">, </span><span class="s2">offset</span><span class="s0">, </span><span class="s2">loader</span><span class="s0">, </span><span class="s2">i</span><span class="s0">, </span><span class="s2">num_outputs</span><span class="s0">);</span>
+<a name="l278"><span class="ln">278  </span></a>        <span class="s2">thread_idx </span><span class="s1">+= </span><span class="s2">num_threads</span><span class="s0">;</span>
+<a name="l279"><span class="ln">279  </span></a>      <span class="s0">}</span>
+<a name="l280"><span class="ln">280  </span></a>    <span class="s0">}</span>
+<a name="l281"><span class="ln">281  </span></a>  <span class="s0">}</span>
+<a name="l282"><span class="ln">282  </span></a>
+<a name="l283"><span class="ln">283  </span></a>  <span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename scalar_t</span><span class="s0">&gt; 
+<a name="l284"><span class="ln">284  </span></a>  </span><span class="s1">__device__ inline </span><span class="s2">void </span><span class="s3">store</span><span class="s0">(</span><span class="s7">scalar_t </span><span class="s1">*</span><span class="s7">from</span><span class="s0">, </span><span class="s1">int </span><span class="s7">idx</span><span class="s0">) {</span>
+<a name="l285"><span class="ln">285  </span></a>    <span class="s1">int </span><span class="s2">thread_idx </span><span class="s1">= threadIdx</span><span class="s2">.x</span><span class="s0">;</span>
+<a name="l286"><span class="ln">286  </span></a>    <span class="s0">#</span><span class="s1">pragma </span><span class="s3">unroll</span>
+<a name="l287"><span class="ln">287  </span></a>    <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">i </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s2">elems_per_thread</span><span class="s0">; </span><span class="s2">i</span><span class="s1">++</span><span class="s0">) {</span>
+<a name="l288"><span class="ln">288  </span></a>      <span class="s1">if </span><span class="s0">(</span><span class="s2">thread_idx </span><span class="s1">&lt; </span><span class="s2">remaining</span><span class="s0">) {</span>
+<a name="l289"><span class="ln">289  </span></a>        <span class="s1">int </span><span class="s2">linear_idx </span><span class="s1">= </span><span class="s2">thread_idx </span><span class="s1">+ </span><span class="s2">block_work_size </span><span class="s1">* </span><span class="s2">idx</span><span class="s0">;</span>
+<a name="l290"><span class="ln">290  </span></a>        <span class="s1">int </span><span class="s2">offset </span><span class="s1">= </span><span class="s7">output_offset_calculator</span><span class="s0">.</span><span class="s3">get</span><span class="s0">(</span><span class="s2">linear_idx</span><span class="s0">)[</span><span class="s7">0</span><span class="s0">];</span>
+<a name="l291"><span class="ln">291  </span></a>        <span class="s7">storer</span><span class="s0">.</span><span class="s3">store</span><span class="s0">(</span><span class="s7">from</span><span class="s0">[</span><span class="s2">i</span><span class="s0">], </span><span class="s7">data</span><span class="s0">[</span><span class="s7">0</span><span class="s0">], </span><span class="s2">offset</span><span class="s0">);</span>
+<a name="l292"><span class="ln">292  </span></a>        <span class="s2">thread_idx </span><span class="s1">+= </span><span class="s2">num_threads</span><span class="s0">;</span>
+<a name="l293"><span class="ln">293  </span></a>      <span class="s0">}</span>
+<a name="l294"><span class="ln">294  </span></a>    <span class="s0">}</span>
+<a name="l295"><span class="ln">295  </span></a>  <span class="s0">}</span>
+<a name="l296"><span class="ln">296  </span></a><span class="s0">};</span>
+<a name="l297"><span class="ln">297  </span></a>
+<a name="l298"><span class="ln">298  </span></a><span class="s0">// </span><span class="s5">Utility type for all users of unroll that extract the num_threads value from 
+<a name="l299"><span class="ln">299  </span></a></span><span class="s0">// </span><span class="s5">the caller scope. 
+<a name="l300"><span class="ln">300  </span></a></span><span class="s1">template </span><span class="s0">&lt;</span>
+<a name="l301"><span class="ln">301  </span></a>    <span class="s1">typename </span><span class="s6">data_t</span><span class="s0">,</span>
+<a name="l302"><span class="ln">302  </span></a>    <span class="s1">typename </span><span class="s6">inp_calc_t</span><span class="s0">,</span>
+<a name="l303"><span class="ln">303  </span></a>    <span class="s1">typename </span><span class="s6">out_calc_t</span><span class="s0">,</span>
+<a name="l304"><span class="ln">304  </span></a>    <span class="s1">typename </span><span class="s6">loader_t</span><span class="s0">,</span>
+<a name="l305"><span class="ln">305  </span></a>    <span class="s1">typename </span><span class="s6">storer_t</span><span class="s0">,</span>
+<a name="l306"><span class="ln">306  </span></a>    <span class="s1">int </span><span class="s6">elems_per_thread</span><span class="s0">,</span>
+<a name="l307"><span class="ln">307  </span></a>    <span class="s1">int </span><span class="s2">num_outputs </span><span class="s1">= </span><span class="s7">1</span><span class="s0">&gt;</span>
+<a name="l308"><span class="ln">308  </span></a><span class="s1">using </span><span class="s2">unroll </span><span class="s1">= </span><span class="s2">unroll_base&lt;</span>
+<a name="l309"><span class="ln">309  </span></a>    <span class="s3">num_threads</span><span class="s0">(),</span>
+<a name="l310"><span class="ln">310  </span></a>    <span class="s7">data_t</span><span class="s0">,</span>
+<a name="l311"><span class="ln">311  </span></a>    <span class="s7">inp_calc_t</span><span class="s0">,</span>
+<a name="l312"><span class="ln">312  </span></a>    <span class="s7">out_calc_t</span><span class="s0">,</span>
+<a name="l313"><span class="ln">313  </span></a>    <span class="s7">loader_t</span><span class="s0">,</span>
+<a name="l314"><span class="ln">314  </span></a>    <span class="s7">storer_t</span><span class="s0">,</span>
+<a name="l315"><span class="ln">315  </span></a>    <span class="s2">elems_per_thread</span><span class="s0">,</span>
+<a name="l316"><span class="ln">316  </span></a>    <span class="s2">num_outputs</span><span class="s1">&gt;</span><span class="s0">;</span>
+<a name="l317"><span class="ln">317  </span></a>
+<a name="l318"><span class="ln">318  </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s1">int </span><span class="s6">vec_size</span><span class="s0">, </span><span class="s1">typename </span><span class="s6">data_t</span><span class="s0">, </span><span class="s1">int </span><span class="s6">elems_per_thread</span><span class="s0">&gt;  // </span><span class="s5">vec_size: number of scalars, can be 1, 2, or 4. 
+<a name="l319"><span class="ln">319  </span></a></span><span class="s1">struct </span><span class="s6">vectorized </span><span class="s0">{</span>
+<a name="l320"><span class="ln">320  </span></a>
+<a name="l321"><span class="ln">321  </span></a>  <span class="s1">static_assert</span><span class="s0">(</span><span class="s2">elems_per_thread </span><span class="s1">% </span><span class="s2">vec_size </span><span class="s1">== </span><span class="s7">0</span><span class="s0">, &quot;</span><span class="s4">The workload per thread must be a multiple of vec_size</span><span class="s0">&quot;);</span>
+<a name="l322"><span class="ln">322  </span></a>  <span class="s1">static constexpr int </span><span class="s2">loop_size </span><span class="s1">= </span><span class="s2">elems_per_thread </span><span class="s1">/ </span><span class="s2">vec_size</span><span class="s0">;</span>
+<a name="l323"><span class="ln">323  </span></a>  <span class="s1">static constexpr int </span><span class="s2">tws </span><span class="s1">= </span><span class="s2">elems_per_thread</span><span class="s0">;</span>
+<a name="l324"><span class="ln">324  </span></a>
+<a name="l325"><span class="ln">325  </span></a>  <span class="s7">data_t </span><span class="s2">data</span><span class="s0">;</span>
+<a name="l326"><span class="ln">326  </span></a>
+<a name="l327"><span class="ln">327  </span></a>  <span class="s1">__device__ </span><span class="s3">vectorized</span><span class="s0">(</span><span class="s7">data_t data</span><span class="s0">) : </span><span class="s3">data</span><span class="s0">(</span><span class="s2">data</span><span class="s0">) {}</span>
+<a name="l328"><span class="ln">328  </span></a>
+<a name="l329"><span class="ln">329  </span></a>  <span class="s1">__device__ inline constexpr </span><span class="s2">bool </span><span class="s3">check_inbounds</span><span class="s0">(</span><span class="s1">int </span><span class="s7">thread_work_elem</span><span class="s0">) {</span>
+<a name="l330"><span class="ln">330  </span></a>    <span class="s1">return </span><span class="s7">true</span><span class="s0">;</span>
+<a name="l331"><span class="ln">331  </span></a>  <span class="s0">}</span>
+<a name="l332"><span class="ln">332  </span></a>
+<a name="l333"><span class="ln">333  </span></a>  <span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename accessor_t, typename scalar_t</span><span class="s0">&gt; 
+<a name="l334"><span class="ln">334  </span></a>  </span><span class="s1">__device__ inline </span><span class="s2">void </span><span class="s3">load_single_arg</span><span class="s0">(</span><span class="s7">accessor_t to</span><span class="s0">, </span><span class="s7">scalar_t </span><span class="s1">*</span><span class="s7">from</span><span class="s0">) {</span>
+<a name="l335"><span class="ln">335  </span></a>    <span class="s1">int </span><span class="s2">thread_idx </span><span class="s1">= threadIdx</span><span class="s2">.x</span><span class="s0">;</span>
+<a name="l336"><span class="ln">336  </span></a>    <span class="s0">#</span><span class="s1">pragma </span><span class="s3">unroll</span>
+<a name="l337"><span class="ln">337  </span></a>    <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">i </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s2">loop_size</span><span class="s0">; </span><span class="s2">i</span><span class="s1">++</span><span class="s0">) {</span>
+<a name="l338"><span class="ln">338  </span></a>      <span class="s1">int </span><span class="s2">index </span><span class="s1">= </span><span class="s2">thread_idx </span><span class="s1">+ </span><span class="s2">i </span><span class="s1">* </span><span class="s3">num_threads</span><span class="s0">();</span>
+<a name="l339"><span class="ln">339  </span></a>      <span class="s1">auto </span><span class="s2">v </span><span class="s1">= </span><span class="s3">load_vector</span><span class="s2">&lt;vec_size&gt;</span><span class="s0">(</span><span class="s2">from</span><span class="s0">, </span><span class="s2">index</span><span class="s0">);</span>
+<a name="l340"><span class="ln">340  </span></a>      <span class="s0">#</span><span class="s1">pragma </span><span class="s3">unroll</span>
+<a name="l341"><span class="ln">341  </span></a>      <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">j </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">j </span><span class="s1">&lt; </span><span class="s2">vec_size</span><span class="s0">; </span><span class="s2">j</span><span class="s1">++</span><span class="s0">) {</span>
+<a name="l342"><span class="ln">342  </span></a>        <span class="s3">to</span><span class="s0">(</span><span class="s2">vec_size </span><span class="s1">* </span><span class="s2">i </span><span class="s1">+ </span><span class="s2">j</span><span class="s0">) </span><span class="s1">= </span><span class="s7">v</span><span class="s0">.</span><span class="s7">val</span><span class="s0">[</span><span class="s2">j</span><span class="s0">];</span>
+<a name="l343"><span class="ln">343  </span></a>      <span class="s0">}</span>
+<a name="l344"><span class="ln">344  </span></a>    <span class="s0">}</span>
+<a name="l345"><span class="ln">345  </span></a>  <span class="s0">}</span>
+<a name="l346"><span class="ln">346  </span></a>
+<a name="l347"><span class="ln">347  </span></a>  <span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename args_t</span><span class="s0">&gt; 
+<a name="l348"><span class="ln">348  </span></a>  </span><span class="s1">__device__ inline </span><span class="s2">void </span><span class="s3">load</span><span class="s0">(</span><span class="s7">args_t </span><span class="s1">*</span><span class="s7">args</span><span class="s0">, </span><span class="s1">int </span><span class="s7">idx</span><span class="s0">) {</span>
+<a name="l349"><span class="ln">349  </span></a>    <span class="s1">constexpr int </span><span class="s2">arity </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">tuple_size_v</span><span class="s1">&lt;</span><span class="s7">args_t</span><span class="s1">&gt;</span><span class="s0">;</span>
+<a name="l350"><span class="ln">350  </span></a>    <span class="s6">detail</span><span class="s0">::</span><span class="s6">static_unroll</span><span class="s2">&lt;detail::vectorized_load_helper, arity&gt;</span><span class="s0">::</span><span class="s3">with_args</span><span class="s0">(</span><span class="s1">*</span><span class="s7">this</span><span class="s0">, </span><span class="s2">args</span><span class="s0">, </span><span class="s2">idx</span><span class="s0">, </span><span class="s2">elems_per_thread </span><span class="s1">* </span><span class="s3">num_threads</span><span class="s0">());</span>
+<a name="l351"><span class="ln">351  </span></a>  <span class="s0">}</span>
+<a name="l352"><span class="ln">352  </span></a>
+<a name="l353"><span class="ln">353  </span></a>  <span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename scalar_t</span><span class="s0">&gt; 
+<a name="l354"><span class="ln">354  </span></a>  </span><span class="s1">__device__ inline </span><span class="s2">void </span><span class="s3">store</span><span class="s0">(</span><span class="s7">scalar_t </span><span class="s1">*</span><span class="s7">from</span><span class="s0">, </span><span class="s1">int </span><span class="s7">idx</span><span class="s0">) {</span>
+<a name="l355"><span class="ln">355  </span></a>    <span class="s1">using </span><span class="s2">vec_t </span><span class="s1">= </span><span class="s2">aligned_vector&lt;scalar_t, vec_size&gt;</span><span class="s0">;</span>
+<a name="l356"><span class="ln">356  </span></a>    <span class="s7">scalar_t </span><span class="s1">*</span><span class="s2">to </span><span class="s1">= reinterpret_cast&lt;</span><span class="s7">scalar_t </span><span class="s1">*&gt;</span><span class="s0">(</span><span class="s7">data</span><span class="s0">[</span><span class="s7">0</span><span class="s0">]) </span><span class="s1">+ </span><span class="s2">elems_per_thread </span><span class="s1">* </span><span class="s3">num_threads</span><span class="s0">() </span><span class="s1">* </span><span class="s2">idx</span><span class="s0">;</span>
+<a name="l357"><span class="ln">357  </span></a>    <span class="s7">vec_t </span><span class="s1">*</span><span class="s2">to_ </span><span class="s1">= reinterpret_cast&lt;</span><span class="s7">vec_t </span><span class="s1">*&gt;</span><span class="s0">(</span><span class="s2">to</span><span class="s0">);</span>
+<a name="l358"><span class="ln">358  </span></a>    <span class="s1">int </span><span class="s2">thread_idx </span><span class="s1">= threadIdx</span><span class="s2">.x</span><span class="s0">;</span>
+<a name="l359"><span class="ln">359  </span></a>    <span class="s0">#</span><span class="s1">pragma </span><span class="s3">unroll</span>
+<a name="l360"><span class="ln">360  </span></a>    <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">i </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s2">loop_size</span><span class="s0">; </span><span class="s2">i</span><span class="s1">++</span><span class="s0">) {</span>
+<a name="l361"><span class="ln">361  </span></a>      <span class="s1">int </span><span class="s2">index </span><span class="s1">= </span><span class="s2">thread_idx </span><span class="s1">+ </span><span class="s2">i </span><span class="s1">* </span><span class="s3">num_threads</span><span class="s0">();</span>
+<a name="l362"><span class="ln">362  </span></a>      <span class="s7">vec_t </span><span class="s2">v</span><span class="s0">;</span>
+<a name="l363"><span class="ln">363  </span></a>      <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">j </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">j </span><span class="s1">&lt; </span><span class="s2">vec_size</span><span class="s0">; </span><span class="s2">j</span><span class="s1">++</span><span class="s0">) {</span>
+<a name="l364"><span class="ln">364  </span></a>        <span class="s7">v</span><span class="s0">.</span><span class="s7">val</span><span class="s0">[</span><span class="s2">j</span><span class="s0">] </span><span class="s1">= </span><span class="s7">from</span><span class="s0">[</span><span class="s2">vec_size </span><span class="s1">* </span><span class="s2">i </span><span class="s1">+ </span><span class="s2">j</span><span class="s0">];</span>
+<a name="l365"><span class="ln">365  </span></a>      <span class="s0">}</span>
+<a name="l366"><span class="ln">366  </span></a>      <span class="s7">to_</span><span class="s0">[</span><span class="s2">index</span><span class="s0">] </span><span class="s1">= </span><span class="s2">v</span><span class="s0">;</span>
+<a name="l367"><span class="ln">367  </span></a>    <span class="s0">}</span>
+<a name="l368"><span class="ln">368  </span></a>  <span class="s0">}</span>
+<a name="l369"><span class="ln">369  </span></a><span class="s0">};</span>
+<a name="l370"><span class="ln">370  </span></a>
+<a name="l371"><span class="ln">371  </span></a><span class="s0">#</span><span class="s1">ifdef </span><span class="s3">USE_ROCM</span>
+<a name="l372"><span class="ln">372  </span></a><span class="s0">// </span><span class="s5">This is similar to vectorized policy above, but this one supports 
+<a name="l373"><span class="ln">373  </span></a></span><span class="s0">// </span><span class="s5">heterogenous input tensor types as templated parameters. 
+<a name="l374"><span class="ln">374  </span></a></span><span class="s0">// </span><span class="s5">Its use should be limited to frequently used heterogeneous data types 
+<a name="l375"><span class="ln">375  </span></a></span><span class="s0">// </span><span class="s5">as each instantiation will generate a separate kernel, leading to code 
+<a name="l376"><span class="ln">376  </span></a></span><span class="s0">// </span><span class="s5">bloating if applied to all combinations supported in PyTorch. Assumption: all 
+<a name="l377"><span class="ln">377  </span></a></span><span class="s0">// </span><span class="s5">tensors are contiguous, that is: stride == sizeof(type) for all tensors. 
+<a name="l378"><span class="ln">378  </span></a></span><span class="s1">template </span><span class="s0">&lt;</span>
+<a name="l379"><span class="ln">379  </span></a>    <span class="s1">int </span><span class="s6">vec_size</span><span class="s0">,</span>
+<a name="l380"><span class="ln">380  </span></a>    <span class="s1">typename </span><span class="s6">data_t</span><span class="s0">,</span>
+<a name="l381"><span class="ln">381  </span></a>    <span class="s1">int </span><span class="s6">elems_per_thread</span><span class="s0">,</span>
+<a name="l382"><span class="ln">382  </span></a>    <span class="s1">int </span><span class="s6">num_threads</span><span class="s0">,</span>
+<a name="l383"><span class="ln">383  </span></a>    <span class="s1">typename </span><span class="s6">CastToT</span><span class="s0">,</span>
+<a name="l384"><span class="ln">384  </span></a>    <span class="s1">typename</span><span class="s0">... </span><span class="s6">CastFromTs</span><span class="s0">&gt; // </span><span class="s5">vec_size: number of scalars, can be 1, 2, or 4. 
+<a name="l385"><span class="ln">385  </span></a></span><span class="s1">struct </span><span class="s6">vectorized_templated </span><span class="s0">{</span>
+<a name="l386"><span class="ln">386  </span></a>  <span class="s1">static_assert</span><span class="s0">(</span>
+<a name="l387"><span class="ln">387  </span></a>      <span class="s2">elems_per_thread </span><span class="s1">% </span><span class="s2">vec_size </span><span class="s1">== </span><span class="s7">0</span><span class="s0">,</span>
+<a name="l388"><span class="ln">388  </span></a>      <span class="s0">&quot;</span><span class="s4">The workload per thread must be a multiple of vec_size</span><span class="s0">&quot;);</span>
+<a name="l389"><span class="ln">389  </span></a>  <span class="s1">static constexpr int </span><span class="s2">loop_size </span><span class="s1">= </span><span class="s2">elems_per_thread </span><span class="s1">/ </span><span class="s2">vec_size</span><span class="s0">;</span>
+<a name="l390"><span class="ln">390  </span></a>  <span class="s1">static constexpr int </span><span class="s2">tws </span><span class="s1">= </span><span class="s2">elems_per_thread</span><span class="s0">;</span>
+<a name="l391"><span class="ln">391  </span></a>  <span class="s1">static constexpr int </span><span class="s2">block_work_size </span><span class="s1">= </span><span class="s2">elems_per_thread </span><span class="s1">* </span><span class="s2">num_threads</span><span class="s0">;</span>
+<a name="l392"><span class="ln">392  </span></a>  <span class="s7">data_t </span><span class="s2">data</span><span class="s0">;</span>
+<a name="l393"><span class="ln">393  </span></a>
+<a name="l394"><span class="ln">394  </span></a>  <span class="s1">__device__ </span><span class="s3">vectorized_templated</span><span class="s0">(</span><span class="s7">data_t data</span><span class="s0">) : </span><span class="s3">data</span><span class="s0">(</span><span class="s2">data</span><span class="s0">) {}</span>
+<a name="l395"><span class="ln">395  </span></a>
+<a name="l396"><span class="ln">396  </span></a>  <span class="s1">__device__ inline constexpr </span><span class="s2">bool </span><span class="s3">check_inbounds</span><span class="s0">(</span><span class="s1">int </span><span class="s7">thread_work_elem</span><span class="s0">) {</span>
+<a name="l397"><span class="ln">397  </span></a>    <span class="s1">return </span><span class="s7">true</span><span class="s0">;</span>
+<a name="l398"><span class="ln">398  </span></a>  <span class="s0">}</span>
+<a name="l399"><span class="ln">399  </span></a>
+<a name="l400"><span class="ln">400  </span></a>  <span class="s1">template </span><span class="s0">&lt;</span><span class="s2">int arg_index, typename accessor_t</span><span class="s0">&gt; 
+<a name="l401"><span class="ln">401  </span></a>  </span><span class="s1">__device__ inline </span><span class="s2">void </span><span class="s3">load_single_arg</span><span class="s0">(</span><span class="s7">accessor_t to</span><span class="s0">, </span><span class="s1">char* </span><span class="s7">ptr</span><span class="s0">, </span><span class="s1">int </span><span class="s7">idx</span><span class="s0">) {</span>
+<a name="l402"><span class="ln">402  </span></a>    <span class="s0">// </span><span class="s5">extract the arg_index-th input tensor element type from the 
+<a name="l403"><span class="ln">403  </span></a>    </span><span class="s0">// </span><span class="s5">variadic template argument. 
+<a name="l404"><span class="ln">404  </span></a>    </span><span class="s1">using </span><span class="s2">CastFromT </span><span class="s1">=</span>
+<a name="l405"><span class="ln">405  </span></a>        <span class="s6">std</span><span class="s0">::</span><span class="s7">tuple_element_t</span><span class="s1">&lt;</span><span class="s2">arg_index</span><span class="s0">, </span><span class="s6">std</span><span class="s0">::</span><span class="s2">tuple</span><span class="s1">&lt;</span><span class="s2">CastFromTs...</span><span class="s1">&gt;&gt;</span><span class="s0">;</span>
+<a name="l406"><span class="ln">406  </span></a>    <span class="s0">// </span><span class="s5">Delayed pointer arithmetic from the caller: this is the place 
+<a name="l407"><span class="ln">407  </span></a>    </span><span class="s0">// </span><span class="s5">where we know the type of the argument. 
+<a name="l408"><span class="ln">408  </span></a>    </span><span class="s2">CastFromT</span><span class="s1">* </span><span class="s2">block_ptr </span><span class="s1">=</span>
+<a name="l409"><span class="ln">409  </span></a>        <span class="s1">reinterpret_cast&lt;</span><span class="s2">CastFromT</span><span class="s1">*&gt;</span><span class="s0">(</span><span class="s2">ptr</span><span class="s0">) </span><span class="s1">+ </span><span class="s2">block_work_size </span><span class="s1">* </span><span class="s2">idx</span><span class="s0">;</span>
+<a name="l410"><span class="ln">410  </span></a>    <span class="s1">int </span><span class="s2">thread_idx </span><span class="s1">= threadIdx</span><span class="s2">.x</span><span class="s0">;</span>
+<a name="l411"><span class="ln">411  </span></a><span class="s0">#</span><span class="s1">pragma </span><span class="s3">unroll</span>
+<a name="l412"><span class="ln">412  </span></a>    <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">i </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s2">loop_size</span><span class="s0">; </span><span class="s2">i</span><span class="s1">++</span><span class="s0">) {</span>
+<a name="l413"><span class="ln">413  </span></a>      <span class="s1">int </span><span class="s2">index </span><span class="s1">= </span><span class="s2">thread_idx </span><span class="s1">+ </span><span class="s2">i </span><span class="s1">* </span><span class="s2">num_threads</span><span class="s0">;</span>
+<a name="l414"><span class="ln">414  </span></a>      <span class="s1">auto </span><span class="s2">v </span><span class="s1">= </span><span class="s3">load_vector</span><span class="s2">&lt;vec_size&gt;</span><span class="s0">(</span><span class="s2">block_ptr</span><span class="s0">, </span><span class="s2">index</span><span class="s0">);</span>
+<a name="l415"><span class="ln">415  </span></a><span class="s0">#</span><span class="s1">pragma </span><span class="s3">unroll</span>
+<a name="l416"><span class="ln">416  </span></a>      <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">j </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">j </span><span class="s1">&lt; </span><span class="s2">vec_size</span><span class="s0">; </span><span class="s2">j</span><span class="s1">++</span><span class="s0">) {</span>
+<a name="l417"><span class="ln">417  </span></a>        <span class="s3">to</span><span class="s0">(</span><span class="s2">vec_size </span><span class="s1">* </span><span class="s2">i </span><span class="s1">+ </span><span class="s2">j</span><span class="s0">) </span><span class="s1">= </span><span class="s6">c10</span><span class="s0">::</span><span class="s3">convert</span><span class="s2">&lt;CastToT&gt;</span><span class="s0">(</span><span class="s7">v</span><span class="s0">.</span><span class="s7">val</span><span class="s0">[</span><span class="s2">j</span><span class="s0">]);</span>
+<a name="l418"><span class="ln">418  </span></a>      <span class="s0">}</span>
+<a name="l419"><span class="ln">419  </span></a>    <span class="s0">}</span>
+<a name="l420"><span class="ln">420  </span></a>  <span class="s0">}</span>
+<a name="l421"><span class="ln">421  </span></a>
+<a name="l422"><span class="ln">422  </span></a>  <span class="s1">template </span><span class="s0">&lt;</span><span class="s2">typename args_t</span><span class="s0">&gt; 
+<a name="l423"><span class="ln">423  </span></a>  </span><span class="s1">__device__ inline </span><span class="s2">void </span><span class="s3">load</span><span class="s0">(</span><span class="s7">args_t</span><span class="s1">* </span><span class="s7">args</span><span class="s0">, </span><span class="s1">int </span><span class="s7">idx</span><span class="s0">) {</span>
+<a name="l424"><span class="ln">424  </span></a>    <span class="s1">constexpr int </span><span class="s2">arity </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s6">tuple_size</span><span class="s2">&lt;args_t&gt;</span><span class="s0">::</span><span class="s2">value</span><span class="s0">;</span>
+<a name="l425"><span class="ln">425  </span></a>    <span class="s6">detail</span><span class="s0">::</span><span class="s6">static_unroll</span><span class="s2">&lt;detail::vectorized_templated_load_helper, arity&gt;</span><span class="s0">::</span>
+<a name="l426"><span class="ln">426  </span></a>        <span class="s3">with_args</span><span class="s0">(</span><span class="s1">*</span><span class="s7">this</span><span class="s0">, </span><span class="s2">args</span><span class="s0">, </span><span class="s2">idx</span><span class="s0">);</span>
+<a name="l427"><span class="ln">427  </span></a>  <span class="s0">}</span>
+<a name="l428"><span class="ln">428  </span></a>
+<a name="l429"><span class="ln">429  </span></a>  <span class="s0">// </span><span class="s5">Assume for now that from (temporary array per thread) is of the same 
+<a name="l430"><span class="ln">430  </span></a>  </span><span class="s0">// </span><span class="s5">type as to (destination tensor), which is the case for 
+<a name="l431"><span class="ln">431  </span></a>  </span><span class="s0">// </span><span class="s5">float(float,bfloat16) and functor add on float(float,float). 
+<a name="l432"><span class="ln">432  </span></a>  </span><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">typename scalar_t</span><span class="s0">&gt; 
+<a name="l433"><span class="ln">433  </span></a>  </span><span class="s1">__device__ inline </span><span class="s2">void </span><span class="s3">store</span><span class="s0">(</span><span class="s7">scalar_t</span><span class="s1">* </span><span class="s7">from</span><span class="s0">, </span><span class="s1">int </span><span class="s7">idx</span><span class="s0">) {</span>
+<a name="l434"><span class="ln">434  </span></a>    <span class="s1">using </span><span class="s2">vec_t </span><span class="s1">= </span><span class="s2">aligned_vector&lt;CastToT, vec_size&gt;</span><span class="s0">;</span>
+<a name="l435"><span class="ln">435  </span></a>    <span class="s2">CastToT</span><span class="s1">* </span><span class="s2">to </span><span class="s1">= reinterpret_cast&lt;</span><span class="s2">CastToT</span><span class="s1">*&gt;</span><span class="s0">(</span><span class="s7">data</span><span class="s0">[</span><span class="s7">0</span><span class="s0">]) </span><span class="s1">+ </span><span class="s2">block_work_size </span><span class="s1">* </span><span class="s2">idx</span><span class="s0">;</span>
+<a name="l436"><span class="ln">436  </span></a>    <span class="s7">vec_t</span><span class="s1">* </span><span class="s2">to_ </span><span class="s1">= reinterpret_cast&lt;</span><span class="s7">vec_t</span><span class="s1">*&gt;</span><span class="s0">(</span><span class="s2">to</span><span class="s0">);</span>
+<a name="l437"><span class="ln">437  </span></a>    <span class="s1">int </span><span class="s2">thread_idx </span><span class="s1">= threadIdx</span><span class="s2">.x</span><span class="s0">;</span>
+<a name="l438"><span class="ln">438  </span></a><span class="s0">#</span><span class="s1">pragma </span><span class="s3">unroll</span>
+<a name="l439"><span class="ln">439  </span></a>    <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">i </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s2">loop_size</span><span class="s0">; </span><span class="s2">i</span><span class="s1">++</span><span class="s0">) {</span>
+<a name="l440"><span class="ln">440  </span></a>      <span class="s1">int </span><span class="s2">index </span><span class="s1">= </span><span class="s2">thread_idx </span><span class="s1">+ </span><span class="s2">i </span><span class="s1">* </span><span class="s2">num_threads</span><span class="s0">;</span>
+<a name="l441"><span class="ln">441  </span></a>      <span class="s7">vec_t </span><span class="s2">v</span><span class="s0">;</span>
+<a name="l442"><span class="ln">442  </span></a>      <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">j </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">j </span><span class="s1">&lt; </span><span class="s2">vec_size</span><span class="s0">; </span><span class="s2">j</span><span class="s1">++</span><span class="s0">) {</span>
+<a name="l443"><span class="ln">443  </span></a>        <span class="s7">v</span><span class="s0">.</span><span class="s7">val</span><span class="s0">[</span><span class="s2">j</span><span class="s0">] </span><span class="s1">= </span><span class="s7">from</span><span class="s0">[</span><span class="s2">vec_size </span><span class="s1">* </span><span class="s2">i </span><span class="s1">+ </span><span class="s2">j</span><span class="s0">];</span>
+<a name="l444"><span class="ln">444  </span></a>      <span class="s0">}</span>
+<a name="l445"><span class="ln">445  </span></a>      <span class="s7">to_</span><span class="s0">[</span><span class="s2">index</span><span class="s0">] </span><span class="s1">= </span><span class="s2">v</span><span class="s0">;</span>
+<a name="l446"><span class="ln">446  </span></a>    <span class="s0">}</span>
+<a name="l447"><span class="ln">447  </span></a>  <span class="s0">}</span>
+<a name="l448"><span class="ln">448  </span></a><span class="s0">};</span>
+<a name="l449"><span class="ln">449  </span></a><span class="s0">#</span><span class="s1">endif</span>
+<a name="l450"><span class="ln">450  </span></a>
+<a name="l451"><span class="ln">451  </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">typename data_t, typename inp_calc_t, typename out_calc_t, int num_outputs</span><span class="s0">&gt; 
+<a name="l452"><span class="ln">452  </span></a></span><span class="s1">struct </span><span class="s6">multi_outputs_unroll </span><span class="s0">{</span>
+<a name="l453"><span class="ln">453  </span></a>  <span class="s0">//</span><span class="s5">multi_outputs_unroll struct members and check_inbounds and load methods are copypasted from unroll struct 
+<a name="l454"><span class="ln">454  </span></a>  </span><span class="s0">//</span><span class="s5">we don't use inheritance because of compiler bug in cuda 10.2+ 
+<a name="l455"><span class="ln">455  </span></a>  </span><span class="s7">data_t </span><span class="s2">data</span><span class="s0">;</span>
+<a name="l456"><span class="ln">456  </span></a>  <span class="s1">int </span><span class="s2">remaining</span><span class="s0">;</span>
+<a name="l457"><span class="ln">457  </span></a>  <span class="s7">inp_calc_t </span><span class="s2">input_offset_calculator</span><span class="s0">;</span>
+<a name="l458"><span class="ln">458  </span></a>  <span class="s7">out_calc_t </span><span class="s2">output_offset_calculator</span><span class="s0">;</span>
+<a name="l459"><span class="ln">459  </span></a>  <span class="s2">LoadWithoutCast loader</span><span class="s0">;</span>
+<a name="l460"><span class="ln">460  </span></a>  <span class="s2">StoreWithoutCast storer</span><span class="s0">;</span>
+<a name="l461"><span class="ln">461  </span></a>  <span class="s1">static constexpr int </span><span class="s2">tws </span><span class="s1">= </span><span class="s3">thread_work_size</span><span class="s0">();</span>
+<a name="l462"><span class="ln">462  </span></a>
+<a name="l463"><span class="ln">463  </span></a>  <span class="s1">__device__ </span><span class="s3">multi_outputs_unroll</span><span class="s0">(</span><span class="s7">data_t data</span><span class="s0">, </span><span class="s1">int </span><span class="s7">remaining</span><span class="s0">, </span><span class="s7">inp_calc_t ic</span><span class="s0">, </span><span class="s7">out_calc_t oc</span><span class="s0">):</span>
+<a name="l464"><span class="ln">464  </span></a>  <span class="s3">data</span><span class="s0">(</span><span class="s2">data</span><span class="s0">), </span><span class="s3">remaining</span><span class="s0">(</span><span class="s2">remaining</span><span class="s0">), </span><span class="s3">input_offset_calculator</span><span class="s0">(</span><span class="s2">ic</span><span class="s0">), </span><span class="s3">output_offset_calculator</span><span class="s0">(</span><span class="s2">oc</span><span class="s0">) {}</span>
+<a name="l465"><span class="ln">465  </span></a>
+<a name="l466"><span class="ln">466  </span></a>  <span class="s1">__device__ inline </span><span class="s2">bool </span><span class="s3">check_inbounds</span><span class="s0">(</span><span class="s1">int </span><span class="s7">thread_work_elem</span><span class="s0">) {</span>
+<a name="l467"><span class="ln">467  </span></a>    <span class="s1">return </span><span class="s0">((</span><span class="s1">int</span><span class="s0">)(</span><span class="s7">threadIdx</span><span class="s0">.</span><span class="s7">x  </span><span class="s1">+ </span><span class="s2">thread_work_elem</span><span class="s1">*</span><span class="s3">num_threads</span><span class="s0">()) </span><span class="s1">&lt; </span><span class="s2">remaining</span><span class="s0">);</span>
+<a name="l468"><span class="ln">468  </span></a>  <span class="s0">}</span>
+<a name="l469"><span class="ln">469  </span></a>
+<a name="l470"><span class="ln">470  </span></a>  <span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename args_t</span><span class="s0">&gt; 
+<a name="l471"><span class="ln">471  </span></a>  </span><span class="s1">__device__ inline </span><span class="s2">void </span><span class="s3">load</span><span class="s0">(</span><span class="s7">args_t </span><span class="s1">*</span><span class="s7">args</span><span class="s0">, </span><span class="s1">int </span><span class="s7">idx</span><span class="s0">) {</span>
+<a name="l472"><span class="ln">472  </span></a>    <span class="s1">constexpr int </span><span class="s2">arity </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">tuple_size_v</span><span class="s1">&lt;</span><span class="s7">args_t</span><span class="s1">&gt;</span><span class="s0">;</span>
+<a name="l473"><span class="ln">473  </span></a>    <span class="s1">int </span><span class="s2">thread_idx </span><span class="s1">= threadIdx</span><span class="s2">.x</span><span class="s0">;</span>
+<a name="l474"><span class="ln">474  </span></a>    <span class="s0">#</span><span class="s1">pragma </span><span class="s3">unroll</span>
+<a name="l475"><span class="ln">475  </span></a>    <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">i </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s3">thread_work_size</span><span class="s0">(); </span><span class="s2">i</span><span class="s1">++</span><span class="s0">) {</span>
+<a name="l476"><span class="ln">476  </span></a>      <span class="s1">if </span><span class="s0">(</span><span class="s2">thread_idx </span><span class="s1">&gt;= </span><span class="s2">remaining</span><span class="s0">) {</span>
+<a name="l477"><span class="ln">477  </span></a>        <span class="s1">return</span><span class="s0">;</span>
+<a name="l478"><span class="ln">478  </span></a>      <span class="s0">}</span>
+<a name="l479"><span class="ln">479  </span></a>      <span class="s1">int </span><span class="s2">linear_idx </span><span class="s1">= </span><span class="s2">thread_idx </span><span class="s1">+ </span><span class="s3">block_work_size</span><span class="s0">() </span><span class="s1">* </span><span class="s2">idx</span><span class="s0">;</span>
+<a name="l480"><span class="ln">480  </span></a>      <span class="s1">auto </span><span class="s2">offset </span><span class="s1">= </span><span class="s7">input_offset_calculator</span><span class="s0">.</span><span class="s3">get</span><span class="s0">(</span><span class="s2">linear_idx</span><span class="s0">);</span>
+<a name="l481"><span class="ln">481  </span></a>      <span class="s6">detail</span><span class="s0">::</span><span class="s6">static_unroll</span><span class="s2">&lt;detail::unroll_load_helper, arity&gt;</span><span class="s0">::</span><span class="s3">with_args</span><span class="s0">(</span><span class="s1">*</span><span class="s7">this</span><span class="s0">, </span><span class="s2">args</span><span class="s0">, </span><span class="s2">offset</span><span class="s0">, </span><span class="s2">loader</span><span class="s0">, </span><span class="s2">i</span><span class="s0">, </span><span class="s2">num_outputs</span><span class="s0">);</span>
+<a name="l482"><span class="ln">482  </span></a>      <span class="s2">thread_idx </span><span class="s1">+= </span><span class="s3">num_threads</span><span class="s0">();</span>
+<a name="l483"><span class="ln">483  </span></a>    <span class="s0">}</span>
+<a name="l484"><span class="ln">484  </span></a>  <span class="s0">}</span>
+<a name="l485"><span class="ln">485  </span></a>
+<a name="l486"><span class="ln">486  </span></a>
+<a name="l487"><span class="ln">487  </span></a>  <span class="s1">template </span><span class="s0">&lt;</span><span class="s2">typename return_t</span><span class="s0">&gt; 
+<a name="l488"><span class="ln">488  </span></a>  </span><span class="s1">__device__ inline </span><span class="s2">void </span><span class="s3">store</span><span class="s0">(</span><span class="s7">return_t </span><span class="s1">*</span><span class="s7">from</span><span class="s0">, </span><span class="s1">int </span><span class="s7">idx</span><span class="s0">) {</span>
+<a name="l489"><span class="ln">489  </span></a>    <span class="s1">int </span><span class="s2">thread_idx </span><span class="s1">= threadIdx</span><span class="s2">.x</span><span class="s0">;</span>
+<a name="l490"><span class="ln">490  </span></a>    <span class="s0">#</span><span class="s1">pragma </span><span class="s3">unroll</span>
+<a name="l491"><span class="ln">491  </span></a>    <span class="s1">for </span><span class="s0">(</span><span class="s1">int </span><span class="s2">i </span><span class="s1">= </span><span class="s7">0</span><span class="s0">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s3">thread_work_size</span><span class="s0">(); </span><span class="s2">i</span><span class="s1">++</span><span class="s0">) {</span>
+<a name="l492"><span class="ln">492  </span></a>      <span class="s1">if </span><span class="s0">(</span><span class="s2">thread_idx </span><span class="s1">&gt;= </span><span class="s7">this</span><span class="s0">-&gt;</span><span class="s7">remaining</span><span class="s0">) {</span>
+<a name="l493"><span class="ln">493  </span></a>        <span class="s1">return</span><span class="s0">;</span>
+<a name="l494"><span class="ln">494  </span></a>      <span class="s0">}</span>
+<a name="l495"><span class="ln">495  </span></a>      <span class="s1">int </span><span class="s2">linear_idx </span><span class="s1">= </span><span class="s2">thread_idx </span><span class="s1">+ </span><span class="s3">block_work_size</span><span class="s0">() </span><span class="s1">* </span><span class="s2">idx</span><span class="s0">;</span>
+<a name="l496"><span class="ln">496  </span></a>      <span class="s1">auto </span><span class="s2">offsets </span><span class="s1">= </span><span class="s7">this</span><span class="s0">-&gt;</span><span class="s7">output_offset_calculator</span><span class="s0">.</span><span class="s3">get</span><span class="s0">(</span><span class="s2">linear_idx</span><span class="s0">);</span>
+<a name="l497"><span class="ln">497  </span></a>      <span class="s6">memory</span><span class="s0">::</span><span class="s6">detail</span><span class="s0">::</span><span class="s6">static_unroll</span><span class="s2">&lt;detail::multi_outputs_store_helper, num_outputs&gt;</span><span class="s0">::</span><span class="s3">with_args</span><span class="s0">(</span><span class="s7">this</span><span class="s0">-&gt;</span><span class="s7">data</span><span class="s0">, </span><span class="s2">offsets</span><span class="s0">, </span><span class="s7">from</span><span class="s0">[</span><span class="s2">i</span><span class="s0">]);</span>
+<a name="l498"><span class="ln">498  </span></a>      <span class="s2">thread_idx </span><span class="s1">+= </span><span class="s3">num_threads</span><span class="s0">();</span>
+<a name="l499"><span class="ln">499  </span></a>    <span class="s0">}</span>
+<a name="l500"><span class="ln">500  </span></a>  <span class="s0">}</span>
+<a name="l501"><span class="ln">501  </span></a><span class="s0">};</span>
+<a name="l502"><span class="ln">502  </span></a>
+<a name="l503"><span class="ln">503  </span></a><span class="s0">}  // </span><span class="s5">namespace policies 
+<a name="l504"><span class="ln">504  </span></a></span>
+<a name="l505"><span class="ln">505  </span></a><span class="s0">// </span><span class="s5">This is only used in host, but we will wrap this into some templates 
+<a name="l506"><span class="ln">506  </span></a></span><span class="s0">// </span><span class="s5">which is C10_HOST_DEVICE, so we have to make this C10_HOST_DEVICE 
+<a name="l507"><span class="ln">507  </span></a></span><span class="s0">// </span><span class="s5">in order to compile 
+<a name="l508"><span class="ln">508  </span></a></span><span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename scalar_t</span><span class="s0">&gt; 
+<a name="l509"><span class="ln">509  </span></a></span><span class="s1">inline </span><span class="s2">C10_HOST_DEVICE </span><span class="s1">int </span><span class="s3">can_vectorize_up_to</span><span class="s0">(</span><span class="s1">const char *</span><span class="s2">pointer</span><span class="s0">) {</span>
+<a name="l510"><span class="ln">510  </span></a>  <span class="s1">uint64_t </span><span class="s2">address </span><span class="s1">= reinterpret_cast&lt;uint64_t&gt;</span><span class="s0">(</span><span class="s2">pointer</span><span class="s0">);</span>
+<a name="l511"><span class="ln">511  </span></a>  <span class="s1">constexpr int </span><span class="s2">vec2_alignment </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">alignment_of_v</span><span class="s1">&lt;</span><span class="s2">aligned_vector</span><span class="s1">&lt;</span><span class="s7">scalar_t</span><span class="s0">, </span><span class="s7">2</span><span class="s1">&gt;&gt;</span><span class="s0">;</span>
+<a name="l512"><span class="ln">512  </span></a>  <span class="s1">constexpr int </span><span class="s2">vec4_alignment </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">alignment_of_v</span><span class="s1">&lt;</span><span class="s2">aligned_vector</span><span class="s1">&lt;</span><span class="s7">scalar_t</span><span class="s0">, </span><span class="s7">4</span><span class="s1">&gt;&gt;</span><span class="s0">;</span>
+<a name="l513"><span class="ln">513  </span></a>  <span class="s1">constexpr int </span><span class="s2">vec8_alignment </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">alignment_of_v</span><span class="s1">&lt;</span><span class="s2">aligned_vector</span><span class="s1">&lt;</span><span class="s7">scalar_t</span><span class="s0">, </span><span class="s7">8</span><span class="s1">&gt;&gt;</span><span class="s0">;</span>
+<a name="l514"><span class="ln">514  </span></a><span class="s0">#</span><span class="s1">ifdef </span><span class="s3">USE_ROCM</span>
+<a name="l515"><span class="ln">515  </span></a>  <span class="s1">constexpr int </span><span class="s2">vec16_alignment </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s2">alignment_of_v</span><span class="s1">&lt;</span><span class="s2">aligned_vector</span><span class="s1">&lt;</span><span class="s7">scalar_t</span><span class="s0">, </span><span class="s7">16</span><span class="s1">&gt;&gt;</span><span class="s0">;</span>
+<a name="l516"><span class="ln">516  </span></a>  <span class="s1">constexpr int </span><span class="s2">type_size </span><span class="s1">= sizeof</span><span class="s0">(</span><span class="s7">scalar_t</span><span class="s0">);</span>
+<a name="l517"><span class="ln">517  </span></a>  <span class="s1">if </span><span class="s0">(</span><span class="s2">type_size </span><span class="s1">== </span><span class="s7">1 </span><span class="s1">&amp;&amp; </span><span class="s0">(</span><span class="s2">address </span><span class="s1">% </span><span class="s2">vec16_alignment </span><span class="s1">== </span><span class="s7">0</span><span class="s0">)) {</span>
+<a name="l518"><span class="ln">518  </span></a>    <span class="s1">return </span><span class="s7">16</span><span class="s0">;</span>
+<a name="l519"><span class="ln">519  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">type_size </span><span class="s1">&lt;= </span><span class="s7">2 </span><span class="s1">&amp;&amp; </span><span class="s0">(</span><span class="s2">address </span><span class="s1">% </span><span class="s2">vec8_alignment </span><span class="s1">== </span><span class="s7">0</span><span class="s0">)) {</span>
+<a name="l520"><span class="ln">520  </span></a>    <span class="s1">return </span><span class="s7">8</span><span class="s0">;</span>
+<a name="l521"><span class="ln">521  </span></a>  <span class="s0">} </span><span class="s1">else</span>
+<a name="l522"><span class="ln">522  </span></a><span class="s0">#</span><span class="s1">else</span>
+<a name="l523"><span class="ln">523  </span></a>  <span class="s1">if </span><span class="s0">(</span><span class="s2">address </span><span class="s1">% </span><span class="s2">vec8_alignment </span><span class="s1">== </span><span class="s7">0</span><span class="s0">) {</span>
+<a name="l524"><span class="ln">524  </span></a>   <span class="s1">return </span><span class="s7">8</span><span class="s0">;</span>
+<a name="l525"><span class="ln">525  </span></a>  <span class="s0">} </span><span class="s1">else</span>
+<a name="l526"><span class="ln">526  </span></a><span class="s0">#</span><span class="s1">endif</span>
+<a name="l527"><span class="ln">527  </span></a>  <span class="s1">if </span><span class="s0">(</span><span class="s2">address </span><span class="s1">% </span><span class="s2">vec4_alignment </span><span class="s1">== </span><span class="s7">0</span><span class="s0">) {</span>
+<a name="l528"><span class="ln">528  </span></a>    <span class="s1">return </span><span class="s7">4</span><span class="s0">;</span>
+<a name="l529"><span class="ln">529  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">address </span><span class="s1">% </span><span class="s2">vec2_alignment </span><span class="s1">== </span><span class="s7">0</span><span class="s0">) {</span>
+<a name="l530"><span class="ln">530  </span></a>    <span class="s1">return </span><span class="s7">2</span><span class="s0">;</span>
+<a name="l531"><span class="ln">531  </span></a>  <span class="s0">}</span>
+<a name="l532"><span class="ln">532  </span></a>  <span class="s1">return </span><span class="s7">1</span><span class="s0">;</span>
+<a name="l533"><span class="ln">533  </span></a><span class="s0">}</span>
+<a name="l534"><span class="ln">534  </span></a>
+<a name="l535"><span class="ln">535  </span></a><span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename scalar_t</span><span class="s0">&gt; 
+<a name="l536"><span class="ln">536  </span></a></span><span class="s1">inline </span><span class="s2">C10_HOST_DEVICE </span><span class="s1">int </span><span class="s3">can_vectorize_up_to</span><span class="s0">(</span><span class="s1">char *</span><span class="s2">pointer</span><span class="s0">) {</span>
+<a name="l537"><span class="ln">537  </span></a>  <span class="s1">return </span><span class="s3">can_vectorize_up_to</span><span class="s2">&lt;scalar_t&gt;</span><span class="s0">(</span><span class="s1">static_cast&lt;const char*&gt;</span><span class="s0">(</span><span class="s2">pointer</span><span class="s0">));</span>
+<a name="l538"><span class="ln">538  </span></a><span class="s0">}</span>
+<a name="l539"><span class="ln">539  </span></a>
+<a name="l540"><span class="ln">540  </span></a><span class="s1">template</span><span class="s0">&lt;</span><span class="s2">int i</span><span class="s0">&gt; 
+<a name="l541"><span class="ln">541  </span></a></span><span class="s1">struct </span><span class="s6">can_vectorize_up_to_helper </span><span class="s0">{</span>
+<a name="l542"><span class="ln">542  </span></a>  <span class="s1">template </span><span class="s0">&lt;</span><span class="s2">typename array_t, typename traits</span><span class="s0">&gt; 
+<a name="l543"><span class="ln">543  </span></a>  </span><span class="s1">static </span><span class="s2">C10_HOST_DEVICE </span><span class="s1">void </span><span class="s3">apply</span><span class="s0">(</span><span class="s1">int &amp;</span><span class="s2">result</span><span class="s0">, </span><span class="s7">array_t </span><span class="s2">pointers</span><span class="s0">, </span><span class="s2">traits </span><span class="s0">/*</span><span class="s5">_</span><span class="s0">*/) {</span>
+<a name="l544"><span class="ln">544  </span></a>    <span class="s1">using </span><span class="s2">arg_t </span><span class="s1">= typename </span><span class="s2">traits::template arg&lt;i&gt;::type</span><span class="s0">;</span>
+<a name="l545"><span class="ln">545  </span></a>    <span class="s0">// </span><span class="s5">`pointers` hold the data_ptr for tensors [output, input0, input1, ...], so we 
+<a name="l546"><span class="ln">546  </span></a>    </span><span class="s0">// </span><span class="s5">need a +1 offset to get the input 
+<a name="l547"><span class="ln">547  </span></a>    </span><span class="s2">result </span><span class="s1">= </span><span class="s6">std</span><span class="s0">::</span><span class="s3">min</span><span class="s2">&lt;int&gt;</span><span class="s0">(</span><span class="s2">result</span><span class="s0">, </span><span class="s3">can_vectorize_up_to</span><span class="s2">&lt;arg_t&gt;</span><span class="s0">(</span><span class="s7">pointers</span><span class="s0">[</span><span class="s2">i </span><span class="s1">+ </span><span class="s7">1</span><span class="s0">]));</span>
+<a name="l548"><span class="ln">548  </span></a>  <span class="s0">}</span>
+<a name="l549"><span class="ln">549  </span></a><span class="s0">};</span>
+<a name="l550"><span class="ln">550  </span></a>
+<a name="l551"><span class="ln">551  </span></a><span class="s1">template</span><span class="s0">&lt;</span><span class="s2">typename func_t, typename array_t</span><span class="s0">&gt; 
+<a name="l552"><span class="ln">552  </span></a></span><span class="s1">inline </span><span class="s2">int </span><span class="s3">can_vectorize_up_to</span><span class="s0">(</span><span class="s7">array_t pointers</span><span class="s0">) {</span>
+<a name="l553"><span class="ln">553  </span></a>  <span class="s1">using </span><span class="s2">traits </span><span class="s1">= </span><span class="s2">function_traits&lt;func_t&gt;</span><span class="s0">;</span>
+<a name="l554"><span class="ln">554  </span></a>  <span class="s1">using </span><span class="s2">return_t </span><span class="s1">= typename </span><span class="s6">traits</span><span class="s0">::</span><span class="s2">result_type</span><span class="s0">;</span>
+<a name="l555"><span class="ln">555  </span></a>  <span class="s1">constexpr int </span><span class="s2">arity </span><span class="s1">= </span><span class="s6">traits</span><span class="s0">::</span><span class="s2">arity</span><span class="s0">;</span>
+<a name="l556"><span class="ln">556  </span></a>  <span class="s1">int </span><span class="s2">result </span><span class="s1">= </span><span class="s3">can_vectorize_up_to</span><span class="s2">&lt;return_t&gt;</span><span class="s0">(</span><span class="s7">pointers</span><span class="s0">[</span><span class="s7">0</span><span class="s0">]);</span>
+<a name="l557"><span class="ln">557  </span></a>  <span class="s0">// </span><span class="s5">We need to get the type for each argument of `func_t`, this can only 
+<a name="l558"><span class="ln">558  </span></a>  </span><span class="s0">// </span><span class="s5">be done at compile time. 
+<a name="l559"><span class="ln">559  </span></a>  </span><span class="s6">detail</span><span class="s0">::</span><span class="s6">static_unroll</span><span class="s2">&lt;can_vectorize_up_to_helper, arity&gt;</span><span class="s0">::</span><span class="s3">with_args</span><span class="s0">(</span><span class="s2">result</span><span class="s0">, </span><span class="s2">pointers</span><span class="s0">, </span><span class="s3">traits</span><span class="s0">());</span>
+<a name="l560"><span class="ln">560  </span></a>  <span class="s1">return </span><span class="s2">result</span><span class="s0">;</span>
+<a name="l561"><span class="ln">561  </span></a><span class="s0">}</span>
+<a name="l562"><span class="ln">562  </span></a>
+<a name="l563"><span class="ln">563  </span></a>
+<a name="l564"><span class="ln">564  </span></a>
+<a name="l565"><span class="ln">565  </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">typename T</span><span class="s0">&gt; 
+<a name="l566"><span class="ln">566  </span></a></span><span class="s2">__inline__ </span><span class="s1">size_t </span><span class="s3">get_alignment</span><span class="s0">(</span><span class="s2">T ptr_or_size</span><span class="s0">) {</span>
+<a name="l567"><span class="ln">567  </span></a>  <span class="s1">auto </span><span class="s2">val </span><span class="s1">= reinterpret_cast&lt;uintptr_t&gt;</span><span class="s0">(</span><span class="s2">ptr_or_size</span><span class="s0">);</span>
+<a name="l568"><span class="ln">568  </span></a>  <span class="s1">if </span><span class="s0">(</span><span class="s2">val </span><span class="s1">% </span><span class="s7">16 </span><span class="s1">== </span><span class="s7">0</span><span class="s0">) {</span>
+<a name="l569"><span class="ln">569  </span></a>    <span class="s1">return </span><span class="s7">16</span><span class="s0">;</span>
+<a name="l570"><span class="ln">570  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">val </span><span class="s1">% </span><span class="s7">8 </span><span class="s1">== </span><span class="s7">0</span><span class="s0">) {</span>
+<a name="l571"><span class="ln">571  </span></a>    <span class="s1">return </span><span class="s7">8</span><span class="s0">;</span>
+<a name="l572"><span class="ln">572  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">val </span><span class="s1">% </span><span class="s7">4 </span><span class="s1">== </span><span class="s7">0</span><span class="s0">) {</span>
+<a name="l573"><span class="ln">573  </span></a>    <span class="s1">return </span><span class="s7">4</span><span class="s0">;</span>
+<a name="l574"><span class="ln">574  </span></a>  <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">val </span><span class="s1">% </span><span class="s7">2 </span><span class="s1">== </span><span class="s7">0</span><span class="s0">) {</span>
+<a name="l575"><span class="ln">575  </span></a>    <span class="s1">return </span><span class="s7">2</span><span class="s0">;</span>
+<a name="l576"><span class="ln">576  </span></a>  <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l577"><span class="ln">577  </span></a>    <span class="s1">return </span><span class="s7">1</span><span class="s0">;</span>
+<a name="l578"><span class="ln">578  </span></a>  <span class="s0">}</span>
+<a name="l579"><span class="ln">579  </span></a><span class="s0">}</span>
+<a name="l580"><span class="ln">580  </span></a>
+<a name="l581"><span class="ln">581  </span></a><span class="s1">template </span><span class="s0">&lt;&gt; 
+<a name="l582"><span class="ln">582  </span></a></span><span class="s2">__inline__ </span><span class="s1">size_t </span><span class="s3">get_alignment</span><span class="s2">&lt;size_t&gt;</span><span class="s0">(</span><span class="s1">size_t </span><span class="s2">size</span><span class="s0">) {</span>
+<a name="l583"><span class="ln">583  </span></a>  <span class="s1">return </span><span class="s3">get_alignment</span><span class="s0">(</span><span class="s1">reinterpret_cast&lt;void*&gt;</span><span class="s0">(</span><span class="s2">size</span><span class="s0">));</span>
+<a name="l584"><span class="ln">584  </span></a><span class="s0">}</span>
+<a name="l585"><span class="ln">585  </span></a>
+<a name="l586"><span class="ln">586  </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">bool Value, class... Args</span><span class="s0">&gt; 
+<a name="l587"><span class="ln">587  </span></a></span><span class="s1">inline constexpr bool </span><span class="s2">dependent_bool_value </span><span class="s1">= </span><span class="s2">Value</span><span class="s0">;</span>
+<a name="l588"><span class="ln">588  </span></a>
+<a name="l589"><span class="ln">589  </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">class... Args</span><span class="s0">&gt; 
+<a name="l590"><span class="ln">590  </span></a></span><span class="s1">inline constexpr bool </span><span class="s2">dependent_false </span><span class="s1">= </span><span class="s2">dependent_bool_value</span><span class="s1">&lt;</span><span class="s7">false</span><span class="s0">, </span><span class="s2">Args...</span><span class="s1">&gt;</span><span class="s0">;</span>
+<a name="l591"><span class="ln">591  </span></a>
+<a name="l592"><span class="ln">592  </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">int Size</span><span class="s0">&gt; 
+<a name="l593"><span class="ln">593  </span></a></span><span class="s1">union </span><span class="s6">Vec</span><span class="s0">;</span>
+<a name="l594"><span class="ln">594  </span></a>
+<a name="l595"><span class="ln">595  </span></a><span class="s1">template </span><span class="s0">&lt;&gt; 
+<a name="l596"><span class="ln">596  </span></a></span><span class="s1">union </span><span class="s6">Vec</span><span class="s0">&lt;</span><span class="s7">4</span><span class="s0">&gt; {</span>
+<a name="l597"><span class="ln">597  </span></a>  <span class="s1">uint16_t </span><span class="s7">u16</span><span class="s0">[</span><span class="s7">2</span><span class="s0">];</span>
+<a name="l598"><span class="ln">598  </span></a>  <span class="s1">uint32_t </span><span class="s2">u32</span><span class="s0">, </span><span class="s2">as_scalar</span><span class="s0">;</span>
+<a name="l599"><span class="ln">599  </span></a>  <span class="s1">float </span><span class="s2">f32</span><span class="s0">;</span>
+<a name="l600"><span class="ln">600  </span></a><span class="s0">};</span>
+<a name="l601"><span class="ln">601  </span></a>
+<a name="l602"><span class="ln">602  </span></a><span class="s1">template </span><span class="s0">&lt;&gt; 
+<a name="l603"><span class="ln">603  </span></a></span><span class="s1">union </span><span class="s6">Vec</span><span class="s0">&lt;</span><span class="s7">8</span><span class="s0">&gt; {</span>
+<a name="l604"><span class="ln">604  </span></a>  <span class="s1">uint16_t </span><span class="s7">u16</span><span class="s0">[</span><span class="s7">4</span><span class="s0">];</span>
+<a name="l605"><span class="ln">605  </span></a>  <span class="s1">uint32_t </span><span class="s7">u32</span><span class="s0">[</span><span class="s7">2</span><span class="s0">];</span>
+<a name="l606"><span class="ln">606  </span></a>  <span class="s1">uint64_t </span><span class="s2">u64</span><span class="s0">, </span><span class="s2">as_scalar</span><span class="s0">;</span>
+<a name="l607"><span class="ln">607  </span></a>  <span class="s1">float </span><span class="s7">f32</span><span class="s0">[</span><span class="s7">2</span><span class="s0">];</span>
+<a name="l608"><span class="ln">608  </span></a><span class="s0">};</span>
+<a name="l609"><span class="ln">609  </span></a>
+<a name="l610"><span class="ln">610  </span></a><span class="s1">template </span><span class="s0">&lt;&gt; 
+<a name="l611"><span class="ln">611  </span></a></span><span class="s1">union </span><span class="s0">alignas(</span><span class="s7">16</span><span class="s0">) </span><span class="s6">Vec</span><span class="s0">&lt;</span><span class="s7">16</span><span class="s0">&gt; {</span>
+<a name="l612"><span class="ln">612  </span></a>  <span class="s1">uint16_t </span><span class="s7">u16</span><span class="s0">[</span><span class="s7">8</span><span class="s0">];</span>
+<a name="l613"><span class="ln">613  </span></a>  <span class="s1">uint32_t </span><span class="s7">u32</span><span class="s0">[</span><span class="s7">4</span><span class="s0">];</span>
+<a name="l614"><span class="ln">614  </span></a>  <span class="s1">uint64_t </span><span class="s7">u64</span><span class="s0">[</span><span class="s7">2</span><span class="s0">];</span>
+<a name="l615"><span class="ln">615  </span></a>  <span class="s1">uint4 </span><span class="s2">u128</span><span class="s0">, </span><span class="s2">as_scalar</span><span class="s0">;</span>
+<a name="l616"><span class="ln">616  </span></a>  <span class="s1">float </span><span class="s7">f32</span><span class="s0">[</span><span class="s7">4</span><span class="s0">];</span>
+<a name="l617"><span class="ln">617  </span></a><span class="s0">};</span>
+<a name="l618"><span class="ln">618  </span></a>
+<a name="l619"><span class="ln">619  </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">int Alignment, typename T</span><span class="s0">&gt; 
+<a name="l620"><span class="ln">620  </span></a></span><span class="s1">__device__ </span><span class="s2">__inline__ Vec</span><span class="s1">&lt;</span><span class="s2">Alignment</span><span class="s1">&gt; </span><span class="s3">ld_vec</span><span class="s0">(</span><span class="s1">const </span><span class="s2">T</span><span class="s1">* </span><span class="s2">addr</span><span class="s0">) {</span>
+<a name="l621"><span class="ln">621  </span></a>  <span class="s2">Vec</span><span class="s1">&lt;</span><span class="s2">Alignment</span><span class="s1">&gt; </span><span class="s2">vec</span><span class="s0">;</span>
+<a name="l622"><span class="ln">622  </span></a>  <span class="s1">if constexpr </span><span class="s0">(</span><span class="s2">Alignment </span><span class="s1">== </span><span class="s7">16</span><span class="s0">) {</span>
+<a name="l623"><span class="ln">623  </span></a><span class="s0">#</span><span class="s1">if defined</span><span class="s0">(</span><span class="s3">USE_ROCM</span><span class="s0">)</span>
+<a name="l624"><span class="ln">624  </span></a>    <span class="s7">vec</span><span class="s0">.</span><span class="s7">u128 </span><span class="s1">= *reinterpret_cast&lt;const uint4*&gt;</span><span class="s0">(</span><span class="s2">addr</span><span class="s0">);</span>
+<a name="l625"><span class="ln">625  </span></a>  <span class="s0">} </span><span class="s1">else if constexpr </span><span class="s0">(</span><span class="s2">Alignment </span><span class="s1">== </span><span class="s7">8</span><span class="s0">) {</span>
+<a name="l626"><span class="ln">626  </span></a>    <span class="s7">vec</span><span class="s0">.</span><span class="s7">u64 </span><span class="s1">= *reinterpret_cast&lt;const uint64_t*&gt;</span><span class="s0">(</span><span class="s2">addr</span><span class="s0">);</span>
+<a name="l627"><span class="ln">627  </span></a>  <span class="s0">} </span><span class="s1">else if constexpr </span><span class="s0">(</span><span class="s2">Alignment </span><span class="s1">== </span><span class="s7">4</span><span class="s0">) {</span>
+<a name="l628"><span class="ln">628  </span></a>    <span class="s7">vec</span><span class="s0">.</span><span class="s7">u32 </span><span class="s1">= *reinterpret_cast&lt;const uint32_t*&gt;</span><span class="s0">(</span><span class="s2">addr</span><span class="s0">);</span>
+<a name="l629"><span class="ln">629  </span></a><span class="s0">#</span><span class="s1">else</span>
+<a name="l630"><span class="ln">630  </span></a>    <span class="s1">asm</span><span class="s0">(&quot;</span><span class="s2">ld.global.v4.u32 {%0,%1,%2,%3}, [%4];</span><span class="s0">&quot;</span>
+<a name="l631"><span class="ln">631  </span></a>        <span class="s0">: &quot;</span><span class="s2">=r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">[</span><span class="s7">0</span><span class="s0">])</span><span class="s2">, </span><span class="s0">&quot;</span><span class="s2">=r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">[</span><span class="s7">1</span><span class="s0">])</span><span class="s2">, </span><span class="s0">&quot;</span><span class="s2">=r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">[</span><span class="s7">2</span><span class="s0">])</span><span class="s2">, </span><span class="s0">&quot;</span><span class="s2">=r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">[</span><span class="s7">3</span><span class="s0">])</span>
+<a name="l632"><span class="ln">632  </span></a>        <span class="s0">: &quot;</span><span class="s2">l</span><span class="s0">&quot;(</span><span class="s2">addr</span><span class="s0">)</span>
+<a name="l633"><span class="ln">633  </span></a>        <span class="s0">: &quot;</span><span class="s2">memory</span><span class="s0">&quot;);</span>
+<a name="l634"><span class="ln">634  </span></a>  <span class="s2">} </span><span class="s1">else if constexpr </span><span class="s0">(</span><span class="s2">Alignment </span><span class="s1">== </span><span class="s7">8</span><span class="s0">) {</span>
+<a name="l635"><span class="ln">635  </span></a>    <span class="s1">asm</span><span class="s0">(&quot;</span><span class="s2">ld.global.v2.u32 {%0,%1}, [%2];</span><span class="s0">&quot;</span>
+<a name="l636"><span class="ln">636  </span></a>        <span class="s0">: &quot;</span><span class="s2">=r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">[</span><span class="s7">0</span><span class="s0">])</span><span class="s2">, </span><span class="s0">&quot;</span><span class="s2">=r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">[</span><span class="s7">1</span><span class="s0">])</span>
+<a name="l637"><span class="ln">637  </span></a>        <span class="s0">: &quot;</span><span class="s2">l</span><span class="s0">&quot;(</span><span class="s2">addr</span><span class="s0">)</span>
+<a name="l638"><span class="ln">638  </span></a>        <span class="s0">: &quot;</span><span class="s2">memory</span><span class="s0">&quot;);</span>
+<a name="l639"><span class="ln">639  </span></a>  <span class="s0">} </span><span class="s1">else if constexpr </span><span class="s0">(</span><span class="s2">Alignment </span><span class="s1">== </span><span class="s7">4</span><span class="s0">) {</span>
+<a name="l640"><span class="ln">640  </span></a>    <span class="s1">asm</span><span class="s0">(&quot;</span><span class="s2">ld.global.u32 %0, [%1];</span><span class="s0">&quot; : &quot;</span><span class="s2">=r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">) : &quot;</span><span class="s2">l</span><span class="s0">&quot;(</span><span class="s2">addr</span><span class="s0">) : &quot;</span><span class="s2">memory</span><span class="s0">&quot;);</span>
+<a name="l641"><span class="ln">641  </span></a><span class="s0">#</span><span class="s1">endif</span>
+<a name="l642"><span class="ln">642  </span></a>  <span class="s2">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l643"><span class="ln">643  </span></a>    <span class="s1">static_assert</span><span class="s0">(</span><span class="s2">dependent_false</span><span class="s1">&lt;</span><span class="s2">T</span><span class="s1">&gt;</span><span class="s0">);</span>
+<a name="l644"><span class="ln">644  </span></a>  <span class="s0">}</span>
+<a name="l645"><span class="ln">645  </span></a>  <span class="s1">return </span><span class="s2">vec</span><span class="s0">;</span>
+<a name="l646"><span class="ln">646  </span></a><span class="s2">} 
+<a name="l647"><span class="ln">647  </span></a></span>
+<a name="l648"><span class="ln">648  </span></a><span class="s1">template </span><span class="s0">&lt;</span><span class="s2">int Alignment, typename T</span><span class="s0">&gt; 
+<a name="l649"><span class="ln">649  </span></a></span><span class="s1">__device__ </span><span class="s2">__inline__ </span><span class="s1">void </span><span class="s3">st_vec</span><span class="s0">(</span><span class="s2">T</span><span class="s1">* </span><span class="s2">addr</span><span class="s0">, </span><span class="s1">const </span><span class="s2">Vec</span><span class="s1">&lt;</span><span class="s2">Alignment</span><span class="s1">&gt;&amp; </span><span class="s2">vec</span><span class="s0">) {</span>
+<a name="l650"><span class="ln">650  </span></a>  <span class="s1">if constexpr </span><span class="s0">(</span><span class="s2">Alignment </span><span class="s1">== </span><span class="s7">16</span><span class="s0">) {</span>
+<a name="l651"><span class="ln">651  </span></a><span class="s0">#</span><span class="s1">if defined</span><span class="s0">(</span><span class="s3">USE_ROCM</span><span class="s0">)</span>
+<a name="l652"><span class="ln">652  </span></a>    <span class="s1">reinterpret_cast&lt;uint64_t*&gt;</span><span class="s0">(</span><span class="s2">addr</span><span class="s0">)[</span><span class="s7">0</span><span class="s0">] </span><span class="s1">= </span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u64</span><span class="s0">[</span><span class="s7">0</span><span class="s0">];</span>
+<a name="l653"><span class="ln">653  </span></a>    <span class="s1">reinterpret_cast&lt;uint64_t*&gt;</span><span class="s0">(</span><span class="s2">addr</span><span class="s0">)[</span><span class="s7">1</span><span class="s0">] </span><span class="s1">= </span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u64</span><span class="s0">[</span><span class="s7">1</span><span class="s0">];</span>
+<a name="l654"><span class="ln">654  </span></a>  <span class="s0">} </span><span class="s1">else if constexpr </span><span class="s0">(</span><span class="s2">Alignment </span><span class="s1">== </span><span class="s7">8</span><span class="s0">) {</span>
+<a name="l655"><span class="ln">655  </span></a>    <span class="s1">*reinterpret_cast&lt;uint64_t*&gt;</span><span class="s0">(</span><span class="s2">addr</span><span class="s0">) </span><span class="s1">= </span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u64</span><span class="s0">;</span>
+<a name="l656"><span class="ln">656  </span></a>  <span class="s0">} </span><span class="s1">else if constexpr </span><span class="s0">(</span><span class="s2">Alignment </span><span class="s1">== </span><span class="s7">4</span><span class="s0">) {</span>
+<a name="l657"><span class="ln">657  </span></a>    <span class="s1">*reinterpret_cast&lt;uint32_t*&gt;</span><span class="s0">(</span><span class="s2">addr</span><span class="s0">) </span><span class="s1">= </span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">;</span>
+<a name="l658"><span class="ln">658  </span></a><span class="s0">#</span><span class="s1">else</span>
+<a name="l659"><span class="ln">659  </span></a>    <span class="s1">asm</span><span class="s0">(&quot;</span><span class="s2">st.global.v4.u32 [%0], {%1,%2,%3,%4};</span><span class="s0">&quot;</span>
+<a name="l660"><span class="ln">660  </span></a>        <span class="s0">:</span>
+<a name="l661"><span class="ln">661  </span></a>        <span class="s0">: &quot;</span><span class="s2">l</span><span class="s0">&quot;(</span><span class="s2">addr</span><span class="s0">)</span><span class="s2">, 
+<a name="l662"><span class="ln">662  </span></a>          </span><span class="s0">&quot;</span><span class="s2">r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">[</span><span class="s7">0</span><span class="s0">])</span><span class="s2">, 
+<a name="l663"><span class="ln">663  </span></a>          </span><span class="s0">&quot;</span><span class="s2">r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">[</span><span class="s7">1</span><span class="s0">])</span><span class="s2">, 
+<a name="l664"><span class="ln">664  </span></a>          </span><span class="s0">&quot;</span><span class="s2">r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">[</span><span class="s7">2</span><span class="s0">])</span><span class="s2">, 
+<a name="l665"><span class="ln">665  </span></a>          </span><span class="s0">&quot;</span><span class="s2">r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">[</span><span class="s7">3</span><span class="s0">])</span>
+<a name="l666"><span class="ln">666  </span></a>        <span class="s0">: &quot;</span><span class="s2">memory</span><span class="s0">&quot;);</span>
+<a name="l667"><span class="ln">667  </span></a>  <span class="s2">} </span><span class="s1">else if constexpr </span><span class="s0">(</span><span class="s2">Alignment </span><span class="s1">== </span><span class="s7">8</span><span class="s0">) {</span>
+<a name="l668"><span class="ln">668  </span></a>    <span class="s1">asm</span><span class="s0">(&quot;</span><span class="s2">st.global.v2.u32 [%0], {%1,%2};</span><span class="s0">&quot;</span>
+<a name="l669"><span class="ln">669  </span></a>        <span class="s0">:</span>
+<a name="l670"><span class="ln">670  </span></a>        <span class="s0">: &quot;</span><span class="s2">l</span><span class="s0">&quot;(</span><span class="s2">addr</span><span class="s0">)</span><span class="s2">, </span><span class="s0">&quot;</span><span class="s2">r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">[</span><span class="s7">0</span><span class="s0">])</span><span class="s2">, </span><span class="s0">&quot;</span><span class="s2">r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">[</span><span class="s7">1</span><span class="s0">])</span>
+<a name="l671"><span class="ln">671  </span></a>        <span class="s0">: &quot;</span><span class="s2">memory</span><span class="s0">&quot;);</span>
+<a name="l672"><span class="ln">672  </span></a>  <span class="s0">} </span><span class="s1">else if constexpr </span><span class="s0">(</span><span class="s2">Alignment </span><span class="s1">== </span><span class="s7">4</span><span class="s0">) {</span>
+<a name="l673"><span class="ln">673  </span></a>    <span class="s1">asm</span><span class="s0">(&quot;</span><span class="s2">st.global.u32 [%0], %1;</span><span class="s0">&quot; : : &quot;</span><span class="s2">l</span><span class="s0">&quot;(</span><span class="s2">addr</span><span class="s0">)</span><span class="s2">, </span><span class="s0">&quot;</span><span class="s2">r</span><span class="s0">&quot;(</span><span class="s7">vec</span><span class="s0">.</span><span class="s7">u32</span><span class="s0">) : &quot;</span><span class="s2">memory</span><span class="s0">&quot;);</span>
+<a name="l674"><span class="ln">674  </span></a><span class="s0">#</span><span class="s1">endif</span>
+<a name="l675"><span class="ln">675  </span></a>  <span class="s2">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l676"><span class="ln">676  </span></a>    <span class="s1">static_assert</span><span class="s0">(</span><span class="s2">dependent_false</span><span class="s1">&lt;</span><span class="s2">T</span><span class="s1">&gt;</span><span class="s0">);</span>
+<a name="l677"><span class="ln">677  </span></a>  <span class="s0">}</span>
+<a name="l678"><span class="ln">678  </span></a><span class="s2">} 
+<a name="l679"><span class="ln">679  </span></a></span>
+<a name="l680"><span class="ln">680  </span></a>
+<a name="l681"><span class="ln">681  </span></a>
+<a name="l682"><span class="ln">682  </span></a><span class="s2">} </span><span class="s0">// </span><span class="s5">namespace at::native::memory 
+<a name="l683"><span class="ln">683  </span></a></span></pre>
+</body>
+</html>

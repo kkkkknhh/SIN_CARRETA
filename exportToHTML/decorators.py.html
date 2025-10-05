@@ -1,0 +1,898 @@
+<html>
+<head>
+<title>decorators.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+decorators.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: allow-untyped-defs</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0"># ruff: noqa: TCH004</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l5"><span class="ln">5    </span></a>This module provides decorators and utilities for controlling TorchDynamo's behavior during compilation. 
+<a name="l6"><span class="ln">6    </span></a>&quot;&quot;&quot;</span>
+<a name="l7"><span class="ln">7    </span></a>
+<a name="l8"><span class="ln">8    </span></a><span class="s2">import </span><span class="s1">functools</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s2">import </span><span class="s1">inspect</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">import </span><span class="s1">weakref</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">from </span><span class="s1">dataclasses </span><span class="s2">import </span><span class="s1">dataclass</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">from </span><span class="s1">typing </span><span class="s2">import </span><span class="s1">Any</span><span class="s3">, </span><span class="s1">Callable</span><span class="s3">, </span><span class="s1">Optional</span><span class="s3">, </span><span class="s1">TYPE_CHECKING</span><span class="s3">, </span><span class="s1">TypeVar</span><span class="s3">, </span><span class="s1">Union</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">from </span><span class="s1">typing_extensions </span><span class="s2">import </span><span class="s1">ParamSpec</span>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">import </span><span class="s1">torch</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">utils</span><span class="s3">.</span><span class="s1">_contextlib </span><span class="s2">import </span><span class="s1">_DecoratorContextManager</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">utils</span><span class="s3">.</span><span class="s1">_python_dispatch </span><span class="s2">import </span><span class="s1">is_traceable_wrapper_subclass</span>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">from </span><span class="s3">. </span><span class="s2">import </span><span class="s1">trace_rules</span><span class="s3">, </span><span class="s1">variables</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">comptime </span><span class="s2">import </span><span class="s1">comptime</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">eval_frame </span><span class="s2">import </span><span class="s3">(</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s1">_set_stance</span><span class="s3">,</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s1">DisableContext</span><span class="s3">,</span>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s1">DynamoStance</span><span class="s3">,</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s1">innermost_fn</span><span class="s3">,</span>
+<a name="l26"><span class="ln">26   </span></a>    <span class="s1">RunOnlyContext</span><span class="s3">,</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s1">skip_code</span><span class="s3">,</span>
+<a name="l28"><span class="ln">28   </span></a><span class="s3">)</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">exc </span><span class="s2">import </span><span class="s1">IncorrectUsage</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">external_utils </span><span class="s2">import </span><span class="s3">(</span>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s1">_dynamo_config_patch_proxy_dunder_call</span><span class="s3">,</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s1">get_nonrecursive_disable_wrapper</span><span class="s3">,</span>
+<a name="l33"><span class="ln">33   </span></a>    <span class="s1">is_compiling</span><span class="s3">,</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s3">)</span>
+<a name="l35"><span class="ln">35   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">utils </span><span class="s2">import </span><span class="s1">is_function</span>
+<a name="l36"><span class="ln">36   </span></a>
+<a name="l37"><span class="ln">37   </span></a>
+<a name="l38"><span class="ln">38   </span></a><span class="s2">if </span><span class="s1">TYPE_CHECKING</span><span class="s2">:</span>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s2">from </span><span class="s1">types </span><span class="s2">import </span><span class="s1">FunctionType</span>
+<a name="l40"><span class="ln">40   </span></a>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_dynamo</span><span class="s3">.</span><span class="s1">eval_frame </span><span class="s2">import </span><span class="s3">(  </span><span class="s0"># noqa: F401</span>
+<a name="l42"><span class="ln">42   </span></a>        <span class="s1">reset_code</span><span class="s3">,</span>
+<a name="l43"><span class="ln">43   </span></a>        <span class="s1">set_eval_frame</span><span class="s3">,</span>
+<a name="l44"><span class="ln">44   </span></a>        <span class="s1">set_guard_complete_hook</span><span class="s3">,</span>
+<a name="l45"><span class="ln">45   </span></a>        <span class="s1">set_guard_error_hook</span><span class="s3">,</span>
+<a name="l46"><span class="ln">46   </span></a>        <span class="s1">unsupported</span><span class="s3">,</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s3">)</span>
+<a name="l48"><span class="ln">48   </span></a>
+<a name="l49"><span class="ln">49   </span></a>    <span class="s2">from </span><span class="s3">.</span><span class="s1">variables </span><span class="s2">import </span><span class="s1">VariableTracker</span>
+<a name="l50"><span class="ln">50   </span></a><span class="s2">else:</span>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s2">for </span><span class="s1">name </span><span class="s2">in </span><span class="s1">dir</span><span class="s3">(</span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_dynamo</span><span class="s3">.</span><span class="s1">eval_frame</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s2">if </span><span class="s1">name</span><span class="s3">.</span><span class="s1">startswith</span><span class="s3">(</span><span class="s4">&quot;__&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l53"><span class="ln">53   </span></a>            <span class="s2">continue</span>
+<a name="l54"><span class="ln">54   </span></a>        <span class="s1">globals</span><span class="s3">()[</span><span class="s1">name</span><span class="s3">] </span><span class="s2">= </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">_dynamo</span><span class="s3">.</span><span class="s1">eval_frame</span><span class="s3">, </span><span class="s1">name</span><span class="s3">)</span>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a>
+<a name="l57"><span class="ln">57   </span></a><span class="s1">_P </span><span class="s2">= </span><span class="s1">ParamSpec</span><span class="s3">(</span><span class="s4">&quot;_P&quot;</span><span class="s3">)</span>
+<a name="l58"><span class="ln">58   </span></a><span class="s1">_R </span><span class="s2">= </span><span class="s1">TypeVar</span><span class="s3">(</span><span class="s4">&quot;_R&quot;</span><span class="s3">)</span>
+<a name="l59"><span class="ln">59   </span></a>
+<a name="l60"><span class="ln">60   </span></a>
+<a name="l61"><span class="ln">61   </span></a><span class="s2">def </span><span class="s1">run</span><span class="s3">(</span><span class="s1">fn</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s0">&quot;&quot;&quot;Don't do any dynamic compiles, just use prior optimizations&quot;&quot;&quot;</span>
+<a name="l63"><span class="ln">63   </span></a>    <span class="s2">if </span><span class="s1">fn </span><span class="s2">is not None:</span>
+<a name="l64"><span class="ln">64   </span></a>        <span class="s1">fn </span><span class="s2">= </span><span class="s1">innermost_fn</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l65"><span class="ln">65   </span></a>        <span class="s2">assert </span><span class="s1">callable</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s2">return </span><span class="s1">RunOnlyContext</span><span class="s3">()(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l67"><span class="ln">67   </span></a>    <span class="s2">return </span><span class="s1">RunOnlyContext</span><span class="s3">()</span>
+<a name="l68"><span class="ln">68   </span></a>
+<a name="l69"><span class="ln">69   </span></a>
+<a name="l70"><span class="ln">70   </span></a><span class="s2">def </span><span class="s1">disable</span><span class="s3">(</span><span class="s1">fn</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">recursive</span><span class="s2">=True</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">reason</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">wrapping</span><span class="s2">=True</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l71"><span class="ln">71   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l72"><span class="ln">72   </span></a>    Decorator to disable TorchDynamo 
+<a name="l73"><span class="ln">73   </span></a> 
+<a name="l74"><span class="ln">74   </span></a>    If recursive=True, Dynamo is completely skipped on the decorated function 
+<a name="l75"><span class="ln">75   </span></a>    frame as well as the recursively invoked functions. 
+<a name="l76"><span class="ln">76   </span></a> 
+<a name="l77"><span class="ln">77   </span></a>    If recursive=False, Dynamo skips frames associated with the function code, 
+<a name="l78"><span class="ln">78   </span></a>    but still process recursively invoked frames. 
+<a name="l79"><span class="ln">79   </span></a> 
+<a name="l80"><span class="ln">80   </span></a>    If reason is provided, it will be printed when Dynamo attempts to trace the disabled function. 
+<a name="l81"><span class="ln">81   </span></a>    &quot;&quot;&quot;</span>
+<a name="l82"><span class="ln">82   </span></a>    <span class="s2">if </span><span class="s1">recursive</span><span class="s2">:</span>
+<a name="l83"><span class="ln">83   </span></a>        <span class="s2">if </span><span class="s1">fn </span><span class="s2">is not None:</span>
+<a name="l84"><span class="ln">84   </span></a>            <span class="s1">fn </span><span class="s2">= </span><span class="s1">innermost_fn</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l85"><span class="ln">85   </span></a>            <span class="s2">assert </span><span class="s1">callable</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l86"><span class="ln">86   </span></a>            <span class="s2">return </span><span class="s1">DisableContext</span><span class="s3">(</span><span class="s1">msg</span><span class="s2">=</span><span class="s1">reason</span><span class="s3">, </span><span class="s1">wrapping</span><span class="s2">=</span><span class="s1">wrapping</span><span class="s3">)(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l87"><span class="ln">87   </span></a>        <span class="s2">return </span><span class="s1">DisableContext</span><span class="s3">(</span><span class="s1">msg</span><span class="s2">=</span><span class="s1">reason</span><span class="s3">, </span><span class="s1">wrapping</span><span class="s2">=</span><span class="s1">wrapping</span><span class="s3">)</span>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s2">else:</span>
+<a name="l89"><span class="ln">89   </span></a>
+<a name="l90"><span class="ln">90   </span></a>        <span class="s2">def </span><span class="s1">wrap</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l91"><span class="ln">91   </span></a>            <span class="s1">fn </span><span class="s2">= </span><span class="s1">innermost_fn</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l92"><span class="ln">92   </span></a>            <span class="s2">assert </span><span class="s1">callable</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l93"><span class="ln">93   </span></a>
+<a name="l94"><span class="ln">94   </span></a>            <span class="s1">nonrecursive_disable_wrapper </span><span class="s2">= </span><span class="s1">get_nonrecursive_disable_wrapper</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l95"><span class="ln">95   </span></a>            <span class="s1">nonrecursive_disable_wrapper</span><span class="s3">.</span><span class="s1">_torchdynamo_disable </span><span class="s2">= True  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l96"><span class="ln">96   </span></a>            <span class="s1">nonrecursive_disable_wrapper</span><span class="s3">.</span><span class="s1">_torchdynamo_disable_msg </span><span class="s2">= </span><span class="s1">reason  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l97"><span class="ln">97   </span></a>            <span class="s1">nonrecursive_disable_wrapper</span><span class="s3">.</span><span class="s1">_torchdynamo_orig_callable </span><span class="s2">= </span><span class="s1">fn  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l98"><span class="ln">98   </span></a>            <span class="s2">return </span><span class="s1">nonrecursive_disable_wrapper</span>
+<a name="l99"><span class="ln">99   </span></a>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s2">if </span><span class="s1">fn </span><span class="s2">is None:</span>
+<a name="l101"><span class="ln">101  </span></a>            <span class="s2">return </span><span class="s1">wrap</span>
+<a name="l102"><span class="ln">102  </span></a>        <span class="s2">return </span><span class="s1">wrap</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l103"><span class="ln">103  </span></a>
+<a name="l104"><span class="ln">104  </span></a>
+<a name="l105"><span class="ln">105  </span></a><span class="s1">_nonrecursive_disable_wrapper_code </span><span class="s2">= </span><span class="s1">disable</span><span class="s3">(</span><span class="s2">lambda: None</span><span class="s3">, </span><span class="s1">recursive</span><span class="s2">=False</span><span class="s3">).</span><span class="s1">__code__  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l106"><span class="ln">106  </span></a><span class="s1">skip_code</span><span class="s3">(</span><span class="s1">_nonrecursive_disable_wrapper_code</span><span class="s3">)</span>
+<a name="l107"><span class="ln">107  </span></a>
+<a name="l108"><span class="ln">108  </span></a>
+<a name="l109"><span class="ln">109  </span></a><span class="s2">def </span><span class="s1">skip</span><span class="s3">(</span><span class="s1">fn</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l110"><span class="ln">110  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l111"><span class="ln">111  </span></a>    Skip frames associated with the function code, but still process recursively 
+<a name="l112"><span class="ln">112  </span></a>    invoked frames 
+<a name="l113"><span class="ln">113  </span></a>    &quot;&quot;&quot;</span>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s2">if </span><span class="s1">fn </span><span class="s2">is None:</span>
+<a name="l115"><span class="ln">115  </span></a>        <span class="s2">return </span><span class="s1">skip</span>
+<a name="l116"><span class="ln">116  </span></a>    <span class="s1">fn </span><span class="s2">= </span><span class="s1">innermost_fn</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l117"><span class="ln">117  </span></a>    <span class="s2">assert </span><span class="s1">callable</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l118"><span class="ln">118  </span></a>    <span class="s1">skip_code</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">.</span><span class="s1">__code__</span><span class="s3">)</span>
+<a name="l119"><span class="ln">119  </span></a>    <span class="s1">fn</span><span class="s3">.</span><span class="s1">_torchdynamo_disable </span><span class="s2">= True</span>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s2">return </span><span class="s1">fn</span>
+<a name="l121"><span class="ln">121  </span></a>
+<a name="l122"><span class="ln">122  </span></a>
+<a name="l123"><span class="ln">123  </span></a><span class="s2">class </span><span class="s1">set_stance</span><span class="s3">(</span><span class="s1">_DecoratorContextManager</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l124"><span class="ln">124  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l125"><span class="ln">125  </span></a>    Decorator, context manager, function to set the current stance of the compiler. 
+<a name="l126"><span class="ln">126  </span></a> 
+<a name="l127"><span class="ln">127  </span></a>    Stances documented in corresponding function in torch/compiler/__init__.py 
+<a name="l128"><span class="ln">128  </span></a>    &quot;&quot;&quot;</span>
+<a name="l129"><span class="ln">129  </span></a>
+<a name="l130"><span class="ln">130  </span></a>    <span class="s1">_dynamo_forbidden </span><span class="s2">= True</span>
+<a name="l131"><span class="ln">131  </span></a>
+<a name="l132"><span class="ln">132  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span>
+<a name="l133"><span class="ln">133  </span></a>        <span class="s1">self</span><span class="s3">,</span>
+<a name="l134"><span class="ln">134  </span></a>        <span class="s1">stance</span><span class="s2">: </span><span class="s1">str </span><span class="s2">= </span><span class="s4">&quot;default&quot;</span><span class="s3">,</span>
+<a name="l135"><span class="ln">135  </span></a>        <span class="s2">*</span><span class="s3">,</span>
+<a name="l136"><span class="ln">136  </span></a>        <span class="s1">skip_guard_eval_unsafe</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= False</span><span class="s3">,</span>
+<a name="l137"><span class="ln">137  </span></a>        <span class="s1">force_backend</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l138"><span class="ln">138  </span></a>    <span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l139"><span class="ln">139  </span></a>        <span class="s2">if </span><span class="s1">force_backend </span><span class="s2">is not None and </span><span class="s1">stance </span><span class="s2">!= </span><span class="s4">&quot;default&quot;</span><span class="s2">:</span>
+<a name="l140"><span class="ln">140  </span></a>            <span class="s2">raise </span><span class="s1">RuntimeError</span><span class="s3">(</span><span class="s4">&quot;non-default stance cannot have force_backend set&quot;</span><span class="s3">)</span>
+<a name="l141"><span class="ln">141  </span></a>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">stance </span><span class="s2">= </span><span class="s1">DynamoStance</span><span class="s3">(</span><span class="s1">stance</span><span class="s3">, </span><span class="s1">skip_guard_eval_unsafe</span><span class="s3">, </span><span class="s1">force_backend</span><span class="s3">)</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">prev </span><span class="s2">= </span><span class="s1">_set_stance</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">stance</span><span class="s3">)</span>
+<a name="l144"><span class="ln">144  </span></a>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s2">def </span><span class="s1">__call__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">fn</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l146"><span class="ln">146  </span></a>        <span class="s1">_set_stance</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">prev</span><span class="s3">)</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s1">wrapper </span><span class="s2">= </span><span class="s1">super</span><span class="s3">().</span><span class="s1">__call__</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l148"><span class="ln">148  </span></a>        <span class="s0"># forbid wrapper in graph</span>
+<a name="l149"><span class="ln">149  </span></a>        <span class="s1">wrapper</span><span class="s3">.</span><span class="s1">_dynamo_forbidden </span><span class="s2">= True  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s2">return </span><span class="s1">wrapper</span>
+<a name="l151"><span class="ln">151  </span></a>
+<a name="l152"><span class="ln">152  </span></a>    <span class="s2">def </span><span class="s1">__enter__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l153"><span class="ln">153  </span></a>        <span class="s1">_set_stance</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">stance</span><span class="s3">)</span>
+<a name="l154"><span class="ln">154  </span></a>
+<a name="l155"><span class="ln">155  </span></a>    <span class="s2">def </span><span class="s1">__exit__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">exc_type</span><span class="s3">, </span><span class="s1">exc_val</span><span class="s3">, </span><span class="s1">exc_tb</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l156"><span class="ln">156  </span></a>        <span class="s1">_set_stance</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">prev</span><span class="s3">)</span>
+<a name="l157"><span class="ln">157  </span></a>
+<a name="l158"><span class="ln">158  </span></a>    <span class="s2">def </span><span class="s1">clone</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l159"><span class="ln">159  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">stance</span><span class="s3">.</span><span class="s1">stance</span><span class="s3">, </span><span class="s1">force_backend</span><span class="s2">=</span><span class="s1">self</span><span class="s3">.</span><span class="s1">stance</span><span class="s3">.</span><span class="s1">backend</span><span class="s3">)</span>
+<a name="l160"><span class="ln">160  </span></a>
+<a name="l161"><span class="ln">161  </span></a>
+<a name="l162"><span class="ln">162  </span></a><span class="s2">def </span><span class="s1">assume_constant_result</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l163"><span class="ln">163  </span></a>    <span class="s1">fn</span><span class="s3">.</span><span class="s1">_dynamo_marked_constant </span><span class="s2">= True</span>
+<a name="l164"><span class="ln">164  </span></a>    <span class="s2">return </span><span class="s1">fn</span>
+<a name="l165"><span class="ln">165  </span></a>
+<a name="l166"><span class="ln">166  </span></a>
+<a name="l167"><span class="ln">167  </span></a><span class="s2">def </span><span class="s1">allow_in_graph</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l168"><span class="ln">168  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l169"><span class="ln">169  </span></a>    Tells the compiler frontend (Dynamo) to skip symbolic introspection of the function 
+<a name="l170"><span class="ln">170  </span></a>    and instead directly write it to the graph when encountered. 
+<a name="l171"><span class="ln">171  </span></a> 
+<a name="l172"><span class="ln">172  </span></a>    See :func:`torch.compiler.allow_in_graph`'s docstring for the full documentation 
+<a name="l173"><span class="ln">173  </span></a> 
+<a name="l174"><span class="ln">174  </span></a>    WARNING: this API can be a footgun, please read the documentation carefully. 
+<a name="l175"><span class="ln">175  </span></a>    &quot;&quot;&quot;</span>
+<a name="l176"><span class="ln">176  </span></a>    <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">, (</span><span class="s1">list</span><span class="s3">, </span><span class="s1">tuple</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l177"><span class="ln">177  </span></a>        <span class="s2">return </span><span class="s3">[</span><span class="s1">allow_in_graph</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">fn</span><span class="s3">]</span>
+<a name="l178"><span class="ln">178  </span></a>    <span class="s2">assert </span><span class="s1">callable</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">), </span><span class="s4">&quot;allow_in_graph expects a callable&quot;</span>
+<a name="l179"><span class="ln">179  </span></a>    <span class="s2">if </span><span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">lookup_callable</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">) </span><span class="s2">!= </span><span class="s1">variables</span><span class="s3">.</span><span class="s1">TorchInGraphFunctionVariable</span><span class="s2">:</span>
+<a name="l180"><span class="ln">180  </span></a>        <span class="s1">fn_id </span><span class="s2">= </span><span class="s1">id</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l181"><span class="ln">181  </span></a>        <span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">_disallowed_callable_ids</span><span class="s3">.</span><span class="s1">remove</span><span class="s3">(</span><span class="s1">fn_id</span><span class="s3">)</span>
+<a name="l182"><span class="ln">182  </span></a>        <span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">_allowed_callable_ids</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">fn_id</span><span class="s3">)</span>
+<a name="l183"><span class="ln">183  </span></a>
+<a name="l184"><span class="ln">184  </span></a>        <span class="s0"># Avoid id reuse which creates subtle bugs.</span>
+<a name="l185"><span class="ln">185  </span></a>        <span class="s2">def </span><span class="s1">deregister</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l186"><span class="ln">186  </span></a>            <span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">_allowed_callable_ids</span><span class="s3">.</span><span class="s1">remove</span><span class="s3">(</span><span class="s1">fn_id</span><span class="s3">)</span>
+<a name="l187"><span class="ln">187  </span></a>
+<a name="l188"><span class="ln">188  </span></a>        <span class="s1">weakref</span><span class="s3">.</span><span class="s1">finalize</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">, </span><span class="s1">deregister</span><span class="s3">)</span>
+<a name="l189"><span class="ln">189  </span></a>    <span class="s2">return </span><span class="s1">fn</span>
+<a name="l190"><span class="ln">190  </span></a>
+<a name="l191"><span class="ln">191  </span></a>
+<a name="l192"><span class="ln">192  </span></a><span class="s2">def </span><span class="s1">nonstrict_trace</span><span class="s3">(</span><span class="s1">traceable_fn</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l193"><span class="ln">193  </span></a>    <span class="s0"># Like `allow_in_graph`, but with the following enhancements/differences:</span>
+<a name="l194"><span class="ln">194  </span></a>    <span class="s0">#</span>
+<a name="l195"><span class="ln">195  </span></a>    <span class="s0"># 1. Supports user-defined class as inputs, as long as the class has been</span>
+<a name="l196"><span class="ln">196  </span></a>    <span class="s0">#    registered with pytree.</span>
+<a name="l197"><span class="ln">197  </span></a>    <span class="s0"># 2. Reads to global/captured tensors forces the underlying graph to treat</span>
+<a name="l198"><span class="ln">198  </span></a>    <span class="s0">#    those tensors as constant, and we _assume_ they will not be updated. This</span>
+<a name="l199"><span class="ln">199  </span></a>    <span class="s0">#    is similar to FX tracing.</span>
+<a name="l200"><span class="ln">200  </span></a>    <span class="s0"># 3. In the resulting Dynamo graph, the call to a `nonstrict_trace`-ed function</span>
+<a name="l201"><span class="ln">201  </span></a>    <span class="s0">#    will be represented as a call to `torch._higher_order_ops.flat_apply`,</span>
+<a name="l202"><span class="ln">202  </span></a>    <span class="s0">#    which takes in the `nonstrict_trace`-ed function and pytree-flattened</span>
+<a name="l203"><span class="ln">203  </span></a>    <span class="s0">#    inputs.</span>
+<a name="l204"><span class="ln">204  </span></a>    <span class="s0"># 4. Only the returned function is traceable, and the original function will</span>
+<a name="l205"><span class="ln">205  </span></a>    <span class="s0">#    not be. Moreover, `nonstrict_trace` can be used inside a `torch.compile`</span>
+<a name="l206"><span class="ln">206  </span></a>    <span class="s0">#    region.</span>
+<a name="l207"><span class="ln">207  </span></a>    <span class="s0">#</span>
+<a name="l208"><span class="ln">208  </span></a>    <span class="s0"># NOTE: like `allow_in_graph`, aliasing information is neither preserved</span>
+<a name="l209"><span class="ln">209  </span></a>    <span class="s0"># between inputs themselves, nor between inputs and outputs.</span>
+<a name="l210"><span class="ln">210  </span></a>    <span class="s2">assert </span><span class="s1">callable</span><span class="s3">(</span><span class="s1">traceable_fn</span><span class="s3">), </span><span class="s4">&quot;nonstrict_trace expects a callable&quot;</span>
+<a name="l211"><span class="ln">211  </span></a>
+<a name="l212"><span class="ln">212  </span></a>    <span class="s2">@</span><span class="s1">functools</span><span class="s3">.</span><span class="s1">wraps</span><span class="s3">(</span><span class="s1">traceable_fn</span><span class="s3">)</span>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s2">def </span><span class="s1">wrapped</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l214"><span class="ln">214  </span></a>        <span class="s2">return </span><span class="s1">traceable_fn</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l215"><span class="ln">215  </span></a>
+<a name="l216"><span class="ln">216  </span></a>    <span class="s1">wrapped_id </span><span class="s2">= </span><span class="s1">id</span><span class="s3">(</span><span class="s1">wrapped</span><span class="s3">)</span>
+<a name="l217"><span class="ln">217  </span></a>
+<a name="l218"><span class="ln">218  </span></a>    <span class="s0"># This line allows us to reuse much of the `allow_in_graph` impl.</span>
+<a name="l219"><span class="ln">219  </span></a>    <span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">_allowed_callable_ids</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">wrapped_id</span><span class="s3">)</span>
+<a name="l220"><span class="ln">220  </span></a>
+<a name="l221"><span class="ln">221  </span></a>    <span class="s0"># This line allows us to diverge the impl from `allow_in_graph`.</span>
+<a name="l222"><span class="ln">222  </span></a>    <span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">_nonstrict_trace_callable_ids</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">wrapped_id</span><span class="s3">)</span>
+<a name="l223"><span class="ln">223  </span></a>
+<a name="l224"><span class="ln">224  </span></a>    <span class="s0"># Avoid id reuse which creates subtle bugs.</span>
+<a name="l225"><span class="ln">225  </span></a>    <span class="s2">def </span><span class="s1">deregister</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l226"><span class="ln">226  </span></a>        <span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">_allowed_callable_ids</span><span class="s3">.</span><span class="s1">remove</span><span class="s3">(</span><span class="s1">wrapped_id</span><span class="s3">)</span>
+<a name="l227"><span class="ln">227  </span></a>        <span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">_nonstrict_trace_callable_ids</span><span class="s3">.</span><span class="s1">remove</span><span class="s3">(</span><span class="s1">wrapped_id</span><span class="s3">)</span>
+<a name="l228"><span class="ln">228  </span></a>
+<a name="l229"><span class="ln">229  </span></a>    <span class="s1">weakref</span><span class="s3">.</span><span class="s1">finalize</span><span class="s3">(</span><span class="s1">wrapped</span><span class="s3">, </span><span class="s1">deregister</span><span class="s3">)</span>
+<a name="l230"><span class="ln">230  </span></a>
+<a name="l231"><span class="ln">231  </span></a>    <span class="s2">return </span><span class="s1">wrapped</span>
+<a name="l232"><span class="ln">232  </span></a>
+<a name="l233"><span class="ln">233  </span></a>
+<a name="l234"><span class="ln">234  </span></a><span class="s2">def </span><span class="s1">_disallow_in_graph_helper</span><span class="s3">(</span><span class="s1">throw_if_not_allowed</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l235"><span class="ln">235  </span></a>    <span class="s2">def </span><span class="s1">inner</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l236"><span class="ln">236  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">, (</span><span class="s1">list</span><span class="s3">, </span><span class="s1">tuple</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l237"><span class="ln">237  </span></a>            <span class="s2">return </span><span class="s3">[</span><span class="s1">disallow_in_graph</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">fn</span><span class="s3">]</span>
+<a name="l238"><span class="ln">238  </span></a>        <span class="s2">assert </span><span class="s1">callable</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">), </span><span class="s4">&quot;disallow_in_graph expects a callable&quot;</span>
+<a name="l239"><span class="ln">239  </span></a>        <span class="s2">if </span><span class="s3">(</span>
+<a name="l240"><span class="ln">240  </span></a>            <span class="s1">throw_if_not_allowed</span>
+<a name="l241"><span class="ln">241  </span></a>            <span class="s2">and </span><span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">lookup_callable</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l242"><span class="ln">242  </span></a>            <span class="s2">!= </span><span class="s1">variables</span><span class="s3">.</span><span class="s1">TorchInGraphFunctionVariable</span>
+<a name="l243"><span class="ln">243  </span></a>            <span class="s2">and </span><span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">lookup</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">) </span><span class="s2">!= </span><span class="s1">variables</span><span class="s3">.</span><span class="s1">TorchInGraphFunctionVariable</span>
+<a name="l244"><span class="ln">244  </span></a>        <span class="s3">)</span><span class="s2">:</span>
+<a name="l245"><span class="ln">245  </span></a>            <span class="s2">raise </span><span class="s1">IncorrectUsage</span><span class="s3">(</span>
+<a name="l246"><span class="ln">246  </span></a>                <span class="s4">&quot;disallow_in_graph is expected to be used on an already allowed callable (like torch.* ops). &quot;</span>
+<a name="l247"><span class="ln">247  </span></a>                <span class="s4">&quot;Allowed callables means callables that TorchDynamo puts as-is in the extracted graph.&quot;</span>
+<a name="l248"><span class="ln">248  </span></a>            <span class="s3">)</span>
+<a name="l249"><span class="ln">249  </span></a>        <span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">_allowed_callable_ids</span><span class="s3">.</span><span class="s1">remove</span><span class="s3">(</span><span class="s1">id</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">))</span>
+<a name="l250"><span class="ln">250  </span></a>        <span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">_nonstrict_trace_callable_ids</span><span class="s3">.</span><span class="s1">remove</span><span class="s3">(</span><span class="s1">id</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">))</span>
+<a name="l251"><span class="ln">251  </span></a>        <span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">_disallowed_callable_ids</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">id</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">))</span>
+<a name="l252"><span class="ln">252  </span></a>        <span class="s2">return </span><span class="s1">fn</span>
+<a name="l253"><span class="ln">253  </span></a>
+<a name="l254"><span class="ln">254  </span></a>    <span class="s2">return </span><span class="s1">inner</span>
+<a name="l255"><span class="ln">255  </span></a>
+<a name="l256"><span class="ln">256  </span></a>
+<a name="l257"><span class="ln">257  </span></a><span class="s2">def </span><span class="s1">disallow_in_graph</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l258"><span class="ln">258  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l259"><span class="ln">259  </span></a>    Customize which functions TorchDynamo will exclude in the generated 
+<a name="l260"><span class="ln">260  </span></a>    graph and force a graph break on. 
+<a name="l261"><span class="ln">261  </span></a>    :: 
+<a name="l262"><span class="ln">262  </span></a> 
+<a name="l263"><span class="ln">263  </span></a>        torch._dynamo.disallow_in_graph(torch.sub) 
+<a name="l264"><span class="ln">264  </span></a> 
+<a name="l265"><span class="ln">265  </span></a> 
+<a name="l266"><span class="ln">266  </span></a>        @torch._dynamo.optimize(...) 
+<a name="l267"><span class="ln">267  </span></a>        def fn(a): 
+<a name="l268"><span class="ln">268  </span></a>            x = torch.add(x, 1) 
+<a name="l269"><span class="ln">269  </span></a>            x = torch.sub(x, 1) 
+<a name="l270"><span class="ln">270  </span></a>            x = torch.add(x, 1) 
+<a name="l271"><span class="ln">271  </span></a>            return x 
+<a name="l272"><span class="ln">272  </span></a> 
+<a name="l273"><span class="ln">273  </span></a> 
+<a name="l274"><span class="ln">274  </span></a>        fn(...) 
+<a name="l275"><span class="ln">275  </span></a> 
+<a name="l276"><span class="ln">276  </span></a>    Will break the graph on `torch.sub`, and give two graphs each with a 
+<a name="l277"><span class="ln">277  </span></a>    single `torch.add()` op. 
+<a name="l278"><span class="ln">278  </span></a>    &quot;&quot;&quot;</span>
+<a name="l279"><span class="ln">279  </span></a>    <span class="s2">return </span><span class="s1">_disallow_in_graph_helper</span><span class="s3">(</span><span class="s1">throw_if_not_allowed</span><span class="s2">=True</span><span class="s3">)(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l280"><span class="ln">280  </span></a>
+<a name="l281"><span class="ln">281  </span></a>
+<a name="l282"><span class="ln">282  </span></a><span class="s2">@</span><span class="s1">_disallow_in_graph_helper</span><span class="s3">(</span><span class="s1">throw_if_not_allowed</span><span class="s2">=False</span><span class="s3">)</span>
+<a name="l283"><span class="ln">283  </span></a><span class="s2">def </span><span class="s1">graph_break</span><span class="s3">(</span><span class="s1">msg</span><span class="s2">=</span><span class="s4">&quot;&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l284"><span class="ln">284  </span></a>    <span class="s0">&quot;&quot;&quot;Force a graph break&quot;&quot;&quot;</span>
+<a name="l285"><span class="ln">285  </span></a>
+<a name="l286"><span class="ln">286  </span></a>
+<a name="l287"><span class="ln">287  </span></a><span class="s0"># NOTE: primarily used for internal debugging purposes!</span>
+<a name="l288"><span class="ln">288  </span></a><span class="s2">@</span><span class="s1">_disallow_in_graph_helper</span><span class="s3">(</span><span class="s1">throw_if_not_allowed</span><span class="s2">=False</span><span class="s3">)</span>
+<a name="l289"><span class="ln">289  </span></a><span class="s2">def </span><span class="s1">skip_frame</span><span class="s3">(</span><span class="s1">msg</span><span class="s2">=</span><span class="s4">&quot;&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l290"><span class="ln">290  </span></a>    <span class="s0">&quot;&quot;&quot;Force a skipped frame&quot;&quot;&quot;</span>
+<a name="l291"><span class="ln">291  </span></a>
+<a name="l292"><span class="ln">292  </span></a>
+<a name="l293"><span class="ln">293  </span></a><span class="s2">def </span><span class="s1">forbid_in_graph</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l294"><span class="ln">294  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l295"><span class="ln">295  </span></a>    Customize which functions TorchDynamo will assert are not present while tracing. 
+<a name="l296"><span class="ln">296  </span></a> 
+<a name="l297"><span class="ln">297  </span></a>    If you want a graph break on this function instead, use disallow_in_graph. 
+<a name="l298"><span class="ln">298  </span></a>    TODO(voz): We now have allow_in_graph, disallow_in_graph, forbid_in_graph - some more robust 
+<a name="l299"><span class="ln">299  </span></a>    documentation would not be amiss. 
+<a name="l300"><span class="ln">300  </span></a>    &quot;&quot;&quot;</span>
+<a name="l301"><span class="ln">301  </span></a>    <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">, (</span><span class="s1">list</span><span class="s3">, </span><span class="s1">tuple</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l302"><span class="ln">302  </span></a>        <span class="s2">return </span><span class="s3">[</span><span class="s1">forbid_in_graph</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">fn</span><span class="s3">]</span>
+<a name="l303"><span class="ln">303  </span></a>    <span class="s2">assert </span><span class="s1">callable</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">), </span><span class="s4">&quot;forbid_in_graph applies only to callables&quot;</span>
+<a name="l304"><span class="ln">304  </span></a>    <span class="s1">fn</span><span class="s3">.</span><span class="s1">_dynamo_forbidden </span><span class="s2">= True</span>
+<a name="l305"><span class="ln">305  </span></a>    <span class="s2">return </span><span class="s1">fn</span>
+<a name="l306"><span class="ln">306  </span></a>
+<a name="l307"><span class="ln">307  </span></a>
+<a name="l308"><span class="ln">308  </span></a><span class="s2">def </span><span class="s1">substitute_in_graph</span><span class="s3">(</span>
+<a name="l309"><span class="ln">309  </span></a>    <span class="s1">original_fn</span><span class="s2">: </span><span class="s1">Callable</span><span class="s3">[</span><span class="s1">_P</span><span class="s3">, </span><span class="s1">_R</span><span class="s3">],</span>
+<a name="l310"><span class="ln">310  </span></a>    <span class="s2">*</span><span class="s3">,</span>
+<a name="l311"><span class="ln">311  </span></a>    <span class="s1">can_constant_fold_through</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= False</span><span class="s3">,</span>
+<a name="l312"><span class="ln">312  </span></a>    <span class="s1">skip_signature_check</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= False</span><span class="s3">,</span>
+<a name="l313"><span class="ln">313  </span></a>    <span class="s0"># type that is embedded in the Python interpreter</span>
+<a name="l314"><span class="ln">314  </span></a>    <span class="s1">is_embedded_type</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">= False</span><span class="s3">,  </span><span class="s0"># internal use only</span>
+<a name="l315"><span class="ln">315  </span></a><span class="s3">) </span><span class="s1">-&gt; Callable</span><span class="s3">[[</span><span class="s1">Callable</span><span class="s3">[</span><span class="s1">_P</span><span class="s3">, </span><span class="s1">_R</span><span class="s3">]], </span><span class="s1">Callable</span><span class="s3">[</span><span class="s1">_P</span><span class="s3">, </span><span class="s1">_R</span><span class="s3">]]</span><span class="s2">:</span>
+<a name="l316"><span class="ln">316  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l317"><span class="ln">317  </span></a>    Register a polyfill handler for a function, usually a C function from the C extension, to be 
+<a name="l318"><span class="ln">318  </span></a>    used in place of the original function when inlining the original function in the graph. 
+<a name="l319"><span class="ln">319  </span></a> 
+<a name="l320"><span class="ln">320  </span></a>    .. note:: 
+<a name="l321"><span class="ln">321  </span></a> 
+<a name="l322"><span class="ln">322  </span></a>        The polyfill handler is only used when inlining the original function. It is not used when 
+<a name="l323"><span class="ln">323  </span></a>        the original function is called directly. In the eager mode, the decorated function calls 
+<a name="l324"><span class="ln">324  </span></a>        the performant C function rather than the polyfill handler. 
+<a name="l325"><span class="ln">325  </span></a> 
+<a name="l326"><span class="ln">326  </span></a>    The polyfill handler is a function that will be called in place of the original function when 
+<a name="l327"><span class="ln">327  </span></a>    inlining the original function. The polyfill handler should have the same signature and the same 
+<a name="l328"><span class="ln">328  </span></a>    behavior as the original function. 
+<a name="l329"><span class="ln">329  </span></a> 
+<a name="l330"><span class="ln">330  </span></a>    Args: 
+<a name="l331"><span class="ln">331  </span></a>        original_fn (callable): The original function, usually a C function, to register a polyfill 
+<a name="l332"><span class="ln">332  </span></a>            handler for. 
+<a name="l333"><span class="ln">333  </span></a>        can_constant_fold_through (bool, optional): Whether the polyfill handler can be constant 
+<a name="l334"><span class="ln">334  </span></a>            folded through. That is, if the polyfill handler is a pure function and its arguments 
+<a name="l335"><span class="ln">335  </span></a>            are constant, the result of the polyfill handler can be constant folded during the 
+<a name="l336"><span class="ln">336  </span></a>            compilation. Defaults to ``False``. 
+<a name="l337"><span class="ln">337  </span></a>        skip_signature_check (bool, optional): Whether to skip the signature check between the 
+<a name="l338"><span class="ln">338  </span></a>            original function and the polyfill handler. Defaults to ``False``. 
+<a name="l339"><span class="ln">339  </span></a> 
+<a name="l340"><span class="ln">340  </span></a>    Returns: 
+<a name="l341"><span class="ln">341  </span></a>        A decorator that registers the polyfill handler for the original function. 
+<a name="l342"><span class="ln">342  </span></a> 
+<a name="l343"><span class="ln">343  </span></a>    Example:: 
+<a name="l344"><span class="ln">344  </span></a> 
+<a name="l345"><span class="ln">345  </span></a>        &gt;&gt;&gt; # xdoctest: +SKIP(&quot;conflict with the tests: duplicate polyfill handlers&quot;) 
+<a name="l346"><span class="ln">346  </span></a>        &gt;&gt;&gt; import operator 
+<a name="l347"><span class="ln">347  </span></a>        &gt;&gt;&gt; operator.indexOf([1, 2, 3, 4, 5], 3) 
+<a name="l348"><span class="ln">348  </span></a>        2 
+<a name="l349"><span class="ln">349  </span></a>        &gt;&gt;&gt; torch.compile(operator.indexOf, fullgraph=True)([1, 2, 3, 4, 5], 3) 
+<a name="l350"><span class="ln">350  </span></a>        Traceback (most recent call last): 
+<a name="l351"><span class="ln">351  </span></a>        ... 
+<a name="l352"><span class="ln">352  </span></a>        torch._dynamo.exc.Unsupported: ... 
+<a name="l353"><span class="ln">353  </span></a> 
+<a name="l354"><span class="ln">354  </span></a>        &gt;&gt;&gt; @torch.compiler.substitute_in_graph(operator.indexOf) 
+<a name="l355"><span class="ln">355  </span></a>        ... def indexOf(a, b, /): 
+<a name="l356"><span class="ln">356  </span></a>        ...     for i, item in enumerate(a): 
+<a name="l357"><span class="ln">357  </span></a>        ...         if item is b or item == b: 
+<a name="l358"><span class="ln">358  </span></a>        ...             return i 
+<a name="l359"><span class="ln">359  </span></a>        ...     raise ValueError(&quot;sequence.index(x): x not in sequence&quot;) 
+<a name="l360"><span class="ln">360  </span></a>        &gt;&gt;&gt; 
+<a name="l361"><span class="ln">361  </span></a>        &gt;&gt;&gt; torch.compile(operator.indexOf, fullgraph=True)([1, 2, 3, 4, 5], 3) 
+<a name="l362"><span class="ln">362  </span></a>        2 
+<a name="l363"><span class="ln">363  </span></a>    &quot;&quot;&quot;</span>
+<a name="l364"><span class="ln">364  </span></a>    <span class="s2">if not </span><span class="s1">is_function</span><span class="s3">(</span><span class="s1">original_fn</span><span class="s3">) </span><span class="s2">and not </span><span class="s3">(</span>
+<a name="l365"><span class="ln">365  </span></a>        <span class="s1">is_embedded_type </span><span class="s2">and </span><span class="s1">inspect</span><span class="s3">.</span><span class="s1">isclass</span><span class="s3">(</span><span class="s1">original_fn</span><span class="s3">)</span>
+<a name="l366"><span class="ln">366  </span></a>    <span class="s3">)</span><span class="s2">:</span>
+<a name="l367"><span class="ln">367  </span></a>        <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span>
+<a name="l368"><span class="ln">368  </span></a>            <span class="s4">f&quot;substitute_in_graph expects a function but got {</span><span class="s1">type</span><span class="s3">(</span><span class="s1">original_fn</span><span class="s3">)</span><span class="s4">!r}&quot;</span>
+<a name="l369"><span class="ln">369  </span></a>        <span class="s3">)</span>
+<a name="l370"><span class="ln">370  </span></a>    <span class="s2">if </span><span class="s1">is_embedded_type</span><span class="s2">:</span>
+<a name="l371"><span class="ln">371  </span></a>        <span class="s2">if not </span><span class="s1">inspect</span><span class="s3">.</span><span class="s1">isclass</span><span class="s3">(</span><span class="s1">original_fn</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l372"><span class="ln">372  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span>
+<a name="l373"><span class="ln">373  </span></a>                <span class="s4">f&quot;substitute_in_graph expects a class but got {</span><span class="s1">type</span><span class="s3">(</span><span class="s1">original_fn</span><span class="s3">)</span><span class="s4">!r}&quot;</span>
+<a name="l374"><span class="ln">374  </span></a>            <span class="s3">)</span>
+<a name="l375"><span class="ln">375  </span></a>
+<a name="l376"><span class="ln">376  </span></a>        <span class="s2">from </span><span class="s3">.</span><span class="s1">variables</span><span class="s3">.</span><span class="s1">builder </span><span class="s2">import </span><span class="s1">ITERTOOLS_POLYFILLED_TYPE_IDS</span><span class="s3">, </span><span class="s1">ITERTOOLS_TYPE_IDS</span>
+<a name="l377"><span class="ln">377  </span></a>
+<a name="l378"><span class="ln">378  </span></a>        <span class="s2">if </span><span class="s1">id</span><span class="s3">(</span><span class="s1">original_fn</span><span class="s3">) </span><span class="s2">in </span><span class="s1">ITERTOOLS_TYPE_IDS</span><span class="s2">:</span>
+<a name="l379"><span class="ln">379  </span></a>            <span class="s1">ITERTOOLS_POLYFILLED_TYPE_IDS</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">id</span><span class="s3">(</span><span class="s1">original_fn</span><span class="s3">))</span>
+<a name="l380"><span class="ln">380  </span></a>
+<a name="l381"><span class="ln">381  </span></a>    <span class="s2">def </span><span class="s1">wrapper</span><span class="s3">(</span><span class="s1">traceable_fn</span><span class="s2">: </span><span class="s1">Callable</span><span class="s3">[</span><span class="s1">_P</span><span class="s3">, </span><span class="s1">_R</span><span class="s3">]) </span><span class="s1">-&gt; Callable</span><span class="s3">[</span><span class="s1">_P</span><span class="s3">, </span><span class="s1">_R</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l382"><span class="ln">382  </span></a>        <span class="s2">if not </span><span class="s1">is_function</span><span class="s3">(</span><span class="s1">traceable_fn</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l383"><span class="ln">383  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span>
+<a name="l384"><span class="ln">384  </span></a>                <span class="s4">f&quot;@substitute_in_graph(...) expects a function but got {</span><span class="s1">type</span><span class="s3">(</span><span class="s1">traceable_fn</span><span class="s3">)</span><span class="s4">!r}&quot;</span>
+<a name="l385"><span class="ln">385  </span></a>            <span class="s3">)</span>
+<a name="l386"><span class="ln">386  </span></a>
+<a name="l387"><span class="ln">387  </span></a>        <span class="s2">if not </span><span class="s1">skip_signature_check</span><span class="s2">:</span>
+<a name="l388"><span class="ln">388  </span></a>            <span class="s2">try:</span>
+<a name="l389"><span class="ln">389  </span></a>                <span class="s1">original_sig </span><span class="s2">= </span><span class="s1">inspect</span><span class="s3">.</span><span class="s1">signature</span><span class="s3">(</span><span class="s1">original_fn</span><span class="s3">)</span>
+<a name="l390"><span class="ln">390  </span></a>            <span class="s2">except </span><span class="s1">ValueError</span><span class="s2">:</span>
+<a name="l391"><span class="ln">391  </span></a>                <span class="s2">pass</span>
+<a name="l392"><span class="ln">392  </span></a>            <span class="s2">else:</span>
+<a name="l393"><span class="ln">393  </span></a>                <span class="s1">traceable_sig </span><span class="s2">= </span><span class="s1">inspect</span><span class="s3">.</span><span class="s1">signature</span><span class="s3">(</span><span class="s1">traceable_fn</span><span class="s3">)</span>
+<a name="l394"><span class="ln">394  </span></a>
+<a name="l395"><span class="ln">395  </span></a>                <span class="s2">def </span><span class="s1">sig_ident</span><span class="s3">(</span><span class="s1">sig</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l396"><span class="ln">396  </span></a>                    <span class="s0"># Ignore annotations for parameters and return type</span>
+<a name="l397"><span class="ln">397  </span></a>                    <span class="s2">return </span><span class="s3">(</span>
+<a name="l398"><span class="ln">398  </span></a>                        <span class="s1">tuple</span><span class="s3">(</span>
+<a name="l399"><span class="ln">399  </span></a>                            <span class="s1">p</span><span class="s3">.</span><span class="s1">name</span>
+<a name="l400"><span class="ln">400  </span></a>                            <span class="s2">for </span><span class="s1">p </span><span class="s2">in </span><span class="s1">sig</span><span class="s3">.</span><span class="s1">parameters</span><span class="s3">.</span><span class="s1">values</span><span class="s3">()</span>
+<a name="l401"><span class="ln">401  </span></a>                            <span class="s2">if </span><span class="s3">(</span>
+<a name="l402"><span class="ln">402  </span></a>                                <span class="s1">p</span><span class="s3">.</span><span class="s1">kind</span>
+<a name="l403"><span class="ln">403  </span></a>                                <span class="s2">not in </span><span class="s3">{</span>
+<a name="l404"><span class="ln">404  </span></a>                                    <span class="s1">p</span><span class="s3">.</span><span class="s1">KEYWORD_ONLY</span><span class="s3">,</span>
+<a name="l405"><span class="ln">405  </span></a>                                    <span class="s0"># the name of *args and **kwargs is not important</span>
+<a name="l406"><span class="ln">406  </span></a>                                    <span class="s1">p</span><span class="s3">.</span><span class="s1">VAR_POSITIONAL</span><span class="s3">,</span>
+<a name="l407"><span class="ln">407  </span></a>                                    <span class="s1">p</span><span class="s3">.</span><span class="s1">VAR_KEYWORD</span><span class="s3">,</span>
+<a name="l408"><span class="ln">408  </span></a>                                <span class="s3">}</span>
+<a name="l409"><span class="ln">409  </span></a>                            <span class="s3">)</span>
+<a name="l410"><span class="ln">410  </span></a>                        <span class="s3">),</span>
+<a name="l411"><span class="ln">411  </span></a>                        <span class="s3">{</span>
+<a name="l412"><span class="ln">412  </span></a>                            <span class="s1">p</span><span class="s3">.</span><span class="s1">name</span>
+<a name="l413"><span class="ln">413  </span></a>                            <span class="s2">for </span><span class="s1">p </span><span class="s2">in </span><span class="s1">sig</span><span class="s3">.</span><span class="s1">parameters</span><span class="s3">.</span><span class="s1">values</span><span class="s3">()</span>
+<a name="l414"><span class="ln">414  </span></a>                            <span class="s2">if </span><span class="s1">p</span><span class="s3">.</span><span class="s1">kind </span><span class="s2">== </span><span class="s1">p</span><span class="s3">.</span><span class="s1">KEYWORD_ONLY</span>
+<a name="l415"><span class="ln">415  </span></a>                        <span class="s3">},</span>
+<a name="l416"><span class="ln">416  </span></a>                        <span class="s3">{</span>
+<a name="l417"><span class="ln">417  </span></a>                            <span class="s1">p</span><span class="s3">.</span><span class="s1">name</span><span class="s2">: </span><span class="s1">p</span><span class="s3">.</span><span class="s1">default</span>
+<a name="l418"><span class="ln">418  </span></a>                            <span class="s2">for </span><span class="s1">p </span><span class="s2">in </span><span class="s1">sig</span><span class="s3">.</span><span class="s1">parameters</span><span class="s3">.</span><span class="s1">values</span><span class="s3">()</span>
+<a name="l419"><span class="ln">419  </span></a>                            <span class="s0"># the name of *args and **kwargs is not important</span>
+<a name="l420"><span class="ln">420  </span></a>                            <span class="s2">if </span><span class="s1">p</span><span class="s3">.</span><span class="s1">kind </span><span class="s2">not in </span><span class="s3">{</span><span class="s1">p</span><span class="s3">.</span><span class="s1">VAR_POSITIONAL</span><span class="s3">, </span><span class="s1">p</span><span class="s3">.</span><span class="s1">VAR_KEYWORD</span><span class="s3">}</span>
+<a name="l421"><span class="ln">421  </span></a>                        <span class="s3">},</span>
+<a name="l422"><span class="ln">422  </span></a>                    <span class="s3">)</span>
+<a name="l423"><span class="ln">423  </span></a>
+<a name="l424"><span class="ln">424  </span></a>                <span class="s1">wildcard_sig </span><span class="s2">= </span><span class="s1">inspect</span><span class="s3">.</span><span class="s1">signature</span><span class="s3">(</span><span class="s2">lambda *</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s2">: None</span><span class="s3">)</span>
+<a name="l425"><span class="ln">425  </span></a>
+<a name="l426"><span class="ln">426  </span></a>                <span class="s2">if </span><span class="s3">(</span>
+<a name="l427"><span class="ln">427  </span></a>                    <span class="s1">sig_ident</span><span class="s3">(</span><span class="s1">original_sig</span><span class="s3">) </span><span class="s2">!= </span><span class="s1">sig_ident</span><span class="s3">(</span><span class="s1">traceable_sig</span><span class="s3">)</span>
+<a name="l428"><span class="ln">428  </span></a>                    <span class="s2">and </span><span class="s1">sig_ident</span><span class="s3">(</span><span class="s1">original_sig</span><span class="s3">) </span><span class="s2">!= </span><span class="s1">sig_ident</span><span class="s3">(</span><span class="s1">wildcard_sig</span><span class="s3">)</span>
+<a name="l429"><span class="ln">429  </span></a>                    <span class="s2">and </span><span class="s1">sig_ident</span><span class="s3">(</span><span class="s1">traceable_sig</span><span class="s3">) </span><span class="s2">!= </span><span class="s1">sig_ident</span><span class="s3">(</span><span class="s1">wildcard_sig</span><span class="s3">)</span>
+<a name="l430"><span class="ln">430  </span></a>                <span class="s3">)</span><span class="s2">:</span>
+<a name="l431"><span class="ln">431  </span></a>                    <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span>
+<a name="l432"><span class="ln">432  </span></a>                        <span class="s4">f&quot;Signature mismatch between {</span><span class="s1">original_fn</span><span class="s4">} and {</span><span class="s1">traceable_fn</span><span class="s4">}: &quot;</span>
+<a name="l433"><span class="ln">433  </span></a>                        <span class="s4">f&quot;{</span><span class="s1">original_sig</span><span class="s4">} != {</span><span class="s1">traceable_sig</span><span class="s4">}&quot;</span>
+<a name="l434"><span class="ln">434  </span></a>                    <span class="s3">)</span>
+<a name="l435"><span class="ln">435  </span></a>
+<a name="l436"><span class="ln">436  </span></a>        <span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_dynamo</span><span class="s3">.</span><span class="s1">guards </span><span class="s2">import </span><span class="s1">GuardBuilder</span>
+<a name="l437"><span class="ln">437  </span></a>        <span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_dynamo</span><span class="s3">.</span><span class="s1">trace_rules </span><span class="s2">import </span><span class="s3">(</span>
+<a name="l438"><span class="ln">438  </span></a>            <span class="s1">_polyfilled_function_ids</span><span class="s3">,</span>
+<a name="l439"><span class="ln">439  </span></a>            <span class="s1">get_torch_obj_rule_map</span><span class="s3">,</span>
+<a name="l440"><span class="ln">440  </span></a>        <span class="s3">)</span>
+<a name="l441"><span class="ln">441  </span></a>        <span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_dynamo</span><span class="s3">.</span><span class="s1">variables </span><span class="s2">import </span><span class="s1">PolyfilledFunctionVariable</span>
+<a name="l442"><span class="ln">442  </span></a>        <span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_dynamo</span><span class="s3">.</span><span class="s1">variables</span><span class="s3">.</span><span class="s1">builder </span><span class="s2">import </span><span class="s1">VariableBuilder</span>
+<a name="l443"><span class="ln">443  </span></a>
+<a name="l444"><span class="ln">444  </span></a>        <span class="s1">id_dispatch_map </span><span class="s2">= </span><span class="s1">VariableBuilder</span><span class="s3">.</span><span class="s1">_id_dispatch</span><span class="s3">()</span>
+<a name="l445"><span class="ln">445  </span></a>        <span class="s2">if </span><span class="s1">id</span><span class="s3">(</span><span class="s1">original_fn</span><span class="s3">) </span><span class="s2">in </span><span class="s1">id_dispatch_map</span><span class="s2">:</span>
+<a name="l446"><span class="ln">446  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span>
+<a name="l447"><span class="ln">447  </span></a>                <span class="s4">f&quot;Duplicate dispatch rule for {</span><span class="s1">original_fn</span><span class="s4">}: &quot;</span>
+<a name="l448"><span class="ln">448  </span></a>                <span class="s4">&quot;already registered in VariableBuilder's id dispatch map&quot;</span>
+<a name="l449"><span class="ln">449  </span></a>            <span class="s3">)</span>
+<a name="l450"><span class="ln">450  </span></a>
+<a name="l451"><span class="ln">451  </span></a>        <span class="s2">if </span><span class="s1">id</span><span class="s3">(</span><span class="s1">original_fn</span><span class="s3">) </span><span class="s2">in </span><span class="s1">_polyfilled_function_ids</span><span class="s2">:</span>
+<a name="l452"><span class="ln">452  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">f&quot;Duplicate polyfilled object {</span><span class="s1">original_fn</span><span class="s4">}&quot;</span><span class="s3">)</span>
+<a name="l453"><span class="ln">453  </span></a>
+<a name="l454"><span class="ln">454  </span></a>        <span class="s1">rule_map</span><span class="s2">: </span><span class="s1">dict</span><span class="s3">[</span><span class="s1">Any</span><span class="s3">, </span><span class="s1">type</span><span class="s3">[</span><span class="s1">VariableTracker</span><span class="s3">]] </span><span class="s2">= </span><span class="s1">get_torch_obj_rule_map</span><span class="s3">()</span>
+<a name="l455"><span class="ln">455  </span></a>        <span class="s2">if </span><span class="s1">original_fn </span><span class="s2">in </span><span class="s1">rule_map</span><span class="s2">:</span>
+<a name="l456"><span class="ln">456  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span>
+<a name="l457"><span class="ln">457  </span></a>                <span class="s4">f&quot;Duplicate object {</span><span class="s1">original_fn</span><span class="s4">} with different rules: &quot;</span>
+<a name="l458"><span class="ln">458  </span></a>                <span class="s4">f&quot;{</span><span class="s1">PolyfilledFunctionVariable</span><span class="s4">}, {</span><span class="s1">rule_map</span><span class="s3">[</span><span class="s1">original_fn</span><span class="s3">]</span><span class="s4">}&quot;</span>
+<a name="l459"><span class="ln">459  </span></a>            <span class="s3">)</span>
+<a name="l460"><span class="ln">460  </span></a>
+<a name="l461"><span class="ln">461  </span></a>        <span class="s1">polyfill_handlers</span><span class="s2">: </span><span class="s1">dict</span><span class="s3">[</span><span class="s1">Callable</span><span class="s3">[..., </span><span class="s1">Any</span><span class="s3">], </span><span class="s1">FunctionType</span><span class="s3">]</span>
+<a name="l462"><span class="ln">462  </span></a>        <span class="s1">polyfill_handlers </span><span class="s2">= </span><span class="s1">PolyfilledFunctionVariable</span><span class="s3">.</span><span class="s1">_get_polyfill_handlers</span><span class="s3">()</span>
+<a name="l463"><span class="ln">463  </span></a>        <span class="s2">if </span><span class="s1">original_fn </span><span class="s2">in </span><span class="s1">polyfill_handlers</span><span class="s2">:</span>
+<a name="l464"><span class="ln">464  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span>
+<a name="l465"><span class="ln">465  </span></a>                <span class="s4">f&quot;Duplicate polyfill handlers for {</span><span class="s1">original_fn</span><span class="s4">}: &quot;</span>
+<a name="l466"><span class="ln">466  </span></a>                <span class="s4">f&quot;already handled by {</span><span class="s1">polyfill_handlers</span><span class="s3">[</span><span class="s1">original_fn</span><span class="s3">]</span><span class="s4">}&quot;</span>
+<a name="l467"><span class="ln">467  </span></a>            <span class="s3">)</span>
+<a name="l468"><span class="ln">468  </span></a>
+<a name="l469"><span class="ln">469  </span></a>        <span class="s0"># Need to wrap the function because we may cannot assign __torch_dynamo_polyfill__ to a</span>
+<a name="l470"><span class="ln">470  </span></a>        <span class="s0"># C++ function.</span>
+<a name="l471"><span class="ln">471  </span></a>        <span class="s2">@</span><span class="s1">functools</span><span class="s3">.</span><span class="s1">wraps</span><span class="s3">(</span><span class="s1">traceable_fn</span><span class="s3">)</span>
+<a name="l472"><span class="ln">472  </span></a>        <span class="s2">def </span><span class="s1">wrapped</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s2">: </span><span class="s1">_P</span><span class="s3">.</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s2">: </span><span class="s1">_P</span><span class="s3">.</span><span class="s1">kwargs</span><span class="s3">) </span><span class="s1">-&gt; _R</span><span class="s2">:</span>
+<a name="l473"><span class="ln">473  </span></a>            <span class="s2">return </span><span class="s1">original_fn</span><span class="s3">(</span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l474"><span class="ln">474  </span></a>
+<a name="l475"><span class="ln">475  </span></a>        <span class="s2">def </span><span class="s1">dispatch_fn</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">value</span><span class="s2">: </span><span class="s1">Callable</span><span class="s3">[</span><span class="s1">_P</span><span class="s3">, </span><span class="s1">_R</span><span class="s3">]) </span><span class="s1">-&gt; PolyfilledFunctionVariable</span><span class="s2">:</span>
+<a name="l476"><span class="ln">476  </span></a>            <span class="s2">return </span><span class="s1">PolyfilledFunctionVariable</span><span class="s3">(</span>
+<a name="l477"><span class="ln">477  </span></a>                <span class="s1">value</span><span class="s3">,</span>
+<a name="l478"><span class="ln">478  </span></a>                <span class="s1">source</span><span class="s2">=</span><span class="s1">self</span><span class="s3">.</span><span class="s1">source</span><span class="s3">,</span>
+<a name="l479"><span class="ln">479  </span></a>                <span class="s2">**</span><span class="s1">self</span><span class="s3">.</span><span class="s1">install_guards</span><span class="s3">(</span><span class="s1">GuardBuilder</span><span class="s3">.</span><span class="s1">FUNCTION_MATCH</span><span class="s3">),</span>
+<a name="l480"><span class="ln">480  </span></a>            <span class="s3">)</span>
+<a name="l481"><span class="ln">481  </span></a>
+<a name="l482"><span class="ln">482  </span></a>        <span class="s1">id_dispatch_map</span><span class="s3">[</span><span class="s1">id</span><span class="s3">(</span><span class="s1">original_fn</span><span class="s3">)] </span><span class="s2">= </span><span class="s1">id_dispatch_map</span><span class="s3">[</span><span class="s1">id</span><span class="s3">(</span><span class="s1">wrapped</span><span class="s3">)] </span><span class="s2">= </span><span class="s1">dispatch_fn</span>
+<a name="l483"><span class="ln">483  </span></a>        <span class="s1">_polyfilled_function_ids</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">id</span><span class="s3">(</span><span class="s1">original_fn</span><span class="s3">))</span>
+<a name="l484"><span class="ln">484  </span></a>        <span class="s1">_polyfilled_function_ids</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">id</span><span class="s3">(</span><span class="s1">wrapped</span><span class="s3">))</span>
+<a name="l485"><span class="ln">485  </span></a>        <span class="s1">rule_map</span><span class="s3">[</span><span class="s1">original_fn</span><span class="s3">] </span><span class="s2">= </span><span class="s1">rule_map</span><span class="s3">[</span><span class="s1">wrapped</span><span class="s3">] </span><span class="s2">= </span><span class="s1">PolyfilledFunctionVariable</span>
+<a name="l486"><span class="ln">486  </span></a>        <span class="s1">polyfill_handlers</span><span class="s3">[</span><span class="s1">original_fn</span><span class="s3">] </span><span class="s2">= </span><span class="s1">polyfill_handlers</span><span class="s3">[</span><span class="s1">wrapped</span><span class="s3">] </span><span class="s2">= </span><span class="s1">wrapped  </span><span class="s0"># type: ignore[assignment]</span>
+<a name="l487"><span class="ln">487  </span></a>
+<a name="l488"><span class="ln">488  </span></a>        <span class="s1">wrapped</span><span class="s3">.</span><span class="s1">__torch_dynamo_original__ </span><span class="s2">= </span><span class="s1">original_fn  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l489"><span class="ln">489  </span></a>        <span class="s1">wrapped</span><span class="s3">.</span><span class="s1">__torch_dynamo_polyfill__ </span><span class="s2">= </span><span class="s1">traceable_fn  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l490"><span class="ln">490  </span></a>        <span class="s1">wrapped</span><span class="s3">.</span><span class="s1">__torch_dynamo_can_constant_fold_through__ </span><span class="s2">= </span><span class="s1">can_constant_fold_through  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l491"><span class="ln">491  </span></a>
+<a name="l492"><span class="ln">492  </span></a>        <span class="s2">return </span><span class="s1">wrapped  </span><span class="s0"># type: ignore[return-value]</span>
+<a name="l493"><span class="ln">493  </span></a>
+<a name="l494"><span class="ln">494  </span></a>    <span class="s2">return </span><span class="s1">wrapper</span>
+<a name="l495"><span class="ln">495  </span></a>
+<a name="l496"><span class="ln">496  </span></a>
+<a name="l497"><span class="ln">497  </span></a><span class="s0"># Helper function to flatten a tensor subclass and apply a function to</span>
+<a name="l498"><span class="ln">498  </span></a><span class="s0"># all inner tensors that match the outer dim. Used to reduce duplication</span>
+<a name="l499"><span class="ln">499  </span></a><span class="s0"># across the various marking APIs.</span>
+<a name="l500"><span class="ln">500  </span></a><span class="s2">def </span><span class="s1">_apply_func_to_inner_tensors_of_same_dim</span><span class="s3">(</span><span class="s1">func</span><span class="s3">, </span><span class="s1">t</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l501"><span class="ln">501  </span></a>    <span class="s2">assert </span><span class="s1">is_traceable_wrapper_subclass</span><span class="s3">(</span><span class="s1">t</span><span class="s3">)</span>
+<a name="l502"><span class="ln">502  </span></a>
+<a name="l503"><span class="ln">503  </span></a>    <span class="s1">attrs</span><span class="s3">, </span><span class="s1">_ctx </span><span class="s2">= </span><span class="s1">t</span><span class="s3">.</span><span class="s1">__tensor_flatten__</span><span class="s3">()</span>
+<a name="l504"><span class="ln">504  </span></a>    <span class="s2">assert </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">Tensor</span><span class="s3">)</span>
+<a name="l505"><span class="ln">505  </span></a>    <span class="s2">for </span><span class="s1">attr </span><span class="s2">in </span><span class="s1">attrs</span><span class="s2">:</span>
+<a name="l506"><span class="ln">506  </span></a>        <span class="s1">inner </span><span class="s2">= </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">attr</span><span class="s3">)</span>
+<a name="l507"><span class="ln">507  </span></a>        <span class="s2">if </span><span class="s1">inner</span><span class="s3">.</span><span class="s1">dim</span><span class="s3">() </span><span class="s2">== </span><span class="s1">t</span><span class="s3">.</span><span class="s1">dim</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l508"><span class="ln">508  </span></a>            <span class="s1">func</span><span class="s3">(</span><span class="s1">inner</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l509"><span class="ln">509  </span></a>
+<a name="l510"><span class="ln">510  </span></a>
+<a name="l511"><span class="ln">511  </span></a><span class="s2">@</span><span class="s1">dataclass</span><span class="s3">(</span><span class="s1">frozen</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l512"><span class="ln">512  </span></a><span class="s2">class </span><span class="s1">_DimRange</span><span class="s2">:</span>
+<a name="l513"><span class="ln">513  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l514"><span class="ln">514  </span></a>    This represents an dimension of a tensor and the corresponding 
+<a name="l515"><span class="ln">515  </span></a>    min and max values it can take.  Don't create this 
+<a name="l516"><span class="ln">516  </span></a>    class directly; instead, use :func:`mark_dynamic`. 
+<a name="l517"><span class="ln">517  </span></a>    &quot;&quot;&quot;</span>
+<a name="l518"><span class="ln">518  </span></a>
+<a name="l519"><span class="ln">519  </span></a>    <span class="s1">dim</span><span class="s2">: </span><span class="s1">int</span>
+<a name="l520"><span class="ln">520  </span></a>    <span class="s1">min</span><span class="s2">: </span><span class="s1">int</span>
+<a name="l521"><span class="ln">521  </span></a>    <span class="s1">max</span><span class="s2">: </span><span class="s1">int</span>
+<a name="l522"><span class="ln">522  </span></a>
+<a name="l523"><span class="ln">523  </span></a>
+<a name="l524"><span class="ln">524  </span></a><span class="s2">@</span><span class="s1">forbid_in_graph</span>
+<a name="l525"><span class="ln">525  </span></a><span class="s2">def </span><span class="s1">mark_unbacked</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">index</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=False</span><span class="s3">, </span><span class="s1">specialize_on</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l526"><span class="ln">526  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l527"><span class="ln">527  </span></a>    Mark a tensor as having an unbacked dim.  This changes the semantics of operations, 
+<a name="l528"><span class="ln">528  </span></a>    we will always report the size does not equal zero/one, we will turn asserts 
+<a name="l529"><span class="ln">529  </span></a>    on this index into runtime asserts, and if you try to get the real value we will 
+<a name="l530"><span class="ln">530  </span></a>    raise an exception.  In other words, we will treat this dimension as if it was 
+<a name="l531"><span class="ln">531  </span></a>    data dependent (we do not know anything about its value.) 
+<a name="l532"><span class="ln">532  </span></a> 
+<a name="l533"><span class="ln">533  </span></a>    For historical reasons, by default if an unbacked dim is specialized, we will 
+<a name="l534"><span class="ln">534  </span></a>    happily specialize it and continue. If you want to error in these cases, pass 
+<a name="l535"><span class="ln">535  </span></a>    strict=True. 
+<a name="l536"><span class="ln">536  </span></a>    &quot;&quot;&quot;</span>
+<a name="l537"><span class="ln">537  </span></a>    <span class="s0"># You could have copied the mark_dynamic behavior but I'm not convinced</span>
+<a name="l538"><span class="ln">538  </span></a>    <span class="s0"># it's what you want</span>
+<a name="l539"><span class="ln">539  </span></a>    <span class="s2">assert not </span><span class="s1">is_traceable_wrapper_subclass</span><span class="s3">(</span><span class="s1">t</span><span class="s3">), </span><span class="s4">&quot;not implemented yet&quot;</span>
+<a name="l540"><span class="ln">540  </span></a>
+<a name="l541"><span class="ln">541  </span></a>    <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, </span><span class="s1">int</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l542"><span class="ln">542  </span></a>        <span class="s2">if </span><span class="s1">strict</span><span class="s2">:</span>
+<a name="l543"><span class="ln">543  </span></a>            <span class="s2">if not </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s4">&quot;_dynamo_strict_unbacked_indices&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l544"><span class="ln">544  </span></a>                <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_strict_unbacked_indices </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l545"><span class="ln">545  </span></a>            <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_strict_unbacked_indices</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">index</span><span class="s3">)</span>
+<a name="l546"><span class="ln">546  </span></a>            <span class="s2">return</span>
+<a name="l547"><span class="ln">547  </span></a>
+<a name="l548"><span class="ln">548  </span></a>        <span class="s2">if not </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s4">&quot;_specialized_on&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l549"><span class="ln">549  </span></a>            <span class="s1">t</span><span class="s3">.</span><span class="s1">_specialize_on </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l550"><span class="ln">550  </span></a>
+<a name="l551"><span class="ln">551  </span></a>        <span class="s2">if not </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s4">&quot;_dynamo_unbacked_indices&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l552"><span class="ln">552  </span></a>            <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_unbacked_indices </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l553"><span class="ln">553  </span></a>
+<a name="l554"><span class="ln">554  </span></a>        <span class="s0"># FX tracers don't respect @forbid_in_graph and choke on the following error since it passes in proxies:</span>
+<a name="l555"><span class="ln">555  </span></a>        <span class="s0"># TypeError: 'Attribute' object does not support item assignment</span>
+<a name="l556"><span class="ln">556  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">t</span><span class="s3">.</span><span class="s1">_specialize_on</span><span class="s3">, </span><span class="s1">dict</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l557"><span class="ln">557  </span></a>            <span class="s1">t</span><span class="s3">.</span><span class="s1">_specialize_on</span><span class="s3">[</span><span class="s1">index</span><span class="s3">] </span><span class="s2">= </span><span class="s1">specialize_on </span><span class="s2">if </span><span class="s1">specialize_on </span><span class="s2">is not None else </span><span class="s3">[]</span>
+<a name="l558"><span class="ln">558  </span></a>
+<a name="l559"><span class="ln">559  </span></a>        <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_unbacked_indices</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">index</span><span class="s3">)</span>
+<a name="l560"><span class="ln">560  </span></a>        <span class="s2">return</span>
+<a name="l561"><span class="ln">561  </span></a>
+<a name="l562"><span class="ln">562  </span></a>    <span class="s2">assert </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, (</span><span class="s1">list</span><span class="s3">, </span><span class="s1">tuple</span><span class="s3">))</span>
+<a name="l563"><span class="ln">563  </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">index</span><span class="s2">:</span>
+<a name="l564"><span class="ln">564  </span></a>        <span class="s1">mark_unbacked</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">i</span><span class="s3">)</span>
+<a name="l565"><span class="ln">565  </span></a>
+<a name="l566"><span class="ln">566  </span></a>
+<a name="l567"><span class="ln">567  </span></a><span class="s2">@</span><span class="s1">forbid_in_graph</span>
+<a name="l568"><span class="ln">568  </span></a><span class="s2">def </span><span class="s1">mark_dynamic</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">index</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">min</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">max</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">specialize_on</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l569"><span class="ln">569  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l570"><span class="ln">570  </span></a>    Mark a tensor as having a dynamic dim and set corresponding min and max range for the dim. 
+<a name="l571"><span class="ln">571  </span></a> 
+<a name="l572"><span class="ln">572  </span></a>    [Note - on the state of mark_dynamic] 
+<a name="l573"><span class="ln">573  </span></a> 
+<a name="l574"><span class="ln">574  </span></a>    The behavior of having a dynamic dimension on a tensor is governed by a few factors: 
+<a name="l575"><span class="ln">575  </span></a> 
+<a name="l576"><span class="ln">576  </span></a>    1) torch._dynamo.config dynamic_shapes True or False. 
+<a name="l577"><span class="ln">577  </span></a>        a) dynamic_shapes=True - dynamic_shapes must be True for mark_dynamic to work. 
+<a name="l578"><span class="ln">578  </span></a>        a) dynamic_shapes=False - This config will raise an exception when used in conjunction with 
+<a name="l579"><span class="ln">579  </span></a>        mark_dynamic. We will eventually support this. 
+<a name="l580"><span class="ln">580  </span></a> 
+<a name="l581"><span class="ln">581  </span></a>    2) If the dimension is fully constrained - as in, it does not allow more than a single value 
+<a name="l582"><span class="ln">582  </span></a>    in both eager (torch.compile, torch._dynamo.optimize) mode and export mode (torch._dynamo.export), 
+<a name="l583"><span class="ln">583  </span></a>    we will raise an error 
+<a name="l584"><span class="ln">584  </span></a> 
+<a name="l585"><span class="ln">585  </span></a>    3) If the dimension is partially constrained - allowing at least 2 values but not the full unbounded 
+<a name="l586"><span class="ln">586  </span></a>    range of shapes, in eager we will pass it through, but export will raise an error. 
+<a name="l587"><span class="ln">587  </span></a> 
+<a name="l588"><span class="ln">588  </span></a>    4) Attempts to trace this function will explicitly raise. As such, all calls to mark_dynamic must be made 
+<a name="l589"><span class="ln">589  </span></a>    before torch.compile. 
+<a name="l590"><span class="ln">590  </span></a> 
+<a name="l591"><span class="ln">591  </span></a>    5) If specialize_on is passed in, we will perform a single generic Dynamo trace followed by 
+<a name="l592"><span class="ln">592  </span></a>    multiple specialized compilations in addition to a single generic compilation. NB: For now we only support 
+<a name="l593"><span class="ln">593  </span></a>    per dimension specialization, or in other words we do not generate a cross product of specializations. 
+<a name="l594"><span class="ln">594  </span></a>    At runtime, we will dispatch to a specialized compiled region if the input matches the specialization criteria. 
+<a name="l595"><span class="ln">595  </span></a> 
+<a name="l596"><span class="ln">596  </span></a>    For example: 
+<a name="l597"><span class="ln">597  </span></a>        mark_dynamic(..., specialize_on=[ 
+<a name="l598"><span class="ln">598  </span></a>            lambda x: x == 8, 
+<a name="l599"><span class="ln">599  </span></a>            lambda x: x == 16 
+<a name="l600"><span class="ln">600  </span></a>        ]) 
+<a name="l601"><span class="ln">601  </span></a> 
+<a name="l602"><span class="ln">602  </span></a>    This approach results in one Dynamo trace and two backend compilations. When the input dimension equals 8 or 16 
+<a name="l603"><span class="ln">603  </span></a>    at runtime, execution will be directed to the specialized compiled region. Performance measurements indicate 
+<a name="l604"><span class="ln">604  </span></a>    2-8x speedups depending on the specific specialization and model architecture. 
+<a name="l605"><span class="ln">605  </span></a>    &quot;&quot;&quot;</span>
+<a name="l606"><span class="ln">606  </span></a>    <span class="s2">if </span><span class="s1">is_traceable_wrapper_subclass</span><span class="s3">(</span><span class="s1">t</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l607"><span class="ln">607  </span></a>        <span class="s0"># default behavior: mirror mark_dynamic() on all inner tensors with same dim as t</span>
+<a name="l608"><span class="ln">608  </span></a>        <span class="s0"># TODO: Make this configurable via a supported public API</span>
+<a name="l609"><span class="ln">609  </span></a>        <span class="s1">_apply_func_to_inner_tensors_of_same_dim</span><span class="s3">(</span>
+<a name="l610"><span class="ln">610  </span></a>            <span class="s1">mark_dynamic</span><span class="s3">, </span><span class="s1">t</span><span class="s3">, </span><span class="s1">index</span><span class="s3">, </span><span class="s1">min</span><span class="s2">=</span><span class="s1">min</span><span class="s3">, </span><span class="s1">max</span><span class="s2">=</span><span class="s1">max</span>
+<a name="l611"><span class="ln">611  </span></a>        <span class="s3">)</span>
+<a name="l612"><span class="ln">612  </span></a>
+<a name="l613"><span class="ln">613  </span></a>    <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, </span><span class="s1">int</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l614"><span class="ln">614  </span></a>        <span class="s2">if not </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s4">&quot;_dynamo_dynamic_indices&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l615"><span class="ln">615  </span></a>            <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_dynamic_indices </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l616"><span class="ln">616  </span></a>            <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_dynamic_range </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l617"><span class="ln">617  </span></a>
+<a name="l618"><span class="ln">618  </span></a>        <span class="s2">if not </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s4">&quot;_specialize_on&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l619"><span class="ln">619  </span></a>            <span class="s1">t</span><span class="s3">.</span><span class="s1">_specialize_on </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l620"><span class="ln">620  </span></a>
+<a name="l621"><span class="ln">621  </span></a>        <span class="s0"># TODO(voz): Should we bounds check?</span>
+<a name="l622"><span class="ln">622  </span></a>        <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_dynamic_indices</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">index</span><span class="s3">)</span>
+<a name="l623"><span class="ln">623  </span></a>        <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_dynamic_range</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">_DimRange</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, </span><span class="s1">min</span><span class="s3">, </span><span class="s1">max</span><span class="s3">))</span>
+<a name="l624"><span class="ln">624  </span></a>
+<a name="l625"><span class="ln">625  </span></a>        <span class="s0"># FX tracers don't respect @forbid_in_graph and choke on the following error since it passes in proxies:</span>
+<a name="l626"><span class="ln">626  </span></a>        <span class="s0"># TypeError: 'Attribute' object does not support item assignment</span>
+<a name="l627"><span class="ln">627  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">t</span><span class="s3">.</span><span class="s1">_specialize_on</span><span class="s3">, </span><span class="s1">dict</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l628"><span class="ln">628  </span></a>            <span class="s1">t</span><span class="s3">.</span><span class="s1">_specialize_on</span><span class="s3">[</span><span class="s1">index</span><span class="s3">] </span><span class="s2">= </span><span class="s1">specialize_on </span><span class="s2">if </span><span class="s1">specialize_on </span><span class="s2">is not None else </span><span class="s3">[]</span>
+<a name="l629"><span class="ln">629  </span></a>
+<a name="l630"><span class="ln">630  </span></a>        <span class="s2">return</span>
+<a name="l631"><span class="ln">631  </span></a>
+<a name="l632"><span class="ln">632  </span></a>    <span class="s2">assert </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, (</span><span class="s1">list</span><span class="s3">, </span><span class="s1">tuple</span><span class="s3">))</span>
+<a name="l633"><span class="ln">633  </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">index</span><span class="s2">:</span>
+<a name="l634"><span class="ln">634  </span></a>        <span class="s1">mark_dynamic</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">i</span><span class="s3">, </span><span class="s1">min</span><span class="s2">=</span><span class="s1">min</span><span class="s3">, </span><span class="s1">max</span><span class="s2">=</span><span class="s1">max</span><span class="s3">)</span>
+<a name="l635"><span class="ln">635  </span></a>        <span class="s1">mark_dynamic</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">i</span><span class="s3">, </span><span class="s1">min</span><span class="s2">=</span><span class="s1">min</span><span class="s3">, </span><span class="s1">max</span><span class="s2">=</span><span class="s1">max</span><span class="s3">, </span><span class="s1">specialize_on</span><span class="s2">=</span><span class="s1">specialize_on</span><span class="s3">)</span>
+<a name="l636"><span class="ln">636  </span></a>
+<a name="l637"><span class="ln">637  </span></a>
+<a name="l638"><span class="ln">638  </span></a><span class="s2">@</span><span class="s1">forbid_in_graph</span>
+<a name="l639"><span class="ln">639  </span></a><span class="s2">def </span><span class="s1">maybe_mark_dynamic</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">index</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l640"><span class="ln">640  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l641"><span class="ln">641  </span></a>    Mark a tensor as having a dynamic dim, but don't enforce it (i.e., if this 
+<a name="l642"><span class="ln">642  </span></a>    dimension ends up getting specialized, don't error). 
+<a name="l643"><span class="ln">643  </span></a>    &quot;&quot;&quot;</span>
+<a name="l644"><span class="ln">644  </span></a>    <span class="s2">if </span><span class="s1">is_traceable_wrapper_subclass</span><span class="s3">(</span><span class="s1">t</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l645"><span class="ln">645  </span></a>        <span class="s0"># default behavior: mirror maybe_mark_dynamic() on all inner tensors with same dim as t</span>
+<a name="l646"><span class="ln">646  </span></a>        <span class="s0"># TODO: Make this configurable via a supported public API</span>
+<a name="l647"><span class="ln">647  </span></a>        <span class="s1">_apply_func_to_inner_tensors_of_same_dim</span><span class="s3">(</span><span class="s1">maybe_mark_dynamic</span><span class="s3">, </span><span class="s1">t</span><span class="s3">, </span><span class="s1">index</span><span class="s3">)</span>
+<a name="l648"><span class="ln">648  </span></a>
+<a name="l649"><span class="ln">649  </span></a>    <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, </span><span class="s1">int</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l650"><span class="ln">650  </span></a>        <span class="s2">if not </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s4">&quot;_dynamo_weak_dynamic_indices&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l651"><span class="ln">651  </span></a>            <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_weak_dynamic_indices </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l652"><span class="ln">652  </span></a>        <span class="s0"># TODO(voz): Should we bounds check?</span>
+<a name="l653"><span class="ln">653  </span></a>        <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_weak_dynamic_indices</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">index</span><span class="s3">)</span>
+<a name="l654"><span class="ln">654  </span></a>        <span class="s2">return</span>
+<a name="l655"><span class="ln">655  </span></a>
+<a name="l656"><span class="ln">656  </span></a>    <span class="s2">assert </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, (</span><span class="s1">list</span><span class="s3">, </span><span class="s1">tuple</span><span class="s3">))</span>
+<a name="l657"><span class="ln">657  </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">index</span><span class="s2">:</span>
+<a name="l658"><span class="ln">658  </span></a>        <span class="s1">maybe_mark_dynamic</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">i</span><span class="s3">)</span>
+<a name="l659"><span class="ln">659  </span></a>
+<a name="l660"><span class="ln">660  </span></a>
+<a name="l661"><span class="ln">661  </span></a><span class="s2">def </span><span class="s1">mark_static</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">index</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l662"><span class="ln">662  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l663"><span class="ln">663  </span></a>    Mark a tensor as having a static dim or mark a nn module class as static. 
+<a name="l664"><span class="ln">664  </span></a> 
+<a name="l665"><span class="ln">665  </span></a>    For tensors 
+<a name="l666"><span class="ln">666  </span></a>    =========== 
+<a name="l667"><span class="ln">667  </span></a>    This will prevent us from attempting to compile it dynamically 
+<a name="l668"><span class="ln">668  </span></a>    when dynamic=True; this can improve trace-time performance. 
+<a name="l669"><span class="ln">669  </span></a> 
+<a name="l670"><span class="ln">670  </span></a>    This has lower precedence than mark_dynamic. 
+<a name="l671"><span class="ln">671  </span></a> 
+<a name="l672"><span class="ln">672  </span></a>    Unlike mark_dynamic, this can be done inside a graph, in which case it 
+<a name="l673"><span class="ln">673  </span></a>    induces specialization on the tensor. 
+<a name="l674"><span class="ln">674  </span></a> 
+<a name="l675"><span class="ln">675  </span></a>    For nn.Module classes 
+<a name="l676"><span class="ln">676  </span></a>    ===================== 
+<a name="l677"><span class="ln">677  </span></a>    For static nn.Module classes, TorchDynamo assumes that the module instance 
+<a name="l678"><span class="ln">678  </span></a>    attributes will not be modified after compilation. This will ensure that 
+<a name="l679"><span class="ln">679  </span></a>    TorchDynamo keeps integer attributes CONSTANT and not symints. 
+<a name="l680"><span class="ln">680  </span></a> 
+<a name="l681"><span class="ln">681  </span></a>    From TorchDynamo implementation side, the instances of static-marked 
+<a name="l682"><span class="ln">682  </span></a>    nn.Module class will be converted to UnspecializedBuiltinNNModuleVariable, 
+<a name="l683"><span class="ln">683  </span></a>    which have the same properties. 
+<a name="l684"><span class="ln">684  </span></a> 
+<a name="l685"><span class="ln">685  </span></a>    Note that we still have to guard on the attributes, because different 
+<a name="l686"><span class="ln">686  </span></a>    instances of the nn.Module can have different values of the attributes. The 
+<a name="l687"><span class="ln">687  </span></a>    key point here is that the attributes are static. 
+<a name="l688"><span class="ln">688  </span></a>    &quot;&quot;&quot;</span>
+<a name="l689"><span class="ln">689  </span></a>    <span class="s2">if </span><span class="s1">is_compiling</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l690"><span class="ln">690  </span></a>        <span class="s2">if </span><span class="s1">index </span><span class="s2">is None:</span>
+<a name="l691"><span class="ln">691  </span></a>            <span class="s2">for </span><span class="s1">s </span><span class="s2">in </span><span class="s1">t</span><span class="s3">.</span><span class="s1">size</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l692"><span class="ln">692  </span></a>                <span class="s1">comptime</span><span class="s3">.</span><span class="s1">force_static</span><span class="s3">(</span><span class="s1">s</span><span class="s3">)</span>
+<a name="l693"><span class="ln">693  </span></a>        <span class="s2">else:</span>
+<a name="l694"><span class="ln">694  </span></a>            <span class="s1">comptime</span><span class="s3">.</span><span class="s1">force_static</span><span class="s3">(</span><span class="s1">t</span><span class="s3">.</span><span class="s1">size</span><span class="s3">(</span><span class="s1">index</span><span class="s3">))</span>
+<a name="l695"><span class="ln">695  </span></a>        <span class="s2">return</span>
+<a name="l696"><span class="ln">696  </span></a>
+<a name="l697"><span class="ln">697  </span></a>    <span class="s2">if </span><span class="s1">is_traceable_wrapper_subclass</span><span class="s3">(</span><span class="s1">t</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l698"><span class="ln">698  </span></a>        <span class="s0"># default behavior: mirror mark_static() on all inner tensors with same dim as t</span>
+<a name="l699"><span class="ln">699  </span></a>        <span class="s0"># TODO: Make this configurable via a supported public API</span>
+<a name="l700"><span class="ln">700  </span></a>        <span class="s1">_apply_func_to_inner_tensors_of_same_dim</span><span class="s3">(</span><span class="s1">mark_static</span><span class="s3">, </span><span class="s1">t</span><span class="s3">, </span><span class="s1">index</span><span class="s3">)</span>
+<a name="l701"><span class="ln">701  </span></a>
+<a name="l702"><span class="ln">702  </span></a>    <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">Tensor</span><span class="s3">) </span><span class="s2">and </span><span class="s1">issubclass</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">nn</span><span class="s3">.</span><span class="s1">Module</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l703"><span class="ln">703  </span></a>        <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_marked_static </span><span class="s2">= True</span>
+<a name="l704"><span class="ln">704  </span></a>        <span class="s2">return </span><span class="s1">t</span>
+<a name="l705"><span class="ln">705  </span></a>
+<a name="l706"><span class="ln">706  </span></a>    <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">Tensor</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l707"><span class="ln">707  </span></a>        <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span>
+<a name="l708"><span class="ln">708  </span></a>            <span class="s4">f&quot;mark_static expects a tensor/nn.Module class but received {</span><span class="s1">type</span><span class="s3">(</span><span class="s1">t</span><span class="s3">)</span><span class="s4">}&quot;</span>
+<a name="l709"><span class="ln">709  </span></a>        <span class="s3">)</span>
+<a name="l710"><span class="ln">710  </span></a>
+<a name="l711"><span class="ln">711  </span></a>    <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, </span><span class="s1">int</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l712"><span class="ln">712  </span></a>        <span class="s2">if not </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s4">&quot;_dynamo_static_indices&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l713"><span class="ln">713  </span></a>            <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_static_indices </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l714"><span class="ln">714  </span></a>        <span class="s0"># TODO(voz): Should we bounds check?</span>
+<a name="l715"><span class="ln">715  </span></a>        <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_static_indices</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">index</span><span class="s3">)  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l716"><span class="ln">716  </span></a>    <span class="s2">elif </span><span class="s1">index </span><span class="s2">is None:</span>
+<a name="l717"><span class="ln">717  </span></a>        <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">t</span><span class="s3">.</span><span class="s1">dim</span><span class="s3">())</span><span class="s2">:</span>
+<a name="l718"><span class="ln">718  </span></a>            <span class="s1">mark_static</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">i</span><span class="s3">)</span>
+<a name="l719"><span class="ln">719  </span></a>    <span class="s2">else:</span>
+<a name="l720"><span class="ln">720  </span></a>        <span class="s2">assert </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, (</span><span class="s1">list</span><span class="s3">, </span><span class="s1">tuple</span><span class="s3">))</span>
+<a name="l721"><span class="ln">721  </span></a>        <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">index</span><span class="s2">:</span>
+<a name="l722"><span class="ln">722  </span></a>            <span class="s1">mark_static</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">i</span><span class="s3">)</span>
+<a name="l723"><span class="ln">723  </span></a>
+<a name="l724"><span class="ln">724  </span></a>
+<a name="l725"><span class="ln">725  </span></a><span class="s2">@</span><span class="s1">forbid_in_graph</span>
+<a name="l726"><span class="ln">726  </span></a><span class="s2">def </span><span class="s1">mark_static_address</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">guard</span><span class="s2">=True</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l727"><span class="ln">727  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l728"><span class="ln">728  </span></a>    Marks an input tensor whose data_ptr will not change across multiple calls 
+<a name="l729"><span class="ln">729  </span></a>    to a dynamo-compiled function. This indicates to cudagraphs that an extra allocation 
+<a name="l730"><span class="ln">730  </span></a>    is not needed for this input. The data_ptr will be guarded if guard=True. Note: 
+<a name="l731"><span class="ln">731  </span></a>    Tensors marked in this way will be kept alive until `torch._dynamo.reset()` is called. 
+<a name="l732"><span class="ln">732  </span></a>    &quot;&quot;&quot;</span>
+<a name="l733"><span class="ln">733  </span></a>    <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">Tensor</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l734"><span class="ln">734  </span></a>        <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">f&quot;mark_static_address expects a tensor but received {</span><span class="s1">type</span><span class="s3">(</span><span class="s1">t</span><span class="s3">)</span><span class="s4">}&quot;</span><span class="s3">)</span>
+<a name="l735"><span class="ln">735  </span></a>
+<a name="l736"><span class="ln">736  </span></a>    <span class="s2">if </span><span class="s1">guard</span><span class="s2">:</span>
+<a name="l737"><span class="ln">737  </span></a>        <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_static_input_type </span><span class="s2">= </span><span class="s4">&quot;guarded&quot;  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l738"><span class="ln">738  </span></a>    <span class="s2">else:</span>
+<a name="l739"><span class="ln">739  </span></a>        <span class="s1">t</span><span class="s3">.</span><span class="s1">_dynamo_static_input_type </span><span class="s2">= </span><span class="s4">&quot;unguarded&quot;  </span><span class="s0"># type: ignore[attr-defined]</span>
+<a name="l740"><span class="ln">740  </span></a>
+<a name="l741"><span class="ln">741  </span></a>
+<a name="l742"><span class="ln">742  </span></a><span class="s0"># One day, Dynamo will support tracing into einops directly (no allow_in_graph needed)</span>
+<a name="l743"><span class="ln">743  </span></a><span class="s0"># Note that PyTorch supports multiple versions of einops, so when that day comes,</span>
+<a name="l744"><span class="ln">744  </span></a><span class="s0"># we still need to be really careful about version matches.</span>
+<a name="l745"><span class="ln">745  </span></a><span class="s2">def </span><span class="s1">_allow_in_graph_einops</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l746"><span class="ln">746  </span></a>    <span class="s2">import </span><span class="s1">einops</span>
+<a name="l747"><span class="ln">747  </span></a>
+<a name="l748"><span class="ln">748  </span></a>    <span class="s2">try:</span>
+<a name="l749"><span class="ln">749  </span></a>        <span class="s0"># requires einops &gt; 0.6.1, torch &gt;= 2.0</span>
+<a name="l750"><span class="ln">750  </span></a>        <span class="s2">from </span><span class="s1">einops</span><span class="s3">.</span><span class="s1">_torch_specific </span><span class="s2">import </span><span class="s3">(  </span><span class="s0"># type: ignore[attr-defined]  # noqa: F401</span>
+<a name="l751"><span class="ln">751  </span></a>            <span class="s1">_ops_were_registered_in_torchdynamo</span><span class="s3">,</span>
+<a name="l752"><span class="ln">752  </span></a>        <span class="s3">)</span>
+<a name="l753"><span class="ln">753  </span></a>
+<a name="l754"><span class="ln">754  </span></a>        <span class="s0"># einops &gt; 0.6.1 will call the op registration logic as it is imported.</span>
+<a name="l755"><span class="ln">755  </span></a>    <span class="s2">except </span><span class="s1">ImportError</span><span class="s2">:</span>
+<a name="l756"><span class="ln">756  </span></a>        <span class="s0"># einops &lt;= 0.6.1</span>
+<a name="l757"><span class="ln">757  </span></a>        <span class="s1">allow_in_graph</span><span class="s3">(</span><span class="s1">einops</span><span class="s3">.</span><span class="s1">rearrange</span><span class="s3">)</span>
+<a name="l758"><span class="ln">758  </span></a>        <span class="s1">allow_in_graph</span><span class="s3">(</span><span class="s1">einops</span><span class="s3">.</span><span class="s1">reduce</span><span class="s3">)</span>
+<a name="l759"><span class="ln">759  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">einops</span><span class="s3">, </span><span class="s4">&quot;repeat&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l760"><span class="ln">760  </span></a>            <span class="s1">allow_in_graph</span><span class="s3">(</span><span class="s1">einops</span><span class="s3">.</span><span class="s1">repeat</span><span class="s3">)  </span><span class="s0"># available since einops 0.2.0</span>
+<a name="l761"><span class="ln">761  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">einops</span><span class="s3">, </span><span class="s4">&quot;einsum&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l762"><span class="ln">762  </span></a>            <span class="s1">allow_in_graph</span><span class="s3">(</span><span class="s1">einops</span><span class="s3">.</span><span class="s1">einsum</span><span class="s3">)  </span><span class="s0"># available since einops 0.5.0</span>
+<a name="l763"><span class="ln">763  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">einops</span><span class="s3">, </span><span class="s4">&quot;pack&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l764"><span class="ln">764  </span></a>            <span class="s1">allow_in_graph</span><span class="s3">(</span><span class="s1">einops</span><span class="s3">.</span><span class="s1">pack</span><span class="s3">)  </span><span class="s0"># available since einops 0.6.0</span>
+<a name="l765"><span class="ln">765  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">einops</span><span class="s3">, </span><span class="s4">&quot;unpack&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l766"><span class="ln">766  </span></a>            <span class="s1">allow_in_graph</span><span class="s3">(</span><span class="s1">einops</span><span class="s3">.</span><span class="s1">unpack</span><span class="s3">)  </span><span class="s0"># available since einops 0.6.0</span>
+<a name="l767"><span class="ln">767  </span></a>
+<a name="l768"><span class="ln">768  </span></a>
+<a name="l769"><span class="ln">769  </span></a><span class="s0"># Note: this carefully avoids eagerly import einops.</span>
+<a name="l770"><span class="ln">770  </span></a><span class="s1">trace_rules</span><span class="s3">.</span><span class="s1">add_module_init_func</span><span class="s3">(</span><span class="s4">&quot;einops&quot;</span><span class="s3">, </span><span class="s1">_allow_in_graph_einops</span><span class="s3">)</span>
+<a name="l771"><span class="ln">771  </span></a>
+<a name="l772"><span class="ln">772  </span></a>
+<a name="l773"><span class="ln">773  </span></a><span class="s0"># Proxy class for torch._dynamo.config patching - so dynamo can identify context managers/decorators</span>
+<a name="l774"><span class="ln">774  </span></a><span class="s0"># created by patch_dynamo_config, compared to ones created by a raw torch._dynamo.config.patch.</span>
+<a name="l775"><span class="ln">775  </span></a><span class="s2">class </span><span class="s1">DynamoConfigPatchProxy</span><span class="s2">:</span>
+<a name="l776"><span class="ln">776  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">config_patch</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l777"><span class="ln">777  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">config_patch </span><span class="s2">= </span><span class="s1">config_patch</span>
+<a name="l778"><span class="ln">778  </span></a>
+<a name="l779"><span class="ln">779  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l780"><span class="ln">780  </span></a>    <span class="s2">def </span><span class="s1">changes</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l781"><span class="ln">781  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">config_patch</span><span class="s3">.</span><span class="s1">changes</span>
+<a name="l782"><span class="ln">782  </span></a>
+<a name="l783"><span class="ln">783  </span></a>    <span class="s0"># Decorator implementation that simply sets up `self` as a context manager.</span>
+<a name="l784"><span class="ln">784  </span></a>    <span class="s0"># Placed in external_utils so that we can trace through it.</span>
+<a name="l785"><span class="ln">785  </span></a>    <span class="s1">__call__ </span><span class="s2">= </span><span class="s1">_dynamo_config_patch_proxy_dunder_call</span>
+<a name="l786"><span class="ln">786  </span></a>
+<a name="l787"><span class="ln">787  </span></a>    <span class="s2">def </span><span class="s1">__enter__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l788"><span class="ln">788  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">config_patch</span><span class="s3">.</span><span class="s1">__enter__</span><span class="s3">()</span>
+<a name="l789"><span class="ln">789  </span></a>
+<a name="l790"><span class="ln">790  </span></a>    <span class="s2">def </span><span class="s1">__exit__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">exc_type</span><span class="s3">, </span><span class="s1">exc_val</span><span class="s3">, </span><span class="s1">exc_tb</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l791"><span class="ln">791  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">config_patch</span><span class="s3">.</span><span class="s1">__exit__</span><span class="s3">(</span><span class="s1">exc_type</span><span class="s3">, </span><span class="s1">exc_val</span><span class="s3">, </span><span class="s1">exc_tb</span><span class="s3">)</span>
+<a name="l792"><span class="ln">792  </span></a>
+<a name="l793"><span class="ln">793  </span></a>
+<a name="l794"><span class="ln">794  </span></a><span class="s0"># Criteria for patchable config:</span>
+<a name="l795"><span class="ln">795  </span></a><span class="s0"># - Config values must be constants (i.e. int, float, str, bool, None).</span>
+<a name="l796"><span class="ln">796  </span></a><span class="s0">#     - in particular, NO list, set, dict.</span>
+<a name="l797"><span class="ln">797  </span></a><span class="s0"># - Traceable config patches are only useful for configs that change dynamo behavior</span>
+<a name="l798"><span class="ln">798  </span></a><span class="s0">#   from symbolic_convert and below.</span>
+<a name="l799"><span class="ln">799  </span></a><span class="s0">#     - e.g. patching recompile_limit won't really do anything.</span>
+<a name="l800"><span class="ln">800  </span></a><span class="s0"># - For patching configs that affect Dynamo behavior above symbolic_convert,</span>
+<a name="l801"><span class="ln">801  </span></a><span class="s0">#   ensure that Dynamo behaves soundly even if tracing is done with different config.</span>
+<a name="l802"><span class="ln">802  </span></a><span class="s0">#     - e.g. be careful if patching guard-related configs as configs may have changed</span>
+<a name="l803"><span class="ln">803  </span></a><span class="s0">#       between guard creation and evaluation.</span>
+<a name="l804"><span class="ln">804  </span></a><span class="s1">_allowed_config_patches </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l805"><span class="ln">805  </span></a>    <span class="s4">&quot;verbose&quot;</span><span class="s3">,</span>
+<a name="l806"><span class="ln">806  </span></a>    <span class="s4">&quot;verify_correctness&quot;</span><span class="s3">,</span>
+<a name="l807"><span class="ln">807  </span></a>    <span class="s4">&quot;rewrite_assert_with_torch_assert&quot;</span><span class="s3">,</span>
+<a name="l808"><span class="ln">808  </span></a>    <span class="s4">&quot;capture_scalar_outputs&quot;</span><span class="s3">,</span>
+<a name="l809"><span class="ln">809  </span></a>    <span class="s4">&quot;allow_unspec_int_on_nn_module&quot;</span><span class="s3">,</span>
+<a name="l810"><span class="ln">810  </span></a>    <span class="s4">&quot;skip_torchrec&quot;</span><span class="s3">,</span>
+<a name="l811"><span class="ln">811  </span></a>    <span class="s4">&quot;dont_skip_tracing&quot;</span><span class="s3">,</span>
+<a name="l812"><span class="ln">812  </span></a><span class="s3">)</span>
+<a name="l813"><span class="ln">813  </span></a>
+<a name="l814"><span class="ln">814  </span></a><span class="s2">from </span><span class="s3">. </span><span class="s2">import </span><span class="s1">config</span>
+<a name="l815"><span class="ln">815  </span></a>
+<a name="l816"><span class="ln">816  </span></a>
+<a name="l817"><span class="ln">817  </span></a><span class="s2">for </span><span class="s1">name </span><span class="s2">in </span><span class="s1">_allowed_config_patches</span><span class="s2">:</span>
+<a name="l818"><span class="ln">818  </span></a>    <span class="s2">assert </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">config</span><span class="s3">, </span><span class="s1">name</span><span class="s3">), </span><span class="s4">&quot;nonexistent config&quot;</span>
+<a name="l819"><span class="ln">819  </span></a><span class="s2">del </span><span class="s1">config</span>
+<a name="l820"><span class="ln">820  </span></a>
+<a name="l821"><span class="ln">821  </span></a>
+<a name="l822"><span class="ln">822  </span></a><span class="s2">def </span><span class="s1">_patch_dynamo_config_check</span><span class="s3">(</span><span class="s1">changes</span><span class="s2">: </span><span class="s1">dict</span><span class="s3">[</span><span class="s1">str</span><span class="s3">, </span><span class="s1">Any</span><span class="s3">])</span><span class="s2">:</span>
+<a name="l823"><span class="ln">823  </span></a>    <span class="s2">for </span><span class="s1">k</span><span class="s3">, </span><span class="s1">v </span><span class="s2">in </span><span class="s1">changes</span><span class="s3">.</span><span class="s1">items</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l824"><span class="ln">824  </span></a>        <span class="s2">if </span><span class="s1">k </span><span class="s2">not in </span><span class="s1">_allowed_config_patches</span><span class="s2">:</span>
+<a name="l825"><span class="ln">825  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span>
+<a name="l826"><span class="ln">826  </span></a>                <span class="s4">f&quot;patch_dynamo_config does not support patching config {</span><span class="s1">k</span><span class="s4">}&quot;</span>
+<a name="l827"><span class="ln">827  </span></a>            <span class="s3">)</span>
+<a name="l828"><span class="ln">828  </span></a>        <span class="s2">if not </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_dynamo</span><span class="s3">.</span><span class="s1">utils</span><span class="s3">.</span><span class="s1">is_safe_constant</span><span class="s3">(</span><span class="s1">v</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l829"><span class="ln">829  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span>
+<a name="l830"><span class="ln">830  </span></a>                <span class="s4">f&quot;patch_dynamo_config does not support patching config {</span><span class="s1">k</span><span class="s4">} &quot;</span>
+<a name="l831"><span class="ln">831  </span></a>                <span class="s4">f&quot;with non-safe-constant value {</span><span class="s1">v</span><span class="s4">}&quot;</span>
+<a name="l832"><span class="ln">832  </span></a>            <span class="s3">)</span>
+<a name="l833"><span class="ln">833  </span></a>
+<a name="l834"><span class="ln">834  </span></a>
+<a name="l835"><span class="ln">835  </span></a><span class="s0"># TODO: also implement nonrecursive patch_dynamo_config/dont_skip_tracing.</span>
+<a name="l836"><span class="ln">836  </span></a><span class="s0"># Unlike config.patch, we also need to accept tuple as input in order to</span>
+<a name="l837"><span class="ln">837  </span></a><span class="s0"># deal with context manager reconstruction.</span>
+<a name="l838"><span class="ln">838  </span></a><span class="s2">def </span><span class="s1">patch_dynamo_config</span><span class="s3">(</span>
+<a name="l839"><span class="ln">839  </span></a>    <span class="s1">arg1</span><span class="s2">: </span><span class="s1">Optional</span><span class="s3">[</span><span class="s1">Union</span><span class="s3">[</span><span class="s1">str</span><span class="s3">, </span><span class="s1">dict</span><span class="s3">[</span><span class="s1">str</span><span class="s3">, </span><span class="s1">Any</span><span class="s3">], </span><span class="s1">tuple</span><span class="s3">[</span><span class="s1">tuple</span><span class="s3">[</span><span class="s1">str</span><span class="s3">, </span><span class="s1">Any</span><span class="s3">], ...]]] </span><span class="s2">= None</span><span class="s3">,</span>
+<a name="l840"><span class="ln">840  </span></a>    <span class="s1">arg2</span><span class="s2">: </span><span class="s1">Any </span><span class="s2">= None</span><span class="s3">,</span>
+<a name="l841"><span class="ln">841  </span></a>    <span class="s2">**</span><span class="s1">kwargs</span><span class="s2">: </span><span class="s1">Any</span><span class="s3">,</span>
+<a name="l842"><span class="ln">842  </span></a><span class="s3">) </span><span class="s1">-&gt; DynamoConfigPatchProxy</span><span class="s2">:</span>
+<a name="l843"><span class="ln">843  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l844"><span class="ln">844  </span></a>    A wrapper around torch._dynamo.config.patch that can be traced by Dynamo to 
+<a name="l845"><span class="ln">845  </span></a>    temporarily change config values DURING tracing. 
+<a name="l846"><span class="ln">846  </span></a> 
+<a name="l847"><span class="ln">847  </span></a>    See _allowed_config_patches for the list of allowed config patches. 
+<a name="l848"><span class="ln">848  </span></a> 
+<a name="l849"><span class="ln">849  </span></a>    Arguments are the same as with torch._dynamo.config.patch. 
+<a name="l850"><span class="ln">850  </span></a> 
+<a name="l851"><span class="ln">851  </span></a>    Can be used as a decorator or a context manager. 
+<a name="l852"><span class="ln">852  </span></a> 
+<a name="l853"><span class="ln">853  </span></a>    User code SHOULD NOT MODIFY the return value of this function. 
+<a name="l854"><span class="ln">854  </span></a> 
+<a name="l855"><span class="ln">855  </span></a>    WARNING: changing Dynamo config during tracing can lead to unpredictable tracing behavior! 
+<a name="l856"><span class="ln">856  </span></a>        Proceed only as advised! 
+<a name="l857"><span class="ln">857  </span></a>    &quot;&quot;&quot;</span>
+<a name="l858"><span class="ln">858  </span></a>    <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">arg1</span><span class="s3">, </span><span class="s1">tuple</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l859"><span class="ln">859  </span></a>        <span class="s1">arg1 </span><span class="s2">= </span><span class="s1">dict</span><span class="s3">(</span><span class="s1">arg1</span><span class="s3">)</span>
+<a name="l860"><span class="ln">860  </span></a>    <span class="s1">config_patch </span><span class="s2">= </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_dynamo</span><span class="s3">.</span><span class="s1">config</span><span class="s3">.</span><span class="s1">patch</span><span class="s3">(</span><span class="s1">arg1</span><span class="s3">, </span><span class="s1">arg2</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l861"><span class="ln">861  </span></a>    <span class="s1">_patch_dynamo_config_check</span><span class="s3">(</span><span class="s1">config_patch</span><span class="s3">.</span><span class="s1">changes</span><span class="s3">)</span>
+<a name="l862"><span class="ln">862  </span></a>    <span class="s0"># check for valid patching using config_patch.changes</span>
+<a name="l863"><span class="ln">863  </span></a>    <span class="s2">return </span><span class="s1">DynamoConfigPatchProxy</span><span class="s3">(</span><span class="s1">config_patch</span><span class="s3">)</span>
+<a name="l864"><span class="ln">864  </span></a>
+<a name="l865"><span class="ln">865  </span></a>
+<a name="l866"><span class="ln">866  </span></a><span class="s2">def </span><span class="s1">dont_skip_tracing</span><span class="s3">(</span><span class="s1">fn</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l867"><span class="ln">867  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l868"><span class="ln">868  </span></a>    Context manager/decorator to trace into functions intentionally marked by developers to be skipped 
+<a name="l869"><span class="ln">869  </span></a>    when tracing. 
+<a name="l870"><span class="ln">870  </span></a> 
+<a name="l871"><span class="ln">871  </span></a>    This decorator will also apply to recursively invoked functions. 
+<a name="l872"><span class="ln">872  </span></a>    &quot;&quot;&quot;</span>
+<a name="l873"><span class="ln">873  </span></a>    <span class="s1">ctx </span><span class="s2">= </span><span class="s1">patch_dynamo_config</span><span class="s3">(</span><span class="s1">dont_skip_tracing</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l874"><span class="ln">874  </span></a>    <span class="s2">if </span><span class="s1">fn</span><span class="s2">:</span>
+<a name="l875"><span class="ln">875  </span></a>        <span class="s2">return </span><span class="s1">ctx</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+<a name="l876"><span class="ln">876  </span></a>    <span class="s2">return </span><span class="s1">ctx</span>
+<a name="l877"><span class="ln">877  </span></a></pre>
+</body>
+</html>

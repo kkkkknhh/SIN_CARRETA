@@ -1,0 +1,55 @@
+<html>
+<head>
+<title>test_import.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+test_import.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot;Test possibility of patching fftpack with pyfftw. 
+<a name="l2"><span class="ln">2    </span></a> 
+<a name="l3"><span class="ln">3    </span></a>No module source outside of scipy.fftpack should contain an import of 
+<a name="l4"><span class="ln">4    </span></a>the form `from scipy.fftpack import ...`, so that a simple replacement 
+<a name="l5"><span class="ln">5    </span></a>of scipy.fftpack by the corresponding fftw interface completely swaps 
+<a name="l6"><span class="ln">6    </span></a>the two FFT implementations. 
+<a name="l7"><span class="ln">7    </span></a> 
+<a name="l8"><span class="ln">8    </span></a>Because this simply inspects source files, we only need to run the test 
+<a name="l9"><span class="ln">9    </span></a>on one version of Python. 
+<a name="l10"><span class="ln">10   </span></a>&quot;&quot;&quot;</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">from </span><span class="s1">pathlib </span><span class="s2">import </span><span class="s1">Path</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">import </span><span class="s1">re</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">import </span><span class="s1">tokenize</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">import </span><span class="s1">pytest</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">from </span><span class="s1">numpy</span><span class="s3">.</span><span class="s1">testing </span><span class="s2">import </span><span class="s1">assert_</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s2">import </span><span class="s1">scipy</span>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a><span class="s2">class </span><span class="s1">TestFFTPackImport</span><span class="s2">:</span>
+<a name="l21"><span class="ln">21   </span></a>    <span class="s2">@</span><span class="s1">pytest</span><span class="s3">.</span><span class="s1">mark</span><span class="s3">.</span><span class="s1">slow</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s2">def </span><span class="s1">test_fftpack_import</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l23"><span class="ln">23   </span></a>        <span class="s1">base </span><span class="s2">= </span><span class="s1">Path</span><span class="s3">(</span><span class="s1">scipy</span><span class="s3">.</span><span class="s1">__file__</span><span class="s3">).</span><span class="s1">parent</span>
+<a name="l24"><span class="ln">24   </span></a>        <span class="s1">regexp </span><span class="s2">= </span><span class="s4">r&quot;\s*from.+\.fftpack import .*\n&quot;</span>
+<a name="l25"><span class="ln">25   </span></a>        <span class="s2">for </span><span class="s1">path </span><span class="s2">in </span><span class="s1">base</span><span class="s3">.</span><span class="s1">rglob</span><span class="s3">(</span><span class="s4">&quot;*.py&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l26"><span class="ln">26   </span></a>            <span class="s2">if </span><span class="s1">base </span><span class="s2">/ </span><span class="s4">&quot;fftpack&quot; </span><span class="s2">in </span><span class="s1">path</span><span class="s3">.</span><span class="s1">parents</span><span class="s2">:</span>
+<a name="l27"><span class="ln">27   </span></a>                <span class="s2">continue</span>
+<a name="l28"><span class="ln">28   </span></a>            <span class="s0"># use tokenize to auto-detect encoding on systems where no</span>
+<a name="l29"><span class="ln">29   </span></a>            <span class="s0"># default encoding is defined (e.g., LANG='C')</span>
+<a name="l30"><span class="ln">30   </span></a>            <span class="s2">with </span><span class="s1">tokenize</span><span class="s3">.</span><span class="s1">open</span><span class="s3">(</span><span class="s1">str</span><span class="s3">(</span><span class="s1">path</span><span class="s3">)) </span><span class="s2">as </span><span class="s1">file</span><span class="s2">:</span>
+<a name="l31"><span class="ln">31   </span></a>                <span class="s1">assert_</span><span class="s3">(</span><span class="s1">all</span><span class="s3">(</span><span class="s2">not </span><span class="s1">re</span><span class="s3">.</span><span class="s1">fullmatch</span><span class="s3">(</span><span class="s1">regexp</span><span class="s3">, </span><span class="s1">line</span><span class="s3">)</span>
+<a name="l32"><span class="ln">32   </span></a>                            <span class="s2">for </span><span class="s1">line </span><span class="s2">in </span><span class="s1">file</span><span class="s3">),</span>
+<a name="l33"><span class="ln">33   </span></a>                        <span class="s4">f&quot;{</span><span class="s1">path</span><span class="s4">} contains an import from fftpack&quot;</span><span class="s3">)</span>
+<a name="l34"><span class="ln">34   </span></a></pre>
+</body>
+</html>

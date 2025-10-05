@@ -1,0 +1,317 @@
+<html>
+<head>
+<title>group_numbers.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #969896;}
+.s4 { color: #0086b3;}
+.s5 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+group_numbers.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">from </span><span class="s1">itertools </span><span class="s0">import </span><span class="s1">chain</span><span class="s2">, </span><span class="s1">combinations</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">external</span><span class="s2">.</span><span class="s1">gmpy </span><span class="s0">import </span><span class="s1">gcd</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">ntheory</span><span class="s2">.</span><span class="s1">factor_ </span><span class="s0">import </span><span class="s1">factorint</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">utilities</span><span class="s2">.</span><span class="s1">misc </span><span class="s0">import </span><span class="s1">as_int</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">def </span><span class="s1">_is_nilpotent_number</span><span class="s2">(</span><span class="s1">factors</span><span class="s0">: </span><span class="s1">dict</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l9"><span class="ln">9    </span></a>    <span class="s3">&quot;&quot;&quot; Check whether `n` is a nilpotent number. 
+<a name="l10"><span class="ln">10   </span></a>    Note that ``factors`` is a prime factorization of `n`. 
+<a name="l11"><span class="ln">11   </span></a> 
+<a name="l12"><span class="ln">12   </span></a>    This is a low-level helper for ``is_nilpotent_number``, for internal use. 
+<a name="l13"><span class="ln">13   </span></a>    &quot;&quot;&quot;</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s0">for </span><span class="s1">p </span><span class="s0">in </span><span class="s1">factors</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l15"><span class="ln">15   </span></a>        <span class="s0">for </span><span class="s1">q</span><span class="s2">, </span><span class="s1">e </span><span class="s0">in </span><span class="s1">factors</span><span class="s2">.</span><span class="s1">items</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l16"><span class="ln">16   </span></a>            <span class="s3"># We want to calculate</span>
+<a name="l17"><span class="ln">17   </span></a>            <span class="s3"># any(pow(q, k, p) == 1 for k in range(1, e + 1))</span>
+<a name="l18"><span class="ln">18   </span></a>            <span class="s1">m </span><span class="s0">= </span><span class="s4">1</span>
+<a name="l19"><span class="ln">19   </span></a>            <span class="s0">for </span><span class="s1">_ </span><span class="s0">in </span><span class="s1">range</span><span class="s2">(</span><span class="s1">e</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l20"><span class="ln">20   </span></a>                <span class="s1">m </span><span class="s0">= </span><span class="s1">m</span><span class="s0">*</span><span class="s1">q </span><span class="s0">% </span><span class="s1">p</span>
+<a name="l21"><span class="ln">21   </span></a>                <span class="s0">if </span><span class="s1">m </span><span class="s0">== </span><span class="s4">1</span><span class="s0">:</span>
+<a name="l22"><span class="ln">22   </span></a>                    <span class="s0">return False</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s0">return True</span>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a>
+<a name="l26"><span class="ln">26   </span></a><span class="s0">def </span><span class="s1">is_nilpotent_number</span><span class="s2">(</span><span class="s1">n</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l28"><span class="ln">28   </span></a>    Check whether `n` is a nilpotent number. A number `n` is said to be 
+<a name="l29"><span class="ln">29   </span></a>    nilpotent if and only if every finite group of order `n` is nilpotent. 
+<a name="l30"><span class="ln">30   </span></a>    For more information see [1]_. 
+<a name="l31"><span class="ln">31   </span></a> 
+<a name="l32"><span class="ln">32   </span></a>    Examples 
+<a name="l33"><span class="ln">33   </span></a>    ======== 
+<a name="l34"><span class="ln">34   </span></a> 
+<a name="l35"><span class="ln">35   </span></a>    &gt;&gt;&gt; from sympy.combinatorics.group_numbers import is_nilpotent_number 
+<a name="l36"><span class="ln">36   </span></a>    &gt;&gt;&gt; from sympy import randprime 
+<a name="l37"><span class="ln">37   </span></a>    &gt;&gt;&gt; is_nilpotent_number(21) 
+<a name="l38"><span class="ln">38   </span></a>    False 
+<a name="l39"><span class="ln">39   </span></a>    &gt;&gt;&gt; is_nilpotent_number(randprime(1, 30)**12) 
+<a name="l40"><span class="ln">40   </span></a>    True 
+<a name="l41"><span class="ln">41   </span></a> 
+<a name="l42"><span class="ln">42   </span></a>    References 
+<a name="l43"><span class="ln">43   </span></a>    ========== 
+<a name="l44"><span class="ln">44   </span></a> 
+<a name="l45"><span class="ln">45   </span></a>    .. [1] Pakianathan, J., Shankar, K., Nilpotent Numbers, 
+<a name="l46"><span class="ln">46   </span></a>           The American Mathematical Monthly, 107(7), 631-634. 
+<a name="l47"><span class="ln">47   </span></a>    .. [2] https://oeis.org/A056867 
+<a name="l48"><span class="ln">48   </span></a> 
+<a name="l49"><span class="ln">49   </span></a>    &quot;&quot;&quot;</span>
+<a name="l50"><span class="ln">50   </span></a>    <span class="s1">n </span><span class="s0">= </span><span class="s1">as_int</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s0">if </span><span class="s1">n </span><span class="s0">&lt;= </span><span class="s4">0</span><span class="s0">:</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s5">&quot;n must be a positive integer, not %i&quot; </span><span class="s0">% </span><span class="s1">n</span><span class="s2">)</span>
+<a name="l53"><span class="ln">53   </span></a>    <span class="s0">return </span><span class="s1">_is_nilpotent_number</span><span class="s2">(</span><span class="s1">factorint</span><span class="s2">(</span><span class="s1">n</span><span class="s2">))</span>
+<a name="l54"><span class="ln">54   </span></a>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a><span class="s0">def </span><span class="s1">is_abelian_number</span><span class="s2">(</span><span class="s1">n</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l58"><span class="ln">58   </span></a>    Check whether `n` is an abelian number. A number `n` is said to be abelian 
+<a name="l59"><span class="ln">59   </span></a>    if and only if every finite group of order `n` is abelian. For more 
+<a name="l60"><span class="ln">60   </span></a>    information see [1]_. 
+<a name="l61"><span class="ln">61   </span></a> 
+<a name="l62"><span class="ln">62   </span></a>    Examples 
+<a name="l63"><span class="ln">63   </span></a>    ======== 
+<a name="l64"><span class="ln">64   </span></a> 
+<a name="l65"><span class="ln">65   </span></a>    &gt;&gt;&gt; from sympy.combinatorics.group_numbers import is_abelian_number 
+<a name="l66"><span class="ln">66   </span></a>    &gt;&gt;&gt; from sympy import randprime 
+<a name="l67"><span class="ln">67   </span></a>    &gt;&gt;&gt; is_abelian_number(4) 
+<a name="l68"><span class="ln">68   </span></a>    True 
+<a name="l69"><span class="ln">69   </span></a>    &gt;&gt;&gt; is_abelian_number(randprime(1, 2000)**2) 
+<a name="l70"><span class="ln">70   </span></a>    True 
+<a name="l71"><span class="ln">71   </span></a>    &gt;&gt;&gt; is_abelian_number(60) 
+<a name="l72"><span class="ln">72   </span></a>    False 
+<a name="l73"><span class="ln">73   </span></a> 
+<a name="l74"><span class="ln">74   </span></a>    References 
+<a name="l75"><span class="ln">75   </span></a>    ========== 
+<a name="l76"><span class="ln">76   </span></a> 
+<a name="l77"><span class="ln">77   </span></a>    .. [1] Pakianathan, J., Shankar, K., Nilpotent Numbers, 
+<a name="l78"><span class="ln">78   </span></a>           The American Mathematical Monthly, 107(7), 631-634. 
+<a name="l79"><span class="ln">79   </span></a>    .. [2] https://oeis.org/A051532 
+<a name="l80"><span class="ln">80   </span></a> 
+<a name="l81"><span class="ln">81   </span></a>    &quot;&quot;&quot;</span>
+<a name="l82"><span class="ln">82   </span></a>    <span class="s1">n </span><span class="s0">= </span><span class="s1">as_int</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span>
+<a name="l83"><span class="ln">83   </span></a>    <span class="s0">if </span><span class="s1">n </span><span class="s0">&lt;= </span><span class="s4">0</span><span class="s0">:</span>
+<a name="l84"><span class="ln">84   </span></a>        <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s5">&quot;n must be a positive integer, not %i&quot; </span><span class="s0">% </span><span class="s1">n</span><span class="s2">)</span>
+<a name="l85"><span class="ln">85   </span></a>    <span class="s1">factors </span><span class="s0">= </span><span class="s1">factorint</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span>
+<a name="l86"><span class="ln">86   </span></a>    <span class="s0">return </span><span class="s1">all</span><span class="s2">(</span><span class="s1">e </span><span class="s0">&lt; </span><span class="s4">3 </span><span class="s0">for </span><span class="s1">e </span><span class="s0">in </span><span class="s1">factors</span><span class="s2">.</span><span class="s1">values</span><span class="s2">()) </span><span class="s0">and </span><span class="s1">_is_nilpotent_number</span><span class="s2">(</span><span class="s1">factors</span><span class="s2">)</span>
+<a name="l87"><span class="ln">87   </span></a>
+<a name="l88"><span class="ln">88   </span></a>
+<a name="l89"><span class="ln">89   </span></a><span class="s0">def </span><span class="s1">is_cyclic_number</span><span class="s2">(</span><span class="s1">n</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l90"><span class="ln">90   </span></a>    <span class="s3">&quot;&quot;&quot; 
+<a name="l91"><span class="ln">91   </span></a>    Check whether `n` is a cyclic number. A number `n` is said to be cyclic 
+<a name="l92"><span class="ln">92   </span></a>    if and only if every finite group of order `n` is cyclic. For more 
+<a name="l93"><span class="ln">93   </span></a>    information see [1]_. 
+<a name="l94"><span class="ln">94   </span></a> 
+<a name="l95"><span class="ln">95   </span></a>    Examples 
+<a name="l96"><span class="ln">96   </span></a>    ======== 
+<a name="l97"><span class="ln">97   </span></a> 
+<a name="l98"><span class="ln">98   </span></a>    &gt;&gt;&gt; from sympy.combinatorics.group_numbers import is_cyclic_number 
+<a name="l99"><span class="ln">99   </span></a>    &gt;&gt;&gt; from sympy import randprime 
+<a name="l100"><span class="ln">100  </span></a>    &gt;&gt;&gt; is_cyclic_number(15) 
+<a name="l101"><span class="ln">101  </span></a>    True 
+<a name="l102"><span class="ln">102  </span></a>    &gt;&gt;&gt; is_cyclic_number(randprime(1, 2000)**2) 
+<a name="l103"><span class="ln">103  </span></a>    False 
+<a name="l104"><span class="ln">104  </span></a>    &gt;&gt;&gt; is_cyclic_number(4) 
+<a name="l105"><span class="ln">105  </span></a>    False 
+<a name="l106"><span class="ln">106  </span></a> 
+<a name="l107"><span class="ln">107  </span></a>    References 
+<a name="l108"><span class="ln">108  </span></a>    ========== 
+<a name="l109"><span class="ln">109  </span></a> 
+<a name="l110"><span class="ln">110  </span></a>    .. [1] Pakianathan, J., Shankar, K., Nilpotent Numbers, 
+<a name="l111"><span class="ln">111  </span></a>           The American Mathematical Monthly, 107(7), 631-634. 
+<a name="l112"><span class="ln">112  </span></a>    .. [2] https://oeis.org/A003277 
+<a name="l113"><span class="ln">113  </span></a> 
+<a name="l114"><span class="ln">114  </span></a>    &quot;&quot;&quot;</span>
+<a name="l115"><span class="ln">115  </span></a>    <span class="s1">n </span><span class="s0">= </span><span class="s1">as_int</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span>
+<a name="l116"><span class="ln">116  </span></a>    <span class="s0">if </span><span class="s1">n </span><span class="s0">&lt;= </span><span class="s4">0</span><span class="s0">:</span>
+<a name="l117"><span class="ln">117  </span></a>        <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s5">&quot;n must be a positive integer, not %i&quot; </span><span class="s0">% </span><span class="s1">n</span><span class="s2">)</span>
+<a name="l118"><span class="ln">118  </span></a>    <span class="s1">factors </span><span class="s0">= </span><span class="s1">factorint</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span>
+<a name="l119"><span class="ln">119  </span></a>    <span class="s0">return </span><span class="s1">all</span><span class="s2">(</span><span class="s1">e </span><span class="s0">== </span><span class="s4">1 </span><span class="s0">for </span><span class="s1">e </span><span class="s0">in </span><span class="s1">factors</span><span class="s2">.</span><span class="s1">values</span><span class="s2">()) </span><span class="s0">and </span><span class="s1">_is_nilpotent_number</span><span class="s2">(</span><span class="s1">factors</span><span class="s2">)</span>
+<a name="l120"><span class="ln">120  </span></a>
+<a name="l121"><span class="ln">121  </span></a>
+<a name="l122"><span class="ln">122  </span></a><span class="s0">def </span><span class="s1">_holder_formula</span><span class="s2">(</span><span class="s1">prime_factors</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l123"><span class="ln">123  </span></a>    <span class="s3">r&quot;&quot;&quot; Number of groups of order `n`. 
+<a name="l124"><span class="ln">124  </span></a>    where `n` is squarefree and its prime factors are ``prime_factors``. 
+<a name="l125"><span class="ln">125  </span></a>    i.e., ``n == math.prod(prime_factors)`` 
+<a name="l126"><span class="ln">126  </span></a> 
+<a name="l127"><span class="ln">127  </span></a>    Explanation 
+<a name="l128"><span class="ln">128  </span></a>    =========== 
+<a name="l129"><span class="ln">129  </span></a> 
+<a name="l130"><span class="ln">130  </span></a>    When `n` is squarefree, the number of groups of order `n` is expressed by 
+<a name="l131"><span class="ln">131  </span></a> 
+<a name="l132"><span class="ln">132  </span></a>    .. math :: 
+<a name="l133"><span class="ln">133  </span></a>        \sum_{d \mid n} \prod_p \frac{p^{c(p, d)} - 1}{p - 1} 
+<a name="l134"><span class="ln">134  </span></a> 
+<a name="l135"><span class="ln">135  </span></a>    where `n=de`, `p` is the prime factor of `e`, 
+<a name="l136"><span class="ln">136  </span></a>    and `c(p, d)` is the number of prime factors `q` of `d` such that `q \equiv 1 \pmod{p}` [2]_. 
+<a name="l137"><span class="ln">137  </span></a> 
+<a name="l138"><span class="ln">138  </span></a>    The formula is elegant, but can be improved when implemented as an algorithm. 
+<a name="l139"><span class="ln">139  </span></a>    Since `n` is assumed to be squarefree, the divisor `d` of `n` can be identified with the power set of prime factors. 
+<a name="l140"><span class="ln">140  </span></a>    We let `N` be the set of prime factors of `n`. 
+<a name="l141"><span class="ln">141  </span></a>    `F = \{p \in N : \forall q \in N, q \not\equiv 1 \pmod{p} \}, M = N \setminus F`, we have the following. 
+<a name="l142"><span class="ln">142  </span></a> 
+<a name="l143"><span class="ln">143  </span></a>    .. math :: 
+<a name="l144"><span class="ln">144  </span></a>        \sum_{d \in 2^{M}} \prod_{p \in M \setminus d} \frac{p^{c(p, F \cup d)} - 1}{p - 1} 
+<a name="l145"><span class="ln">145  </span></a> 
+<a name="l146"><span class="ln">146  </span></a>    Practically, many prime factors are expected to be members of `F`, thus reducing computation time. 
+<a name="l147"><span class="ln">147  </span></a> 
+<a name="l148"><span class="ln">148  </span></a>    Parameters 
+<a name="l149"><span class="ln">149  </span></a>    ========== 
+<a name="l150"><span class="ln">150  </span></a> 
+<a name="l151"><span class="ln">151  </span></a>    prime_factors : set 
+<a name="l152"><span class="ln">152  </span></a>        The set of prime factors of ``n``. where `n` is squarefree. 
+<a name="l153"><span class="ln">153  </span></a> 
+<a name="l154"><span class="ln">154  </span></a>    Returns 
+<a name="l155"><span class="ln">155  </span></a>    ======= 
+<a name="l156"><span class="ln">156  </span></a> 
+<a name="l157"><span class="ln">157  </span></a>    int : Number of groups of order ``n`` 
+<a name="l158"><span class="ln">158  </span></a> 
+<a name="l159"><span class="ln">159  </span></a>    Examples 
+<a name="l160"><span class="ln">160  </span></a>    ======== 
+<a name="l161"><span class="ln">161  </span></a> 
+<a name="l162"><span class="ln">162  </span></a>    &gt;&gt;&gt; from sympy.combinatorics.group_numbers import _holder_formula 
+<a name="l163"><span class="ln">163  </span></a>    &gt;&gt;&gt; _holder_formula({2}) # n = 2 
+<a name="l164"><span class="ln">164  </span></a>    1 
+<a name="l165"><span class="ln">165  </span></a>    &gt;&gt;&gt; _holder_formula({2, 3}) # n = 2*3 = 6 
+<a name="l166"><span class="ln">166  </span></a>    2 
+<a name="l167"><span class="ln">167  </span></a> 
+<a name="l168"><span class="ln">168  </span></a>    See Also 
+<a name="l169"><span class="ln">169  </span></a>    ======== 
+<a name="l170"><span class="ln">170  </span></a> 
+<a name="l171"><span class="ln">171  </span></a>    groups_count 
+<a name="l172"><span class="ln">172  </span></a> 
+<a name="l173"><span class="ln">173  </span></a>    References 
+<a name="l174"><span class="ln">174  </span></a>    ========== 
+<a name="l175"><span class="ln">175  </span></a> 
+<a name="l176"><span class="ln">176  </span></a>    .. [1] Otto Holder, Die Gruppen der Ordnungen p^3, pq^2, pqr, p^4, 
+<a name="l177"><span class="ln">177  </span></a>           Math. Ann. 43 pp. 301-412 (1893). 
+<a name="l178"><span class="ln">178  </span></a>           http://dx.doi.org/10.1007/BF01443651 
+<a name="l179"><span class="ln">179  </span></a>    .. [2] John H. Conway, Heiko Dietrich and E.A. O'Brien, 
+<a name="l180"><span class="ln">180  </span></a>           Counting groups: gnus, moas and other exotica 
+<a name="l181"><span class="ln">181  </span></a>           The Mathematical Intelligencer 30, 6-15 (2008) 
+<a name="l182"><span class="ln">182  </span></a>           https://doi.org/10.1007/BF02985731 
+<a name="l183"><span class="ln">183  </span></a> 
+<a name="l184"><span class="ln">184  </span></a>    &quot;&quot;&quot;</span>
+<a name="l185"><span class="ln">185  </span></a>    <span class="s1">F </span><span class="s0">= </span><span class="s2">{</span><span class="s1">p </span><span class="s0">for </span><span class="s1">p </span><span class="s0">in </span><span class="s1">prime_factors </span><span class="s0">if </span><span class="s1">all</span><span class="s2">(</span><span class="s1">q </span><span class="s0">% </span><span class="s1">p </span><span class="s0">!= </span><span class="s4">1 </span><span class="s0">for </span><span class="s1">q </span><span class="s0">in </span><span class="s1">prime_factors</span><span class="s2">)}</span>
+<a name="l186"><span class="ln">186  </span></a>    <span class="s1">M </span><span class="s0">= </span><span class="s1">prime_factors </span><span class="s0">- </span><span class="s1">F</span>
+<a name="l187"><span class="ln">187  </span></a>
+<a name="l188"><span class="ln">188  </span></a>    <span class="s1">s </span><span class="s0">= </span><span class="s4">0</span>
+<a name="l189"><span class="ln">189  </span></a>    <span class="s1">powerset </span><span class="s0">= </span><span class="s1">chain</span><span class="s2">.</span><span class="s1">from_iterable</span><span class="s2">(</span><span class="s1">combinations</span><span class="s2">(</span><span class="s1">M</span><span class="s2">, </span><span class="s1">r</span><span class="s2">) </span><span class="s0">for </span><span class="s1">r </span><span class="s0">in </span><span class="s1">range</span><span class="s2">(</span><span class="s1">len</span><span class="s2">(</span><span class="s1">M</span><span class="s2">)</span><span class="s0">+</span><span class="s4">1</span><span class="s2">))</span>
+<a name="l190"><span class="ln">190  </span></a>    <span class="s0">for </span><span class="s1">ps </span><span class="s0">in </span><span class="s1">powerset</span><span class="s0">:</span>
+<a name="l191"><span class="ln">191  </span></a>        <span class="s1">ps </span><span class="s0">= </span><span class="s1">set</span><span class="s2">(</span><span class="s1">ps</span><span class="s2">)</span>
+<a name="l192"><span class="ln">192  </span></a>        <span class="s1">prod </span><span class="s0">= </span><span class="s4">1</span>
+<a name="l193"><span class="ln">193  </span></a>        <span class="s0">for </span><span class="s1">p </span><span class="s0">in </span><span class="s1">M </span><span class="s0">- </span><span class="s1">ps</span><span class="s0">:</span>
+<a name="l194"><span class="ln">194  </span></a>            <span class="s1">c </span><span class="s0">= </span><span class="s1">len</span><span class="s2">([</span><span class="s1">q </span><span class="s0">for </span><span class="s1">q </span><span class="s0">in </span><span class="s1">F </span><span class="s0">| </span><span class="s1">ps </span><span class="s0">if </span><span class="s1">q </span><span class="s0">% </span><span class="s1">p </span><span class="s0">== </span><span class="s4">1</span><span class="s2">])</span>
+<a name="l195"><span class="ln">195  </span></a>            <span class="s1">prod </span><span class="s0">*= </span><span class="s2">(</span><span class="s1">p</span><span class="s0">**</span><span class="s1">c </span><span class="s0">- </span><span class="s4">1</span><span class="s2">) </span><span class="s0">// </span><span class="s2">(</span><span class="s1">p </span><span class="s0">- </span><span class="s4">1</span><span class="s2">)</span>
+<a name="l196"><span class="ln">196  </span></a>            <span class="s0">if not </span><span class="s1">prod</span><span class="s0">:</span>
+<a name="l197"><span class="ln">197  </span></a>                <span class="s0">break</span>
+<a name="l198"><span class="ln">198  </span></a>        <span class="s1">s </span><span class="s0">+= </span><span class="s1">prod</span>
+<a name="l199"><span class="ln">199  </span></a>    <span class="s0">return </span><span class="s1">s</span>
+<a name="l200"><span class="ln">200  </span></a>
+<a name="l201"><span class="ln">201  </span></a>
+<a name="l202"><span class="ln">202  </span></a><span class="s0">def </span><span class="s1">groups_count</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l203"><span class="ln">203  </span></a>    <span class="s3">r&quot;&quot;&quot; Number of groups of order `n`. 
+<a name="l204"><span class="ln">204  </span></a>    In [1]_, ``gnu(n)`` is given, so we follow this notation here as well. 
+<a name="l205"><span class="ln">205  </span></a> 
+<a name="l206"><span class="ln">206  </span></a>    Parameters 
+<a name="l207"><span class="ln">207  </span></a>    ========== 
+<a name="l208"><span class="ln">208  </span></a> 
+<a name="l209"><span class="ln">209  </span></a>    n : Integer 
+<a name="l210"><span class="ln">210  </span></a>        ``n`` is a positive integer 
+<a name="l211"><span class="ln">211  </span></a> 
+<a name="l212"><span class="ln">212  </span></a>    Returns 
+<a name="l213"><span class="ln">213  </span></a>    ======= 
+<a name="l214"><span class="ln">214  </span></a> 
+<a name="l215"><span class="ln">215  </span></a>    int : ``gnu(n)`` 
+<a name="l216"><span class="ln">216  </span></a> 
+<a name="l217"><span class="ln">217  </span></a>    Raises 
+<a name="l218"><span class="ln">218  </span></a>    ====== 
+<a name="l219"><span class="ln">219  </span></a> 
+<a name="l220"><span class="ln">220  </span></a>    ValueError 
+<a name="l221"><span class="ln">221  </span></a>        Number of groups of order ``n`` is unknown or not implemented. 
+<a name="l222"><span class="ln">222  </span></a>        For example, gnu(`2^{11}`) is not yet known. 
+<a name="l223"><span class="ln">223  </span></a>        On the other hand, gnu(99) is known to be 2, 
+<a name="l224"><span class="ln">224  </span></a>        but this has not yet been implemented in this function. 
+<a name="l225"><span class="ln">225  </span></a> 
+<a name="l226"><span class="ln">226  </span></a>    Examples 
+<a name="l227"><span class="ln">227  </span></a>    ======== 
+<a name="l228"><span class="ln">228  </span></a> 
+<a name="l229"><span class="ln">229  </span></a>    &gt;&gt;&gt; from sympy.combinatorics.group_numbers import groups_count 
+<a name="l230"><span class="ln">230  </span></a>    &gt;&gt;&gt; groups_count(3) # There is only one cyclic group of order 3 
+<a name="l231"><span class="ln">231  </span></a>    1 
+<a name="l232"><span class="ln">232  </span></a>    &gt;&gt;&gt; # There are two groups of order 10: the cyclic group and the dihedral group 
+<a name="l233"><span class="ln">233  </span></a>    &gt;&gt;&gt; groups_count(10) 
+<a name="l234"><span class="ln">234  </span></a>    2 
+<a name="l235"><span class="ln">235  </span></a> 
+<a name="l236"><span class="ln">236  </span></a>    See Also 
+<a name="l237"><span class="ln">237  </span></a>    ======== 
+<a name="l238"><span class="ln">238  </span></a> 
+<a name="l239"><span class="ln">239  </span></a>    is_cyclic_number 
+<a name="l240"><span class="ln">240  </span></a>        `n` is cyclic iff gnu(n) = 1 
+<a name="l241"><span class="ln">241  </span></a> 
+<a name="l242"><span class="ln">242  </span></a>    References 
+<a name="l243"><span class="ln">243  </span></a>    ========== 
+<a name="l244"><span class="ln">244  </span></a> 
+<a name="l245"><span class="ln">245  </span></a>    .. [1] John H. Conway, Heiko Dietrich and E.A. O'Brien, 
+<a name="l246"><span class="ln">246  </span></a>           Counting groups: gnus, moas and other exotica 
+<a name="l247"><span class="ln">247  </span></a>           The Mathematical Intelligencer 30, 6-15 (2008) 
+<a name="l248"><span class="ln">248  </span></a>           https://doi.org/10.1007/BF02985731 
+<a name="l249"><span class="ln">249  </span></a>    .. [2] https://oeis.org/A000001 
+<a name="l250"><span class="ln">250  </span></a> 
+<a name="l251"><span class="ln">251  </span></a>    &quot;&quot;&quot;</span>
+<a name="l252"><span class="ln">252  </span></a>    <span class="s1">n </span><span class="s0">= </span><span class="s1">as_int</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span>
+<a name="l253"><span class="ln">253  </span></a>    <span class="s0">if </span><span class="s1">n </span><span class="s0">&lt;= </span><span class="s4">0</span><span class="s0">:</span>
+<a name="l254"><span class="ln">254  </span></a>        <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s5">&quot;n must be a positive integer, not %i&quot; </span><span class="s0">% </span><span class="s1">n</span><span class="s2">)</span>
+<a name="l255"><span class="ln">255  </span></a>    <span class="s1">factors </span><span class="s0">= </span><span class="s1">factorint</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span>
+<a name="l256"><span class="ln">256  </span></a>    <span class="s0">if </span><span class="s1">len</span><span class="s2">(</span><span class="s1">factors</span><span class="s2">) </span><span class="s0">== </span><span class="s4">1</span><span class="s0">:</span>
+<a name="l257"><span class="ln">257  </span></a>        <span class="s2">(</span><span class="s1">p</span><span class="s2">, </span><span class="s1">e</span><span class="s2">) </span><span class="s0">= </span><span class="s1">list</span><span class="s2">(</span><span class="s1">factors</span><span class="s2">.</span><span class="s1">items</span><span class="s2">())[</span><span class="s4">0</span><span class="s2">]</span>
+<a name="l258"><span class="ln">258  </span></a>        <span class="s0">if </span><span class="s1">p </span><span class="s0">== </span><span class="s4">2</span><span class="s0">:</span>
+<a name="l259"><span class="ln">259  </span></a>            <span class="s1">A000679 </span><span class="s0">= </span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">1</span><span class="s2">, </span><span class="s4">2</span><span class="s2">, </span><span class="s4">5</span><span class="s2">, </span><span class="s4">14</span><span class="s2">, </span><span class="s4">51</span><span class="s2">, </span><span class="s4">267</span><span class="s2">, </span><span class="s4">2328</span><span class="s2">, </span><span class="s4">56092</span><span class="s2">, </span><span class="s4">10494213</span><span class="s2">, </span><span class="s4">49487367289</span><span class="s2">]</span>
+<a name="l260"><span class="ln">260  </span></a>            <span class="s0">if </span><span class="s1">e </span><span class="s0">&lt; </span><span class="s1">len</span><span class="s2">(</span><span class="s1">A000679</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l261"><span class="ln">261  </span></a>                <span class="s0">return </span><span class="s1">A000679</span><span class="s2">[</span><span class="s1">e</span><span class="s2">]</span>
+<a name="l262"><span class="ln">262  </span></a>        <span class="s0">if </span><span class="s1">p </span><span class="s0">== </span><span class="s4">3</span><span class="s0">:</span>
+<a name="l263"><span class="ln">263  </span></a>            <span class="s1">A090091 </span><span class="s0">= </span><span class="s2">[</span><span class="s4">1</span><span class="s2">, </span><span class="s4">1</span><span class="s2">, </span><span class="s4">2</span><span class="s2">, </span><span class="s4">5</span><span class="s2">, </span><span class="s4">15</span><span class="s2">, </span><span class="s4">67</span><span class="s2">, </span><span class="s4">504</span><span class="s2">, </span><span class="s4">9310</span><span class="s2">, </span><span class="s4">1396077</span><span class="s2">, </span><span class="s4">5937876645</span><span class="s2">]</span>
+<a name="l264"><span class="ln">264  </span></a>            <span class="s0">if </span><span class="s1">e </span><span class="s0">&lt; </span><span class="s1">len</span><span class="s2">(</span><span class="s1">A090091</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l265"><span class="ln">265  </span></a>                <span class="s0">return </span><span class="s1">A090091</span><span class="s2">[</span><span class="s1">e</span><span class="s2">]</span>
+<a name="l266"><span class="ln">266  </span></a>        <span class="s0">if </span><span class="s1">e </span><span class="s0">&lt;= </span><span class="s4">2</span><span class="s0">: </span><span class="s3"># gnu(p) = 1, gnu(p**2) = 2</span>
+<a name="l267"><span class="ln">267  </span></a>            <span class="s0">return </span><span class="s1">e</span>
+<a name="l268"><span class="ln">268  </span></a>        <span class="s0">if </span><span class="s1">e </span><span class="s0">== </span><span class="s4">3</span><span class="s0">: </span><span class="s3"># gnu(p**3) = 5</span>
+<a name="l269"><span class="ln">269  </span></a>            <span class="s0">return </span><span class="s4">5</span>
+<a name="l270"><span class="ln">270  </span></a>        <span class="s0">if </span><span class="s1">e </span><span class="s0">== </span><span class="s4">4</span><span class="s0">: </span><span class="s3"># if p is an odd prime, gnu(p**4) = 15</span>
+<a name="l271"><span class="ln">271  </span></a>            <span class="s0">return </span><span class="s4">15</span>
+<a name="l272"><span class="ln">272  </span></a>        <span class="s0">if </span><span class="s1">e </span><span class="s0">== </span><span class="s4">5</span><span class="s0">: </span><span class="s3"># if p &gt;= 5, gnu(p**5) is expressed by the following equation</span>
+<a name="l273"><span class="ln">273  </span></a>            <span class="s0">return </span><span class="s4">61 </span><span class="s0">+ </span><span class="s4">2</span><span class="s0">*</span><span class="s1">p </span><span class="s0">+ </span><span class="s4">2</span><span class="s0">*</span><span class="s1">gcd</span><span class="s2">(</span><span class="s1">p</span><span class="s0">-</span><span class="s4">1</span><span class="s2">, </span><span class="s4">3</span><span class="s2">) </span><span class="s0">+ </span><span class="s1">gcd</span><span class="s2">(</span><span class="s1">p</span><span class="s0">-</span><span class="s4">1</span><span class="s2">, </span><span class="s4">4</span><span class="s2">)</span>
+<a name="l274"><span class="ln">274  </span></a>        <span class="s0">if </span><span class="s1">e </span><span class="s0">== </span><span class="s4">6</span><span class="s0">: </span><span class="s3"># if p &gt;= 6, gnu(p**6) is expressed by the following equation</span>
+<a name="l275"><span class="ln">275  </span></a>            <span class="s0">return </span><span class="s4">3</span><span class="s0">*</span><span class="s1">p</span><span class="s0">**</span><span class="s4">2 </span><span class="s0">+ </span><span class="s4">39</span><span class="s0">*</span><span class="s1">p </span><span class="s0">+ </span><span class="s4">344 </span><span class="s0">+</span><span class="s1">\</span>
+<a name="l276"><span class="ln">276  </span></a>                  <span class="s4">24</span><span class="s0">*</span><span class="s1">gcd</span><span class="s2">(</span><span class="s1">p</span><span class="s0">-</span><span class="s4">1</span><span class="s2">, </span><span class="s4">3</span><span class="s2">) </span><span class="s0">+ </span><span class="s4">11</span><span class="s0">*</span><span class="s1">gcd</span><span class="s2">(</span><span class="s1">p</span><span class="s0">-</span><span class="s4">1</span><span class="s2">, </span><span class="s4">4</span><span class="s2">) </span><span class="s0">+ </span><span class="s4">2</span><span class="s0">*</span><span class="s1">gcd</span><span class="s2">(</span><span class="s1">p</span><span class="s0">-</span><span class="s4">1</span><span class="s2">, </span><span class="s4">5</span><span class="s2">)</span>
+<a name="l277"><span class="ln">277  </span></a>        <span class="s0">if </span><span class="s1">e </span><span class="s0">== </span><span class="s4">7</span><span class="s0">: </span><span class="s3"># if p &gt;= 7, gnu(p**7) is expressed by the following equation</span>
+<a name="l278"><span class="ln">278  </span></a>            <span class="s0">if </span><span class="s1">p </span><span class="s0">== </span><span class="s4">5</span><span class="s0">:</span>
+<a name="l279"><span class="ln">279  </span></a>                <span class="s0">return </span><span class="s4">34297</span>
+<a name="l280"><span class="ln">280  </span></a>            <span class="s0">return </span><span class="s4">3</span><span class="s0">*</span><span class="s1">p</span><span class="s0">**</span><span class="s4">5 </span><span class="s0">+ </span><span class="s4">12</span><span class="s0">*</span><span class="s1">p</span><span class="s0">**</span><span class="s4">4 </span><span class="s0">+ </span><span class="s4">44</span><span class="s0">*</span><span class="s1">p</span><span class="s0">**</span><span class="s4">3 </span><span class="s0">+ </span><span class="s4">170</span><span class="s0">*</span><span class="s1">p</span><span class="s0">**</span><span class="s4">2 </span><span class="s0">+ </span><span class="s4">707</span><span class="s0">*</span><span class="s1">p </span><span class="s0">+ </span><span class="s4">2455 </span><span class="s0">+</span><span class="s1">\</span>
+<a name="l281"><span class="ln">281  </span></a>                  <span class="s2">(</span><span class="s4">4</span><span class="s0">*</span><span class="s1">p</span><span class="s0">**</span><span class="s4">2 </span><span class="s0">+ </span><span class="s4">44</span><span class="s0">*</span><span class="s1">p </span><span class="s0">+ </span><span class="s4">291</span><span class="s2">)</span><span class="s0">*</span><span class="s1">gcd</span><span class="s2">(</span><span class="s1">p</span><span class="s0">-</span><span class="s4">1</span><span class="s2">, </span><span class="s4">3</span><span class="s2">) </span><span class="s0">+ </span><span class="s2">(</span><span class="s1">p</span><span class="s0">**</span><span class="s4">2 </span><span class="s0">+ </span><span class="s4">19</span><span class="s0">*</span><span class="s1">p </span><span class="s0">+ </span><span class="s4">135</span><span class="s2">)</span><span class="s0">*</span><span class="s1">gcd</span><span class="s2">(</span><span class="s1">p</span><span class="s0">-</span><span class="s4">1</span><span class="s2">, </span><span class="s4">4</span><span class="s2">) </span><span class="s0">+ </span><span class="s1">\</span>
+<a name="l282"><span class="ln">282  </span></a>                  <span class="s2">(</span><span class="s4">3</span><span class="s0">*</span><span class="s1">p </span><span class="s0">+ </span><span class="s4">31</span><span class="s2">)</span><span class="s0">*</span><span class="s1">gcd</span><span class="s2">(</span><span class="s1">p</span><span class="s0">-</span><span class="s4">1</span><span class="s2">, </span><span class="s4">5</span><span class="s2">) </span><span class="s0">+ </span><span class="s4">4</span><span class="s0">*</span><span class="s1">gcd</span><span class="s2">(</span><span class="s1">p</span><span class="s0">-</span><span class="s4">1</span><span class="s2">, </span><span class="s4">7</span><span class="s2">) </span><span class="s0">+ </span><span class="s4">5</span><span class="s0">*</span><span class="s1">gcd</span><span class="s2">(</span><span class="s1">p</span><span class="s0">-</span><span class="s4">1</span><span class="s2">, </span><span class="s4">8</span><span class="s2">) </span><span class="s0">+ </span><span class="s1">gcd</span><span class="s2">(</span><span class="s1">p</span><span class="s0">-</span><span class="s4">1</span><span class="s2">, </span><span class="s4">9</span><span class="s2">)</span>
+<a name="l283"><span class="ln">283  </span></a>    <span class="s0">if </span><span class="s1">any</span><span class="s2">(</span><span class="s1">e </span><span class="s0">&gt; </span><span class="s4">1 </span><span class="s0">for </span><span class="s1">e </span><span class="s0">in </span><span class="s1">factors</span><span class="s2">.</span><span class="s1">values</span><span class="s2">())</span><span class="s0">: </span><span class="s3"># n is not squarefree</span>
+<a name="l284"><span class="ln">284  </span></a>        <span class="s3"># some known values for small n that have more than 1 factor and are not square free (https://oeis.org/A000001)</span>
+<a name="l285"><span class="ln">285  </span></a>        <span class="s1">small </span><span class="s0">= </span><span class="s2">{</span><span class="s4">12</span><span class="s0">: </span><span class="s4">5</span><span class="s2">, </span><span class="s4">18</span><span class="s0">: </span><span class="s4">5</span><span class="s2">, </span><span class="s4">20</span><span class="s0">: </span><span class="s4">5</span><span class="s2">, </span><span class="s4">24</span><span class="s0">: </span><span class="s4">15</span><span class="s2">, </span><span class="s4">28</span><span class="s0">: </span><span class="s4">4</span><span class="s2">, </span><span class="s4">36</span><span class="s0">: </span><span class="s4">14</span><span class="s2">, </span><span class="s4">40</span><span class="s0">: </span><span class="s4">14</span><span class="s2">, </span><span class="s4">44</span><span class="s0">: </span><span class="s4">4</span><span class="s2">, </span><span class="s4">45</span><span class="s0">: </span><span class="s4">2</span><span class="s2">, </span><span class="s4">48</span><span class="s0">: </span><span class="s4">52</span><span class="s2">,</span>
+<a name="l286"><span class="ln">286  </span></a>                <span class="s4">50</span><span class="s0">: </span><span class="s4">5</span><span class="s2">, </span><span class="s4">52</span><span class="s0">: </span><span class="s4">5</span><span class="s2">, </span><span class="s4">54</span><span class="s0">: </span><span class="s4">15</span><span class="s2">, </span><span class="s4">56</span><span class="s0">: </span><span class="s4">13</span><span class="s2">, </span><span class="s4">60</span><span class="s0">: </span><span class="s4">13</span><span class="s2">, </span><span class="s4">63</span><span class="s0">: </span><span class="s4">4</span><span class="s2">, </span><span class="s4">68</span><span class="s0">: </span><span class="s4">5</span><span class="s2">, </span><span class="s4">72</span><span class="s0">: </span><span class="s4">50</span><span class="s2">, </span><span class="s4">75</span><span class="s0">: </span><span class="s4">3</span><span class="s2">, </span><span class="s4">76</span><span class="s0">: </span><span class="s4">4</span><span class="s2">,</span>
+<a name="l287"><span class="ln">287  </span></a>                <span class="s4">80</span><span class="s0">: </span><span class="s4">52</span><span class="s2">, </span><span class="s4">84</span><span class="s0">: </span><span class="s4">15</span><span class="s2">, </span><span class="s4">88</span><span class="s0">: </span><span class="s4">12</span><span class="s2">, </span><span class="s4">90</span><span class="s0">: </span><span class="s4">10</span><span class="s2">, </span><span class="s4">92</span><span class="s0">: </span><span class="s4">4</span><span class="s2">}</span>
+<a name="l288"><span class="ln">288  </span></a>        <span class="s0">if </span><span class="s1">n </span><span class="s0">in </span><span class="s1">small</span><span class="s0">:</span>
+<a name="l289"><span class="ln">289  </span></a>            <span class="s0">return </span><span class="s1">small</span><span class="s2">[</span><span class="s1">n</span><span class="s2">]</span>
+<a name="l290"><span class="ln">290  </span></a>        <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s5">&quot;Number of groups of order n is unknown or not implemented&quot;</span><span class="s2">)</span>
+<a name="l291"><span class="ln">291  </span></a>    <span class="s0">if </span><span class="s1">len</span><span class="s2">(</span><span class="s1">factors</span><span class="s2">) </span><span class="s0">== </span><span class="s4">2</span><span class="s0">: </span><span class="s3"># n is squarefree semiprime</span>
+<a name="l292"><span class="ln">292  </span></a>        <span class="s1">p</span><span class="s2">, </span><span class="s1">q </span><span class="s0">= </span><span class="s1">sorted</span><span class="s2">(</span><span class="s1">factors</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">())</span>
+<a name="l293"><span class="ln">293  </span></a>        <span class="s0">return </span><span class="s4">2 </span><span class="s0">if </span><span class="s1">q </span><span class="s0">% </span><span class="s1">p </span><span class="s0">== </span><span class="s4">1 </span><span class="s0">else </span><span class="s4">1</span>
+<a name="l294"><span class="ln">294  </span></a>    <span class="s0">return </span><span class="s1">_holder_formula</span><span class="s2">(</span><span class="s1">set</span><span class="s2">(</span><span class="s1">factors</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">()))</span>
+<a name="l295"><span class="ln">295  </span></a></pre>
+</body>
+</html>

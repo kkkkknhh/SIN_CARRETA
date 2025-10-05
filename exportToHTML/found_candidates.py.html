@@ -1,0 +1,188 @@
+<html>
+<head>
+<title>found_candidates.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+found_candidates.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot;Utilities to lazily create and visit candidates found. 
+<a name="l2"><span class="ln">2    </span></a> 
+<a name="l3"><span class="ln">3    </span></a>Creating and visiting a candidate is a *very* costly operation. It involves 
+<a name="l4"><span class="ln">4    </span></a>fetching, extracting, potentially building modules from source, and verifying 
+<a name="l5"><span class="ln">5    </span></a>distribution metadata. It is therefore crucial for performance to keep 
+<a name="l6"><span class="ln">6    </span></a>everything here lazy all the way down, so we only touch candidates that we 
+<a name="l7"><span class="ln">7    </span></a>absolutely need, and not &quot;download the world&quot; when we only need one version of 
+<a name="l8"><span class="ln">8    </span></a>something. 
+<a name="l9"><span class="ln">9    </span></a>&quot;&quot;&quot;</span>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">from </span><span class="s1">__future__ </span><span class="s2">import </span><span class="s1">annotations</span>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">import </span><span class="s1">logging</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">from </span><span class="s1">collections</span><span class="s3">.</span><span class="s1">abc </span><span class="s2">import </span><span class="s1">Iterator</span><span class="s3">, </span><span class="s1">Sequence</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">from </span><span class="s1">typing </span><span class="s2">import </span><span class="s1">Any</span><span class="s3">, </span><span class="s1">Callable</span><span class="s3">, </span><span class="s1">Optional</span>
+<a name="l16"><span class="ln">16   </span></a>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">from </span><span class="s1">pip</span><span class="s3">.</span><span class="s1">_vendor</span><span class="s3">.</span><span class="s1">packaging</span><span class="s3">.</span><span class="s1">version </span><span class="s2">import </span><span class="s1">_BaseVersion</span>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">from </span><span class="s1">pip</span><span class="s3">.</span><span class="s1">_internal</span><span class="s3">.</span><span class="s1">exceptions </span><span class="s2">import </span><span class="s1">MetadataInvalid</span>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">base </span><span class="s2">import </span><span class="s1">Candidate</span>
+<a name="l22"><span class="ln">22   </span></a>
+<a name="l23"><span class="ln">23   </span></a><span class="s1">logger </span><span class="s2">= </span><span class="s1">logging</span><span class="s3">.</span><span class="s1">getLogger</span><span class="s3">(</span><span class="s1">__name__</span><span class="s3">)</span>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a><span class="s1">IndexCandidateInfo </span><span class="s2">= </span><span class="s1">tuple</span><span class="s3">[</span><span class="s1">_BaseVersion</span><span class="s3">, </span><span class="s1">Callable</span><span class="s3">[[], </span><span class="s1">Optional</span><span class="s3">[</span><span class="s1">Candidate</span><span class="s3">]]]</span>
+<a name="l26"><span class="ln">26   </span></a>
+<a name="l27"><span class="ln">27   </span></a>
+<a name="l28"><span class="ln">28   </span></a><span class="s2">def </span><span class="s1">_iter_built</span><span class="s3">(</span><span class="s1">infos</span><span class="s2">: </span><span class="s1">Iterator</span><span class="s3">[</span><span class="s1">IndexCandidateInfo</span><span class="s3">]) </span><span class="s1">-&gt; Iterator</span><span class="s3">[</span><span class="s1">Candidate</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s0">&quot;&quot;&quot;Iterator for ``FoundCandidates``. 
+<a name="l30"><span class="ln">30   </span></a> 
+<a name="l31"><span class="ln">31   </span></a>    This iterator is used when the package is not already installed. Candidates 
+<a name="l32"><span class="ln">32   </span></a>    from index come later in their normal ordering. 
+<a name="l33"><span class="ln">33   </span></a>    &quot;&quot;&quot;</span>
+<a name="l34"><span class="ln">34   </span></a>    <span class="s1">versions_found</span><span class="s2">: </span><span class="s1">set</span><span class="s3">[</span><span class="s1">_BaseVersion</span><span class="s3">] </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s2">for </span><span class="s1">version</span><span class="s3">, </span><span class="s1">func </span><span class="s2">in </span><span class="s1">infos</span><span class="s2">:</span>
+<a name="l36"><span class="ln">36   </span></a>        <span class="s2">if </span><span class="s1">version </span><span class="s2">in </span><span class="s1">versions_found</span><span class="s2">:</span>
+<a name="l37"><span class="ln">37   </span></a>            <span class="s2">continue</span>
+<a name="l38"><span class="ln">38   </span></a>        <span class="s2">try:</span>
+<a name="l39"><span class="ln">39   </span></a>            <span class="s1">candidate </span><span class="s2">= </span><span class="s1">func</span><span class="s3">()</span>
+<a name="l40"><span class="ln">40   </span></a>        <span class="s2">except </span><span class="s1">MetadataInvalid </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l41"><span class="ln">41   </span></a>            <span class="s1">logger</span><span class="s3">.</span><span class="s1">warning</span><span class="s3">(</span>
+<a name="l42"><span class="ln">42   </span></a>                <span class="s4">&quot;Ignoring version %s of %s since it has invalid metadata:\n&quot;</span>
+<a name="l43"><span class="ln">43   </span></a>                <span class="s4">&quot;%s\n&quot;</span>
+<a name="l44"><span class="ln">44   </span></a>                <span class="s4">&quot;Please use pip&lt;24.1 if you need to use this version.&quot;</span><span class="s3">,</span>
+<a name="l45"><span class="ln">45   </span></a>                <span class="s1">version</span><span class="s3">,</span>
+<a name="l46"><span class="ln">46   </span></a>                <span class="s1">e</span><span class="s3">.</span><span class="s1">ireq</span><span class="s3">.</span><span class="s1">name</span><span class="s3">,</span>
+<a name="l47"><span class="ln">47   </span></a>                <span class="s1">e</span><span class="s3">,</span>
+<a name="l48"><span class="ln">48   </span></a>            <span class="s3">)</span>
+<a name="l49"><span class="ln">49   </span></a>            <span class="s0"># Mark version as found to avoid trying other candidates with the same</span>
+<a name="l50"><span class="ln">50   </span></a>            <span class="s0"># version, since they most likely have invalid metadata as well.</span>
+<a name="l51"><span class="ln">51   </span></a>            <span class="s1">versions_found</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">version</span><span class="s3">)</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s2">else:</span>
+<a name="l53"><span class="ln">53   </span></a>            <span class="s2">if </span><span class="s1">candidate </span><span class="s2">is None:</span>
+<a name="l54"><span class="ln">54   </span></a>                <span class="s2">continue</span>
+<a name="l55"><span class="ln">55   </span></a>            <span class="s2">yield </span><span class="s1">candidate</span>
+<a name="l56"><span class="ln">56   </span></a>            <span class="s1">versions_found</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">version</span><span class="s3">)</span>
+<a name="l57"><span class="ln">57   </span></a>
+<a name="l58"><span class="ln">58   </span></a>
+<a name="l59"><span class="ln">59   </span></a><span class="s2">def </span><span class="s1">_iter_built_with_prepended</span><span class="s3">(</span>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s1">installed</span><span class="s2">: </span><span class="s1">Candidate</span><span class="s3">, </span><span class="s1">infos</span><span class="s2">: </span><span class="s1">Iterator</span><span class="s3">[</span><span class="s1">IndexCandidateInfo</span><span class="s3">]</span>
+<a name="l61"><span class="ln">61   </span></a><span class="s3">) </span><span class="s1">-&gt; Iterator</span><span class="s3">[</span><span class="s1">Candidate</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s0">&quot;&quot;&quot;Iterator for ``FoundCandidates``. 
+<a name="l63"><span class="ln">63   </span></a> 
+<a name="l64"><span class="ln">64   </span></a>    This iterator is used when the resolver prefers the already-installed 
+<a name="l65"><span class="ln">65   </span></a>    candidate and NOT to upgrade. The installed candidate is therefore 
+<a name="l66"><span class="ln">66   </span></a>    always yielded first, and candidates from index come later in their 
+<a name="l67"><span class="ln">67   </span></a>    normal ordering, except skipped when the version is already installed. 
+<a name="l68"><span class="ln">68   </span></a>    &quot;&quot;&quot;</span>
+<a name="l69"><span class="ln">69   </span></a>    <span class="s2">yield </span><span class="s1">installed</span>
+<a name="l70"><span class="ln">70   </span></a>    <span class="s1">versions_found</span><span class="s2">: </span><span class="s1">set</span><span class="s3">[</span><span class="s1">_BaseVersion</span><span class="s3">] </span><span class="s2">= </span><span class="s3">{</span><span class="s1">installed</span><span class="s3">.</span><span class="s1">version</span><span class="s3">}</span>
+<a name="l71"><span class="ln">71   </span></a>    <span class="s2">for </span><span class="s1">version</span><span class="s3">, </span><span class="s1">func </span><span class="s2">in </span><span class="s1">infos</span><span class="s2">:</span>
+<a name="l72"><span class="ln">72   </span></a>        <span class="s2">if </span><span class="s1">version </span><span class="s2">in </span><span class="s1">versions_found</span><span class="s2">:</span>
+<a name="l73"><span class="ln">73   </span></a>            <span class="s2">continue</span>
+<a name="l74"><span class="ln">74   </span></a>        <span class="s1">candidate </span><span class="s2">= </span><span class="s1">func</span><span class="s3">()</span>
+<a name="l75"><span class="ln">75   </span></a>        <span class="s2">if </span><span class="s1">candidate </span><span class="s2">is None:</span>
+<a name="l76"><span class="ln">76   </span></a>            <span class="s2">continue</span>
+<a name="l77"><span class="ln">77   </span></a>        <span class="s2">yield </span><span class="s1">candidate</span>
+<a name="l78"><span class="ln">78   </span></a>        <span class="s1">versions_found</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">version</span><span class="s3">)</span>
+<a name="l79"><span class="ln">79   </span></a>
+<a name="l80"><span class="ln">80   </span></a>
+<a name="l81"><span class="ln">81   </span></a><span class="s2">def </span><span class="s1">_iter_built_with_inserted</span><span class="s3">(</span>
+<a name="l82"><span class="ln">82   </span></a>    <span class="s1">installed</span><span class="s2">: </span><span class="s1">Candidate</span><span class="s3">, </span><span class="s1">infos</span><span class="s2">: </span><span class="s1">Iterator</span><span class="s3">[</span><span class="s1">IndexCandidateInfo</span><span class="s3">]</span>
+<a name="l83"><span class="ln">83   </span></a><span class="s3">) </span><span class="s1">-&gt; Iterator</span><span class="s3">[</span><span class="s1">Candidate</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l84"><span class="ln">84   </span></a>    <span class="s0">&quot;&quot;&quot;Iterator for ``FoundCandidates``. 
+<a name="l85"><span class="ln">85   </span></a> 
+<a name="l86"><span class="ln">86   </span></a>    This iterator is used when the resolver prefers to upgrade an 
+<a name="l87"><span class="ln">87   </span></a>    already-installed package. Candidates from index are returned in their 
+<a name="l88"><span class="ln">88   </span></a>    normal ordering, except replaced when the version is already installed. 
+<a name="l89"><span class="ln">89   </span></a> 
+<a name="l90"><span class="ln">90   </span></a>    The implementation iterates through and yields other candidates, inserting 
+<a name="l91"><span class="ln">91   </span></a>    the installed candidate exactly once before we start yielding older or 
+<a name="l92"><span class="ln">92   </span></a>    equivalent candidates, or after all other candidates if they are all newer. 
+<a name="l93"><span class="ln">93   </span></a>    &quot;&quot;&quot;</span>
+<a name="l94"><span class="ln">94   </span></a>    <span class="s1">versions_found</span><span class="s2">: </span><span class="s1">set</span><span class="s3">[</span><span class="s1">_BaseVersion</span><span class="s3">] </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l95"><span class="ln">95   </span></a>    <span class="s2">for </span><span class="s1">version</span><span class="s3">, </span><span class="s1">func </span><span class="s2">in </span><span class="s1">infos</span><span class="s2">:</span>
+<a name="l96"><span class="ln">96   </span></a>        <span class="s2">if </span><span class="s1">version </span><span class="s2">in </span><span class="s1">versions_found</span><span class="s2">:</span>
+<a name="l97"><span class="ln">97   </span></a>            <span class="s2">continue</span>
+<a name="l98"><span class="ln">98   </span></a>        <span class="s0"># If the installed candidate is better, yield it first.</span>
+<a name="l99"><span class="ln">99   </span></a>        <span class="s2">if </span><span class="s1">installed</span><span class="s3">.</span><span class="s1">version </span><span class="s2">&gt;= </span><span class="s1">version</span><span class="s2">:</span>
+<a name="l100"><span class="ln">100  </span></a>            <span class="s2">yield </span><span class="s1">installed</span>
+<a name="l101"><span class="ln">101  </span></a>            <span class="s1">versions_found</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">installed</span><span class="s3">.</span><span class="s1">version</span><span class="s3">)</span>
+<a name="l102"><span class="ln">102  </span></a>        <span class="s1">candidate </span><span class="s2">= </span><span class="s1">func</span><span class="s3">()</span>
+<a name="l103"><span class="ln">103  </span></a>        <span class="s2">if </span><span class="s1">candidate </span><span class="s2">is None:</span>
+<a name="l104"><span class="ln">104  </span></a>            <span class="s2">continue</span>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s2">yield </span><span class="s1">candidate</span>
+<a name="l106"><span class="ln">106  </span></a>        <span class="s1">versions_found</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">version</span><span class="s3">)</span>
+<a name="l107"><span class="ln">107  </span></a>
+<a name="l108"><span class="ln">108  </span></a>    <span class="s0"># If the installed candidate is older than all other candidates.</span>
+<a name="l109"><span class="ln">109  </span></a>    <span class="s2">if </span><span class="s1">installed</span><span class="s3">.</span><span class="s1">version </span><span class="s2">not in </span><span class="s1">versions_found</span><span class="s2">:</span>
+<a name="l110"><span class="ln">110  </span></a>        <span class="s2">yield </span><span class="s1">installed</span>
+<a name="l111"><span class="ln">111  </span></a>
+<a name="l112"><span class="ln">112  </span></a>
+<a name="l113"><span class="ln">113  </span></a><span class="s2">class </span><span class="s1">FoundCandidates</span><span class="s3">(</span><span class="s1">Sequence</span><span class="s3">[</span><span class="s1">Candidate</span><span class="s3">])</span><span class="s2">:</span>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s0">&quot;&quot;&quot;A lazy sequence to provide candidates to the resolver. 
+<a name="l115"><span class="ln">115  </span></a> 
+<a name="l116"><span class="ln">116  </span></a>    The intended usage is to return this from `find_matches()` so the resolver 
+<a name="l117"><span class="ln">117  </span></a>    can iterate through the sequence multiple times, but only access the index 
+<a name="l118"><span class="ln">118  </span></a>    page when remote packages are actually needed. This improve performances 
+<a name="l119"><span class="ln">119  </span></a>    when suitable candidates are already installed on disk. 
+<a name="l120"><span class="ln">120  </span></a>    &quot;&quot;&quot;</span>
+<a name="l121"><span class="ln">121  </span></a>
+<a name="l122"><span class="ln">122  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span>
+<a name="l123"><span class="ln">123  </span></a>        <span class="s1">self</span><span class="s3">,</span>
+<a name="l124"><span class="ln">124  </span></a>        <span class="s1">get_infos</span><span class="s2">: </span><span class="s1">Callable</span><span class="s3">[[], </span><span class="s1">Iterator</span><span class="s3">[</span><span class="s1">IndexCandidateInfo</span><span class="s3">]],</span>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s1">installed</span><span class="s2">: </span><span class="s1">Candidate </span><span class="s2">| None</span><span class="s3">,</span>
+<a name="l126"><span class="ln">126  </span></a>        <span class="s1">prefers_installed</span><span class="s2">: </span><span class="s1">bool</span><span class="s3">,</span>
+<a name="l127"><span class="ln">127  </span></a>        <span class="s1">incompatible_ids</span><span class="s2">: </span><span class="s1">set</span><span class="s3">[</span><span class="s1">int</span><span class="s3">],</span>
+<a name="l128"><span class="ln">128  </span></a>    <span class="s3">)</span><span class="s2">:</span>
+<a name="l129"><span class="ln">129  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_get_infos </span><span class="s2">= </span><span class="s1">get_infos</span>
+<a name="l130"><span class="ln">130  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_installed </span><span class="s2">= </span><span class="s1">installed</span>
+<a name="l131"><span class="ln">131  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_prefers_installed </span><span class="s2">= </span><span class="s1">prefers_installed</span>
+<a name="l132"><span class="ln">132  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_incompatible_ids </span><span class="s2">= </span><span class="s1">incompatible_ids</span>
+<a name="l133"><span class="ln">133  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_bool</span><span class="s2">: </span><span class="s1">bool </span><span class="s2">| None = None</span>
+<a name="l134"><span class="ln">134  </span></a>
+<a name="l135"><span class="ln">135  </span></a>    <span class="s2">def </span><span class="s1">__getitem__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">index</span><span class="s2">: </span><span class="s1">Any</span><span class="s3">) </span><span class="s1">-&gt; Any</span><span class="s2">:</span>
+<a name="l136"><span class="ln">136  </span></a>        <span class="s0"># Implemented to satisfy the ABC check. This is not needed by the</span>
+<a name="l137"><span class="ln">137  </span></a>        <span class="s0"># resolver, and should not be used by the provider either (for</span>
+<a name="l138"><span class="ln">138  </span></a>        <span class="s0"># performance reasons).</span>
+<a name="l139"><span class="ln">139  </span></a>        <span class="s2">raise </span><span class="s1">NotImplementedError</span><span class="s3">(</span><span class="s4">&quot;don't do this&quot;</span><span class="s3">)</span>
+<a name="l140"><span class="ln">140  </span></a>
+<a name="l141"><span class="ln">141  </span></a>    <span class="s2">def </span><span class="s1">__iter__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; Iterator</span><span class="s3">[</span><span class="s1">Candidate</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s1">infos </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_get_infos</span><span class="s3">()</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s2">if not </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_installed</span><span class="s2">:</span>
+<a name="l144"><span class="ln">144  </span></a>            <span class="s1">iterator </span><span class="s2">= </span><span class="s1">_iter_built</span><span class="s3">(</span><span class="s1">infos</span><span class="s3">)</span>
+<a name="l145"><span class="ln">145  </span></a>        <span class="s2">elif </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_prefers_installed</span><span class="s2">:</span>
+<a name="l146"><span class="ln">146  </span></a>            <span class="s1">iterator </span><span class="s2">= </span><span class="s1">_iter_built_with_prepended</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_installed</span><span class="s3">, </span><span class="s1">infos</span><span class="s3">)</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s2">else:</span>
+<a name="l148"><span class="ln">148  </span></a>            <span class="s1">iterator </span><span class="s2">= </span><span class="s1">_iter_built_with_inserted</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_installed</span><span class="s3">, </span><span class="s1">infos</span><span class="s3">)</span>
+<a name="l149"><span class="ln">149  </span></a>        <span class="s2">return </span><span class="s3">(</span><span class="s1">c </span><span class="s2">for </span><span class="s1">c </span><span class="s2">in </span><span class="s1">iterator </span><span class="s2">if </span><span class="s1">id</span><span class="s3">(</span><span class="s1">c</span><span class="s3">) </span><span class="s2">not in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_incompatible_ids</span><span class="s3">)</span>
+<a name="l150"><span class="ln">150  </span></a>
+<a name="l151"><span class="ln">151  </span></a>    <span class="s2">def </span><span class="s1">__len__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; int</span><span class="s2">:</span>
+<a name="l152"><span class="ln">152  </span></a>        <span class="s0"># Implemented to satisfy the ABC check. This is not needed by the</span>
+<a name="l153"><span class="ln">153  </span></a>        <span class="s0"># resolver, and should not be used by the provider either (for</span>
+<a name="l154"><span class="ln">154  </span></a>        <span class="s0"># performance reasons).</span>
+<a name="l155"><span class="ln">155  </span></a>        <span class="s2">raise </span><span class="s1">NotImplementedError</span><span class="s3">(</span><span class="s4">&quot;don't do this&quot;</span><span class="s3">)</span>
+<a name="l156"><span class="ln">156  </span></a>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s2">def </span><span class="s1">__bool__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; bool</span><span class="s2">:</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_bool </span><span class="s2">is not None:</span>
+<a name="l159"><span class="ln">159  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_bool</span>
+<a name="l160"><span class="ln">160  </span></a>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_prefers_installed </span><span class="s2">and </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_installed</span><span class="s2">:</span>
+<a name="l162"><span class="ln">162  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_bool </span><span class="s2">= True</span>
+<a name="l163"><span class="ln">163  </span></a>            <span class="s2">return True</span>
+<a name="l164"><span class="ln">164  </span></a>
+<a name="l165"><span class="ln">165  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_bool </span><span class="s2">= </span><span class="s1">any</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span>
+<a name="l166"><span class="ln">166  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_bool</span>
+<a name="l167"><span class="ln">167  </span></a></pre>
+</body>
+</html>

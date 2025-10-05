@@ -1,0 +1,132 @@
+<html>
+<head>
+<title>_jaraco_text.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_jaraco_text.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot;Functions brought over from jaraco.text. 
+<a name="l2"><span class="ln">2    </span></a> 
+<a name="l3"><span class="ln">3    </span></a>These functions are not supposed to be used within `pip._internal`. These are 
+<a name="l4"><span class="ln">4    </span></a>helper functions brought over from `jaraco.text` to enable vendoring newer 
+<a name="l5"><span class="ln">5    </span></a>copies of `pkg_resources` without having to vendor `jaraco.text` and its entire 
+<a name="l6"><span class="ln">6    </span></a>dependency cone; something that our vendoring setup is not currently capable of 
+<a name="l7"><span class="ln">7    </span></a>handling. 
+<a name="l8"><span class="ln">8    </span></a> 
+<a name="l9"><span class="ln">9    </span></a>License reproduced from original source below: 
+<a name="l10"><span class="ln">10   </span></a> 
+<a name="l11"><span class="ln">11   </span></a>Copyright Jason R. Coombs 
+<a name="l12"><span class="ln">12   </span></a> 
+<a name="l13"><span class="ln">13   </span></a>Permission is hereby granted, free of charge, to any person obtaining a copy 
+<a name="l14"><span class="ln">14   </span></a>of this software and associated documentation files (the &quot;Software&quot;), to 
+<a name="l15"><span class="ln">15   </span></a>deal in the Software without restriction, including without limitation the 
+<a name="l16"><span class="ln">16   </span></a>rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+<a name="l17"><span class="ln">17   </span></a>sell copies of the Software, and to permit persons to whom the Software is 
+<a name="l18"><span class="ln">18   </span></a>furnished to do so, subject to the following conditions: 
+<a name="l19"><span class="ln">19   </span></a> 
+<a name="l20"><span class="ln">20   </span></a>The above copyright notice and this permission notice shall be included in 
+<a name="l21"><span class="ln">21   </span></a>all copies or substantial portions of the Software. 
+<a name="l22"><span class="ln">22   </span></a> 
+<a name="l23"><span class="ln">23   </span></a>THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+<a name="l24"><span class="ln">24   </span></a>IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+<a name="l25"><span class="ln">25   </span></a>FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+<a name="l26"><span class="ln">26   </span></a>AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+<a name="l27"><span class="ln">27   </span></a>LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+<a name="l28"><span class="ln">28   </span></a>FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
+<a name="l29"><span class="ln">29   </span></a>IN THE SOFTWARE. 
+<a name="l30"><span class="ln">30   </span></a>&quot;&quot;&quot;</span>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a><span class="s2">import </span><span class="s1">functools</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s2">import </span><span class="s1">itertools</span>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a><span class="s2">def </span><span class="s1">_nonblank</span><span class="s3">(</span><span class="s1">str</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s2">return </span><span class="s1">str </span><span class="s2">and not </span><span class="s1">str</span><span class="s3">.</span><span class="s1">startswith</span><span class="s3">(</span><span class="s4">&quot;#&quot;</span><span class="s3">)</span>
+<a name="l38"><span class="ln">38   </span></a>
+<a name="l39"><span class="ln">39   </span></a>
+<a name="l40"><span class="ln">40   </span></a><span class="s2">@</span><span class="s1">functools</span><span class="s3">.</span><span class="s1">singledispatch</span>
+<a name="l41"><span class="ln">41   </span></a><span class="s2">def </span><span class="s1">yield_lines</span><span class="s3">(</span><span class="s1">iterable</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l43"><span class="ln">43   </span></a>    Yield valid lines of a string or iterable. 
+<a name="l44"><span class="ln">44   </span></a> 
+<a name="l45"><span class="ln">45   </span></a>    &gt;&gt;&gt; list(yield_lines('')) 
+<a name="l46"><span class="ln">46   </span></a>    [] 
+<a name="l47"><span class="ln">47   </span></a>    &gt;&gt;&gt; list(yield_lines(['foo', 'bar'])) 
+<a name="l48"><span class="ln">48   </span></a>    ['foo', 'bar'] 
+<a name="l49"><span class="ln">49   </span></a>    &gt;&gt;&gt; list(yield_lines('foo\nbar')) 
+<a name="l50"><span class="ln">50   </span></a>    ['foo', 'bar'] 
+<a name="l51"><span class="ln">51   </span></a>    &gt;&gt;&gt; list(yield_lines('\nfoo\n#bar\nbaz #comment')) 
+<a name="l52"><span class="ln">52   </span></a>    ['foo', 'baz #comment'] 
+<a name="l53"><span class="ln">53   </span></a>    &gt;&gt;&gt; list(yield_lines(['foo\nbar', 'baz', 'bing\n\n\n'])) 
+<a name="l54"><span class="ln">54   </span></a>    ['foo', 'bar', 'baz', 'bing'] 
+<a name="l55"><span class="ln">55   </span></a>    &quot;&quot;&quot;</span>
+<a name="l56"><span class="ln">56   </span></a>    <span class="s2">return </span><span class="s1">itertools</span><span class="s3">.</span><span class="s1">chain</span><span class="s3">.</span><span class="s1">from_iterable</span><span class="s3">(</span><span class="s1">map</span><span class="s3">(</span><span class="s1">yield_lines</span><span class="s3">, </span><span class="s1">iterable</span><span class="s3">))</span>
+<a name="l57"><span class="ln">57   </span></a>
+<a name="l58"><span class="ln">58   </span></a>
+<a name="l59"><span class="ln">59   </span></a><span class="s2">@</span><span class="s1">yield_lines</span><span class="s3">.</span><span class="s1">register</span><span class="s3">(</span><span class="s1">str</span><span class="s3">)</span>
+<a name="l60"><span class="ln">60   </span></a><span class="s2">def </span><span class="s1">_</span><span class="s3">(</span><span class="s1">text</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s2">return </span><span class="s1">filter</span><span class="s3">(</span><span class="s1">_nonblank</span><span class="s3">, </span><span class="s1">map</span><span class="s3">(</span><span class="s1">str</span><span class="s3">.</span><span class="s1">strip</span><span class="s3">, </span><span class="s1">text</span><span class="s3">.</span><span class="s1">splitlines</span><span class="s3">()))</span>
+<a name="l62"><span class="ln">62   </span></a>
+<a name="l63"><span class="ln">63   </span></a>
+<a name="l64"><span class="ln">64   </span></a><span class="s2">def </span><span class="s1">drop_comment</span><span class="s3">(</span><span class="s1">line</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l65"><span class="ln">65   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l66"><span class="ln">66   </span></a>    Drop comments. 
+<a name="l67"><span class="ln">67   </span></a> 
+<a name="l68"><span class="ln">68   </span></a>    &gt;&gt;&gt; drop_comment('foo # bar') 
+<a name="l69"><span class="ln">69   </span></a>    'foo' 
+<a name="l70"><span class="ln">70   </span></a> 
+<a name="l71"><span class="ln">71   </span></a>    A hash without a space may be in a URL. 
+<a name="l72"><span class="ln">72   </span></a> 
+<a name="l73"><span class="ln">73   </span></a>    &gt;&gt;&gt; drop_comment('http://example.com/foo#bar') 
+<a name="l74"><span class="ln">74   </span></a>    'http://example.com/foo#bar' 
+<a name="l75"><span class="ln">75   </span></a>    &quot;&quot;&quot;</span>
+<a name="l76"><span class="ln">76   </span></a>    <span class="s2">return </span><span class="s1">line</span><span class="s3">.</span><span class="s1">partition</span><span class="s3">(</span><span class="s4">&quot; #&quot;</span><span class="s3">)[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l77"><span class="ln">77   </span></a>
+<a name="l78"><span class="ln">78   </span></a>
+<a name="l79"><span class="ln">79   </span></a><span class="s2">def </span><span class="s1">join_continuation</span><span class="s3">(</span><span class="s1">lines</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l80"><span class="ln">80   </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l81"><span class="ln">81   </span></a>    Join lines continued by a trailing backslash. 
+<a name="l82"><span class="ln">82   </span></a> 
+<a name="l83"><span class="ln">83   </span></a>    &gt;&gt;&gt; list(join_continuation(['foo \\', 'bar', 'baz'])) 
+<a name="l84"><span class="ln">84   </span></a>    ['foobar', 'baz'] 
+<a name="l85"><span class="ln">85   </span></a>    &gt;&gt;&gt; list(join_continuation(['foo \\', 'bar', 'baz'])) 
+<a name="l86"><span class="ln">86   </span></a>    ['foobar', 'baz'] 
+<a name="l87"><span class="ln">87   </span></a>    &gt;&gt;&gt; list(join_continuation(['foo \\', 'bar \\', 'baz'])) 
+<a name="l88"><span class="ln">88   </span></a>    ['foobarbaz'] 
+<a name="l89"><span class="ln">89   </span></a> 
+<a name="l90"><span class="ln">90   </span></a>    Not sure why, but... 
+<a name="l91"><span class="ln">91   </span></a>    The character preceding the backslash is also elided. 
+<a name="l92"><span class="ln">92   </span></a> 
+<a name="l93"><span class="ln">93   </span></a>    &gt;&gt;&gt; list(join_continuation(['goo\\', 'dly'])) 
+<a name="l94"><span class="ln">94   </span></a>    ['godly'] 
+<a name="l95"><span class="ln">95   </span></a> 
+<a name="l96"><span class="ln">96   </span></a>    A terrible idea, but... 
+<a name="l97"><span class="ln">97   </span></a>    If no line is available to continue, suppress the lines. 
+<a name="l98"><span class="ln">98   </span></a> 
+<a name="l99"><span class="ln">99   </span></a>    &gt;&gt;&gt; list(join_continuation(['foo', 'bar\\', 'baz\\'])) 
+<a name="l100"><span class="ln">100  </span></a>    ['foo'] 
+<a name="l101"><span class="ln">101  </span></a>    &quot;&quot;&quot;</span>
+<a name="l102"><span class="ln">102  </span></a>    <span class="s1">lines </span><span class="s2">= </span><span class="s1">iter</span><span class="s3">(</span><span class="s1">lines</span><span class="s3">)</span>
+<a name="l103"><span class="ln">103  </span></a>    <span class="s2">for </span><span class="s1">item </span><span class="s2">in </span><span class="s1">lines</span><span class="s2">:</span>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s2">while </span><span class="s1">item</span><span class="s3">.</span><span class="s1">endswith</span><span class="s3">(</span><span class="s4">&quot;\\&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l105"><span class="ln">105  </span></a>            <span class="s2">try:</span>
+<a name="l106"><span class="ln">106  </span></a>                <span class="s1">item </span><span class="s2">= </span><span class="s1">item</span><span class="s3">[</span><span class="s2">:-</span><span class="s5">2</span><span class="s3">].</span><span class="s1">strip</span><span class="s3">() </span><span class="s2">+ </span><span class="s1">next</span><span class="s3">(</span><span class="s1">lines</span><span class="s3">)</span>
+<a name="l107"><span class="ln">107  </span></a>            <span class="s2">except </span><span class="s1">StopIteration</span><span class="s2">:</span>
+<a name="l108"><span class="ln">108  </span></a>                <span class="s2">return</span>
+<a name="l109"><span class="ln">109  </span></a>        <span class="s2">yield </span><span class="s1">item</span>
+<a name="l110"><span class="ln">110  </span></a></pre>
+</body>
+</html>

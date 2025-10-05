@@ -1,0 +1,335 @@
+<html>
+<head>
+<title>sorting.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #969896;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+sorting.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">from </span><span class="s1">collections </span><span class="s0">import </span><span class="s1">defaultdict</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">sympify </span><span class="s0">import </span><span class="s1">sympify</span><span class="s2">, </span><span class="s1">SympifyError</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">utilities</span><span class="s2">.</span><span class="s1">iterables </span><span class="s0">import </span><span class="s1">iterable</span><span class="s2">, </span><span class="s1">uniq</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span><span class="s3">'default_sort_key'</span><span class="s2">, </span><span class="s3">'ordered'</span><span class="s2">]</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">def </span><span class="s1">default_sort_key</span><span class="s2">(</span><span class="s1">item</span><span class="s2">, </span><span class="s1">order</span><span class="s0">=None</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l11"><span class="ln">11   </span></a>    <span class="s4">&quot;&quot;&quot;Return a key that can be used for sorting. 
+<a name="l12"><span class="ln">12   </span></a> 
+<a name="l13"><span class="ln">13   </span></a>    The key has the structure: 
+<a name="l14"><span class="ln">14   </span></a> 
+<a name="l15"><span class="ln">15   </span></a>    (class_key, (len(args), args), exponent.sort_key(), coefficient) 
+<a name="l16"><span class="ln">16   </span></a> 
+<a name="l17"><span class="ln">17   </span></a>    This key is supplied by the sort_key routine of Basic objects when 
+<a name="l18"><span class="ln">18   </span></a>    ``item`` is a Basic object or an object (other than a string) that 
+<a name="l19"><span class="ln">19   </span></a>    sympifies to a Basic object. Otherwise, this function produces the 
+<a name="l20"><span class="ln">20   </span></a>    key. 
+<a name="l21"><span class="ln">21   </span></a> 
+<a name="l22"><span class="ln">22   </span></a>    The ``order`` argument is passed along to the sort_key routine and is 
+<a name="l23"><span class="ln">23   </span></a>    used to determine how the terms *within* an expression are ordered. 
+<a name="l24"><span class="ln">24   </span></a>    (See examples below) ``order`` options are: 'lex', 'grlex', 'grevlex', 
+<a name="l25"><span class="ln">25   </span></a>    and reversed values of the same (e.g. 'rev-lex'). The default order 
+<a name="l26"><span class="ln">26   </span></a>    value is None (which translates to 'lex'). 
+<a name="l27"><span class="ln">27   </span></a> 
+<a name="l28"><span class="ln">28   </span></a>    Examples 
+<a name="l29"><span class="ln">29   </span></a>    ======== 
+<a name="l30"><span class="ln">30   </span></a> 
+<a name="l31"><span class="ln">31   </span></a>    &gt;&gt;&gt; from sympy import S, I, default_sort_key, sin, cos, sqrt 
+<a name="l32"><span class="ln">32   </span></a>    &gt;&gt;&gt; from sympy.core.function import UndefinedFunction 
+<a name="l33"><span class="ln">33   </span></a>    &gt;&gt;&gt; from sympy.abc import x 
+<a name="l34"><span class="ln">34   </span></a> 
+<a name="l35"><span class="ln">35   </span></a>    The following are equivalent ways of getting the key for an object: 
+<a name="l36"><span class="ln">36   </span></a> 
+<a name="l37"><span class="ln">37   </span></a>    &gt;&gt;&gt; x.sort_key() == default_sort_key(x) 
+<a name="l38"><span class="ln">38   </span></a>    True 
+<a name="l39"><span class="ln">39   </span></a> 
+<a name="l40"><span class="ln">40   </span></a>    Here are some examples of the key that is produced: 
+<a name="l41"><span class="ln">41   </span></a> 
+<a name="l42"><span class="ln">42   </span></a>    &gt;&gt;&gt; default_sort_key(UndefinedFunction('f')) 
+<a name="l43"><span class="ln">43   </span></a>    ((0, 0, 'UndefinedFunction'), (1, ('f',)), ((1, 0, 'Number'), 
+<a name="l44"><span class="ln">44   </span></a>        (0, ()), (), 1), 1) 
+<a name="l45"><span class="ln">45   </span></a>    &gt;&gt;&gt; default_sort_key('1') 
+<a name="l46"><span class="ln">46   </span></a>    ((0, 0, 'str'), (1, ('1',)), ((1, 0, 'Number'), (0, ()), (), 1), 1) 
+<a name="l47"><span class="ln">47   </span></a>    &gt;&gt;&gt; default_sort_key(S.One) 
+<a name="l48"><span class="ln">48   </span></a>    ((1, 0, 'Number'), (0, ()), (), 1) 
+<a name="l49"><span class="ln">49   </span></a>    &gt;&gt;&gt; default_sort_key(2) 
+<a name="l50"><span class="ln">50   </span></a>    ((1, 0, 'Number'), (0, ()), (), 2) 
+<a name="l51"><span class="ln">51   </span></a> 
+<a name="l52"><span class="ln">52   </span></a>    While sort_key is a method only defined for SymPy objects, 
+<a name="l53"><span class="ln">53   </span></a>    default_sort_key will accept anything as an argument so it is 
+<a name="l54"><span class="ln">54   </span></a>    more robust as a sorting key. For the following, using key= 
+<a name="l55"><span class="ln">55   </span></a>    lambda i: i.sort_key() would fail because 2 does not have a sort_key 
+<a name="l56"><span class="ln">56   </span></a>    method; that's why default_sort_key is used. Note, that it also 
+<a name="l57"><span class="ln">57   </span></a>    handles sympification of non-string items likes ints: 
+<a name="l58"><span class="ln">58   </span></a> 
+<a name="l59"><span class="ln">59   </span></a>    &gt;&gt;&gt; a = [2, I, -I] 
+<a name="l60"><span class="ln">60   </span></a>    &gt;&gt;&gt; sorted(a, key=default_sort_key) 
+<a name="l61"><span class="ln">61   </span></a>    [2, -I, I] 
+<a name="l62"><span class="ln">62   </span></a> 
+<a name="l63"><span class="ln">63   </span></a>    The returned key can be used anywhere that a key can be specified for 
+<a name="l64"><span class="ln">64   </span></a>    a function, e.g. sort, min, max, etc...: 
+<a name="l65"><span class="ln">65   </span></a> 
+<a name="l66"><span class="ln">66   </span></a>    &gt;&gt;&gt; a.sort(key=default_sort_key); a[0] 
+<a name="l67"><span class="ln">67   </span></a>    2 
+<a name="l68"><span class="ln">68   </span></a>    &gt;&gt;&gt; min(a, key=default_sort_key) 
+<a name="l69"><span class="ln">69   </span></a>    2 
+<a name="l70"><span class="ln">70   </span></a> 
+<a name="l71"><span class="ln">71   </span></a>    Notes 
+<a name="l72"><span class="ln">72   </span></a>    ===== 
+<a name="l73"><span class="ln">73   </span></a> 
+<a name="l74"><span class="ln">74   </span></a>    The key returned is useful for getting items into a canonical order 
+<a name="l75"><span class="ln">75   </span></a>    that will be the same across platforms. It is not directly useful for 
+<a name="l76"><span class="ln">76   </span></a>    sorting lists of expressions: 
+<a name="l77"><span class="ln">77   </span></a> 
+<a name="l78"><span class="ln">78   </span></a>    &gt;&gt;&gt; a, b = x, 1/x 
+<a name="l79"><span class="ln">79   </span></a> 
+<a name="l80"><span class="ln">80   </span></a>    Since ``a`` has only 1 term, its value of sort_key is unaffected by 
+<a name="l81"><span class="ln">81   </span></a>    ``order``: 
+<a name="l82"><span class="ln">82   </span></a> 
+<a name="l83"><span class="ln">83   </span></a>    &gt;&gt;&gt; a.sort_key() == a.sort_key('rev-lex') 
+<a name="l84"><span class="ln">84   </span></a>    True 
+<a name="l85"><span class="ln">85   </span></a> 
+<a name="l86"><span class="ln">86   </span></a>    If ``a`` and ``b`` are combined then the key will differ because there 
+<a name="l87"><span class="ln">87   </span></a>    are terms that can be ordered: 
+<a name="l88"><span class="ln">88   </span></a> 
+<a name="l89"><span class="ln">89   </span></a>    &gt;&gt;&gt; eq = a + b 
+<a name="l90"><span class="ln">90   </span></a>    &gt;&gt;&gt; eq.sort_key() == eq.sort_key('rev-lex') 
+<a name="l91"><span class="ln">91   </span></a>    False 
+<a name="l92"><span class="ln">92   </span></a>    &gt;&gt;&gt; eq.as_ordered_terms() 
+<a name="l93"><span class="ln">93   </span></a>    [x, 1/x] 
+<a name="l94"><span class="ln">94   </span></a>    &gt;&gt;&gt; eq.as_ordered_terms('rev-lex') 
+<a name="l95"><span class="ln">95   </span></a>    [1/x, x] 
+<a name="l96"><span class="ln">96   </span></a> 
+<a name="l97"><span class="ln">97   </span></a>    But since the keys for each of these terms are independent of ``order``'s 
+<a name="l98"><span class="ln">98   </span></a>    value, they do not sort differently when they appear separately in a list: 
+<a name="l99"><span class="ln">99   </span></a> 
+<a name="l100"><span class="ln">100  </span></a>    &gt;&gt;&gt; sorted(eq.args, key=default_sort_key) 
+<a name="l101"><span class="ln">101  </span></a>    [1/x, x] 
+<a name="l102"><span class="ln">102  </span></a>    &gt;&gt;&gt; sorted(eq.args, key=lambda i: default_sort_key(i, order='rev-lex')) 
+<a name="l103"><span class="ln">103  </span></a>    [1/x, x] 
+<a name="l104"><span class="ln">104  </span></a> 
+<a name="l105"><span class="ln">105  </span></a>    The order of terms obtained when using these keys is the order that would 
+<a name="l106"><span class="ln">106  </span></a>    be obtained if those terms were *factors* in a product. 
+<a name="l107"><span class="ln">107  </span></a> 
+<a name="l108"><span class="ln">108  </span></a>    Although it is useful for quickly putting expressions in canonical order, 
+<a name="l109"><span class="ln">109  </span></a>    it does not sort expressions based on their complexity defined by the 
+<a name="l110"><span class="ln">110  </span></a>    number of operations, power of variables and others: 
+<a name="l111"><span class="ln">111  </span></a> 
+<a name="l112"><span class="ln">112  </span></a>    &gt;&gt;&gt; sorted([sin(x)*cos(x), sin(x)], key=default_sort_key) 
+<a name="l113"><span class="ln">113  </span></a>    [sin(x)*cos(x), sin(x)] 
+<a name="l114"><span class="ln">114  </span></a>    &gt;&gt;&gt; sorted([x, x**2, sqrt(x), x**3], key=default_sort_key) 
+<a name="l115"><span class="ln">115  </span></a>    [sqrt(x), x, x**2, x**3] 
+<a name="l116"><span class="ln">116  </span></a> 
+<a name="l117"><span class="ln">117  </span></a>    See Also 
+<a name="l118"><span class="ln">118  </span></a>    ======== 
+<a name="l119"><span class="ln">119  </span></a> 
+<a name="l120"><span class="ln">120  </span></a>    ordered, sympy.core.expr.Expr.as_ordered_factors, sympy.core.expr.Expr.as_ordered_terms 
+<a name="l121"><span class="ln">121  </span></a> 
+<a name="l122"><span class="ln">122  </span></a>    &quot;&quot;&quot;</span>
+<a name="l123"><span class="ln">123  </span></a>    <span class="s0">from </span><span class="s2">.</span><span class="s1">basic </span><span class="s0">import </span><span class="s1">Basic</span>
+<a name="l124"><span class="ln">124  </span></a>    <span class="s0">from </span><span class="s2">.</span><span class="s1">singleton </span><span class="s0">import </span><span class="s1">S</span>
+<a name="l125"><span class="ln">125  </span></a>
+<a name="l126"><span class="ln">126  </span></a>    <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">item</span><span class="s2">, </span><span class="s1">Basic</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l127"><span class="ln">127  </span></a>        <span class="s0">return </span><span class="s1">item</span><span class="s2">.</span><span class="s1">sort_key</span><span class="s2">(</span><span class="s1">order</span><span class="s0">=</span><span class="s1">order</span><span class="s2">)</span>
+<a name="l128"><span class="ln">128  </span></a>
+<a name="l129"><span class="ln">129  </span></a>    <span class="s0">if </span><span class="s1">iterable</span><span class="s2">(</span><span class="s1">item</span><span class="s2">, </span><span class="s1">exclude</span><span class="s0">=</span><span class="s1">str</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l130"><span class="ln">130  </span></a>        <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">item</span><span class="s2">, </span><span class="s1">dict</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l131"><span class="ln">131  </span></a>            <span class="s1">args </span><span class="s0">= </span><span class="s1">item</span><span class="s2">.</span><span class="s1">items</span><span class="s2">()</span>
+<a name="l132"><span class="ln">132  </span></a>            <span class="s1">unordered </span><span class="s0">= True</span>
+<a name="l133"><span class="ln">133  </span></a>        <span class="s0">elif </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">item</span><span class="s2">, </span><span class="s1">set</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l134"><span class="ln">134  </span></a>            <span class="s1">args </span><span class="s0">= </span><span class="s1">item</span>
+<a name="l135"><span class="ln">135  </span></a>            <span class="s1">unordered </span><span class="s0">= True</span>
+<a name="l136"><span class="ln">136  </span></a>        <span class="s0">else:</span>
+<a name="l137"><span class="ln">137  </span></a>            <span class="s4"># e.g. tuple, list</span>
+<a name="l138"><span class="ln">138  </span></a>            <span class="s1">args </span><span class="s0">= </span><span class="s1">list</span><span class="s2">(</span><span class="s1">item</span><span class="s2">)</span>
+<a name="l139"><span class="ln">139  </span></a>            <span class="s1">unordered </span><span class="s0">= False</span>
+<a name="l140"><span class="ln">140  </span></a>
+<a name="l141"><span class="ln">141  </span></a>        <span class="s1">args </span><span class="s0">= </span><span class="s2">[</span><span class="s1">default_sort_key</span><span class="s2">(</span><span class="s1">arg</span><span class="s2">, </span><span class="s1">order</span><span class="s0">=</span><span class="s1">order</span><span class="s2">) </span><span class="s0">for </span><span class="s1">arg </span><span class="s0">in </span><span class="s1">args</span><span class="s2">]</span>
+<a name="l142"><span class="ln">142  </span></a>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s0">if </span><span class="s1">unordered</span><span class="s0">:</span>
+<a name="l144"><span class="ln">144  </span></a>            <span class="s4"># e.g. dict, set</span>
+<a name="l145"><span class="ln">145  </span></a>            <span class="s1">args </span><span class="s0">= </span><span class="s1">sorted</span><span class="s2">(</span><span class="s1">args</span><span class="s2">)</span>
+<a name="l146"><span class="ln">146  </span></a>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s1">cls_index</span><span class="s2">, </span><span class="s1">args </span><span class="s0">= </span><span class="s5">10</span><span class="s2">, (</span><span class="s1">len</span><span class="s2">(</span><span class="s1">args</span><span class="s2">), </span><span class="s1">tuple</span><span class="s2">(</span><span class="s1">args</span><span class="s2">))</span>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s0">else:</span>
+<a name="l149"><span class="ln">149  </span></a>        <span class="s0">if not </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">item</span><span class="s2">, </span><span class="s1">str</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l150"><span class="ln">150  </span></a>            <span class="s0">try:</span>
+<a name="l151"><span class="ln">151  </span></a>                <span class="s1">item </span><span class="s0">= </span><span class="s1">sympify</span><span class="s2">(</span><span class="s1">item</span><span class="s2">, </span><span class="s1">strict</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l152"><span class="ln">152  </span></a>            <span class="s0">except </span><span class="s1">SympifyError</span><span class="s0">:</span>
+<a name="l153"><span class="ln">153  </span></a>                <span class="s4"># e.g. lambda x: x</span>
+<a name="l154"><span class="ln">154  </span></a>                <span class="s0">pass</span>
+<a name="l155"><span class="ln">155  </span></a>            <span class="s0">else:</span>
+<a name="l156"><span class="ln">156  </span></a>                <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">item</span><span class="s2">, </span><span class="s1">Basic</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l157"><span class="ln">157  </span></a>                    <span class="s4"># e.g int -&gt; Integer</span>
+<a name="l158"><span class="ln">158  </span></a>                    <span class="s0">return </span><span class="s1">default_sort_key</span><span class="s2">(</span><span class="s1">item</span><span class="s2">)</span>
+<a name="l159"><span class="ln">159  </span></a>                <span class="s4"># e.g. UndefinedFunction</span>
+<a name="l160"><span class="ln">160  </span></a>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s4"># e.g. str</span>
+<a name="l162"><span class="ln">162  </span></a>        <span class="s1">cls_index</span><span class="s2">, </span><span class="s1">args </span><span class="s0">= </span><span class="s5">0</span><span class="s2">, (</span><span class="s5">1</span><span class="s2">, (</span><span class="s1">str</span><span class="s2">(</span><span class="s1">item</span><span class="s2">),))</span>
+<a name="l163"><span class="ln">163  </span></a>
+<a name="l164"><span class="ln">164  </span></a>    <span class="s0">return </span><span class="s2">(</span><span class="s1">cls_index</span><span class="s2">, </span><span class="s5">0</span><span class="s2">, </span><span class="s1">item</span><span class="s2">.</span><span class="s1">__class__</span><span class="s2">.</span><span class="s1">__name__</span>
+<a name="l165"><span class="ln">165  </span></a>            <span class="s2">), </span><span class="s1">args</span><span class="s2">, </span><span class="s1">S</span><span class="s2">.</span><span class="s1">One</span><span class="s2">.</span><span class="s1">sort_key</span><span class="s2">(), </span><span class="s1">S</span><span class="s2">.</span><span class="s1">One</span>
+<a name="l166"><span class="ln">166  </span></a>
+<a name="l167"><span class="ln">167  </span></a>
+<a name="l168"><span class="ln">168  </span></a><span class="s0">def </span><span class="s1">_node_count</span><span class="s2">(</span><span class="s1">e</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l169"><span class="ln">169  </span></a>    <span class="s4"># this not only counts nodes, it affirms that the</span>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s4"># args are Basic (i.e. have an args property). If</span>
+<a name="l171"><span class="ln">171  </span></a>    <span class="s4"># some object has a non-Basic arg, it needs to be</span>
+<a name="l172"><span class="ln">172  </span></a>    <span class="s4"># fixed since it is intended that all Basic args</span>
+<a name="l173"><span class="ln">173  </span></a>    <span class="s4"># are of Basic type (though this is not easy to enforce).</span>
+<a name="l174"><span class="ln">174  </span></a>    <span class="s0">if </span><span class="s1">e</span><span class="s2">.</span><span class="s1">is_Float</span><span class="s0">:</span>
+<a name="l175"><span class="ln">175  </span></a>        <span class="s0">return </span><span class="s5">0.5</span>
+<a name="l176"><span class="ln">176  </span></a>    <span class="s0">return </span><span class="s5">1 </span><span class="s0">+ </span><span class="s1">sum</span><span class="s2">(</span><span class="s1">map</span><span class="s2">(</span><span class="s1">_node_count</span><span class="s2">, </span><span class="s1">e</span><span class="s2">.</span><span class="s1">args</span><span class="s2">))</span>
+<a name="l177"><span class="ln">177  </span></a>
+<a name="l178"><span class="ln">178  </span></a>
+<a name="l179"><span class="ln">179  </span></a><span class="s0">def </span><span class="s1">_nodes</span><span class="s2">(</span><span class="s1">e</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l180"><span class="ln">180  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l181"><span class="ln">181  </span></a>    A helper for ordered() which returns the node count of ``e`` which 
+<a name="l182"><span class="ln">182  </span></a>    for Basic objects is the number of Basic nodes in the expression tree 
+<a name="l183"><span class="ln">183  </span></a>    but for other objects is 1 (unless the object is an iterable or dict 
+<a name="l184"><span class="ln">184  </span></a>    for which the sum of nodes is returned). 
+<a name="l185"><span class="ln">185  </span></a>    &quot;&quot;&quot;</span>
+<a name="l186"><span class="ln">186  </span></a>    <span class="s0">from </span><span class="s2">.</span><span class="s1">basic </span><span class="s0">import </span><span class="s1">Basic</span>
+<a name="l187"><span class="ln">187  </span></a>    <span class="s0">from </span><span class="s2">.</span><span class="s1">function </span><span class="s0">import </span><span class="s1">Derivative</span>
+<a name="l188"><span class="ln">188  </span></a>
+<a name="l189"><span class="ln">189  </span></a>    <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">e</span><span class="s2">, </span><span class="s1">Basic</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l190"><span class="ln">190  </span></a>        <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">e</span><span class="s2">, </span><span class="s1">Derivative</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l191"><span class="ln">191  </span></a>            <span class="s0">return </span><span class="s1">_nodes</span><span class="s2">(</span><span class="s1">e</span><span class="s2">.</span><span class="s1">expr</span><span class="s2">) </span><span class="s0">+ </span><span class="s1">sum</span><span class="s2">(</span><span class="s1">i</span><span class="s2">[</span><span class="s5">1</span><span class="s2">] </span><span class="s0">if </span><span class="s1">i</span><span class="s2">[</span><span class="s5">1</span><span class="s2">].</span><span class="s1">is_Number </span><span class="s0">else</span>
+<a name="l192"><span class="ln">192  </span></a>                <span class="s1">_nodes</span><span class="s2">(</span><span class="s1">i</span><span class="s2">[</span><span class="s5">1</span><span class="s2">]) </span><span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">e</span><span class="s2">.</span><span class="s1">variable_count</span><span class="s2">)</span>
+<a name="l193"><span class="ln">193  </span></a>        <span class="s0">return </span><span class="s1">_node_count</span><span class="s2">(</span><span class="s1">e</span><span class="s2">)</span>
+<a name="l194"><span class="ln">194  </span></a>    <span class="s0">elif </span><span class="s1">iterable</span><span class="s2">(</span><span class="s1">e</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l195"><span class="ln">195  </span></a>        <span class="s0">return </span><span class="s5">1 </span><span class="s0">+ </span><span class="s1">sum</span><span class="s2">(</span><span class="s1">_nodes</span><span class="s2">(</span><span class="s1">ei</span><span class="s2">) </span><span class="s0">for </span><span class="s1">ei </span><span class="s0">in </span><span class="s1">e</span><span class="s2">)</span>
+<a name="l196"><span class="ln">196  </span></a>    <span class="s0">elif </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">e</span><span class="s2">, </span><span class="s1">dict</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l197"><span class="ln">197  </span></a>        <span class="s0">return </span><span class="s5">1 </span><span class="s0">+ </span><span class="s1">sum</span><span class="s2">(</span><span class="s1">_nodes</span><span class="s2">(</span><span class="s1">k</span><span class="s2">) </span><span class="s0">+ </span><span class="s1">_nodes</span><span class="s2">(</span><span class="s1">v</span><span class="s2">) </span><span class="s0">for </span><span class="s1">k</span><span class="s2">, </span><span class="s1">v </span><span class="s0">in </span><span class="s1">e</span><span class="s2">.</span><span class="s1">items</span><span class="s2">())</span>
+<a name="l198"><span class="ln">198  </span></a>    <span class="s0">else:</span>
+<a name="l199"><span class="ln">199  </span></a>        <span class="s0">return </span><span class="s5">1</span>
+<a name="l200"><span class="ln">200  </span></a>
+<a name="l201"><span class="ln">201  </span></a>
+<a name="l202"><span class="ln">202  </span></a><span class="s0">def </span><span class="s1">ordered</span><span class="s2">(</span><span class="s1">seq</span><span class="s2">, </span><span class="s1">keys</span><span class="s0">=None</span><span class="s2">, </span><span class="s1">default</span><span class="s0">=True</span><span class="s2">, </span><span class="s1">warn</span><span class="s0">=False</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l203"><span class="ln">203  </span></a>    <span class="s4">&quot;&quot;&quot;Return an iterator of the seq where keys are used to break ties 
+<a name="l204"><span class="ln">204  </span></a>    in a conservative fashion: if, after applying a key, there are no 
+<a name="l205"><span class="ln">205  </span></a>    ties then no other keys will be computed. 
+<a name="l206"><span class="ln">206  </span></a> 
+<a name="l207"><span class="ln">207  </span></a>    Two default keys will be applied if 1) keys are not provided or 
+<a name="l208"><span class="ln">208  </span></a>    2) the given keys do not resolve all ties (but only if ``default`` 
+<a name="l209"><span class="ln">209  </span></a>    is True). The two keys are ``_nodes`` (which places smaller 
+<a name="l210"><span class="ln">210  </span></a>    expressions before large) and ``default_sort_key`` which (if the 
+<a name="l211"><span class="ln">211  </span></a>    ``sort_key`` for an object is defined properly) should resolve 
+<a name="l212"><span class="ln">212  </span></a>    any ties. This strategy is similar to sorting done by 
+<a name="l213"><span class="ln">213  </span></a>    ``Basic.compare``, but differs in that ``ordered`` never makes a 
+<a name="l214"><span class="ln">214  </span></a>    decision based on an objects name. 
+<a name="l215"><span class="ln">215  </span></a> 
+<a name="l216"><span class="ln">216  </span></a>    If ``warn`` is True then an error will be raised if there were no 
+<a name="l217"><span class="ln">217  </span></a>    keys remaining to break ties. This can be used if it was expected that 
+<a name="l218"><span class="ln">218  </span></a>    there should be no ties between items that are not identical. 
+<a name="l219"><span class="ln">219  </span></a> 
+<a name="l220"><span class="ln">220  </span></a>    Examples 
+<a name="l221"><span class="ln">221  </span></a>    ======== 
+<a name="l222"><span class="ln">222  </span></a> 
+<a name="l223"><span class="ln">223  </span></a>    &gt;&gt;&gt; from sympy import ordered, count_ops 
+<a name="l224"><span class="ln">224  </span></a>    &gt;&gt;&gt; from sympy.abc import x, y 
+<a name="l225"><span class="ln">225  </span></a> 
+<a name="l226"><span class="ln">226  </span></a>    The count_ops is not sufficient to break ties in this list and the first 
+<a name="l227"><span class="ln">227  </span></a>    two items appear in their original order (i.e. the sorting is stable): 
+<a name="l228"><span class="ln">228  </span></a> 
+<a name="l229"><span class="ln">229  </span></a>    &gt;&gt;&gt; list(ordered([y + 2, x + 2, x**2 + y + 3], 
+<a name="l230"><span class="ln">230  </span></a>    ...    count_ops, default=False, warn=False)) 
+<a name="l231"><span class="ln">231  </span></a>    ... 
+<a name="l232"><span class="ln">232  </span></a>    [y + 2, x + 2, x**2 + y + 3] 
+<a name="l233"><span class="ln">233  </span></a> 
+<a name="l234"><span class="ln">234  </span></a>    The default_sort_key allows the tie to be broken: 
+<a name="l235"><span class="ln">235  </span></a> 
+<a name="l236"><span class="ln">236  </span></a>    &gt;&gt;&gt; list(ordered([y + 2, x + 2, x**2 + y + 3])) 
+<a name="l237"><span class="ln">237  </span></a>    ... 
+<a name="l238"><span class="ln">238  </span></a>    [x + 2, y + 2, x**2 + y + 3] 
+<a name="l239"><span class="ln">239  </span></a> 
+<a name="l240"><span class="ln">240  </span></a>    Here, sequences are sorted by length, then sum: 
+<a name="l241"><span class="ln">241  </span></a> 
+<a name="l242"><span class="ln">242  </span></a>    &gt;&gt;&gt; seq, keys = [[[1, 2, 1], [0, 3, 1], [1, 1, 3], [2], [1]], [ 
+<a name="l243"><span class="ln">243  </span></a>    ...    lambda x: len(x), 
+<a name="l244"><span class="ln">244  </span></a>    ...    lambda x: sum(x)]] 
+<a name="l245"><span class="ln">245  </span></a>    ... 
+<a name="l246"><span class="ln">246  </span></a>    &gt;&gt;&gt; list(ordered(seq, keys, default=False, warn=False)) 
+<a name="l247"><span class="ln">247  </span></a>    [[1], [2], [1, 2, 1], [0, 3, 1], [1, 1, 3]] 
+<a name="l248"><span class="ln">248  </span></a> 
+<a name="l249"><span class="ln">249  </span></a>    If ``warn`` is True, an error will be raised if there were not 
+<a name="l250"><span class="ln">250  </span></a>    enough keys to break ties: 
+<a name="l251"><span class="ln">251  </span></a> 
+<a name="l252"><span class="ln">252  </span></a>    &gt;&gt;&gt; list(ordered(seq, keys, default=False, warn=True)) 
+<a name="l253"><span class="ln">253  </span></a>    Traceback (most recent call last): 
+<a name="l254"><span class="ln">254  </span></a>    ... 
+<a name="l255"><span class="ln">255  </span></a>    ValueError: not enough keys to break ties 
+<a name="l256"><span class="ln">256  </span></a> 
+<a name="l257"><span class="ln">257  </span></a> 
+<a name="l258"><span class="ln">258  </span></a>    Notes 
+<a name="l259"><span class="ln">259  </span></a>    ===== 
+<a name="l260"><span class="ln">260  </span></a> 
+<a name="l261"><span class="ln">261  </span></a>    The decorated sort is one of the fastest ways to sort a sequence for 
+<a name="l262"><span class="ln">262  </span></a>    which special item comparison is desired: the sequence is decorated, 
+<a name="l263"><span class="ln">263  </span></a>    sorted on the basis of the decoration (e.g. making all letters lower 
+<a name="l264"><span class="ln">264  </span></a>    case) and then undecorated. If one wants to break ties for items that 
+<a name="l265"><span class="ln">265  </span></a>    have the same decorated value, a second key can be used. But if the 
+<a name="l266"><span class="ln">266  </span></a>    second key is expensive to compute then it is inefficient to decorate 
+<a name="l267"><span class="ln">267  </span></a>    all items with both keys: only those items having identical first key 
+<a name="l268"><span class="ln">268  </span></a>    values need to be decorated. This function applies keys successively 
+<a name="l269"><span class="ln">269  </span></a>    only when needed to break ties. By yielding an iterator, use of the 
+<a name="l270"><span class="ln">270  </span></a>    tie-breaker is delayed as long as possible. 
+<a name="l271"><span class="ln">271  </span></a> 
+<a name="l272"><span class="ln">272  </span></a>    This function is best used in cases when use of the first key is 
+<a name="l273"><span class="ln">273  </span></a>    expected to be a good hashing function; if there are no unique hashes 
+<a name="l274"><span class="ln">274  </span></a>    from application of a key, then that key should not have been used. The 
+<a name="l275"><span class="ln">275  </span></a>    exception, however, is that even if there are many collisions, if the 
+<a name="l276"><span class="ln">276  </span></a>    first group is small and one does not need to process all items in the 
+<a name="l277"><span class="ln">277  </span></a>    list then time will not be wasted sorting what one was not interested 
+<a name="l278"><span class="ln">278  </span></a>    in. For example, if one were looking for the minimum in a list and 
+<a name="l279"><span class="ln">279  </span></a>    there were several criteria used to define the sort order, then this 
+<a name="l280"><span class="ln">280  </span></a>    function would be good at returning that quickly if the first group 
+<a name="l281"><span class="ln">281  </span></a>    of candidates is small relative to the number of items being processed. 
+<a name="l282"><span class="ln">282  </span></a> 
+<a name="l283"><span class="ln">283  </span></a>    &quot;&quot;&quot;</span>
+<a name="l284"><span class="ln">284  </span></a>
+<a name="l285"><span class="ln">285  </span></a>    <span class="s1">d </span><span class="s0">= </span><span class="s1">defaultdict</span><span class="s2">(</span><span class="s1">list</span><span class="s2">)</span>
+<a name="l286"><span class="ln">286  </span></a>    <span class="s0">if </span><span class="s1">keys</span><span class="s0">:</span>
+<a name="l287"><span class="ln">287  </span></a>        <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">keys</span><span class="s2">, (</span><span class="s1">list</span><span class="s2">, </span><span class="s1">tuple</span><span class="s2">))</span><span class="s0">:</span>
+<a name="l288"><span class="ln">288  </span></a>            <span class="s1">keys </span><span class="s0">= </span><span class="s1">list</span><span class="s2">(</span><span class="s1">keys</span><span class="s2">)</span>
+<a name="l289"><span class="ln">289  </span></a>            <span class="s1">f </span><span class="s0">= </span><span class="s1">keys</span><span class="s2">.</span><span class="s1">pop</span><span class="s2">(</span><span class="s5">0</span><span class="s2">)</span>
+<a name="l290"><span class="ln">290  </span></a>        <span class="s0">else:</span>
+<a name="l291"><span class="ln">291  </span></a>            <span class="s1">f </span><span class="s0">= </span><span class="s1">keys</span>
+<a name="l292"><span class="ln">292  </span></a>            <span class="s1">keys </span><span class="s0">= </span><span class="s2">[]</span>
+<a name="l293"><span class="ln">293  </span></a>        <span class="s0">for </span><span class="s1">a </span><span class="s0">in </span><span class="s1">seq</span><span class="s0">:</span>
+<a name="l294"><span class="ln">294  </span></a>            <span class="s1">d</span><span class="s2">[</span><span class="s1">f</span><span class="s2">(</span><span class="s1">a</span><span class="s2">)].</span><span class="s1">append</span><span class="s2">(</span><span class="s1">a</span><span class="s2">)</span>
+<a name="l295"><span class="ln">295  </span></a>    <span class="s0">else:</span>
+<a name="l296"><span class="ln">296  </span></a>        <span class="s0">if not </span><span class="s1">default</span><span class="s0">:</span>
+<a name="l297"><span class="ln">297  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s3">'if default=False then keys must be provided'</span><span class="s2">)</span>
+<a name="l298"><span class="ln">298  </span></a>        <span class="s1">d</span><span class="s2">[</span><span class="s0">None</span><span class="s2">].</span><span class="s1">extend</span><span class="s2">(</span><span class="s1">seq</span><span class="s2">)</span>
+<a name="l299"><span class="ln">299  </span></a>
+<a name="l300"><span class="ln">300  </span></a>    <span class="s0">for </span><span class="s1">k</span><span class="s2">, </span><span class="s1">value </span><span class="s0">in </span><span class="s1">sorted</span><span class="s2">(</span><span class="s1">d</span><span class="s2">.</span><span class="s1">items</span><span class="s2">())</span><span class="s0">:</span>
+<a name="l301"><span class="ln">301  </span></a>        <span class="s0">if </span><span class="s1">len</span><span class="s2">(</span><span class="s1">value</span><span class="s2">) </span><span class="s0">&gt; </span><span class="s5">1</span><span class="s0">:</span>
+<a name="l302"><span class="ln">302  </span></a>            <span class="s0">if </span><span class="s1">keys</span><span class="s0">:</span>
+<a name="l303"><span class="ln">303  </span></a>                <span class="s1">value </span><span class="s0">= </span><span class="s1">ordered</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s1">keys</span><span class="s2">, </span><span class="s1">default</span><span class="s2">, </span><span class="s1">warn</span><span class="s2">)</span>
+<a name="l304"><span class="ln">304  </span></a>            <span class="s0">elif </span><span class="s1">default</span><span class="s0">:</span>
+<a name="l305"><span class="ln">305  </span></a>                <span class="s1">value </span><span class="s0">= </span><span class="s1">ordered</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, (</span><span class="s1">_nodes</span><span class="s2">, </span><span class="s1">default_sort_key</span><span class="s2">,),</span>
+<a name="l306"><span class="ln">306  </span></a>                               <span class="s1">default</span><span class="s0">=False</span><span class="s2">, </span><span class="s1">warn</span><span class="s0">=</span><span class="s1">warn</span><span class="s2">)</span>
+<a name="l307"><span class="ln">307  </span></a>            <span class="s0">elif </span><span class="s1">warn</span><span class="s0">:</span>
+<a name="l308"><span class="ln">308  </span></a>                <span class="s1">u </span><span class="s0">= </span><span class="s1">list</span><span class="s2">(</span><span class="s1">uniq</span><span class="s2">(</span><span class="s1">value</span><span class="s2">))</span>
+<a name="l309"><span class="ln">309  </span></a>                <span class="s0">if </span><span class="s1">len</span><span class="s2">(</span><span class="s1">u</span><span class="s2">) </span><span class="s0">&gt; </span><span class="s5">1</span><span class="s0">:</span>
+<a name="l310"><span class="ln">310  </span></a>                    <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span>
+<a name="l311"><span class="ln">311  </span></a>                        <span class="s3">'not enough keys to break ties: %s' </span><span class="s0">% </span><span class="s1">u</span><span class="s2">)</span>
+<a name="l312"><span class="ln">312  </span></a>        <span class="s0">yield from </span><span class="s1">value</span>
+<a name="l313"><span class="ln">313  </span></a></pre>
+</body>
+</html>

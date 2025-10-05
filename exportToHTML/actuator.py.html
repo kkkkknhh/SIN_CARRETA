@@ -1,0 +1,1170 @@
+<html>
+<head>
+<title>actuator.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+actuator.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot;Implementations of actuators for linked force and torque application.&quot;&quot;&quot;</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s2">from </span><span class="s1">abc </span><span class="s2">import </span><span class="s1">ABC</span><span class="s3">, </span><span class="s1">abstractmethod</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s2">from </span><span class="s1">sympy </span><span class="s2">import </span><span class="s1">S</span><span class="s3">, </span><span class="s1">sympify</span><span class="s3">, </span><span class="s1">exp</span><span class="s3">, </span><span class="s1">sign</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">physics</span><span class="s3">.</span><span class="s1">mechanics</span><span class="s3">.</span><span class="s1">joint </span><span class="s2">import </span><span class="s1">PinJoint</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">physics</span><span class="s3">.</span><span class="s1">mechanics</span><span class="s3">.</span><span class="s1">loads </span><span class="s2">import </span><span class="s1">Torque</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">physics</span><span class="s3">.</span><span class="s1">mechanics</span><span class="s3">.</span><span class="s1">pathway </span><span class="s2">import </span><span class="s1">PathwayBase</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">physics</span><span class="s3">.</span><span class="s1">mechanics</span><span class="s3">.</span><span class="s1">rigidbody </span><span class="s2">import </span><span class="s1">RigidBody</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">physics</span><span class="s3">.</span><span class="s1">vector </span><span class="s2">import </span><span class="s1">ReferenceFrame</span><span class="s3">, </span><span class="s1">Vector</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s4">'ActuatorBase'</span><span class="s3">,</span>
+<a name="l15"><span class="ln">15   </span></a>    <span class="s4">'ForceActuator'</span><span class="s3">,</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s4">'LinearDamper'</span><span class="s3">,</span>
+<a name="l17"><span class="ln">17   </span></a>    <span class="s4">'LinearSpring'</span><span class="s3">,</span>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s4">'TorqueActuator'</span><span class="s3">,</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s4">'DuffingSpring'</span><span class="s3">,</span>
+<a name="l20"><span class="ln">20   </span></a>    <span class="s4">'CoulombKineticFriction'</span><span class="s3">,</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s3">]</span>
+<a name="l22"><span class="ln">22   </span></a>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a><span class="s2">class </span><span class="s1">ActuatorBase</span><span class="s3">(</span><span class="s1">ABC</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s0">&quot;&quot;&quot;Abstract base class for all actuator classes to inherit from. 
+<a name="l26"><span class="ln">26   </span></a> 
+<a name="l27"><span class="ln">27   </span></a>    Notes 
+<a name="l28"><span class="ln">28   </span></a>    ===== 
+<a name="l29"><span class="ln">29   </span></a> 
+<a name="l30"><span class="ln">30   </span></a>    Instances of this class cannot be directly instantiated by users. However, 
+<a name="l31"><span class="ln">31   </span></a>    it can be used to created custom actuator types through subclassing. 
+<a name="l32"><span class="ln">32   </span></a> 
+<a name="l33"><span class="ln">33   </span></a>    &quot;&quot;&quot;</span>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l36"><span class="ln">36   </span></a>        <span class="s0">&quot;&quot;&quot;Initializer for ``ActuatorBase``.&quot;&quot;&quot;</span>
+<a name="l37"><span class="ln">37   </span></a>        <span class="s2">pass</span>
+<a name="l38"><span class="ln">38   </span></a>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s2">@</span><span class="s1">abstractmethod</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s2">def </span><span class="s1">to_loads</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l41"><span class="ln">41   </span></a>        <span class="s0">&quot;&quot;&quot;Loads required by the equations of motion method classes. 
+<a name="l42"><span class="ln">42   </span></a> 
+<a name="l43"><span class="ln">43   </span></a>        Explanation 
+<a name="l44"><span class="ln">44   </span></a>        =========== 
+<a name="l45"><span class="ln">45   </span></a> 
+<a name="l46"><span class="ln">46   </span></a>        ``KanesMethod`` requires a list of ``Point``-``Vector`` tuples to be 
+<a name="l47"><span class="ln">47   </span></a>        passed to the ``loads`` parameters of its ``kanes_equations`` method 
+<a name="l48"><span class="ln">48   </span></a>        when constructing the equations of motion. This method acts as a 
+<a name="l49"><span class="ln">49   </span></a>        utility to produce the correctly-structred pairs of points and vectors 
+<a name="l50"><span class="ln">50   </span></a>        required so that these can be easily concatenated with other items in 
+<a name="l51"><span class="ln">51   </span></a>        the list of loads and passed to ``KanesMethod.kanes_equations``. These 
+<a name="l52"><span class="ln">52   </span></a>        loads are also in the correct form to also be passed to the other 
+<a name="l53"><span class="ln">53   </span></a>        equations of motion method classes, e.g. ``LagrangesMethod``. 
+<a name="l54"><span class="ln">54   </span></a> 
+<a name="l55"><span class="ln">55   </span></a>        &quot;&quot;&quot;</span>
+<a name="l56"><span class="ln">56   </span></a>        <span class="s2">pass</span>
+<a name="l57"><span class="ln">57   </span></a>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s2">def </span><span class="s1">__repr__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l59"><span class="ln">59   </span></a>        <span class="s0">&quot;&quot;&quot;Default representation of an actuator.&quot;&quot;&quot;</span>
+<a name="l60"><span class="ln">60   </span></a>        <span class="s2">return </span><span class="s4">f'{</span><span class="s1">self</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">.</span><span class="s1">__name__</span><span class="s4">}()'</span>
+<a name="l61"><span class="ln">61   </span></a>
+<a name="l62"><span class="ln">62   </span></a>
+<a name="l63"><span class="ln">63   </span></a><span class="s2">class </span><span class="s1">ForceActuator</span><span class="s3">(</span><span class="s1">ActuatorBase</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s0">&quot;&quot;&quot;Force-producing actuator. 
+<a name="l65"><span class="ln">65   </span></a> 
+<a name="l66"><span class="ln">66   </span></a>    Explanation 
+<a name="l67"><span class="ln">67   </span></a>    =========== 
+<a name="l68"><span class="ln">68   </span></a> 
+<a name="l69"><span class="ln">69   </span></a>    A ``ForceActuator`` is an actuator that produces a (expansile) force along 
+<a name="l70"><span class="ln">70   </span></a>    its length. 
+<a name="l71"><span class="ln">71   </span></a> 
+<a name="l72"><span class="ln">72   </span></a>    A force actuator uses a pathway instance to determine the direction and 
+<a name="l73"><span class="ln">73   </span></a>    number of forces that it applies to a system. Consider the simplest case 
+<a name="l74"><span class="ln">74   </span></a>    where a ``LinearPathway`` instance is used. This pathway is made up of two 
+<a name="l75"><span class="ln">75   </span></a>    points that can move relative to each other, and results in a pair of equal 
+<a name="l76"><span class="ln">76   </span></a>    and opposite forces acting on the endpoints. If the positive time-varying 
+<a name="l77"><span class="ln">77   </span></a>    Euclidean distance between the two points is defined, then the &quot;extension 
+<a name="l78"><span class="ln">78   </span></a>    velocity&quot; is the time derivative of this distance. The extension velocity 
+<a name="l79"><span class="ln">79   </span></a>    is positive when the two points are moving away from each other and 
+<a name="l80"><span class="ln">80   </span></a>    negative when moving closer to each other. The direction for the force 
+<a name="l81"><span class="ln">81   </span></a>    acting on either point is determined by constructing a unit vector directed 
+<a name="l82"><span class="ln">82   </span></a>    from the other point to this point. This establishes a sign convention such 
+<a name="l83"><span class="ln">83   </span></a>    that a positive force magnitude tends to push the points apart, this is the 
+<a name="l84"><span class="ln">84   </span></a>    meaning of &quot;expansile&quot; in this context. The following diagram shows the 
+<a name="l85"><span class="ln">85   </span></a>    positive force sense and the distance between the points:: 
+<a name="l86"><span class="ln">86   </span></a> 
+<a name="l87"><span class="ln">87   </span></a>       P           Q 
+<a name="l88"><span class="ln">88   </span></a>       o&lt;--- F ---&gt;o 
+<a name="l89"><span class="ln">89   </span></a>       |           | 
+<a name="l90"><span class="ln">90   </span></a>       |&lt;--l(t)---&gt;| 
+<a name="l91"><span class="ln">91   </span></a> 
+<a name="l92"><span class="ln">92   </span></a>    Examples 
+<a name="l93"><span class="ln">93   </span></a>    ======== 
+<a name="l94"><span class="ln">94   </span></a> 
+<a name="l95"><span class="ln">95   </span></a>    To construct an actuator, an expression (or symbol) must be supplied to 
+<a name="l96"><span class="ln">96   </span></a>    represent the force it can produce, alongside a pathway specifying its line 
+<a name="l97"><span class="ln">97   </span></a>    of action. Let's also create a global reference frame and spatially fix one 
+<a name="l98"><span class="ln">98   </span></a>    of the points in it while setting the other to be positioned such that it 
+<a name="l99"><span class="ln">99   </span></a>    can freely move in the frame's x direction specified by the coordinate 
+<a name="l100"><span class="ln">100  </span></a>    ``q``. 
+<a name="l101"><span class="ln">101  </span></a> 
+<a name="l102"><span class="ln">102  </span></a>    &gt;&gt;&gt; from sympy import symbols 
+<a name="l103"><span class="ln">103  </span></a>    &gt;&gt;&gt; from sympy.physics.mechanics import (ForceActuator, LinearPathway, 
+<a name="l104"><span class="ln">104  </span></a>    ...     Point, ReferenceFrame) 
+<a name="l105"><span class="ln">105  </span></a>    &gt;&gt;&gt; from sympy.physics.vector import dynamicsymbols 
+<a name="l106"><span class="ln">106  </span></a>    &gt;&gt;&gt; N = ReferenceFrame('N') 
+<a name="l107"><span class="ln">107  </span></a>    &gt;&gt;&gt; q = dynamicsymbols('q') 
+<a name="l108"><span class="ln">108  </span></a>    &gt;&gt;&gt; force = symbols('F') 
+<a name="l109"><span class="ln">109  </span></a>    &gt;&gt;&gt; pA, pB = Point('pA'), Point('pB') 
+<a name="l110"><span class="ln">110  </span></a>    &gt;&gt;&gt; pA.set_vel(N, 0) 
+<a name="l111"><span class="ln">111  </span></a>    &gt;&gt;&gt; pB.set_pos(pA, q*N.x) 
+<a name="l112"><span class="ln">112  </span></a>    &gt;&gt;&gt; pB.pos_from(pA) 
+<a name="l113"><span class="ln">113  </span></a>    q(t)*N.x 
+<a name="l114"><span class="ln">114  </span></a>    &gt;&gt;&gt; linear_pathway = LinearPathway(pA, pB) 
+<a name="l115"><span class="ln">115  </span></a>    &gt;&gt;&gt; actuator = ForceActuator(force, linear_pathway) 
+<a name="l116"><span class="ln">116  </span></a>    &gt;&gt;&gt; actuator 
+<a name="l117"><span class="ln">117  </span></a>    ForceActuator(F, LinearPathway(pA, pB)) 
+<a name="l118"><span class="ln">118  </span></a> 
+<a name="l119"><span class="ln">119  </span></a>    Parameters 
+<a name="l120"><span class="ln">120  </span></a>    ========== 
+<a name="l121"><span class="ln">121  </span></a> 
+<a name="l122"><span class="ln">122  </span></a>    force : Expr 
+<a name="l123"><span class="ln">123  </span></a>        The scalar expression defining the (expansile) force that the actuator 
+<a name="l124"><span class="ln">124  </span></a>        produces. 
+<a name="l125"><span class="ln">125  </span></a>    pathway : PathwayBase 
+<a name="l126"><span class="ln">126  </span></a>        The pathway that the actuator follows. This must be an instance of a 
+<a name="l127"><span class="ln">127  </span></a>        concrete subclass of ``PathwayBase``, e.g. ``LinearPathway``. 
+<a name="l128"><span class="ln">128  </span></a> 
+<a name="l129"><span class="ln">129  </span></a>    &quot;&quot;&quot;</span>
+<a name="l130"><span class="ln">130  </span></a>
+<a name="l131"><span class="ln">131  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">force</span><span class="s3">, </span><span class="s1">pathway</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l132"><span class="ln">132  </span></a>        <span class="s0">&quot;&quot;&quot;Initializer for ``ForceActuator``. 
+<a name="l133"><span class="ln">133  </span></a> 
+<a name="l134"><span class="ln">134  </span></a>        Parameters 
+<a name="l135"><span class="ln">135  </span></a>        ========== 
+<a name="l136"><span class="ln">136  </span></a> 
+<a name="l137"><span class="ln">137  </span></a>        force : Expr 
+<a name="l138"><span class="ln">138  </span></a>            The scalar expression defining the (expansile) force that the 
+<a name="l139"><span class="ln">139  </span></a>            actuator produces. 
+<a name="l140"><span class="ln">140  </span></a>        pathway : PathwayBase 
+<a name="l141"><span class="ln">141  </span></a>            The pathway that the actuator follows. This must be an instance of 
+<a name="l142"><span class="ln">142  </span></a>            a concrete subclass of ``PathwayBase``, e.g. ``LinearPathway``. 
+<a name="l143"><span class="ln">143  </span></a> 
+<a name="l144"><span class="ln">144  </span></a>        &quot;&quot;&quot;</span>
+<a name="l145"><span class="ln">145  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">force </span><span class="s2">= </span><span class="s1">force</span>
+<a name="l146"><span class="ln">146  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">pathway </span><span class="s2">= </span><span class="s1">pathway</span>
+<a name="l147"><span class="ln">147  </span></a>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l149"><span class="ln">149  </span></a>    <span class="s2">def </span><span class="s1">force</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s0">&quot;&quot;&quot;The magnitude of the force produced by the actuator.&quot;&quot;&quot;</span>
+<a name="l151"><span class="ln">151  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_force</span>
+<a name="l152"><span class="ln">152  </span></a>
+<a name="l153"><span class="ln">153  </span></a>    <span class="s2">@</span><span class="s1">force</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s2">def </span><span class="s1">force</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">force</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l155"><span class="ln">155  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_force'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l156"><span class="ln">156  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l157"><span class="ln">157  </span></a>                <span class="s4">f'Can\'t set attribute `force` to {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">force</span><span class="s3">)</span><span class="s4">} as it is '</span>
+<a name="l158"><span class="ln">158  </span></a>                <span class="s4">f'immutable.'</span>
+<a name="l159"><span class="ln">159  </span></a>            <span class="s3">)</span>
+<a name="l160"><span class="ln">160  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_force </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">force</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l162"><span class="ln">162  </span></a>
+<a name="l163"><span class="ln">163  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l164"><span class="ln">164  </span></a>    <span class="s2">def </span><span class="s1">pathway</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l165"><span class="ln">165  </span></a>        <span class="s0">&quot;&quot;&quot;The ``Pathway`` defining the actuator's line of action.&quot;&quot;&quot;</span>
+<a name="l166"><span class="ln">166  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_pathway</span>
+<a name="l167"><span class="ln">167  </span></a>
+<a name="l168"><span class="ln">168  </span></a>    <span class="s2">@</span><span class="s1">pathway</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l169"><span class="ln">169  </span></a>    <span class="s2">def </span><span class="s1">pathway</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">pathway</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l170"><span class="ln">170  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_pathway'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l171"><span class="ln">171  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l172"><span class="ln">172  </span></a>                <span class="s4">f'Can\'t set attribute `pathway` to {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">pathway</span><span class="s3">)</span><span class="s4">} as it is '</span>
+<a name="l173"><span class="ln">173  </span></a>                <span class="s4">f'immutable.'</span>
+<a name="l174"><span class="ln">174  </span></a>            <span class="s3">)</span>
+<a name="l175"><span class="ln">175  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l176"><span class="ln">176  </span></a>        <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">pathway</span><span class="s3">, </span><span class="s1">PathwayBase</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l177"><span class="ln">177  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l178"><span class="ln">178  </span></a>                <span class="s4">f'Value {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">pathway</span><span class="s3">)</span><span class="s4">} passed to `pathway` was of type '</span>
+<a name="l179"><span class="ln">179  </span></a>                <span class="s4">f'{</span><span class="s1">type</span><span class="s3">(</span><span class="s1">pathway</span><span class="s3">)</span><span class="s4">}, must be {</span><span class="s1">PathwayBase</span><span class="s4">}.'</span>
+<a name="l180"><span class="ln">180  </span></a>            <span class="s3">)</span>
+<a name="l181"><span class="ln">181  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l182"><span class="ln">182  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_pathway </span><span class="s2">= </span><span class="s1">pathway</span>
+<a name="l183"><span class="ln">183  </span></a>
+<a name="l184"><span class="ln">184  </span></a>    <span class="s2">def </span><span class="s1">to_loads</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l185"><span class="ln">185  </span></a>        <span class="s0">&quot;&quot;&quot;Loads required by the equations of motion method classes. 
+<a name="l186"><span class="ln">186  </span></a> 
+<a name="l187"><span class="ln">187  </span></a>        Explanation 
+<a name="l188"><span class="ln">188  </span></a>        =========== 
+<a name="l189"><span class="ln">189  </span></a> 
+<a name="l190"><span class="ln">190  </span></a>        ``KanesMethod`` requires a list of ``Point``-``Vector`` tuples to be 
+<a name="l191"><span class="ln">191  </span></a>        passed to the ``loads`` parameters of its ``kanes_equations`` method 
+<a name="l192"><span class="ln">192  </span></a>        when constructing the equations of motion. This method acts as a 
+<a name="l193"><span class="ln">193  </span></a>        utility to produce the correctly-structred pairs of points and vectors 
+<a name="l194"><span class="ln">194  </span></a>        required so that these can be easily concatenated with other items in 
+<a name="l195"><span class="ln">195  </span></a>        the list of loads and passed to ``KanesMethod.kanes_equations``. These 
+<a name="l196"><span class="ln">196  </span></a>        loads are also in the correct form to also be passed to the other 
+<a name="l197"><span class="ln">197  </span></a>        equations of motion method classes, e.g. ``LagrangesMethod``. 
+<a name="l198"><span class="ln">198  </span></a> 
+<a name="l199"><span class="ln">199  </span></a>        Examples 
+<a name="l200"><span class="ln">200  </span></a>        ======== 
+<a name="l201"><span class="ln">201  </span></a> 
+<a name="l202"><span class="ln">202  </span></a>        The below example shows how to generate the loads produced by a force 
+<a name="l203"><span class="ln">203  </span></a>        actuator that follows a linear pathway. In this example we'll assume 
+<a name="l204"><span class="ln">204  </span></a>        that the force actuator is being used to model a simple linear spring. 
+<a name="l205"><span class="ln">205  </span></a>        First, create a linear pathway between two points separated by the 
+<a name="l206"><span class="ln">206  </span></a>        coordinate ``q`` in the ``x`` direction of the global frame ``N``. 
+<a name="l207"><span class="ln">207  </span></a> 
+<a name="l208"><span class="ln">208  </span></a>        &gt;&gt;&gt; from sympy.physics.mechanics import (LinearPathway, Point, 
+<a name="l209"><span class="ln">209  </span></a>        ...     ReferenceFrame) 
+<a name="l210"><span class="ln">210  </span></a>        &gt;&gt;&gt; from sympy.physics.vector import dynamicsymbols 
+<a name="l211"><span class="ln">211  </span></a>        &gt;&gt;&gt; q = dynamicsymbols('q') 
+<a name="l212"><span class="ln">212  </span></a>        &gt;&gt;&gt; N = ReferenceFrame('N') 
+<a name="l213"><span class="ln">213  </span></a>        &gt;&gt;&gt; pA, pB = Point('pA'), Point('pB') 
+<a name="l214"><span class="ln">214  </span></a>        &gt;&gt;&gt; pB.set_pos(pA, q*N.x) 
+<a name="l215"><span class="ln">215  </span></a>        &gt;&gt;&gt; pathway = LinearPathway(pA, pB) 
+<a name="l216"><span class="ln">216  </span></a> 
+<a name="l217"><span class="ln">217  </span></a>        Now create a symbol ``k`` to describe the spring's stiffness and 
+<a name="l218"><span class="ln">218  </span></a>        instantiate a force actuator that produces a (contractile) force 
+<a name="l219"><span class="ln">219  </span></a>        proportional to both the spring's stiffness and the pathway's length. 
+<a name="l220"><span class="ln">220  </span></a>        Note that actuator classes use the sign convention that expansile 
+<a name="l221"><span class="ln">221  </span></a>        forces are positive, so for a spring to produce a contractile force the 
+<a name="l222"><span class="ln">222  </span></a>        spring force needs to be calculated as the negative for the stiffness 
+<a name="l223"><span class="ln">223  </span></a>        multiplied by the length. 
+<a name="l224"><span class="ln">224  </span></a> 
+<a name="l225"><span class="ln">225  </span></a>        &gt;&gt;&gt; from sympy import symbols 
+<a name="l226"><span class="ln">226  </span></a>        &gt;&gt;&gt; from sympy.physics.mechanics import ForceActuator 
+<a name="l227"><span class="ln">227  </span></a>        &gt;&gt;&gt; stiffness = symbols('k') 
+<a name="l228"><span class="ln">228  </span></a>        &gt;&gt;&gt; spring_force = -stiffness*pathway.length 
+<a name="l229"><span class="ln">229  </span></a>        &gt;&gt;&gt; spring = ForceActuator(spring_force, pathway) 
+<a name="l230"><span class="ln">230  </span></a> 
+<a name="l231"><span class="ln">231  </span></a>        The forces produced by the spring can be generated in the list of loads 
+<a name="l232"><span class="ln">232  </span></a>        form that ``KanesMethod`` (and other equations of motion methods) 
+<a name="l233"><span class="ln">233  </span></a>        requires by calling the ``to_loads`` method. 
+<a name="l234"><span class="ln">234  </span></a> 
+<a name="l235"><span class="ln">235  </span></a>        &gt;&gt;&gt; spring.to_loads() 
+<a name="l236"><span class="ln">236  </span></a>        [(pA, k*q(t)*N.x), (pB, - k*q(t)*N.x)] 
+<a name="l237"><span class="ln">237  </span></a> 
+<a name="l238"><span class="ln">238  </span></a>        A simple linear damper can be modeled in a similar way. Create another 
+<a name="l239"><span class="ln">239  </span></a>        symbol ``c`` to describe the dampers damping coefficient. This time 
+<a name="l240"><span class="ln">240  </span></a>        instantiate a force actuator that produces a force proportional to both 
+<a name="l241"><span class="ln">241  </span></a>        the damper's damping coefficient and the pathway's extension velocity. 
+<a name="l242"><span class="ln">242  </span></a>        Note that the damping force is negative as it acts in the opposite 
+<a name="l243"><span class="ln">243  </span></a>        direction to which the damper is changing in length. 
+<a name="l244"><span class="ln">244  </span></a> 
+<a name="l245"><span class="ln">245  </span></a>        &gt;&gt;&gt; damping_coefficient = symbols('c') 
+<a name="l246"><span class="ln">246  </span></a>        &gt;&gt;&gt; damping_force = -damping_coefficient*pathway.extension_velocity 
+<a name="l247"><span class="ln">247  </span></a>        &gt;&gt;&gt; damper = ForceActuator(damping_force, pathway) 
+<a name="l248"><span class="ln">248  </span></a> 
+<a name="l249"><span class="ln">249  </span></a>        Again, the forces produces by the damper can be generated by calling 
+<a name="l250"><span class="ln">250  </span></a>        the ``to_loads`` method. 
+<a name="l251"><span class="ln">251  </span></a> 
+<a name="l252"><span class="ln">252  </span></a>        &gt;&gt;&gt; damper.to_loads() 
+<a name="l253"><span class="ln">253  </span></a>        [(pA, c*Derivative(q(t), t)*N.x), (pB, - c*Derivative(q(t), t)*N.x)] 
+<a name="l254"><span class="ln">254  </span></a> 
+<a name="l255"><span class="ln">255  </span></a>        &quot;&quot;&quot;</span>
+<a name="l256"><span class="ln">256  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pathway</span><span class="s3">.</span><span class="s1">to_loads</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">force</span><span class="s3">)</span>
+<a name="l257"><span class="ln">257  </span></a>
+<a name="l258"><span class="ln">258  </span></a>    <span class="s2">def </span><span class="s1">__repr__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l259"><span class="ln">259  </span></a>        <span class="s0">&quot;&quot;&quot;Representation of a ``ForceActuator``.&quot;&quot;&quot;</span>
+<a name="l260"><span class="ln">260  </span></a>        <span class="s2">return </span><span class="s4">f'{</span><span class="s1">self</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">.</span><span class="s1">__name__</span><span class="s4">}({</span><span class="s1">self</span><span class="s3">.</span><span class="s1">force</span><span class="s4">}, {</span><span class="s1">self</span><span class="s3">.</span><span class="s1">pathway</span><span class="s4">})'</span>
+<a name="l261"><span class="ln">261  </span></a>
+<a name="l262"><span class="ln">262  </span></a>
+<a name="l263"><span class="ln">263  </span></a><span class="s2">class </span><span class="s1">LinearSpring</span><span class="s3">(</span><span class="s1">ForceActuator</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l264"><span class="ln">264  </span></a>    <span class="s0">&quot;&quot;&quot;A spring with its spring force as a linear function of its length. 
+<a name="l265"><span class="ln">265  </span></a> 
+<a name="l266"><span class="ln">266  </span></a>    Explanation 
+<a name="l267"><span class="ln">267  </span></a>    =========== 
+<a name="l268"><span class="ln">268  </span></a> 
+<a name="l269"><span class="ln">269  </span></a>    Note that the &quot;linear&quot; in the name ``LinearSpring`` refers to the fact that 
+<a name="l270"><span class="ln">270  </span></a>    the spring force is a linear function of the springs length. I.e. for a 
+<a name="l271"><span class="ln">271  </span></a>    linear spring with stiffness ``k``, distance between its ends of ``x``, and 
+<a name="l272"><span class="ln">272  </span></a>    an equilibrium length of ``0``, the spring force will be ``-k*x``, which is 
+<a name="l273"><span class="ln">273  </span></a>    a linear function in ``x``. To create a spring that follows a linear, or 
+<a name="l274"><span class="ln">274  </span></a>    straight, pathway between its two ends, a ``LinearPathway`` instance needs 
+<a name="l275"><span class="ln">275  </span></a>    to be passed to the ``pathway`` parameter. 
+<a name="l276"><span class="ln">276  </span></a> 
+<a name="l277"><span class="ln">277  </span></a>    A ``LinearSpring`` is a subclass of ``ForceActuator`` and so follows the 
+<a name="l278"><span class="ln">278  </span></a>    same sign conventions for length, extension velocity, and the direction of 
+<a name="l279"><span class="ln">279  </span></a>    the forces it applies to its points of attachment on bodies. The sign 
+<a name="l280"><span class="ln">280  </span></a>    convention for the direction of forces is such that, for the case where a 
+<a name="l281"><span class="ln">281  </span></a>    linear spring is instantiated with a ``LinearPathway`` instance as its 
+<a name="l282"><span class="ln">282  </span></a>    pathway, they act to push the two ends of the spring away from one another. 
+<a name="l283"><span class="ln">283  </span></a>    Because springs produces a contractile force and acts to pull the two ends 
+<a name="l284"><span class="ln">284  </span></a>    together towards the equilibrium length when stretched, the scalar portion 
+<a name="l285"><span class="ln">285  </span></a>    of the forces on the endpoint are negative in order to flip the sign of the 
+<a name="l286"><span class="ln">286  </span></a>    forces on the endpoints when converted into vector quantities. The 
+<a name="l287"><span class="ln">287  </span></a>    following diagram shows the positive force sense and the distance between 
+<a name="l288"><span class="ln">288  </span></a>    the points:: 
+<a name="l289"><span class="ln">289  </span></a> 
+<a name="l290"><span class="ln">290  </span></a>       P           Q 
+<a name="l291"><span class="ln">291  </span></a>       o&lt;--- F ---&gt;o 
+<a name="l292"><span class="ln">292  </span></a>       |           | 
+<a name="l293"><span class="ln">293  </span></a>       |&lt;--l(t)---&gt;| 
+<a name="l294"><span class="ln">294  </span></a> 
+<a name="l295"><span class="ln">295  </span></a>    Examples 
+<a name="l296"><span class="ln">296  </span></a>    ======== 
+<a name="l297"><span class="ln">297  </span></a> 
+<a name="l298"><span class="ln">298  </span></a>    To construct a linear spring, an expression (or symbol) must be supplied to 
+<a name="l299"><span class="ln">299  </span></a>    represent the stiffness (spring constant) of the spring, alongside a 
+<a name="l300"><span class="ln">300  </span></a>    pathway specifying its line of action. Let's also create a global reference 
+<a name="l301"><span class="ln">301  </span></a>    frame and spatially fix one of the points in it while setting the other to 
+<a name="l302"><span class="ln">302  </span></a>    be positioned such that it can freely move in the frame's x direction 
+<a name="l303"><span class="ln">303  </span></a>    specified by the coordinate ``q``. 
+<a name="l304"><span class="ln">304  </span></a> 
+<a name="l305"><span class="ln">305  </span></a>    &gt;&gt;&gt; from sympy import symbols 
+<a name="l306"><span class="ln">306  </span></a>    &gt;&gt;&gt; from sympy.physics.mechanics import (LinearPathway, LinearSpring, 
+<a name="l307"><span class="ln">307  </span></a>    ...     Point, ReferenceFrame) 
+<a name="l308"><span class="ln">308  </span></a>    &gt;&gt;&gt; from sympy.physics.vector import dynamicsymbols 
+<a name="l309"><span class="ln">309  </span></a>    &gt;&gt;&gt; N = ReferenceFrame('N') 
+<a name="l310"><span class="ln">310  </span></a>    &gt;&gt;&gt; q = dynamicsymbols('q') 
+<a name="l311"><span class="ln">311  </span></a>    &gt;&gt;&gt; stiffness = symbols('k') 
+<a name="l312"><span class="ln">312  </span></a>    &gt;&gt;&gt; pA, pB = Point('pA'), Point('pB') 
+<a name="l313"><span class="ln">313  </span></a>    &gt;&gt;&gt; pA.set_vel(N, 0) 
+<a name="l314"><span class="ln">314  </span></a>    &gt;&gt;&gt; pB.set_pos(pA, q*N.x) 
+<a name="l315"><span class="ln">315  </span></a>    &gt;&gt;&gt; pB.pos_from(pA) 
+<a name="l316"><span class="ln">316  </span></a>    q(t)*N.x 
+<a name="l317"><span class="ln">317  </span></a>    &gt;&gt;&gt; linear_pathway = LinearPathway(pA, pB) 
+<a name="l318"><span class="ln">318  </span></a>    &gt;&gt;&gt; spring = LinearSpring(stiffness, linear_pathway) 
+<a name="l319"><span class="ln">319  </span></a>    &gt;&gt;&gt; spring 
+<a name="l320"><span class="ln">320  </span></a>    LinearSpring(k, LinearPathway(pA, pB)) 
+<a name="l321"><span class="ln">321  </span></a> 
+<a name="l322"><span class="ln">322  </span></a>    This spring will produce a force that is proportional to both its stiffness 
+<a name="l323"><span class="ln">323  </span></a>    and the pathway's length. Note that this force is negative as SymPy's sign 
+<a name="l324"><span class="ln">324  </span></a>    convention for actuators is that negative forces are contractile. 
+<a name="l325"><span class="ln">325  </span></a> 
+<a name="l326"><span class="ln">326  </span></a>    &gt;&gt;&gt; spring.force 
+<a name="l327"><span class="ln">327  </span></a>    -k*sqrt(q(t)**2) 
+<a name="l328"><span class="ln">328  </span></a> 
+<a name="l329"><span class="ln">329  </span></a>    To create a linear spring with a non-zero equilibrium length, an expression 
+<a name="l330"><span class="ln">330  </span></a>    (or symbol) can be passed to the ``equilibrium_length`` parameter on 
+<a name="l331"><span class="ln">331  </span></a>    construction on a ``LinearSpring`` instance. Let's create a symbol ``l`` 
+<a name="l332"><span class="ln">332  </span></a>    to denote a non-zero equilibrium length and create another linear spring. 
+<a name="l333"><span class="ln">333  </span></a> 
+<a name="l334"><span class="ln">334  </span></a>    &gt;&gt;&gt; l = symbols('l') 
+<a name="l335"><span class="ln">335  </span></a>    &gt;&gt;&gt; spring = LinearSpring(stiffness, linear_pathway, equilibrium_length=l) 
+<a name="l336"><span class="ln">336  </span></a>    &gt;&gt;&gt; spring 
+<a name="l337"><span class="ln">337  </span></a>    LinearSpring(k, LinearPathway(pA, pB), equilibrium_length=l) 
+<a name="l338"><span class="ln">338  </span></a> 
+<a name="l339"><span class="ln">339  </span></a>    The spring force of this new spring is again proportional to both its 
+<a name="l340"><span class="ln">340  </span></a>    stiffness and the pathway's length. However, the spring will not produce 
+<a name="l341"><span class="ln">341  </span></a>    any force when ``q(t)`` equals ``l``. Note that the force will become 
+<a name="l342"><span class="ln">342  </span></a>    expansile when ``q(t)`` is less than ``l``, as expected. 
+<a name="l343"><span class="ln">343  </span></a> 
+<a name="l344"><span class="ln">344  </span></a>    &gt;&gt;&gt; spring.force 
+<a name="l345"><span class="ln">345  </span></a>    -k*(-l + sqrt(q(t)**2)) 
+<a name="l346"><span class="ln">346  </span></a> 
+<a name="l347"><span class="ln">347  </span></a>    Parameters 
+<a name="l348"><span class="ln">348  </span></a>    ========== 
+<a name="l349"><span class="ln">349  </span></a> 
+<a name="l350"><span class="ln">350  </span></a>    stiffness : Expr 
+<a name="l351"><span class="ln">351  </span></a>        The spring constant. 
+<a name="l352"><span class="ln">352  </span></a>    pathway : PathwayBase 
+<a name="l353"><span class="ln">353  </span></a>        The pathway that the actuator follows. This must be an instance of a 
+<a name="l354"><span class="ln">354  </span></a>        concrete subclass of ``PathwayBase``, e.g. ``LinearPathway``. 
+<a name="l355"><span class="ln">355  </span></a>    equilibrium_length : Expr, optional 
+<a name="l356"><span class="ln">356  </span></a>        The length at which the spring is in equilibrium, i.e. it produces no 
+<a name="l357"><span class="ln">357  </span></a>        force. The default value is 0, i.e. the spring force is a linear 
+<a name="l358"><span class="ln">358  </span></a>        function of the pathway's length with no constant offset. 
+<a name="l359"><span class="ln">359  </span></a> 
+<a name="l360"><span class="ln">360  </span></a>    See Also 
+<a name="l361"><span class="ln">361  </span></a>    ======== 
+<a name="l362"><span class="ln">362  </span></a> 
+<a name="l363"><span class="ln">363  </span></a>    ForceActuator: force-producing actuator (superclass of ``LinearSpring``). 
+<a name="l364"><span class="ln">364  </span></a>    LinearPathway: straight-line pathway between a pair of points. 
+<a name="l365"><span class="ln">365  </span></a> 
+<a name="l366"><span class="ln">366  </span></a>    &quot;&quot;&quot;</span>
+<a name="l367"><span class="ln">367  </span></a>
+<a name="l368"><span class="ln">368  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">stiffness</span><span class="s3">, </span><span class="s1">pathway</span><span class="s3">, </span><span class="s1">equilibrium_length</span><span class="s2">=</span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l369"><span class="ln">369  </span></a>        <span class="s0">&quot;&quot;&quot;Initializer for ``LinearSpring``. 
+<a name="l370"><span class="ln">370  </span></a> 
+<a name="l371"><span class="ln">371  </span></a>        Parameters 
+<a name="l372"><span class="ln">372  </span></a>        ========== 
+<a name="l373"><span class="ln">373  </span></a> 
+<a name="l374"><span class="ln">374  </span></a>        stiffness : Expr 
+<a name="l375"><span class="ln">375  </span></a>            The spring constant. 
+<a name="l376"><span class="ln">376  </span></a>        pathway : PathwayBase 
+<a name="l377"><span class="ln">377  </span></a>            The pathway that the actuator follows. This must be an instance of 
+<a name="l378"><span class="ln">378  </span></a>            a concrete subclass of ``PathwayBase``, e.g. ``LinearPathway``. 
+<a name="l379"><span class="ln">379  </span></a>        equilibrium_length : Expr, optional 
+<a name="l380"><span class="ln">380  </span></a>            The length at which the spring is in equilibrium, i.e. it produces 
+<a name="l381"><span class="ln">381  </span></a>            no force. The default value is 0, i.e. the spring force is a linear 
+<a name="l382"><span class="ln">382  </span></a>            function of the pathway's length with no constant offset. 
+<a name="l383"><span class="ln">383  </span></a> 
+<a name="l384"><span class="ln">384  </span></a>        &quot;&quot;&quot;</span>
+<a name="l385"><span class="ln">385  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">stiffness </span><span class="s2">= </span><span class="s1">stiffness</span>
+<a name="l386"><span class="ln">386  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">pathway </span><span class="s2">= </span><span class="s1">pathway</span>
+<a name="l387"><span class="ln">387  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">equilibrium_length </span><span class="s2">= </span><span class="s1">equilibrium_length</span>
+<a name="l388"><span class="ln">388  </span></a>
+<a name="l389"><span class="ln">389  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l390"><span class="ln">390  </span></a>    <span class="s2">def </span><span class="s1">force</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l391"><span class="ln">391  </span></a>        <span class="s0">&quot;&quot;&quot;The spring force produced by the linear spring.&quot;&quot;&quot;</span>
+<a name="l392"><span class="ln">392  </span></a>        <span class="s2">return -</span><span class="s1">self</span><span class="s3">.</span><span class="s1">stiffness</span><span class="s2">*</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">pathway</span><span class="s3">.</span><span class="s1">length </span><span class="s2">- </span><span class="s1">self</span><span class="s3">.</span><span class="s1">equilibrium_length</span><span class="s3">)</span>
+<a name="l393"><span class="ln">393  </span></a>
+<a name="l394"><span class="ln">394  </span></a>    <span class="s2">@</span><span class="s1">force</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l395"><span class="ln">395  </span></a>    <span class="s2">def </span><span class="s1">force</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">force</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l396"><span class="ln">396  </span></a>        <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s4">'Can\'t set computed attribute `force`.'</span><span class="s3">)</span>
+<a name="l397"><span class="ln">397  </span></a>
+<a name="l398"><span class="ln">398  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l399"><span class="ln">399  </span></a>    <span class="s2">def </span><span class="s1">stiffness</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l400"><span class="ln">400  </span></a>        <span class="s0">&quot;&quot;&quot;The spring constant for the linear spring.&quot;&quot;&quot;</span>
+<a name="l401"><span class="ln">401  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_stiffness</span>
+<a name="l402"><span class="ln">402  </span></a>
+<a name="l403"><span class="ln">403  </span></a>    <span class="s2">@</span><span class="s1">stiffness</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l404"><span class="ln">404  </span></a>    <span class="s2">def </span><span class="s1">stiffness</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">stiffness</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l405"><span class="ln">405  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_stiffness'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l406"><span class="ln">406  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l407"><span class="ln">407  </span></a>                <span class="s4">f'Can\'t set attribute `stiffness` to {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">stiffness</span><span class="s3">)</span><span class="s4">} as it '</span>
+<a name="l408"><span class="ln">408  </span></a>                <span class="s4">f'is immutable.'</span>
+<a name="l409"><span class="ln">409  </span></a>            <span class="s3">)</span>
+<a name="l410"><span class="ln">410  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l411"><span class="ln">411  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_stiffness </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">stiffness</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l412"><span class="ln">412  </span></a>
+<a name="l413"><span class="ln">413  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l414"><span class="ln">414  </span></a>    <span class="s2">def </span><span class="s1">equilibrium_length</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l415"><span class="ln">415  </span></a>        <span class="s0">&quot;&quot;&quot;The length of the spring at which it produces no force.&quot;&quot;&quot;</span>
+<a name="l416"><span class="ln">416  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_equilibrium_length</span>
+<a name="l417"><span class="ln">417  </span></a>
+<a name="l418"><span class="ln">418  </span></a>    <span class="s2">@</span><span class="s1">equilibrium_length</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l419"><span class="ln">419  </span></a>    <span class="s2">def </span><span class="s1">equilibrium_length</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">equilibrium_length</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l420"><span class="ln">420  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_equilibrium_length'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l421"><span class="ln">421  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l422"><span class="ln">422  </span></a>                <span class="s4">f'Can\'t set attribute `equilibrium_length` to '</span>
+<a name="l423"><span class="ln">423  </span></a>                <span class="s4">f'{</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">equilibrium_length</span><span class="s3">)</span><span class="s4">} as it is immutable.'</span>
+<a name="l424"><span class="ln">424  </span></a>            <span class="s3">)</span>
+<a name="l425"><span class="ln">425  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l426"><span class="ln">426  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_equilibrium_length </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">equilibrium_length</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l427"><span class="ln">427  </span></a>
+<a name="l428"><span class="ln">428  </span></a>    <span class="s2">def </span><span class="s1">__repr__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l429"><span class="ln">429  </span></a>        <span class="s0">&quot;&quot;&quot;Representation of a ``LinearSpring``.&quot;&quot;&quot;</span>
+<a name="l430"><span class="ln">430  </span></a>        <span class="s1">string </span><span class="s2">= </span><span class="s4">f'{</span><span class="s1">self</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">.</span><span class="s1">__name__</span><span class="s4">}({</span><span class="s1">self</span><span class="s3">.</span><span class="s1">stiffness</span><span class="s4">}, {</span><span class="s1">self</span><span class="s3">.</span><span class="s1">pathway</span><span class="s4">}'</span>
+<a name="l431"><span class="ln">431  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">equilibrium_length </span><span class="s2">== </span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span><span class="s2">:</span>
+<a name="l432"><span class="ln">432  </span></a>            <span class="s1">string </span><span class="s2">+= </span><span class="s4">')'</span>
+<a name="l433"><span class="ln">433  </span></a>        <span class="s2">else:</span>
+<a name="l434"><span class="ln">434  </span></a>            <span class="s1">string </span><span class="s2">+= </span><span class="s4">f', equilibrium_length={</span><span class="s1">self</span><span class="s3">.</span><span class="s1">equilibrium_length</span><span class="s4">})'</span>
+<a name="l435"><span class="ln">435  </span></a>        <span class="s2">return </span><span class="s1">string</span>
+<a name="l436"><span class="ln">436  </span></a>
+<a name="l437"><span class="ln">437  </span></a>
+<a name="l438"><span class="ln">438  </span></a><span class="s2">class </span><span class="s1">LinearDamper</span><span class="s3">(</span><span class="s1">ForceActuator</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l439"><span class="ln">439  </span></a>    <span class="s0">&quot;&quot;&quot;A damper whose force is a linear function of its extension velocity. 
+<a name="l440"><span class="ln">440  </span></a> 
+<a name="l441"><span class="ln">441  </span></a>    Explanation 
+<a name="l442"><span class="ln">442  </span></a>    =========== 
+<a name="l443"><span class="ln">443  </span></a> 
+<a name="l444"><span class="ln">444  </span></a>    Note that the &quot;linear&quot; in the name ``LinearDamper`` refers to the fact that 
+<a name="l445"><span class="ln">445  </span></a>    the damping force is a linear function of the damper's rate of change in 
+<a name="l446"><span class="ln">446  </span></a>    its length. I.e. for a linear damper with damping ``c`` and extension 
+<a name="l447"><span class="ln">447  </span></a>    velocity ``v``, the damping force will be ``-c*v``, which is a linear 
+<a name="l448"><span class="ln">448  </span></a>    function in ``v``. To create a damper that follows a linear, or straight, 
+<a name="l449"><span class="ln">449  </span></a>    pathway between its two ends, a ``LinearPathway`` instance needs to be 
+<a name="l450"><span class="ln">450  </span></a>    passed to the ``pathway`` parameter. 
+<a name="l451"><span class="ln">451  </span></a> 
+<a name="l452"><span class="ln">452  </span></a>    A ``LinearDamper`` is a subclass of ``ForceActuator`` and so follows the 
+<a name="l453"><span class="ln">453  </span></a>    same sign conventions for length, extension velocity, and the direction of 
+<a name="l454"><span class="ln">454  </span></a>    the forces it applies to its points of attachment on bodies. The sign 
+<a name="l455"><span class="ln">455  </span></a>    convention for the direction of forces is such that, for the case where a 
+<a name="l456"><span class="ln">456  </span></a>    linear damper is instantiated with a ``LinearPathway`` instance as its 
+<a name="l457"><span class="ln">457  </span></a>    pathway, they act to push the two ends of the damper away from one another. 
+<a name="l458"><span class="ln">458  </span></a>    Because dampers produce a force that opposes the direction of change in 
+<a name="l459"><span class="ln">459  </span></a>    length, when extension velocity is positive the scalar portions of the 
+<a name="l460"><span class="ln">460  </span></a>    forces applied at the two endpoints are negative in order to flip the sign 
+<a name="l461"><span class="ln">461  </span></a>    of the forces on the endpoints wen converted into vector quantities. When 
+<a name="l462"><span class="ln">462  </span></a>    extension velocity is negative (i.e. when the damper is shortening), the 
+<a name="l463"><span class="ln">463  </span></a>    scalar portions of the fofces applied are also negative so that the signs 
+<a name="l464"><span class="ln">464  </span></a>    cancel producing forces on the endpoints that are in the same direction as 
+<a name="l465"><span class="ln">465  </span></a>    the positive sign convention for the forces at the endpoints of the pathway 
+<a name="l466"><span class="ln">466  </span></a>    (i.e. they act to push the endpoints away from one another). The following 
+<a name="l467"><span class="ln">467  </span></a>    diagram shows the positive force sense and the distance between the 
+<a name="l468"><span class="ln">468  </span></a>    points:: 
+<a name="l469"><span class="ln">469  </span></a> 
+<a name="l470"><span class="ln">470  </span></a>       P           Q 
+<a name="l471"><span class="ln">471  </span></a>       o&lt;--- F ---&gt;o 
+<a name="l472"><span class="ln">472  </span></a>       |           | 
+<a name="l473"><span class="ln">473  </span></a>       |&lt;--l(t)---&gt;| 
+<a name="l474"><span class="ln">474  </span></a> 
+<a name="l475"><span class="ln">475  </span></a>    Examples 
+<a name="l476"><span class="ln">476  </span></a>    ======== 
+<a name="l477"><span class="ln">477  </span></a> 
+<a name="l478"><span class="ln">478  </span></a>    To construct a linear damper, an expression (or symbol) must be supplied to 
+<a name="l479"><span class="ln">479  </span></a>    represent the damping coefficient of the damper (we'll use the symbol 
+<a name="l480"><span class="ln">480  </span></a>    ``c``), alongside a pathway specifying its line of action. Let's also 
+<a name="l481"><span class="ln">481  </span></a>    create a global reference frame and spatially fix one of the points in it 
+<a name="l482"><span class="ln">482  </span></a>    while setting the other to be positioned such that it can freely move in 
+<a name="l483"><span class="ln">483  </span></a>    the frame's x direction specified by the coordinate ``q``. The velocity 
+<a name="l484"><span class="ln">484  </span></a>    that the two points move away from one another can be specified by the 
+<a name="l485"><span class="ln">485  </span></a>    coordinate ``u`` where ``u`` is the first time derivative of ``q`` 
+<a name="l486"><span class="ln">486  </span></a>    (i.e., ``u = Derivative(q(t), t)``). 
+<a name="l487"><span class="ln">487  </span></a> 
+<a name="l488"><span class="ln">488  </span></a>    &gt;&gt;&gt; from sympy import symbols 
+<a name="l489"><span class="ln">489  </span></a>    &gt;&gt;&gt; from sympy.physics.mechanics import (LinearDamper, LinearPathway, 
+<a name="l490"><span class="ln">490  </span></a>    ...     Point, ReferenceFrame) 
+<a name="l491"><span class="ln">491  </span></a>    &gt;&gt;&gt; from sympy.physics.vector import dynamicsymbols 
+<a name="l492"><span class="ln">492  </span></a>    &gt;&gt;&gt; N = ReferenceFrame('N') 
+<a name="l493"><span class="ln">493  </span></a>    &gt;&gt;&gt; q = dynamicsymbols('q') 
+<a name="l494"><span class="ln">494  </span></a>    &gt;&gt;&gt; damping = symbols('c') 
+<a name="l495"><span class="ln">495  </span></a>    &gt;&gt;&gt; pA, pB = Point('pA'), Point('pB') 
+<a name="l496"><span class="ln">496  </span></a>    &gt;&gt;&gt; pA.set_vel(N, 0) 
+<a name="l497"><span class="ln">497  </span></a>    &gt;&gt;&gt; pB.set_pos(pA, q*N.x) 
+<a name="l498"><span class="ln">498  </span></a>    &gt;&gt;&gt; pB.pos_from(pA) 
+<a name="l499"><span class="ln">499  </span></a>    q(t)*N.x 
+<a name="l500"><span class="ln">500  </span></a>    &gt;&gt;&gt; pB.vel(N) 
+<a name="l501"><span class="ln">501  </span></a>    Derivative(q(t), t)*N.x 
+<a name="l502"><span class="ln">502  </span></a>    &gt;&gt;&gt; linear_pathway = LinearPathway(pA, pB) 
+<a name="l503"><span class="ln">503  </span></a>    &gt;&gt;&gt; damper = LinearDamper(damping, linear_pathway) 
+<a name="l504"><span class="ln">504  </span></a>    &gt;&gt;&gt; damper 
+<a name="l505"><span class="ln">505  </span></a>    LinearDamper(c, LinearPathway(pA, pB)) 
+<a name="l506"><span class="ln">506  </span></a> 
+<a name="l507"><span class="ln">507  </span></a>    This damper will produce a force that is proportional to both its damping 
+<a name="l508"><span class="ln">508  </span></a>    coefficient and the pathway's extension length. Note that this force is 
+<a name="l509"><span class="ln">509  </span></a>    negative as SymPy's sign convention for actuators is that negative forces 
+<a name="l510"><span class="ln">510  </span></a>    are contractile and the damping force of the damper will oppose the 
+<a name="l511"><span class="ln">511  </span></a>    direction of length change. 
+<a name="l512"><span class="ln">512  </span></a> 
+<a name="l513"><span class="ln">513  </span></a>    &gt;&gt;&gt; damper.force 
+<a name="l514"><span class="ln">514  </span></a>    -c*sqrt(q(t)**2)*Derivative(q(t), t)/q(t) 
+<a name="l515"><span class="ln">515  </span></a> 
+<a name="l516"><span class="ln">516  </span></a>    Parameters 
+<a name="l517"><span class="ln">517  </span></a>    ========== 
+<a name="l518"><span class="ln">518  </span></a> 
+<a name="l519"><span class="ln">519  </span></a>    damping : Expr 
+<a name="l520"><span class="ln">520  </span></a>        The damping constant. 
+<a name="l521"><span class="ln">521  </span></a>    pathway : PathwayBase 
+<a name="l522"><span class="ln">522  </span></a>        The pathway that the actuator follows. This must be an instance of a 
+<a name="l523"><span class="ln">523  </span></a>        concrete subclass of ``PathwayBase``, e.g. ``LinearPathway``. 
+<a name="l524"><span class="ln">524  </span></a> 
+<a name="l525"><span class="ln">525  </span></a>    See Also 
+<a name="l526"><span class="ln">526  </span></a>    ======== 
+<a name="l527"><span class="ln">527  </span></a> 
+<a name="l528"><span class="ln">528  </span></a>    ForceActuator: force-producing actuator (superclass of ``LinearDamper``). 
+<a name="l529"><span class="ln">529  </span></a>    LinearPathway: straight-line pathway between a pair of points. 
+<a name="l530"><span class="ln">530  </span></a> 
+<a name="l531"><span class="ln">531  </span></a>    &quot;&quot;&quot;</span>
+<a name="l532"><span class="ln">532  </span></a>
+<a name="l533"><span class="ln">533  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">damping</span><span class="s3">, </span><span class="s1">pathway</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l534"><span class="ln">534  </span></a>        <span class="s0">&quot;&quot;&quot;Initializer for ``LinearDamper``. 
+<a name="l535"><span class="ln">535  </span></a> 
+<a name="l536"><span class="ln">536  </span></a>        Parameters 
+<a name="l537"><span class="ln">537  </span></a>        ========== 
+<a name="l538"><span class="ln">538  </span></a> 
+<a name="l539"><span class="ln">539  </span></a>        damping : Expr 
+<a name="l540"><span class="ln">540  </span></a>            The damping constant. 
+<a name="l541"><span class="ln">541  </span></a>        pathway : PathwayBase 
+<a name="l542"><span class="ln">542  </span></a>            The pathway that the actuator follows. This must be an instance of 
+<a name="l543"><span class="ln">543  </span></a>            a concrete subclass of ``PathwayBase``, e.g. ``LinearPathway``. 
+<a name="l544"><span class="ln">544  </span></a> 
+<a name="l545"><span class="ln">545  </span></a>        &quot;&quot;&quot;</span>
+<a name="l546"><span class="ln">546  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">damping </span><span class="s2">= </span><span class="s1">damping</span>
+<a name="l547"><span class="ln">547  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">pathway </span><span class="s2">= </span><span class="s1">pathway</span>
+<a name="l548"><span class="ln">548  </span></a>
+<a name="l549"><span class="ln">549  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l550"><span class="ln">550  </span></a>    <span class="s2">def </span><span class="s1">force</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l551"><span class="ln">551  </span></a>        <span class="s0">&quot;&quot;&quot;The damping force produced by the linear damper.&quot;&quot;&quot;</span>
+<a name="l552"><span class="ln">552  </span></a>        <span class="s2">return -</span><span class="s1">self</span><span class="s3">.</span><span class="s1">damping</span><span class="s2">*</span><span class="s1">self</span><span class="s3">.</span><span class="s1">pathway</span><span class="s3">.</span><span class="s1">extension_velocity</span>
+<a name="l553"><span class="ln">553  </span></a>
+<a name="l554"><span class="ln">554  </span></a>    <span class="s2">@</span><span class="s1">force</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l555"><span class="ln">555  </span></a>    <span class="s2">def </span><span class="s1">force</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">force</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l556"><span class="ln">556  </span></a>        <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s4">'Can\'t set computed attribute `force`.'</span><span class="s3">)</span>
+<a name="l557"><span class="ln">557  </span></a>
+<a name="l558"><span class="ln">558  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l559"><span class="ln">559  </span></a>    <span class="s2">def </span><span class="s1">damping</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l560"><span class="ln">560  </span></a>        <span class="s0">&quot;&quot;&quot;The damping constant for the linear damper.&quot;&quot;&quot;</span>
+<a name="l561"><span class="ln">561  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_damping</span>
+<a name="l562"><span class="ln">562  </span></a>
+<a name="l563"><span class="ln">563  </span></a>    <span class="s2">@</span><span class="s1">damping</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l564"><span class="ln">564  </span></a>    <span class="s2">def </span><span class="s1">damping</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">damping</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l565"><span class="ln">565  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_damping'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l566"><span class="ln">566  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l567"><span class="ln">567  </span></a>                <span class="s4">f'Can\'t set attribute `damping` to {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">damping</span><span class="s3">)</span><span class="s4">} as it is '</span>
+<a name="l568"><span class="ln">568  </span></a>                <span class="s4">f'immutable.'</span>
+<a name="l569"><span class="ln">569  </span></a>            <span class="s3">)</span>
+<a name="l570"><span class="ln">570  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l571"><span class="ln">571  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_damping </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">damping</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l572"><span class="ln">572  </span></a>
+<a name="l573"><span class="ln">573  </span></a>    <span class="s2">def </span><span class="s1">__repr__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l574"><span class="ln">574  </span></a>        <span class="s0">&quot;&quot;&quot;Representation of a ``LinearDamper``.&quot;&quot;&quot;</span>
+<a name="l575"><span class="ln">575  </span></a>        <span class="s2">return </span><span class="s4">f'{</span><span class="s1">self</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">.</span><span class="s1">__name__</span><span class="s4">}({</span><span class="s1">self</span><span class="s3">.</span><span class="s1">damping</span><span class="s4">}, {</span><span class="s1">self</span><span class="s3">.</span><span class="s1">pathway</span><span class="s4">})'</span>
+<a name="l576"><span class="ln">576  </span></a>
+<a name="l577"><span class="ln">577  </span></a>
+<a name="l578"><span class="ln">578  </span></a><span class="s2">class </span><span class="s1">TorqueActuator</span><span class="s3">(</span><span class="s1">ActuatorBase</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l579"><span class="ln">579  </span></a>    <span class="s0">&quot;&quot;&quot;Torque-producing actuator. 
+<a name="l580"><span class="ln">580  </span></a> 
+<a name="l581"><span class="ln">581  </span></a>    Explanation 
+<a name="l582"><span class="ln">582  </span></a>    =========== 
+<a name="l583"><span class="ln">583  </span></a> 
+<a name="l584"><span class="ln">584  </span></a>    A ``TorqueActuator`` is an actuator that produces a pair of equal and 
+<a name="l585"><span class="ln">585  </span></a>    opposite torques on a pair of bodies. 
+<a name="l586"><span class="ln">586  </span></a> 
+<a name="l587"><span class="ln">587  </span></a>    Examples 
+<a name="l588"><span class="ln">588  </span></a>    ======== 
+<a name="l589"><span class="ln">589  </span></a> 
+<a name="l590"><span class="ln">590  </span></a>    To construct a torque actuator, an expression (or symbol) must be supplied 
+<a name="l591"><span class="ln">591  </span></a>    to represent the torque it can produce, alongside a vector specifying the 
+<a name="l592"><span class="ln">592  </span></a>    axis about which the torque will act, and a pair of frames on which the 
+<a name="l593"><span class="ln">593  </span></a>    torque will act. 
+<a name="l594"><span class="ln">594  </span></a> 
+<a name="l595"><span class="ln">595  </span></a>    &gt;&gt;&gt; from sympy import symbols 
+<a name="l596"><span class="ln">596  </span></a>    &gt;&gt;&gt; from sympy.physics.mechanics import (ReferenceFrame, RigidBody, 
+<a name="l597"><span class="ln">597  </span></a>    ...     TorqueActuator) 
+<a name="l598"><span class="ln">598  </span></a>    &gt;&gt;&gt; N = ReferenceFrame('N') 
+<a name="l599"><span class="ln">599  </span></a>    &gt;&gt;&gt; A = ReferenceFrame('A') 
+<a name="l600"><span class="ln">600  </span></a>    &gt;&gt;&gt; torque = symbols('T') 
+<a name="l601"><span class="ln">601  </span></a>    &gt;&gt;&gt; axis = N.z 
+<a name="l602"><span class="ln">602  </span></a>    &gt;&gt;&gt; parent = RigidBody('parent', frame=N) 
+<a name="l603"><span class="ln">603  </span></a>    &gt;&gt;&gt; child = RigidBody('child', frame=A) 
+<a name="l604"><span class="ln">604  </span></a>    &gt;&gt;&gt; bodies = (child, parent) 
+<a name="l605"><span class="ln">605  </span></a>    &gt;&gt;&gt; actuator = TorqueActuator(torque, axis, *bodies) 
+<a name="l606"><span class="ln">606  </span></a>    &gt;&gt;&gt; actuator 
+<a name="l607"><span class="ln">607  </span></a>    TorqueActuator(T, axis=N.z, target_frame=A, reaction_frame=N) 
+<a name="l608"><span class="ln">608  </span></a> 
+<a name="l609"><span class="ln">609  </span></a>    Note that because torques actually act on frames, not bodies, 
+<a name="l610"><span class="ln">610  </span></a>    ``TorqueActuator`` will extract the frame associated with a ``RigidBody`` 
+<a name="l611"><span class="ln">611  </span></a>    when one is passed instead of a ``ReferenceFrame``. 
+<a name="l612"><span class="ln">612  </span></a> 
+<a name="l613"><span class="ln">613  </span></a>    Parameters 
+<a name="l614"><span class="ln">614  </span></a>    ========== 
+<a name="l615"><span class="ln">615  </span></a> 
+<a name="l616"><span class="ln">616  </span></a>    torque : Expr 
+<a name="l617"><span class="ln">617  </span></a>        The scalar expression defining the torque that the actuator produces. 
+<a name="l618"><span class="ln">618  </span></a>    axis : Vector 
+<a name="l619"><span class="ln">619  </span></a>        The axis about which the actuator applies torques. 
+<a name="l620"><span class="ln">620  </span></a>    target_frame : ReferenceFrame | RigidBody 
+<a name="l621"><span class="ln">621  </span></a>        The primary frame on which the actuator will apply the torque. 
+<a name="l622"><span class="ln">622  </span></a>    reaction_frame : ReferenceFrame | RigidBody | None 
+<a name="l623"><span class="ln">623  </span></a>        The secondary frame on which the actuator will apply the torque. Note 
+<a name="l624"><span class="ln">624  </span></a>        that the (equal and opposite) reaction torque is applied to this frame. 
+<a name="l625"><span class="ln">625  </span></a> 
+<a name="l626"><span class="ln">626  </span></a>    &quot;&quot;&quot;</span>
+<a name="l627"><span class="ln">627  </span></a>
+<a name="l628"><span class="ln">628  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">torque</span><span class="s3">, </span><span class="s1">axis</span><span class="s3">, </span><span class="s1">target_frame</span><span class="s3">, </span><span class="s1">reaction_frame</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l629"><span class="ln">629  </span></a>        <span class="s0">&quot;&quot;&quot;Initializer for ``TorqueActuator``. 
+<a name="l630"><span class="ln">630  </span></a> 
+<a name="l631"><span class="ln">631  </span></a>        Parameters 
+<a name="l632"><span class="ln">632  </span></a>        ========== 
+<a name="l633"><span class="ln">633  </span></a> 
+<a name="l634"><span class="ln">634  </span></a>        torque : Expr 
+<a name="l635"><span class="ln">635  </span></a>            The scalar expression defining the torque that the actuator 
+<a name="l636"><span class="ln">636  </span></a>            produces. 
+<a name="l637"><span class="ln">637  </span></a>        axis : Vector 
+<a name="l638"><span class="ln">638  </span></a>            The axis about which the actuator applies torques. 
+<a name="l639"><span class="ln">639  </span></a>        target_frame : ReferenceFrame | RigidBody 
+<a name="l640"><span class="ln">640  </span></a>            The primary frame on which the actuator will apply the torque. 
+<a name="l641"><span class="ln">641  </span></a>        reaction_frame : ReferenceFrame | RigidBody | None 
+<a name="l642"><span class="ln">642  </span></a>           The secondary frame on which the actuator will apply the torque. 
+<a name="l643"><span class="ln">643  </span></a>           Note that the (equal and opposite) reaction torque is applied to 
+<a name="l644"><span class="ln">644  </span></a>           this frame. 
+<a name="l645"><span class="ln">645  </span></a> 
+<a name="l646"><span class="ln">646  </span></a>        &quot;&quot;&quot;</span>
+<a name="l647"><span class="ln">647  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">torque </span><span class="s2">= </span><span class="s1">torque</span>
+<a name="l648"><span class="ln">648  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">axis </span><span class="s2">= </span><span class="s1">axis</span>
+<a name="l649"><span class="ln">649  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">target_frame </span><span class="s2">= </span><span class="s1">target_frame</span>
+<a name="l650"><span class="ln">650  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">reaction_frame </span><span class="s2">= </span><span class="s1">reaction_frame</span>
+<a name="l651"><span class="ln">651  </span></a>
+<a name="l652"><span class="ln">652  </span></a>    <span class="s2">@</span><span class="s1">classmethod</span>
+<a name="l653"><span class="ln">653  </span></a>    <span class="s2">def </span><span class="s1">at_pin_joint</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s1">torque</span><span class="s3">, </span><span class="s1">pin_joint</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l654"><span class="ln">654  </span></a>        <span class="s0">&quot;&quot;&quot;Alternate constructor to instantiate from a ``PinJoint`` instance. 
+<a name="l655"><span class="ln">655  </span></a> 
+<a name="l656"><span class="ln">656  </span></a>        Examples 
+<a name="l657"><span class="ln">657  </span></a>        ======== 
+<a name="l658"><span class="ln">658  </span></a> 
+<a name="l659"><span class="ln">659  </span></a>        To create a pin joint the ``PinJoint`` class requires a name, parent 
+<a name="l660"><span class="ln">660  </span></a>        body, and child body to be passed to its constructor. It is also 
+<a name="l661"><span class="ln">661  </span></a>        possible to control the joint axis using the ``joint_axis`` keyword 
+<a name="l662"><span class="ln">662  </span></a>        argument. In this example let's use the parent body's reference frame's 
+<a name="l663"><span class="ln">663  </span></a>        z-axis as the joint axis. 
+<a name="l664"><span class="ln">664  </span></a> 
+<a name="l665"><span class="ln">665  </span></a>        &gt;&gt;&gt; from sympy.physics.mechanics import (PinJoint, ReferenceFrame, 
+<a name="l666"><span class="ln">666  </span></a>        ...     RigidBody, TorqueActuator) 
+<a name="l667"><span class="ln">667  </span></a>        &gt;&gt;&gt; N = ReferenceFrame('N') 
+<a name="l668"><span class="ln">668  </span></a>        &gt;&gt;&gt; A = ReferenceFrame('A') 
+<a name="l669"><span class="ln">669  </span></a>        &gt;&gt;&gt; parent = RigidBody('parent', frame=N) 
+<a name="l670"><span class="ln">670  </span></a>        &gt;&gt;&gt; child = RigidBody('child', frame=A) 
+<a name="l671"><span class="ln">671  </span></a>        &gt;&gt;&gt; pin_joint = PinJoint( 
+<a name="l672"><span class="ln">672  </span></a>        ...     'pin', 
+<a name="l673"><span class="ln">673  </span></a>        ...     parent, 
+<a name="l674"><span class="ln">674  </span></a>        ...     child, 
+<a name="l675"><span class="ln">675  </span></a>        ...     joint_axis=N.z, 
+<a name="l676"><span class="ln">676  </span></a>        ... ) 
+<a name="l677"><span class="ln">677  </span></a> 
+<a name="l678"><span class="ln">678  </span></a>        Let's also create a symbol ``T`` that will represent the torque applied 
+<a name="l679"><span class="ln">679  </span></a>        by the torque actuator. 
+<a name="l680"><span class="ln">680  </span></a> 
+<a name="l681"><span class="ln">681  </span></a>        &gt;&gt;&gt; from sympy import symbols 
+<a name="l682"><span class="ln">682  </span></a>        &gt;&gt;&gt; torque = symbols('T') 
+<a name="l683"><span class="ln">683  </span></a> 
+<a name="l684"><span class="ln">684  </span></a>        To create the torque actuator from the ``torque`` and ``pin_joint`` 
+<a name="l685"><span class="ln">685  </span></a>        variables previously instantiated, these can be passed to the alternate 
+<a name="l686"><span class="ln">686  </span></a>        constructor class method ``at_pin_joint`` of the ``TorqueActuator`` 
+<a name="l687"><span class="ln">687  </span></a>        class. It should be noted that a positive torque will cause a positive 
+<a name="l688"><span class="ln">688  </span></a>        displacement of the joint coordinate or that the torque is applied on 
+<a name="l689"><span class="ln">689  </span></a>        the child body with a reaction torque on the parent. 
+<a name="l690"><span class="ln">690  </span></a> 
+<a name="l691"><span class="ln">691  </span></a>        &gt;&gt;&gt; actuator = TorqueActuator.at_pin_joint(torque, pin_joint) 
+<a name="l692"><span class="ln">692  </span></a>        &gt;&gt;&gt; actuator 
+<a name="l693"><span class="ln">693  </span></a>        TorqueActuator(T, axis=N.z, target_frame=A, reaction_frame=N) 
+<a name="l694"><span class="ln">694  </span></a> 
+<a name="l695"><span class="ln">695  </span></a>        Parameters 
+<a name="l696"><span class="ln">696  </span></a>        ========== 
+<a name="l697"><span class="ln">697  </span></a> 
+<a name="l698"><span class="ln">698  </span></a>        torque : Expr 
+<a name="l699"><span class="ln">699  </span></a>            The scalar expression defining the torque that the actuator 
+<a name="l700"><span class="ln">700  </span></a>            produces. 
+<a name="l701"><span class="ln">701  </span></a>        pin_joint : PinJoint 
+<a name="l702"><span class="ln">702  </span></a>            The pin joint, and by association the parent and child bodies, on 
+<a name="l703"><span class="ln">703  </span></a>            which the torque actuator will act. The pair of bodies acted upon 
+<a name="l704"><span class="ln">704  </span></a>            by the torque actuator are the parent and child bodies of the pin 
+<a name="l705"><span class="ln">705  </span></a>            joint, with the child acting as the reaction body. The pin joint's 
+<a name="l706"><span class="ln">706  </span></a>            axis is used as the axis about which the torque actuator will apply 
+<a name="l707"><span class="ln">707  </span></a>            its torque. 
+<a name="l708"><span class="ln">708  </span></a> 
+<a name="l709"><span class="ln">709  </span></a>        &quot;&quot;&quot;</span>
+<a name="l710"><span class="ln">710  </span></a>        <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">pin_joint</span><span class="s3">, </span><span class="s1">PinJoint</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l711"><span class="ln">711  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l712"><span class="ln">712  </span></a>                <span class="s4">f'Value {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">pin_joint</span><span class="s3">)</span><span class="s4">} passed to `pin_joint` was of type '</span>
+<a name="l713"><span class="ln">713  </span></a>                <span class="s4">f'{</span><span class="s1">type</span><span class="s3">(</span><span class="s1">pin_joint</span><span class="s3">)</span><span class="s4">}, must be {</span><span class="s1">PinJoint</span><span class="s4">}.'</span>
+<a name="l714"><span class="ln">714  </span></a>            <span class="s3">)</span>
+<a name="l715"><span class="ln">715  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l716"><span class="ln">716  </span></a>        <span class="s2">return </span><span class="s1">cls</span><span class="s3">(</span>
+<a name="l717"><span class="ln">717  </span></a>            <span class="s1">torque</span><span class="s3">,</span>
+<a name="l718"><span class="ln">718  </span></a>            <span class="s1">pin_joint</span><span class="s3">.</span><span class="s1">joint_axis</span><span class="s3">,</span>
+<a name="l719"><span class="ln">719  </span></a>            <span class="s1">pin_joint</span><span class="s3">.</span><span class="s1">child_interframe</span><span class="s3">,</span>
+<a name="l720"><span class="ln">720  </span></a>            <span class="s1">pin_joint</span><span class="s3">.</span><span class="s1">parent_interframe</span><span class="s3">,</span>
+<a name="l721"><span class="ln">721  </span></a>        <span class="s3">)</span>
+<a name="l722"><span class="ln">722  </span></a>
+<a name="l723"><span class="ln">723  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l724"><span class="ln">724  </span></a>    <span class="s2">def </span><span class="s1">torque</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l725"><span class="ln">725  </span></a>        <span class="s0">&quot;&quot;&quot;The magnitude of the torque produced by the actuator.&quot;&quot;&quot;</span>
+<a name="l726"><span class="ln">726  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_torque</span>
+<a name="l727"><span class="ln">727  </span></a>
+<a name="l728"><span class="ln">728  </span></a>    <span class="s2">@</span><span class="s1">torque</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l729"><span class="ln">729  </span></a>    <span class="s2">def </span><span class="s1">torque</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">torque</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l730"><span class="ln">730  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_torque'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l731"><span class="ln">731  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l732"><span class="ln">732  </span></a>                <span class="s4">f'Can\'t set attribute `torque` to {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">torque</span><span class="s3">)</span><span class="s4">} as it is '</span>
+<a name="l733"><span class="ln">733  </span></a>                <span class="s4">f'immutable.'</span>
+<a name="l734"><span class="ln">734  </span></a>            <span class="s3">)</span>
+<a name="l735"><span class="ln">735  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l736"><span class="ln">736  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_torque </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">torque</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l737"><span class="ln">737  </span></a>
+<a name="l738"><span class="ln">738  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l739"><span class="ln">739  </span></a>    <span class="s2">def </span><span class="s1">axis</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l740"><span class="ln">740  </span></a>        <span class="s0">&quot;&quot;&quot;The axis about which the torque acts.&quot;&quot;&quot;</span>
+<a name="l741"><span class="ln">741  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_axis</span>
+<a name="l742"><span class="ln">742  </span></a>
+<a name="l743"><span class="ln">743  </span></a>    <span class="s2">@</span><span class="s1">axis</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l744"><span class="ln">744  </span></a>    <span class="s2">def </span><span class="s1">axis</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">axis</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l745"><span class="ln">745  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_axis'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l746"><span class="ln">746  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l747"><span class="ln">747  </span></a>                <span class="s4">f'Can\'t set attribute `axis` to {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">axis</span><span class="s3">)</span><span class="s4">} as it is '</span>
+<a name="l748"><span class="ln">748  </span></a>                <span class="s4">f'immutable.'</span>
+<a name="l749"><span class="ln">749  </span></a>            <span class="s3">)</span>
+<a name="l750"><span class="ln">750  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l751"><span class="ln">751  </span></a>        <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">axis</span><span class="s3">, </span><span class="s1">Vector</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l752"><span class="ln">752  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l753"><span class="ln">753  </span></a>                <span class="s4">f'Value {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">axis</span><span class="s3">)</span><span class="s4">} passed to `axis` was of type '</span>
+<a name="l754"><span class="ln">754  </span></a>                <span class="s4">f'{</span><span class="s1">type</span><span class="s3">(</span><span class="s1">axis</span><span class="s3">)</span><span class="s4">}, must be {</span><span class="s1">Vector</span><span class="s4">}.'</span>
+<a name="l755"><span class="ln">755  </span></a>            <span class="s3">)</span>
+<a name="l756"><span class="ln">756  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l757"><span class="ln">757  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_axis </span><span class="s2">= </span><span class="s1">axis</span>
+<a name="l758"><span class="ln">758  </span></a>
+<a name="l759"><span class="ln">759  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l760"><span class="ln">760  </span></a>    <span class="s2">def </span><span class="s1">target_frame</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l761"><span class="ln">761  </span></a>        <span class="s0">&quot;&quot;&quot;The primary reference frames on which the torque will act.&quot;&quot;&quot;</span>
+<a name="l762"><span class="ln">762  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_target_frame</span>
+<a name="l763"><span class="ln">763  </span></a>
+<a name="l764"><span class="ln">764  </span></a>    <span class="s2">@</span><span class="s1">target_frame</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l765"><span class="ln">765  </span></a>    <span class="s2">def </span><span class="s1">target_frame</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">target_frame</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l766"><span class="ln">766  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_target_frame'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l767"><span class="ln">767  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l768"><span class="ln">768  </span></a>                <span class="s4">f'Can\'t set attribute `target_frame` to {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">target_frame</span><span class="s3">)</span><span class="s4">} '</span>
+<a name="l769"><span class="ln">769  </span></a>                <span class="s4">f'as it is immutable.'</span>
+<a name="l770"><span class="ln">770  </span></a>            <span class="s3">)</span>
+<a name="l771"><span class="ln">771  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l772"><span class="ln">772  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">target_frame</span><span class="s3">, </span><span class="s1">RigidBody</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l773"><span class="ln">773  </span></a>            <span class="s1">target_frame </span><span class="s2">= </span><span class="s1">target_frame</span><span class="s3">.</span><span class="s1">frame</span>
+<a name="l774"><span class="ln">774  </span></a>        <span class="s2">elif not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">target_frame</span><span class="s3">, </span><span class="s1">ReferenceFrame</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l775"><span class="ln">775  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l776"><span class="ln">776  </span></a>                <span class="s4">f'Value {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">target_frame</span><span class="s3">)</span><span class="s4">} passed to `target_frame` was of '</span>
+<a name="l777"><span class="ln">777  </span></a>                <span class="s4">f'type {</span><span class="s1">type</span><span class="s3">(</span><span class="s1">target_frame</span><span class="s3">)</span><span class="s4">}, must be {</span><span class="s1">ReferenceFrame</span><span class="s4">}.'</span>
+<a name="l778"><span class="ln">778  </span></a>            <span class="s3">)</span>
+<a name="l779"><span class="ln">779  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l780"><span class="ln">780  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_target_frame </span><span class="s2">= </span><span class="s1">target_frame</span>
+<a name="l781"><span class="ln">781  </span></a>
+<a name="l782"><span class="ln">782  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l783"><span class="ln">783  </span></a>    <span class="s2">def </span><span class="s1">reaction_frame</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l784"><span class="ln">784  </span></a>        <span class="s0">&quot;&quot;&quot;The primary reference frames on which the torque will act.&quot;&quot;&quot;</span>
+<a name="l785"><span class="ln">785  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_reaction_frame</span>
+<a name="l786"><span class="ln">786  </span></a>
+<a name="l787"><span class="ln">787  </span></a>    <span class="s2">@</span><span class="s1">reaction_frame</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l788"><span class="ln">788  </span></a>    <span class="s2">def </span><span class="s1">reaction_frame</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">reaction_frame</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l789"><span class="ln">789  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_reaction_frame'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l790"><span class="ln">790  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l791"><span class="ln">791  </span></a>                <span class="s4">f'Can\'t set attribute `reaction_frame` to '</span>
+<a name="l792"><span class="ln">792  </span></a>                <span class="s4">f'{</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">reaction_frame</span><span class="s3">)</span><span class="s4">} as it is immutable.'</span>
+<a name="l793"><span class="ln">793  </span></a>            <span class="s3">)</span>
+<a name="l794"><span class="ln">794  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l795"><span class="ln">795  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">reaction_frame</span><span class="s3">, </span><span class="s1">RigidBody</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l796"><span class="ln">796  </span></a>            <span class="s1">reaction_frame </span><span class="s2">= </span><span class="s1">reaction_frame</span><span class="s3">.</span><span class="s1">frame</span>
+<a name="l797"><span class="ln">797  </span></a>        <span class="s2">elif </span><span class="s3">(</span>
+<a name="l798"><span class="ln">798  </span></a>            <span class="s2">not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">reaction_frame</span><span class="s3">, </span><span class="s1">ReferenceFrame</span><span class="s3">)</span>
+<a name="l799"><span class="ln">799  </span></a>            <span class="s2">and </span><span class="s1">reaction_frame </span><span class="s2">is not None</span>
+<a name="l800"><span class="ln">800  </span></a>        <span class="s3">)</span><span class="s2">:</span>
+<a name="l801"><span class="ln">801  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l802"><span class="ln">802  </span></a>                <span class="s4">f'Value {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">reaction_frame</span><span class="s3">)</span><span class="s4">} passed to `reaction_frame` was '</span>
+<a name="l803"><span class="ln">803  </span></a>                <span class="s4">f'of type {</span><span class="s1">type</span><span class="s3">(</span><span class="s1">reaction_frame</span><span class="s3">)</span><span class="s4">}, must be {</span><span class="s1">ReferenceFrame</span><span class="s4">}.'</span>
+<a name="l804"><span class="ln">804  </span></a>            <span class="s3">)</span>
+<a name="l805"><span class="ln">805  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l806"><span class="ln">806  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_reaction_frame </span><span class="s2">= </span><span class="s1">reaction_frame</span>
+<a name="l807"><span class="ln">807  </span></a>
+<a name="l808"><span class="ln">808  </span></a>    <span class="s2">def </span><span class="s1">to_loads</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l809"><span class="ln">809  </span></a>        <span class="s0">&quot;&quot;&quot;Loads required by the equations of motion method classes. 
+<a name="l810"><span class="ln">810  </span></a> 
+<a name="l811"><span class="ln">811  </span></a>        Explanation 
+<a name="l812"><span class="ln">812  </span></a>        =========== 
+<a name="l813"><span class="ln">813  </span></a> 
+<a name="l814"><span class="ln">814  </span></a>        ``KanesMethod`` requires a list of ``Point``-``Vector`` tuples to be 
+<a name="l815"><span class="ln">815  </span></a>        passed to the ``loads`` parameters of its ``kanes_equations`` method 
+<a name="l816"><span class="ln">816  </span></a>        when constructing the equations of motion. This method acts as a 
+<a name="l817"><span class="ln">817  </span></a>        utility to produce the correctly-structred pairs of points and vectors 
+<a name="l818"><span class="ln">818  </span></a>        required so that these can be easily concatenated with other items in 
+<a name="l819"><span class="ln">819  </span></a>        the list of loads and passed to ``KanesMethod.kanes_equations``. These 
+<a name="l820"><span class="ln">820  </span></a>        loads are also in the correct form to also be passed to the other 
+<a name="l821"><span class="ln">821  </span></a>        equations of motion method classes, e.g. ``LagrangesMethod``. 
+<a name="l822"><span class="ln">822  </span></a> 
+<a name="l823"><span class="ln">823  </span></a>        Examples 
+<a name="l824"><span class="ln">824  </span></a>        ======== 
+<a name="l825"><span class="ln">825  </span></a> 
+<a name="l826"><span class="ln">826  </span></a>        The below example shows how to generate the loads produced by a torque 
+<a name="l827"><span class="ln">827  </span></a>        actuator that acts on a pair of bodies attached by a pin joint. 
+<a name="l828"><span class="ln">828  </span></a> 
+<a name="l829"><span class="ln">829  </span></a>        &gt;&gt;&gt; from sympy import symbols 
+<a name="l830"><span class="ln">830  </span></a>        &gt;&gt;&gt; from sympy.physics.mechanics import (PinJoint, ReferenceFrame, 
+<a name="l831"><span class="ln">831  </span></a>        ...     RigidBody, TorqueActuator) 
+<a name="l832"><span class="ln">832  </span></a>        &gt;&gt;&gt; torque = symbols('T') 
+<a name="l833"><span class="ln">833  </span></a>        &gt;&gt;&gt; N = ReferenceFrame('N') 
+<a name="l834"><span class="ln">834  </span></a>        &gt;&gt;&gt; A = ReferenceFrame('A') 
+<a name="l835"><span class="ln">835  </span></a>        &gt;&gt;&gt; parent = RigidBody('parent', frame=N) 
+<a name="l836"><span class="ln">836  </span></a>        &gt;&gt;&gt; child = RigidBody('child', frame=A) 
+<a name="l837"><span class="ln">837  </span></a>        &gt;&gt;&gt; pin_joint = PinJoint( 
+<a name="l838"><span class="ln">838  </span></a>        ...     'pin', 
+<a name="l839"><span class="ln">839  </span></a>        ...     parent, 
+<a name="l840"><span class="ln">840  </span></a>        ...     child, 
+<a name="l841"><span class="ln">841  </span></a>        ...     joint_axis=N.z, 
+<a name="l842"><span class="ln">842  </span></a>        ... ) 
+<a name="l843"><span class="ln">843  </span></a>        &gt;&gt;&gt; actuator = TorqueActuator.at_pin_joint(torque, pin_joint) 
+<a name="l844"><span class="ln">844  </span></a> 
+<a name="l845"><span class="ln">845  </span></a>        The forces produces by the damper can be generated by calling the 
+<a name="l846"><span class="ln">846  </span></a>        ``to_loads`` method. 
+<a name="l847"><span class="ln">847  </span></a> 
+<a name="l848"><span class="ln">848  </span></a>        &gt;&gt;&gt; actuator.to_loads() 
+<a name="l849"><span class="ln">849  </span></a>        [(A, T*N.z), (N, - T*N.z)] 
+<a name="l850"><span class="ln">850  </span></a> 
+<a name="l851"><span class="ln">851  </span></a>        Alternatively, if a torque actuator is created without a reaction frame 
+<a name="l852"><span class="ln">852  </span></a>        then the loads returned by the ``to_loads`` method will contain just 
+<a name="l853"><span class="ln">853  </span></a>        the single load acting on the target frame. 
+<a name="l854"><span class="ln">854  </span></a> 
+<a name="l855"><span class="ln">855  </span></a>        &gt;&gt;&gt; actuator = TorqueActuator(torque, N.z, N) 
+<a name="l856"><span class="ln">856  </span></a>        &gt;&gt;&gt; actuator.to_loads() 
+<a name="l857"><span class="ln">857  </span></a>        [(N, T*N.z)] 
+<a name="l858"><span class="ln">858  </span></a> 
+<a name="l859"><span class="ln">859  </span></a>        &quot;&quot;&quot;</span>
+<a name="l860"><span class="ln">860  </span></a>        <span class="s1">loads </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l861"><span class="ln">861  </span></a>            <span class="s1">Torque</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">target_frame</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">torque</span><span class="s2">*</span><span class="s1">self</span><span class="s3">.</span><span class="s1">axis</span><span class="s3">),</span>
+<a name="l862"><span class="ln">862  </span></a>        <span class="s3">]</span>
+<a name="l863"><span class="ln">863  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">reaction_frame </span><span class="s2">is not None:</span>
+<a name="l864"><span class="ln">864  </span></a>            <span class="s1">loads</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">Torque</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">reaction_frame</span><span class="s3">, </span><span class="s2">-</span><span class="s1">self</span><span class="s3">.</span><span class="s1">torque</span><span class="s2">*</span><span class="s1">self</span><span class="s3">.</span><span class="s1">axis</span><span class="s3">))</span>
+<a name="l865"><span class="ln">865  </span></a>        <span class="s2">return </span><span class="s1">loads</span>
+<a name="l866"><span class="ln">866  </span></a>
+<a name="l867"><span class="ln">867  </span></a>    <span class="s2">def </span><span class="s1">__repr__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l868"><span class="ln">868  </span></a>        <span class="s0">&quot;&quot;&quot;Representation of a ``TorqueActuator``.&quot;&quot;&quot;</span>
+<a name="l869"><span class="ln">869  </span></a>        <span class="s1">string </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l870"><span class="ln">870  </span></a>            <span class="s4">f'{</span><span class="s1">self</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">.</span><span class="s1">__name__</span><span class="s4">}({</span><span class="s1">self</span><span class="s3">.</span><span class="s1">torque</span><span class="s4">}, axis={</span><span class="s1">self</span><span class="s3">.</span><span class="s1">axis</span><span class="s4">}, '</span>
+<a name="l871"><span class="ln">871  </span></a>            <span class="s4">f'target_frame={</span><span class="s1">self</span><span class="s3">.</span><span class="s1">target_frame</span><span class="s4">}'</span>
+<a name="l872"><span class="ln">872  </span></a>        <span class="s3">)</span>
+<a name="l873"><span class="ln">873  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">reaction_frame </span><span class="s2">is not None:</span>
+<a name="l874"><span class="ln">874  </span></a>            <span class="s1">string </span><span class="s2">+= </span><span class="s4">f', reaction_frame={</span><span class="s1">self</span><span class="s3">.</span><span class="s1">reaction_frame</span><span class="s4">})'</span>
+<a name="l875"><span class="ln">875  </span></a>        <span class="s2">else:</span>
+<a name="l876"><span class="ln">876  </span></a>            <span class="s1">string </span><span class="s2">+= </span><span class="s4">')'</span>
+<a name="l877"><span class="ln">877  </span></a>        <span class="s2">return </span><span class="s1">string</span>
+<a name="l878"><span class="ln">878  </span></a>
+<a name="l879"><span class="ln">879  </span></a>
+<a name="l880"><span class="ln">880  </span></a><span class="s2">class </span><span class="s1">DuffingSpring</span><span class="s3">(</span><span class="s1">ForceActuator</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l881"><span class="ln">881  </span></a>    <span class="s0">&quot;&quot;&quot;A nonlinear spring based on the Duffing equation. 
+<a name="l882"><span class="ln">882  </span></a> 
+<a name="l883"><span class="ln">883  </span></a>    Explanation 
+<a name="l884"><span class="ln">884  </span></a>    =========== 
+<a name="l885"><span class="ln">885  </span></a> 
+<a name="l886"><span class="ln">886  </span></a>    Here, ``DuffingSpring`` represents the force exerted by a nonlinear spring based on the Duffing equation: 
+<a name="l887"><span class="ln">887  </span></a>    F = -beta*x-alpha*x**3, where x is the displacement from the equilibrium position, beta is the linear spring constant, 
+<a name="l888"><span class="ln">888  </span></a>    and alpha is the coefficient for the nonlinear cubic term. 
+<a name="l889"><span class="ln">889  </span></a> 
+<a name="l890"><span class="ln">890  </span></a>    Parameters 
+<a name="l891"><span class="ln">891  </span></a>    ========== 
+<a name="l892"><span class="ln">892  </span></a> 
+<a name="l893"><span class="ln">893  </span></a>    linear_stiffness : Expr 
+<a name="l894"><span class="ln">894  </span></a>        The linear stiffness coefficient (beta). 
+<a name="l895"><span class="ln">895  </span></a>    nonlinear_stiffness : Expr 
+<a name="l896"><span class="ln">896  </span></a>        The nonlinear stiffness coefficient (alpha). 
+<a name="l897"><span class="ln">897  </span></a>    pathway : PathwayBase 
+<a name="l898"><span class="ln">898  </span></a>        The pathway that the actuator follows. 
+<a name="l899"><span class="ln">899  </span></a>    equilibrium_length : Expr, optional 
+<a name="l900"><span class="ln">900  </span></a>        The length at which the spring is in equilibrium (x). 
+<a name="l901"><span class="ln">901  </span></a>    &quot;&quot;&quot;</span>
+<a name="l902"><span class="ln">902  </span></a>
+<a name="l903"><span class="ln">903  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">linear_stiffness</span><span class="s3">, </span><span class="s1">nonlinear_stiffness</span><span class="s3">, </span><span class="s1">pathway</span><span class="s3">, </span><span class="s1">equilibrium_length</span><span class="s2">=</span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l904"><span class="ln">904  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">linear_stiffness </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">linear_stiffness</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l905"><span class="ln">905  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">nonlinear_stiffness </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">nonlinear_stiffness</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l906"><span class="ln">906  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">equilibrium_length </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">equilibrium_length</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l907"><span class="ln">907  </span></a>
+<a name="l908"><span class="ln">908  </span></a>        <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">pathway</span><span class="s3">, </span><span class="s1">PathwayBase</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l909"><span class="ln">909  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">&quot;pathway must be an instance of PathwayBase.&quot;</span><span class="s3">)</span>
+<a name="l910"><span class="ln">910  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_pathway </span><span class="s2">= </span><span class="s1">pathway</span>
+<a name="l911"><span class="ln">911  </span></a>
+<a name="l912"><span class="ln">912  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l913"><span class="ln">913  </span></a>    <span class="s2">def </span><span class="s1">linear_stiffness</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l914"><span class="ln">914  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_linear_stiffness</span>
+<a name="l915"><span class="ln">915  </span></a>
+<a name="l916"><span class="ln">916  </span></a>    <span class="s2">@</span><span class="s1">linear_stiffness</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l917"><span class="ln">917  </span></a>    <span class="s2">def </span><span class="s1">linear_stiffness</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">linear_stiffness</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l918"><span class="ln">918  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_linear_stiffness'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l919"><span class="ln">919  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l920"><span class="ln">920  </span></a>                <span class="s4">f'Can\'t set attribute `linear_stiffness` to '</span>
+<a name="l921"><span class="ln">921  </span></a>                <span class="s4">f'{</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">linear_stiffness</span><span class="s3">)</span><span class="s4">} as it is immutable.'</span>
+<a name="l922"><span class="ln">922  </span></a>            <span class="s3">)</span>
+<a name="l923"><span class="ln">923  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l924"><span class="ln">924  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_linear_stiffness </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">linear_stiffness</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l925"><span class="ln">925  </span></a>
+<a name="l926"><span class="ln">926  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l927"><span class="ln">927  </span></a>    <span class="s2">def </span><span class="s1">nonlinear_stiffness</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l928"><span class="ln">928  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_nonlinear_stiffness</span>
+<a name="l929"><span class="ln">929  </span></a>
+<a name="l930"><span class="ln">930  </span></a>    <span class="s2">@</span><span class="s1">nonlinear_stiffness</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l931"><span class="ln">931  </span></a>    <span class="s2">def </span><span class="s1">nonlinear_stiffness</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">nonlinear_stiffness</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l932"><span class="ln">932  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_nonlinear_stiffness'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l933"><span class="ln">933  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l934"><span class="ln">934  </span></a>                <span class="s4">f'Can\'t set attribute `nonlinear_stiffness` to '</span>
+<a name="l935"><span class="ln">935  </span></a>                <span class="s4">f'{</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">nonlinear_stiffness</span><span class="s3">)</span><span class="s4">} as it is immutable.'</span>
+<a name="l936"><span class="ln">936  </span></a>            <span class="s3">)</span>
+<a name="l937"><span class="ln">937  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l938"><span class="ln">938  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_nonlinear_stiffness </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">nonlinear_stiffness</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l939"><span class="ln">939  </span></a>
+<a name="l940"><span class="ln">940  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l941"><span class="ln">941  </span></a>    <span class="s2">def </span><span class="s1">pathway</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l942"><span class="ln">942  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_pathway</span>
+<a name="l943"><span class="ln">943  </span></a>
+<a name="l944"><span class="ln">944  </span></a>    <span class="s2">@</span><span class="s1">pathway</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l945"><span class="ln">945  </span></a>    <span class="s2">def </span><span class="s1">pathway</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">pathway</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l946"><span class="ln">946  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_pathway'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l947"><span class="ln">947  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l948"><span class="ln">948  </span></a>                <span class="s4">f'Can\'t set attribute `pathway` to {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">pathway</span><span class="s3">)</span><span class="s4">} as it is '</span>
+<a name="l949"><span class="ln">949  </span></a>                <span class="s4">f'immutable.'</span>
+<a name="l950"><span class="ln">950  </span></a>            <span class="s3">)</span>
+<a name="l951"><span class="ln">951  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l952"><span class="ln">952  </span></a>        <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">pathway</span><span class="s3">, </span><span class="s1">PathwayBase</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l953"><span class="ln">953  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l954"><span class="ln">954  </span></a>                <span class="s4">f'Value {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">pathway</span><span class="s3">)</span><span class="s4">} passed to `pathway` was of type '</span>
+<a name="l955"><span class="ln">955  </span></a>                <span class="s4">f'{</span><span class="s1">type</span><span class="s3">(</span><span class="s1">pathway</span><span class="s3">)</span><span class="s4">}, must be {</span><span class="s1">PathwayBase</span><span class="s4">}.'</span>
+<a name="l956"><span class="ln">956  </span></a>            <span class="s3">)</span>
+<a name="l957"><span class="ln">957  </span></a>            <span class="s2">raise </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l958"><span class="ln">958  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_pathway </span><span class="s2">= </span><span class="s1">pathway</span>
+<a name="l959"><span class="ln">959  </span></a>
+<a name="l960"><span class="ln">960  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l961"><span class="ln">961  </span></a>    <span class="s2">def </span><span class="s1">equilibrium_length</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l962"><span class="ln">962  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_equilibrium_length</span>
+<a name="l963"><span class="ln">963  </span></a>
+<a name="l964"><span class="ln">964  </span></a>    <span class="s2">@</span><span class="s1">equilibrium_length</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l965"><span class="ln">965  </span></a>    <span class="s2">def </span><span class="s1">equilibrium_length</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">equilibrium_length</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l966"><span class="ln">966  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_equilibrium_length'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l967"><span class="ln">967  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l968"><span class="ln">968  </span></a>                <span class="s4">f'Can\'t set attribute `equilibrium_length` to '</span>
+<a name="l969"><span class="ln">969  </span></a>                <span class="s4">f'{</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">equilibrium_length</span><span class="s3">)</span><span class="s4">} as it is immutable.'</span>
+<a name="l970"><span class="ln">970  </span></a>            <span class="s3">)</span>
+<a name="l971"><span class="ln">971  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l972"><span class="ln">972  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_equilibrium_length </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">equilibrium_length</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l973"><span class="ln">973  </span></a>
+<a name="l974"><span class="ln">974  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l975"><span class="ln">975  </span></a>    <span class="s2">def </span><span class="s1">force</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l976"><span class="ln">976  </span></a>        <span class="s0">&quot;&quot;&quot;The force produced by the Duffing spring.&quot;&quot;&quot;</span>
+<a name="l977"><span class="ln">977  </span></a>        <span class="s1">displacement </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pathway</span><span class="s3">.</span><span class="s1">length </span><span class="s2">- </span><span class="s1">self</span><span class="s3">.</span><span class="s1">equilibrium_length</span>
+<a name="l978"><span class="ln">978  </span></a>        <span class="s2">return -</span><span class="s1">self</span><span class="s3">.</span><span class="s1">linear_stiffness </span><span class="s2">* </span><span class="s1">displacement </span><span class="s2">- </span><span class="s1">self</span><span class="s3">.</span><span class="s1">nonlinear_stiffness </span><span class="s2">* </span><span class="s1">displacement</span><span class="s2">**</span><span class="s5">3</span>
+<a name="l979"><span class="ln">979  </span></a>
+<a name="l980"><span class="ln">980  </span></a>    <span class="s2">@</span><span class="s1">force</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l981"><span class="ln">981  </span></a>    <span class="s2">def </span><span class="s1">force</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">force</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l982"><span class="ln">982  </span></a>        <span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_force'</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l983"><span class="ln">983  </span></a>            <span class="s1">msg </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l984"><span class="ln">984  </span></a>                <span class="s4">f'Can\'t set attribute `force` to {</span><span class="s1">repr</span><span class="s3">(</span><span class="s1">force</span><span class="s3">)</span><span class="s4">} as it is '</span>
+<a name="l985"><span class="ln">985  </span></a>                <span class="s4">f'immutable.'</span>
+<a name="l986"><span class="ln">986  </span></a>            <span class="s3">)</span>
+<a name="l987"><span class="ln">987  </span></a>            <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">)</span>
+<a name="l988"><span class="ln">988  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_force </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">force</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l989"><span class="ln">989  </span></a>
+<a name="l990"><span class="ln">990  </span></a>    <span class="s2">def </span><span class="s1">__repr__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l991"><span class="ln">991  </span></a>        <span class="s2">return </span><span class="s3">(</span><span class="s4">f&quot;{</span><span class="s1">self</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">.</span><span class="s1">__name__</span><span class="s4">}(&quot;</span>
+<a name="l992"><span class="ln">992  </span></a>                <span class="s4">f&quot;{</span><span class="s1">self</span><span class="s3">.</span><span class="s1">linear_stiffness</span><span class="s4">}, {</span><span class="s1">self</span><span class="s3">.</span><span class="s1">nonlinear_stiffness</span><span class="s4">}, {</span><span class="s1">self</span><span class="s3">.</span><span class="s1">pathway</span><span class="s4">}, &quot;</span>
+<a name="l993"><span class="ln">993  </span></a>                <span class="s4">f&quot;equilibrium_length={</span><span class="s1">self</span><span class="s3">.</span><span class="s1">equilibrium_length</span><span class="s4">})&quot;</span><span class="s3">)</span>
+<a name="l994"><span class="ln">994  </span></a>
+<a name="l995"><span class="ln">995  </span></a><span class="s2">class </span><span class="s1">CoulombKineticFriction</span><span class="s3">(</span><span class="s1">ForceActuator</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l996"><span class="ln">996  </span></a>    <span class="s0">r&quot;&quot;&quot;Coulomb kinetic friction with Stribeck and viscous effects. 
+<a name="l997"><span class="ln">997  </span></a> 
+<a name="l998"><span class="ln">998  </span></a>    Explanation 
+<a name="l999"><span class="ln">999  </span></a>    =========== 
+<a name="l1000"><span class="ln">1000 </span></a> 
+<a name="l1001"><span class="ln">1001 </span></a>    This represents a Coulomb kinetic friction with the Stribeck and viscous effect, 
+<a name="l1002"><span class="ln">1002 </span></a>    described by the function: 
+<a name="l1003"><span class="ln">1003 </span></a> 
+<a name="l1004"><span class="ln">1004 </span></a>    .. math:: 
+<a name="l1005"><span class="ln">1005 </span></a>        F = (\mu_k f_n + (\mu_s - \mu_k) f_n e^{-(\frac{v}{v_s})^2}) \text{sign}(v) + \sigma  v 
+<a name="l1006"><span class="ln">1006 </span></a> 
+<a name="l1007"><span class="ln">1007 </span></a>    where :math:`\mu_k` is the coefficient of kinetic friction, :math:`\mu_s` is the 
+<a name="l1008"><span class="ln">1008 </span></a>    coefficient of static friction, :math:`f_n` is the normal force, :math:`v` is the 
+<a name="l1009"><span class="ln">1009 </span></a>    relative velocity, :math:`v_s` is the Stribeck friction coefficient, and 
+<a name="l1010"><span class="ln">1010 </span></a>    :math:`\sigma` is the viscous friction constant. 
+<a name="l1011"><span class="ln">1011 </span></a> 
+<a name="l1012"><span class="ln">1012 </span></a>    The default friction force is :math:`F = \mu_k f_n`. 
+<a name="l1013"><span class="ln">1013 </span></a>    When specified, the actuator includes: 
+<a name="l1014"><span class="ln">1014 </span></a> 
+<a name="l1015"><span class="ln">1015 </span></a>    - Stribeck effect: :math:`(\mu_s - \mu_k) f_n e^{-(\frac{v}{v_s})^2}` 
+<a name="l1016"><span class="ln">1016 </span></a>    - Viscous effect: :math:`\sigma v` 
+<a name="l1017"><span class="ln">1017 </span></a> 
+<a name="l1018"><span class="ln">1018 </span></a>    Notes 
+<a name="l1019"><span class="ln">1019 </span></a>    ===== 
+<a name="l1020"><span class="ln">1020 </span></a> 
+<a name="l1021"><span class="ln">1021 </span></a>    The actuator makes the following assumptions: 
+<a name="l1022"><span class="ln">1022 </span></a> 
+<a name="l1023"><span class="ln">1023 </span></a>    - The actuator assumes relative motion is non-zero. 
+<a name="l1024"><span class="ln">1024 </span></a>    - The normal force is assumed to be a non-negative scalar. 
+<a name="l1025"><span class="ln">1025 </span></a>    - The resultant friction force is opposite to the velocity direction. 
+<a name="l1026"><span class="ln">1026 </span></a>    - Each point in the pathway is fixed within separate objects that are sliding relative to each other. In other words, these two points are fixed in the mutually sliding objects. 
+<a name="l1027"><span class="ln">1027 </span></a> 
+<a name="l1028"><span class="ln">1028 </span></a>    This actuator has been tested for straightforward motions, like a block sliding 
+<a name="l1029"><span class="ln">1029 </span></a>    on a surface. 
+<a name="l1030"><span class="ln">1030 </span></a> 
+<a name="l1031"><span class="ln">1031 </span></a>    The friction force is defined to always oppose the direction of relative velocity :math:`v`. 
+<a name="l1032"><span class="ln">1032 </span></a>    Specifically: 
+<a name="l1033"><span class="ln">1033 </span></a> 
+<a name="l1034"><span class="ln">1034 </span></a>    - The default Coulomb friction force :math:`\mu_k f_n \text{sign}(v)` is opposite to :math:`v`. 
+<a name="l1035"><span class="ln">1035 </span></a>    - The Stribeck effect :math:`(\mu_s - \mu_k) f_n e^{-(\frac{v}{v_s})^2} \text{sign}(v)` is also opposite to :math:`v`. 
+<a name="l1036"><span class="ln">1036 </span></a>    - The viscous friction term :math:`\sigma v` is opposite to :math:`v`. 
+<a name="l1037"><span class="ln">1037 </span></a> 
+<a name="l1038"><span class="ln">1038 </span></a>    Examples 
+<a name="l1039"><span class="ln">1039 </span></a>    ======== 
+<a name="l1040"><span class="ln">1040 </span></a> 
+<a name="l1041"><span class="ln">1041 </span></a>    The below example shows how to generate the loads produced by a Coulomb kinetic 
+<a name="l1042"><span class="ln">1042 </span></a>    friction actuator in a mass-spring system with friction. 
+<a name="l1043"><span class="ln">1043 </span></a> 
+<a name="l1044"><span class="ln">1044 </span></a>    &gt;&gt;&gt; import sympy as sm 
+<a name="l1045"><span class="ln">1045 </span></a>    &gt;&gt;&gt; from sympy.physics.mechanics import (dynamicsymbols, ReferenceFrame, Point, 
+<a name="l1046"><span class="ln">1046 </span></a>    ...     LinearPathway, CoulombKineticFriction, LinearSpring, KanesMethod, Particle) 
+<a name="l1047"><span class="ln">1047 </span></a> 
+<a name="l1048"><span class="ln">1048 </span></a>    &gt;&gt;&gt; x, v = dynamicsymbols('x, v', real=True) 
+<a name="l1049"><span class="ln">1049 </span></a>    &gt;&gt;&gt; m, g, k, mu_k, mu_s, v_s, sigma = sm.symbols('m, g, k, mu_k, mu_s, v_s, sigma') 
+<a name="l1050"><span class="ln">1050 </span></a> 
+<a name="l1051"><span class="ln">1051 </span></a>    &gt;&gt;&gt; N = ReferenceFrame('N') 
+<a name="l1052"><span class="ln">1052 </span></a>    &gt;&gt;&gt; O, P = Point('O'), Point('P') 
+<a name="l1053"><span class="ln">1053 </span></a>    &gt;&gt;&gt; O.set_vel(N, 0) 
+<a name="l1054"><span class="ln">1054 </span></a>    &gt;&gt;&gt; P.set_pos(O, x*N.x) 
+<a name="l1055"><span class="ln">1055 </span></a> 
+<a name="l1056"><span class="ln">1056 </span></a>    &gt;&gt;&gt; pathway = LinearPathway(O, P) 
+<a name="l1057"><span class="ln">1057 </span></a>    &gt;&gt;&gt; friction = CoulombKineticFriction(mu_k, m*g, pathway, v_s=v_s, sigma=sigma, mu_s=mu_k) 
+<a name="l1058"><span class="ln">1058 </span></a>    &gt;&gt;&gt; spring = LinearSpring(k, pathway) 
+<a name="l1059"><span class="ln">1059 </span></a>    &gt;&gt;&gt; block = Particle('block', point=P, mass=m) 
+<a name="l1060"><span class="ln">1060 </span></a> 
+<a name="l1061"><span class="ln">1061 </span></a>    &gt;&gt;&gt; kane = KanesMethod(N, (x,), (v,), kd_eqs=(x.diff() - v,)) 
+<a name="l1062"><span class="ln">1062 </span></a>    &gt;&gt;&gt; friction.to_loads() 
+<a name="l1063"><span class="ln">1063 </span></a>        [(O, (g*m*mu_k*sign(sign(x(t))*Derivative(x(t), t)) + sigma*sign(x(t))*Derivative(x(t), t))*x(t)/Abs(x(t))*N.x), (P, (-g*m*mu_k*sign(sign(x(t))*Derivative(x(t), t)) - sigma*sign(x(t))*Derivative(x(t), t))*x(t)/Abs(x(t))*N.x)] 
+<a name="l1064"><span class="ln">1064 </span></a>    &gt;&gt;&gt; loads = friction.to_loads() + spring.to_loads() 
+<a name="l1065"><span class="ln">1065 </span></a>    &gt;&gt;&gt; fr, frstar = kane.kanes_equations([block], loads) 
+<a name="l1066"><span class="ln">1066 </span></a>    &gt;&gt;&gt; eom = fr + frstar 
+<a name="l1067"><span class="ln">1067 </span></a>    &gt;&gt;&gt; eom 
+<a name="l1068"><span class="ln">1068 </span></a>        Matrix([[-k*x(t) - m*Derivative(v(t), t) + (-g*m*mu_k*sign(v(t)*sign(x(t))) - sigma*v(t)*sign(x(t)))*x(t)/Abs(x(t))]]) 
+<a name="l1069"><span class="ln">1069 </span></a> 
+<a name="l1070"><span class="ln">1070 </span></a>    Parameters 
+<a name="l1071"><span class="ln">1071 </span></a>    ========== 
+<a name="l1072"><span class="ln">1072 </span></a> 
+<a name="l1073"><span class="ln">1073 </span></a>    f_n : sympifiable 
+<a name="l1074"><span class="ln">1074 </span></a>        The normal force between the surfaces. It should always be a non-negative scalar. 
+<a name="l1075"><span class="ln">1075 </span></a>    mu_k : sympifiable 
+<a name="l1076"><span class="ln">1076 </span></a>        The coefficient of kinetic friction. 
+<a name="l1077"><span class="ln">1077 </span></a>    pathway : PathwayBase 
+<a name="l1078"><span class="ln">1078 </span></a>        The pathway that the actuator follows. 
+<a name="l1079"><span class="ln">1079 </span></a>    v_s : sympifiable, optional 
+<a name="l1080"><span class="ln">1080 </span></a>        The Stribeck friction coefficient. 
+<a name="l1081"><span class="ln">1081 </span></a>    sigma : sympifiable, optional 
+<a name="l1082"><span class="ln">1082 </span></a>        The viscous friction coefficient. 
+<a name="l1083"><span class="ln">1083 </span></a>    mu_s : sympifiable, optional 
+<a name="l1084"><span class="ln">1084 </span></a>        The coefficient of static friction. Defaults to mu_k, meaning the Stribeck effect evaluates to 0 by default. 
+<a name="l1085"><span class="ln">1085 </span></a> 
+<a name="l1086"><span class="ln">1086 </span></a>    References 
+<a name="l1087"><span class="ln">1087 </span></a>    ========== 
+<a name="l1088"><span class="ln">1088 </span></a> 
+<a name="l1089"><span class="ln">1089 </span></a>    .. [Moore2022] https://moorepants.github.io/learn-multibody-dynamics/loads.html#friction. 
+<a name="l1090"><span class="ln">1090 </span></a>    .. [Flores2023] Paulo Flores, Jorge Ambrosio, Hamid M. Lankarani, 
+<a name="l1091"><span class="ln">1091 </span></a>            &quot;Contact-impact events with friction in multibody dynamics: Back to basics&quot;, 
+<a name="l1092"><span class="ln">1092 </span></a>            Mechanism and Machine Theory, vol. 184, 2023. https://doi.org/10.1016/j.mechmachtheory.2023.105305. 
+<a name="l1093"><span class="ln">1093 </span></a>    .. [Rogner2017] I. Rogner, &quot;Friction modelling for robotic applications with planar motion&quot;, 
+<a name="l1094"><span class="ln">1094 </span></a>            Chalmers University of Technology, Department of Electrical Engineering, 2017. 
+<a name="l1095"><span class="ln">1095 </span></a> 
+<a name="l1096"><span class="ln">1096 </span></a>    &quot;&quot;&quot;</span>
+<a name="l1097"><span class="ln">1097 </span></a>
+<a name="l1098"><span class="ln">1098 </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">mu_k</span><span class="s3">, </span><span class="s1">f_n</span><span class="s3">, </span><span class="s1">pathway</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">v_s</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">sigma</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">mu_s</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1099"><span class="ln">1099 </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_mu_k </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">mu_k</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">) </span><span class="s2">if </span><span class="s1">mu_k </span><span class="s2">is not None else </span><span class="s5">1</span>
+<a name="l1100"><span class="ln">1100 </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_mu_s </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">mu_s</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">) </span><span class="s2">if </span><span class="s1">mu_s </span><span class="s2">is not None else </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mu_k</span>
+<a name="l1101"><span class="ln">1101 </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_f_n </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">f_n</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l1102"><span class="ln">1102 </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_sigma </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">sigma</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">) </span><span class="s2">if </span><span class="s1">sigma </span><span class="s2">is not None else </span><span class="s5">0</span>
+<a name="l1103"><span class="ln">1103 </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_v_s </span><span class="s2">= </span><span class="s1">sympify</span><span class="s3">(</span><span class="s1">v_s</span><span class="s3">, </span><span class="s1">strict</span><span class="s2">=True</span><span class="s3">) </span><span class="s2">if </span><span class="s1">v_s </span><span class="s2">is not None or </span><span class="s1">v_s </span><span class="s2">== </span><span class="s5">0 </span><span class="s2">else </span><span class="s5">0.01</span>
+<a name="l1104"><span class="ln">1104 </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">pathway </span><span class="s2">= </span><span class="s1">pathway</span>
+<a name="l1105"><span class="ln">1105 </span></a>
+<a name="l1106"><span class="ln">1106 </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l1107"><span class="ln">1107 </span></a>    <span class="s2">def </span><span class="s1">mu_k</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1108"><span class="ln">1108 </span></a>        <span class="s0">&quot;&quot;&quot;The coefficient of kinetic friction.&quot;&quot;&quot;</span>
+<a name="l1109"><span class="ln">1109 </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mu_k</span>
+<a name="l1110"><span class="ln">1110 </span></a>
+<a name="l1111"><span class="ln">1111 </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l1112"><span class="ln">1112 </span></a>    <span class="s2">def </span><span class="s1">mu_s</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1113"><span class="ln">1113 </span></a>        <span class="s0">&quot;&quot;&quot;The coefficient of static friction.&quot;&quot;&quot;</span>
+<a name="l1114"><span class="ln">1114 </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mu_s</span>
+<a name="l1115"><span class="ln">1115 </span></a>
+<a name="l1116"><span class="ln">1116 </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l1117"><span class="ln">1117 </span></a>    <span class="s2">def </span><span class="s1">f_n</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1118"><span class="ln">1118 </span></a>        <span class="s0">&quot;&quot;&quot;The normal force between the surfaces.&quot;&quot;&quot;</span>
+<a name="l1119"><span class="ln">1119 </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_f_n</span>
+<a name="l1120"><span class="ln">1120 </span></a>
+<a name="l1121"><span class="ln">1121 </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l1122"><span class="ln">1122 </span></a>    <span class="s2">def </span><span class="s1">sigma</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1123"><span class="ln">1123 </span></a>        <span class="s0">&quot;&quot;&quot;The viscous friction coefficient.&quot;&quot;&quot;</span>
+<a name="l1124"><span class="ln">1124 </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_sigma</span>
+<a name="l1125"><span class="ln">1125 </span></a>
+<a name="l1126"><span class="ln">1126 </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l1127"><span class="ln">1127 </span></a>    <span class="s2">def </span><span class="s1">v_s</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1128"><span class="ln">1128 </span></a>        <span class="s0">&quot;&quot;&quot;The Stribeck friction coefficient.&quot;&quot;&quot;</span>
+<a name="l1129"><span class="ln">1129 </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_v_s</span>
+<a name="l1130"><span class="ln">1130 </span></a>
+<a name="l1131"><span class="ln">1131 </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l1132"><span class="ln">1132 </span></a>    <span class="s2">def </span><span class="s1">force</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1133"><span class="ln">1133 </span></a>        <span class="s1">v </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pathway</span><span class="s3">.</span><span class="s1">extension_velocity</span>
+<a name="l1134"><span class="ln">1134 </span></a>        <span class="s1">f_c </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">mu_k </span><span class="s2">* </span><span class="s1">self</span><span class="s3">.</span><span class="s1">f_n</span>
+<a name="l1135"><span class="ln">1135 </span></a>        <span class="s1">f_max </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">mu_s </span><span class="s2">* </span><span class="s1">self</span><span class="s3">.</span><span class="s1">f_n</span>
+<a name="l1136"><span class="ln">1136 </span></a>        <span class="s1">stribeck_term </span><span class="s2">= </span><span class="s3">(</span><span class="s1">f_max </span><span class="s2">- </span><span class="s1">f_c</span><span class="s3">) </span><span class="s2">* </span><span class="s1">exp</span><span class="s3">(</span><span class="s2">-</span><span class="s3">(</span><span class="s1">v </span><span class="s2">/ </span><span class="s1">self</span><span class="s3">.</span><span class="s1">v_s</span><span class="s3">)</span><span class="s2">**</span><span class="s5">2</span><span class="s3">) </span><span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">v_s </span><span class="s2">is not None else </span><span class="s5">0</span>
+<a name="l1137"><span class="ln">1137 </span></a>        <span class="s1">viscous_term </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">sigma </span><span class="s2">* </span><span class="s1">v </span><span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">sigma </span><span class="s2">is not None else </span><span class="s5">0</span>
+<a name="l1138"><span class="ln">1138 </span></a>        <span class="s2">return </span><span class="s3">(</span><span class="s1">f_c </span><span class="s2">+ </span><span class="s1">stribeck_term</span><span class="s3">) </span><span class="s2">* -</span><span class="s1">sign</span><span class="s3">(</span><span class="s1">v</span><span class="s3">) </span><span class="s2">- </span><span class="s1">viscous_term</span>
+<a name="l1139"><span class="ln">1139 </span></a>
+<a name="l1140"><span class="ln">1140 </span></a>    <span class="s2">@</span><span class="s1">force</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l1141"><span class="ln">1141 </span></a>    <span class="s2">def </span><span class="s1">force</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">force</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1142"><span class="ln">1142 </span></a>        <span class="s2">raise </span><span class="s1">AttributeError</span><span class="s3">(</span><span class="s4">'Can\'t set computed attribute `force`.'</span><span class="s3">)</span>
+<a name="l1143"><span class="ln">1143 </span></a>
+<a name="l1144"><span class="ln">1144 </span></a>    <span class="s2">def </span><span class="s1">__repr__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l1145"><span class="ln">1145 </span></a>        <span class="s2">return </span><span class="s3">(</span><span class="s4">f'{</span><span class="s1">self</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">.</span><span class="s1">__name__</span><span class="s4">}({</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mu_k</span><span class="s4">}, {</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_mu_s</span><span class="s4">} '</span>
+<a name="l1146"><span class="ln">1146 </span></a>                <span class="s4">f'{</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_f_n</span><span class="s4">}, {</span><span class="s1">self</span><span class="s3">.</span><span class="s1">pathway</span><span class="s4">}, {</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_v_s</span><span class="s4">}, '</span>
+<a name="l1147"><span class="ln">1147 </span></a>                <span class="s4">f'{</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_sigma</span><span class="s4">})'</span><span class="s3">)</span>
+<a name="l1148"><span class="ln">1148 </span></a></pre>
+</body>
+</html>

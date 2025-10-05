@@ -1,0 +1,491 @@
+<html>
+<head>
+<title>MPSProfiler.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896; font-style: italic;}
+.s1 { color: #333333;}
+.s2 { color: #000080; font-weight: bold;}
+.s3 { color: #660e7a; font-weight: bold;}
+.s4 { color: #0086b3;}
+.s5 { color: #183691; font-weight: bold;}
+.s6 { color: #006666; font-weight: bold;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+MPSProfiler.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">//  Copyright © 2022 Apple Inc.</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#pragma once</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s2">#include </span><span class="s1">&lt;ATen/Tensor.h&gt;</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s2">#include </span><span class="s1">&lt;ATen/mps/MPSAllocatorInterface.h&gt;</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">#include </span><span class="s1">&lt;ATen/mps/MPSStream.h&gt;</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s2">#include </span><span class="s1">&lt;os/log.h&gt;</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">#include </span><span class="s1">&lt;os/signpost.h&gt;</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">#include </span><span class="s1">&lt;atomic&gt;</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">#include </span><span class="s1">&lt;ctime&gt;</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">#include </span><span class="s1">&lt;sstream&gt;</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">#include </span><span class="s1">&lt;string&gt;</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">#include </span><span class="s1">&lt;unordered_map&gt;</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s2">#include </span><span class="s1">&lt;utility&gt;</span>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">#ifndef </span><span class="s1">__OBJC__</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s2">typedef void</span><span class="s1">* MTLCaptureManager;</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s2">#endif</span>
+<a name="l22"><span class="ln">22   </span></a>
+<a name="l23"><span class="ln">23   </span></a><span class="s3">namespace </span><span class="s1">at::mps {</span>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a><span class="s3">namespace </span><span class="s1">Profiler {</span>
+<a name="l26"><span class="ln">26   </span></a>
+<a name="l27"><span class="ln">27   </span></a><span class="s2">struct </span><span class="s1">BaseInfo {</span>
+<a name="l28"><span class="ln">28   </span></a>  <span class="s0">// profiling info types</span>
+<a name="l29"><span class="ln">29   </span></a>  <span class="s2">enum </span><span class="s3">class </span><span class="s1">Type {</span>
+<a name="l30"><span class="ln">30   </span></a>    <span class="s1">GRAPH,</span>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s1">KERNEL,</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s1">COPY,</span>
+<a name="l33"><span class="ln">33   </span></a>    <span class="s1">CPU_FALLBACK,</span>
+<a name="l34"><span class="ln">34   </span></a>  <span class="s1">};</span>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a>  <span class="s1">BaseInfo(Type infoType, uint64_t Id, </span><span class="s2">const </span><span class="s1">uintptr_t Handle)</span>
+<a name="l37"><span class="ln">37   </span></a>      <span class="s1">: type(infoType), profileId(Id), handle(Handle) {}</span>
+<a name="l38"><span class="ln">38   </span></a>  <span class="s3">virtual </span><span class="s1">~BaseInfo() = </span><span class="s2">default</span><span class="s1">;</span>
+<a name="l39"><span class="ln">39   </span></a>
+<a name="l40"><span class="ln">40   </span></a>  <span class="s0">// type of profiling info</span>
+<a name="l41"><span class="ln">41   </span></a>  <span class="s1">Type type;</span>
+<a name="l42"><span class="ln">42   </span></a>  <span class="s0">// unique profile ID for execution instances of operations or copies</span>
+<a name="l43"><span class="ln">43   </span></a>  <span class="s1">uint64_t profileId;</span>
+<a name="l44"><span class="ln">44   </span></a>  <span class="s0">// ID generated by os_signpost</span>
+<a name="l45"><span class="ln">45   </span></a>  <span class="s0">// since it's possible to use event and interval-based signposts at the</span>
+<a name="l46"><span class="ln">46   </span></a>  <span class="s0">// same time, we need separate IDs for each.</span>
+<a name="l47"><span class="ln">47   </span></a>  <span class="s1">os_signpost_id_t eventSignpostId = </span><span class="s4">0</span><span class="s1">, intervalSignpostId = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l48"><span class="ln">48   </span></a>  <span class="s0">// accumulated GPU time in ms (obtained from CompletionHandler's &quot;GPUEndTime -</span>
+<a name="l49"><span class="ln">49   </span></a>  <span class="s0">// GPUStartTime&quot;)</span>
+<a name="l50"><span class="ln">50   </span></a>  <span class="s1">std::atomic&lt;</span><span class="s2">double</span><span class="s1">&gt; totalGpuTime{</span><span class="s4">0.0</span><span class="s1">};</span>
+<a name="l51"><span class="ln">51   </span></a>  <span class="s0">// accumulated Scheduling time in ms (obtained from CompletionHandler's</span>
+<a name="l52"><span class="ln">52   </span></a>  <span class="s0">// &quot;KernelEndTime - KernelStartTime&quot;)</span>
+<a name="l53"><span class="ln">53   </span></a>  <span class="s1">std::atomic&lt;</span><span class="s2">double</span><span class="s1">&gt; totalSchedulingTime{</span><span class="s4">0.0</span><span class="s1">};</span>
+<a name="l54"><span class="ln">54   </span></a>  <span class="s0">// indicates if the operation or copy execution has completed</span>
+<a name="l55"><span class="ln">55   </span></a>  <span class="s1">std::atomic_bool completed{</span><span class="s2">false</span><span class="s1">};</span>
+<a name="l56"><span class="ln">56   </span></a>  <span class="s0">// handle used to identify the profile info's instance (usually the pointer)</span>
+<a name="l57"><span class="ln">57   </span></a>  <span class="s2">const </span><span class="s1">uintptr_t handle;</span>
+<a name="l58"><span class="ln">58   </span></a>
+<a name="l59"><span class="ln">59   </span></a>  <span class="s3">virtual </span><span class="s2">const </span><span class="s1">std::string toString(</span>
+<a name="l60"><span class="ln">60   </span></a>      <span class="s2">double </span><span class="s1">gpuTime = </span><span class="s4">0</span><span class="s1">,</span>
+<a name="l61"><span class="ln">61   </span></a>      <span class="s2">double </span><span class="s1">schedulingTime = </span><span class="s4">0</span><span class="s1">) </span><span class="s2">const</span><span class="s1">;</span>
+<a name="l62"><span class="ln">62   </span></a>  <span class="s0">// builds a string for a tensor (format: Device:ScalarType[tensor.sizes()])</span>
+<a name="l63"><span class="ln">63   </span></a>  <span class="s2">static </span><span class="s1">std::string buildTensorString(</span>
+<a name="l64"><span class="ln">64   </span></a>      <span class="s2">const </span><span class="s1">Tensor&amp; tensor,</span>
+<a name="l65"><span class="ln">65   </span></a>      <span class="s2">bool </span><span class="s1">includeBufferId = </span><span class="s2">false</span><span class="s1">);</span>
+<a name="l66"><span class="ln">66   </span></a>  <span class="s2">static </span><span class="s1">uint64_t getTime() {</span>
+<a name="l67"><span class="ln">67   </span></a>    <span class="s2">return </span><span class="s1">clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW);</span>
+<a name="l68"><span class="ln">68   </span></a>  <span class="s1">}</span>
+<a name="l69"><span class="ln">69   </span></a><span class="s1">};</span>
+<a name="l70"><span class="ln">70   </span></a>
+<a name="l71"><span class="ln">71   </span></a><span class="s2">struct </span><span class="s1">OperationInfo : BaseInfo {</span>
+<a name="l72"><span class="ln">72   </span></a>  <span class="s1">OperationInfo(</span>
+<a name="l73"><span class="ln">73   </span></a>      <span class="s2">const void</span><span class="s1">* Handle,</span>
+<a name="l74"><span class="ln">74   </span></a>      <span class="s2">bool </span><span class="s1">IsGraph,</span>
+<a name="l75"><span class="ln">75   </span></a>      <span class="s1">uint64_t Id,</span>
+<a name="l76"><span class="ln">76   </span></a>      <span class="s2">const </span><span class="s1">std::string&amp; StrKey)</span>
+<a name="l77"><span class="ln">77   </span></a>      <span class="s1">: BaseInfo(IsGraph ? Type::GRAPH : Type::KERNEL, Id, uintptr_t(Handle)),</span>
+<a name="l78"><span class="ln">78   </span></a>        <span class="s1">strKey(StrKey) {}</span>
+<a name="l79"><span class="ln">79   </span></a>
+<a name="l80"><span class="ln">80   </span></a>  <span class="s1">uint64_t runCount = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l81"><span class="ln">81   </span></a>  <span class="s1">std::string strKey;</span>
+<a name="l82"><span class="ln">82   </span></a>
+<a name="l83"><span class="ln">83   </span></a>  <span class="s2">const </span><span class="s1">std::string toString(</span><span class="s2">double </span><span class="s1">gpuTime = </span><span class="s4">0</span><span class="s1">, </span><span class="s2">double </span><span class="s1">schedulingTime = </span><span class="s4">0</span><span class="s1">)</span>
+<a name="l84"><span class="ln">84   </span></a>      <span class="s2">const </span><span class="s1">override;</span>
+<a name="l85"><span class="ln">85   </span></a>
+<a name="l86"><span class="ln">86   </span></a>  <span class="s0">// builds a string for a kernel</span>
+<a name="l87"><span class="ln">87   </span></a>  <span class="s2">static </span><span class="s1">std::string buildKernelString(</span>
+<a name="l88"><span class="ln">88   </span></a>      <span class="s2">const </span><span class="s1">std::string&amp; kernelName,</span>
+<a name="l89"><span class="ln">89   </span></a>      <span class="s2">const </span><span class="s1">TensorList&amp; tensors,</span>
+<a name="l90"><span class="ln">90   </span></a>      <span class="s2">bool </span><span class="s1">includeBufferId = </span><span class="s2">false</span><span class="s1">) {</span>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s1">std::stringstream kernelStr;</span>
+<a name="l92"><span class="ln">92   </span></a>    <span class="s1">kernelStr &lt;&lt; kernelName;</span>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s2">for </span><span class="s1">(</span><span class="s2">const </span><span class="s1">Tensor&amp; tensor : tensors) {</span>
+<a name="l94"><span class="ln">94   </span></a>      <span class="s1">kernelStr &lt;&lt; </span><span class="s5">&quot;:&quot; </span><span class="s1">&lt;&lt; BaseInfo::buildTensorString(tensor, includeBufferId);</span>
+<a name="l95"><span class="ln">95   </span></a>    <span class="s1">}</span>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s2">return </span><span class="s1">kernelStr.str();</span>
+<a name="l97"><span class="ln">97   </span></a>  <span class="s1">}</span>
+<a name="l98"><span class="ln">98   </span></a><span class="s1">};</span>
+<a name="l99"><span class="ln">99   </span></a>
+<a name="l100"><span class="ln">100  </span></a><span class="s2">struct </span><span class="s1">CpuFbInfo : BaseInfo {</span>
+<a name="l101"><span class="ln">101  </span></a>  <span class="s1">CpuFbInfo(uint64_t Id, </span><span class="s2">const </span><span class="s1">std::string&amp; OpName)</span>
+<a name="l102"><span class="ln">102  </span></a>      <span class="s1">: BaseInfo(Type::CPU_FALLBACK, Id, </span><span class="s4">0</span><span class="s1">), opName(OpName) {}</span>
+<a name="l103"><span class="ln">103  </span></a>
+<a name="l104"><span class="ln">104  </span></a>  <span class="s1">uint64_t runCount = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l105"><span class="ln">105  </span></a>  <span class="s0">// the current and total overhead of copies in bytes required to convert the</span>
+<a name="l106"><span class="ln">106  </span></a>  <span class="s0">// Op's input tensors from MPS to CPU and then output from CPU back to MPS</span>
+<a name="l107"><span class="ln">107  </span></a>  <span class="s1">size_t currentCopyOverhead = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l108"><span class="ln">108  </span></a>  <span class="s1">size_t totalCopyOverhead = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l109"><span class="ln">109  </span></a>  <span class="s1">std::string opName;</span>
+<a name="l110"><span class="ln">110  </span></a>  <span class="s1">std::string strKey;</span>
+<a name="l111"><span class="ln">111  </span></a>  <span class="s1">uint64_t startTime = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l112"><span class="ln">112  </span></a>
+<a name="l113"><span class="ln">113  </span></a>  <span class="s2">const </span><span class="s1">std::string toString(</span><span class="s2">double </span><span class="s1">gpuTime = </span><span class="s4">0</span><span class="s1">, </span><span class="s2">double </span><span class="s1">schedulingTime = </span><span class="s4">0</span><span class="s1">)</span>
+<a name="l114"><span class="ln">114  </span></a>      <span class="s2">const </span><span class="s1">override;</span>
+<a name="l115"><span class="ln">115  </span></a>
+<a name="l116"><span class="ln">116  </span></a>  <span class="s2">void </span><span class="s1">updateCopyOverhead(</span><span class="s2">const </span><span class="s1">TensorList&amp; tensors) {</span>
+<a name="l117"><span class="ln">117  </span></a>    <span class="s1">currentCopyOverhead = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l118"><span class="ln">118  </span></a>    <span class="s2">for </span><span class="s1">(</span><span class="s2">const </span><span class="s1">Tensor&amp; tensor : tensors) {</span>
+<a name="l119"><span class="ln">119  </span></a>      <span class="s2">if </span><span class="s1">(tensor.defined()) {</span>
+<a name="l120"><span class="ln">120  </span></a>        <span class="s1">currentCopyOverhead += tensor.nbytes();</span>
+<a name="l121"><span class="ln">121  </span></a>      <span class="s1">}</span>
+<a name="l122"><span class="ln">122  </span></a>    <span class="s1">}</span>
+<a name="l123"><span class="ln">123  </span></a>    <span class="s1">totalCopyOverhead += currentCopyOverhead;</span>
+<a name="l124"><span class="ln">124  </span></a>  <span class="s1">}</span>
+<a name="l125"><span class="ln">125  </span></a><span class="s1">};</span>
+<a name="l126"><span class="ln">126  </span></a>
+<a name="l127"><span class="ln">127  </span></a><span class="s2">struct </span><span class="s1">CopyInfo : BaseInfo {</span>
+<a name="l128"><span class="ln">128  </span></a>  <span class="s2">enum </span><span class="s3">class </span><span class="s1">Kind {</span>
+<a name="l129"><span class="ln">129  </span></a>    <span class="s1">MPS_TO_MPS,</span>
+<a name="l130"><span class="ln">130  </span></a>    <span class="s1">MPS_TO_CPU,</span>
+<a name="l131"><span class="ln">131  </span></a>    <span class="s1">CPU_TO_MPS,</span>
+<a name="l132"><span class="ln">132  </span></a>  <span class="s1">};</span>
+<a name="l133"><span class="ln">133  </span></a>
+<a name="l134"><span class="ln">134  </span></a>  <span class="s1">CopyInfo(</span>
+<a name="l135"><span class="ln">135  </span></a>      <span class="s2">const void</span><span class="s1">* Handle,</span>
+<a name="l136"><span class="ln">136  </span></a>      <span class="s1">size_t Length,</span>
+<a name="l137"><span class="ln">137  </span></a>      <span class="s1">uint64_t Id,</span>
+<a name="l138"><span class="ln">138  </span></a>      <span class="s2">bool </span><span class="s1">IsNonBlocking,</span>
+<a name="l139"><span class="ln">139  </span></a>      <span class="s2">bool </span><span class="s1">UsesBlitter)</span>
+<a name="l140"><span class="ln">140  </span></a>      <span class="s1">: BaseInfo(Type::COPY, Id, uintptr_t(Handle)),</span>
+<a name="l141"><span class="ln">141  </span></a>        <span class="s1">kind(Kind::MPS_TO_MPS),</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s1">length(Length),</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s1">isNonBlocking(IsNonBlocking),</span>
+<a name="l144"><span class="ln">144  </span></a>        <span class="s1">usesBlitter(UsesBlitter) {}</span>
+<a name="l145"><span class="ln">145  </span></a>
+<a name="l146"><span class="ln">146  </span></a>  <span class="s1">Kind kind;</span>
+<a name="l147"><span class="ln">147  </span></a>  <span class="s1">size_t length;</span>
+<a name="l148"><span class="ln">148  </span></a>  <span class="s2">bool </span><span class="s1">isNonBlocking;</span>
+<a name="l149"><span class="ln">149  </span></a>  <span class="s2">bool </span><span class="s1">usesBlitter;</span>
+<a name="l150"><span class="ln">150  </span></a>  <span class="s1">std::string srcStrKey;</span>
+<a name="l151"><span class="ln">151  </span></a>  <span class="s1">std::string dstStrKey;</span>
+<a name="l152"><span class="ln">152  </span></a>  <span class="s0">// for copies that don't use blitters, we measure CPU time</span>
+<a name="l153"><span class="ln">153  </span></a>  <span class="s1">uint64_t startTime = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l154"><span class="ln">154  </span></a>
+<a name="l155"><span class="ln">155  </span></a>  <span class="s2">const </span><span class="s1">std::string toString(</span><span class="s2">double </span><span class="s1">gpuTime = </span><span class="s4">0</span><span class="s1">, </span><span class="s2">double </span><span class="s1">schedulingTime = </span><span class="s4">0</span><span class="s1">)</span>
+<a name="l156"><span class="ln">156  </span></a>      <span class="s2">const </span><span class="s1">override;</span>
+<a name="l157"><span class="ln">157  </span></a>
+<a name="l158"><span class="ln">158  </span></a>  <span class="s2">static </span><span class="s1">std::string buildTensorString(</span>
+<a name="l159"><span class="ln">159  </span></a>      <span class="s2">const void</span><span class="s1">* buffer,</span>
+<a name="l160"><span class="ln">160  </span></a>      <span class="s2">const </span><span class="s1">OptionalTensorRef tensor,</span>
+<a name="l161"><span class="ln">161  </span></a>      <span class="s2">bool </span><span class="s1">includeBufferId = </span><span class="s2">false</span><span class="s1">);</span>
+<a name="l162"><span class="ln">162  </span></a>
+<a name="l163"><span class="ln">163  </span></a>  <span class="s2">static bool </span><span class="s1">isStorageOnMPS(</span>
+<a name="l164"><span class="ln">164  </span></a>      <span class="s2">const void</span><span class="s1">* buffer,</span>
+<a name="l165"><span class="ln">165  </span></a>      <span class="s2">const </span><span class="s1">OptionalTensorRef tensor) {</span>
+<a name="l166"><span class="ln">166  </span></a>    <span class="s2">if </span><span class="s1">(tensor.has_value()) {</span>
+<a name="l167"><span class="ln">167  </span></a>      <span class="s2">return </span><span class="s1">tensor</span><span class="s6">-&gt;</span><span class="s1">device().type() == at::kMPS;</span>
+<a name="l168"><span class="ln">168  </span></a>    <span class="s1">}</span>
+<a name="l169"><span class="ln">169  </span></a>    <span class="s1">TORCH_INTERNAL_ASSERT_DEBUG_ONLY(buffer);</span>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s0">// getUnalignedBufferSize() returns -1 if input buffer is not on MPS device</span>
+<a name="l171"><span class="ln">171  </span></a>    <span class="s2">return </span><span class="s1">getIMPSAllocator()</span><span class="s6">-&gt;</span><span class="s1">getUnalignedBufferSize(buffer) &gt;= </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l172"><span class="ln">172  </span></a>  <span class="s1">}</span>
+<a name="l173"><span class="ln">173  </span></a>
+<a name="l174"><span class="ln">174  </span></a>  <span class="s2">static </span><span class="s1">Kind getCopyKind(</span>
+<a name="l175"><span class="ln">175  </span></a>      <span class="s2">const void</span><span class="s1">* srcBuffer,</span>
+<a name="l176"><span class="ln">176  </span></a>      <span class="s2">const void</span><span class="s1">* dstBuffer,</span>
+<a name="l177"><span class="ln">177  </span></a>      <span class="s2">const </span><span class="s1">OptionalTensorRef srcTensor,</span>
+<a name="l178"><span class="ln">178  </span></a>      <span class="s2">const </span><span class="s1">OptionalTensorRef dstTensor) {</span>
+<a name="l179"><span class="ln">179  </span></a>    <span class="s2">const bool </span><span class="s1">isSrcOnMPS = isStorageOnMPS(srcBuffer, srcTensor);</span>
+<a name="l180"><span class="ln">180  </span></a>    <span class="s2">const bool </span><span class="s1">isDstOnMPS = isStorageOnMPS(dstBuffer, dstTensor);</span>
+<a name="l181"><span class="ln">181  </span></a>    <span class="s1">TORCH_INTERNAL_ASSERT_DEBUG_ONLY(isSrcOnMPS || isDstOnMPS);</span>
+<a name="l182"><span class="ln">182  </span></a>    <span class="s2">if </span><span class="s1">(isSrcOnMPS &amp;&amp; !isDstOnMPS) {</span>
+<a name="l183"><span class="ln">183  </span></a>      <span class="s2">return </span><span class="s1">Kind::MPS_TO_CPU;</span>
+<a name="l184"><span class="ln">184  </span></a>    <span class="s1">} </span><span class="s2">else if </span><span class="s1">(!isSrcOnMPS &amp;&amp; isDstOnMPS) {</span>
+<a name="l185"><span class="ln">185  </span></a>      <span class="s2">return </span><span class="s1">Kind::CPU_TO_MPS;</span>
+<a name="l186"><span class="ln">186  </span></a>    <span class="s1">}</span>
+<a name="l187"><span class="ln">187  </span></a>    <span class="s2">return </span><span class="s1">Kind::MPS_TO_MPS;</span>
+<a name="l188"><span class="ln">188  </span></a>  <span class="s1">}</span>
+<a name="l189"><span class="ln">189  </span></a><span class="s1">};</span>
+<a name="l190"><span class="ln">190  </span></a>
+<a name="l191"><span class="ln">191  </span></a><span class="s2">struct </span><span class="s1">CopyStat : CopyInfo {</span>
+<a name="l192"><span class="ln">192  </span></a>  <span class="s3">explicit </span><span class="s1">CopyStat(std::string CopyKindStr)</span>
+<a name="l193"><span class="ln">193  </span></a>      <span class="s1">: CopyInfo(nullptr, </span><span class="s4">0</span><span class="s1">, </span><span class="s4">0</span><span class="s1">, </span><span class="s2">false</span><span class="s1">, </span><span class="s2">false</span><span class="s1">),</span>
+<a name="l194"><span class="ln">194  </span></a>        <span class="s1">kindStr(std::move(CopyKindStr)) {}</span>
+<a name="l195"><span class="ln">195  </span></a>  <span class="s0">// total number of copies</span>
+<a name="l196"><span class="ln">196  </span></a>  <span class="s1">size_t totalCount = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l197"><span class="ln">197  </span></a>  <span class="s0">// number of Scalar copies (i.e., less than sizeof(int64))</span>
+<a name="l198"><span class="ln">198  </span></a>  <span class="s1">size_t scalarsCount = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l199"><span class="ln">199  </span></a>  <span class="s0">// number of blocking copies (i.e., require syncing to GPU)</span>
+<a name="l200"><span class="ln">200  </span></a>  <span class="s1">size_t blockingCount = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l201"><span class="ln">201  </span></a>  <span class="s0">// number of copies that used memcpy(), instead of Metal Blit Encoder</span>
+<a name="l202"><span class="ln">202  </span></a>  <span class="s1">size_t memcpyCount = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l203"><span class="ln">203  </span></a>  <span class="s0">// accumulated GPU time in ms for the scalar copies</span>
+<a name="l204"><span class="ln">204  </span></a>  <span class="s1">std::atomic&lt;</span><span class="s2">double</span><span class="s1">&gt; scalarsGpuTime{</span><span class="s4">0.0</span><span class="s1">};</span>
+<a name="l205"><span class="ln">205  </span></a>  <span class="s0">// copy kind in string type</span>
+<a name="l206"><span class="ln">206  </span></a>  <span class="s1">std::string kindStr;</span>
+<a name="l207"><span class="ln">207  </span></a><span class="s1">};</span>
+<a name="l208"><span class="ln">208  </span></a>
+<a name="l209"><span class="ln">209  </span></a><span class="s3">class </span><span class="s1">MPSProfiler {</span>
+<a name="l210"><span class="ln">210  </span></a> <span class="s3">public</span><span class="s1">:</span>
+<a name="l211"><span class="ln">211  </span></a>  <span class="s0">// lower 16 bits used for profiler options</span>
+<a name="l212"><span class="ln">212  </span></a>  <span class="s2">enum </span><span class="s1">ProfileOptions : uint32_t {</span>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s1">OPTIONS_NONE = </span><span class="s4">0</span><span class="s1">,</span>
+<a name="l214"><span class="ln">214  </span></a>    <span class="s0">// ALL_* means, all signpost types (RUN_OPERATION|BLIT_COPY|CPU_FALLBACK,</span>
+<a name="l215"><span class="ln">215  </span></a>    <span class="s0">// etc.) (used for convenience to not compute bit flags by OR-ing manually)</span>
+<a name="l216"><span class="ln">216  </span></a>    <span class="s0">// trace all signpost types using events</span>
+<a name="l217"><span class="ln">217  </span></a>    <span class="s1">ALL_SIGNPOST_EVENTS = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">0</span><span class="s1">),</span>
+<a name="l218"><span class="ln">218  </span></a>    <span class="s0">// trace all signpost types using intervals</span>
+<a name="l219"><span class="ln">219  </span></a>    <span class="s1">ALL_SIGNPOST_INTERVALS = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">1</span><span class="s1">),</span>
+<a name="l220"><span class="ln">220  </span></a>    <span class="s0">// always wait for command buffer to finish executing after each commit</span>
+<a name="l221"><span class="ln">221  </span></a>    <span class="s1">WAIT_UNTIL_COMPLETED = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">2</span><span class="s1">),</span>
+<a name="l222"><span class="ln">222  </span></a>    <span class="s0">// for interval-based signposts, include the scheduling portion of</span>
+<a name="l223"><span class="ln">223  </span></a>    <span class="s0">// Graph/Kernel/Copy executions as well.</span>
+<a name="l224"><span class="ln">224  </span></a>    <span class="s0">// if flag is disable, only &quot;GPU run time&quot; is included in interval,</span>
+<a name="l225"><span class="ln">225  </span></a>    <span class="s0">// and not schedule time.</span>
+<a name="l226"><span class="ln">226  </span></a>    <span class="s1">INCLUDE_SCHEDULE_INTERVAL = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">3</span><span class="s1">),</span>
+<a name="l227"><span class="ln">227  </span></a>
+<a name="l228"><span class="ln">228  </span></a>    <span class="s0">// use these if you need to trace signposts types individually (rarely</span>
+<a name="l229"><span class="ln">229  </span></a>    <span class="s0">// required) trace signpost using intervals</span>
+<a name="l230"><span class="ln">230  </span></a>    <span class="s1">USE_INTERVALS = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">4</span><span class="s1">),</span>
+<a name="l231"><span class="ln">231  </span></a>    <span class="s0">// trace signpost by emitting events</span>
+<a name="l232"><span class="ln">232  </span></a>    <span class="s1">USE_EVENTS = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">5</span><span class="s1">),</span>
+<a name="l233"><span class="ln">233  </span></a>    <span class="s0">// used for sanity check (Change this when new option added)</span>
+<a name="l234"><span class="ln">234  </span></a>    <span class="s1">OPTIONS_COUNT = (USE_EVENTS &lt;&lt; </span><span class="s4">1</span><span class="s1">) - </span><span class="s4">1</span><span class="s1">,</span>
+<a name="l235"><span class="ln">235  </span></a>  <span class="s1">};</span>
+<a name="l236"><span class="ln">236  </span></a>
+<a name="l237"><span class="ln">237  </span></a>  <span class="s0">// when adding new types, #define the type string in MPSProfiler.mm as well.</span>
+<a name="l238"><span class="ln">238  </span></a>  <span class="s0">// upper 16 bits used for event types</span>
+<a name="l239"><span class="ln">239  </span></a>  <span class="s2">enum </span><span class="s1">SignpostTypes : uint32_t {</span>
+<a name="l240"><span class="ln">240  </span></a>    <span class="s1">SIGNPOST_NONE = </span><span class="s4">0</span><span class="s1">,</span>
+<a name="l241"><span class="ln">241  </span></a>    <span class="s0">// trace signposts for PyTorch operation executions</span>
+<a name="l242"><span class="ln">242  </span></a>    <span class="s1">RUN_OPERATION = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">16</span><span class="s1">),</span>
+<a name="l243"><span class="ln">243  </span></a>    <span class="s0">// trace signposts for blitter copies</span>
+<a name="l244"><span class="ln">244  </span></a>    <span class="s1">BLIT_COPY = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">17</span><span class="s1">),</span>
+<a name="l245"><span class="ln">245  </span></a>    <span class="s0">// trace signposts for ops that fall back on CPU</span>
+<a name="l246"><span class="ln">246  </span></a>    <span class="s1">CPU_FALLBACK = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">18</span><span class="s1">),</span>
+<a name="l247"><span class="ln">247  </span></a>    <span class="s0">// used for sanity check (Change this when new type added)</span>
+<a name="l248"><span class="ln">248  </span></a>    <span class="s1">SIGNPOST_COUNT = (CPU_FALLBACK &lt;&lt; </span><span class="s4">1</span><span class="s1">) - </span><span class="s4">1</span><span class="s1">,</span>
+<a name="l249"><span class="ln">249  </span></a>  <span class="s1">};</span>
+<a name="l250"><span class="ln">250  </span></a>
+<a name="l251"><span class="ln">251  </span></a>  <span class="s2">enum </span><span class="s1">LogOptions : uint32_t {</span>
+<a name="l252"><span class="ln">252  </span></a>    <span class="s1">LOG_NONE = </span><span class="s4">0</span><span class="s1">,</span>
+<a name="l253"><span class="ln">253  </span></a>
+<a name="l254"><span class="ln">254  </span></a>    <span class="s0">// Info logging options during execution</span>
+<a name="l255"><span class="ln">255  </span></a>    <span class="s0">// -------------------------------------</span>
+<a name="l256"><span class="ln">256  </span></a>    <span class="s0">// prints operation info (id/key/run_count) during execution</span>
+<a name="l257"><span class="ln">257  </span></a>    <span class="s1">OPERATION_INFO = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">0</span><span class="s1">),</span>
+<a name="l258"><span class="ln">258  </span></a>    <span class="s0">// prints copy info (src/dst tensors/buffers, size, etc.) during execution</span>
+<a name="l259"><span class="ln">259  </span></a>    <span class="s1">COPY_INFO = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">1</span><span class="s1">),</span>
+<a name="l260"><span class="ln">260  </span></a>    <span class="s0">// prints CPU Fallback info (id/runCount/opName/copyOverhead) during</span>
+<a name="l261"><span class="ln">261  </span></a>    <span class="s0">// execution</span>
+<a name="l262"><span class="ln">262  </span></a>    <span class="s1">CPU_FALLBACK_INFO = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">2</span><span class="s1">),</span>
+<a name="l263"><span class="ln">263  </span></a>
+<a name="l264"><span class="ln">264  </span></a>    <span class="s0">// Profiling Statistics logging options when process terminates</span>
+<a name="l265"><span class="ln">265  </span></a>    <span class="s0">// ------------------------------------------------------------</span>
+<a name="l266"><span class="ln">266  </span></a>    <span class="s0">// prints all stats (OPERATION_STATS, COPY_STATS, CPU_FALLBACK_STATS) before</span>
+<a name="l267"><span class="ln">267  </span></a>    <span class="s0">// process terminates this is convenient to not combine following stats bit</span>
+<a name="l268"><span class="ln">268  </span></a>    <span class="s0">// flags manually</span>
+<a name="l269"><span class="ln">269  </span></a>    <span class="s1">ALL_STATS = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">3</span><span class="s1">),</span>
+<a name="l270"><span class="ln">270  </span></a>    <span class="s0">// prints operation stats (GPU times, run count, etc.) before process</span>
+<a name="l271"><span class="ln">271  </span></a>    <span class="s0">// terminates</span>
+<a name="l272"><span class="ln">272  </span></a>    <span class="s1">OPERATION_STATS = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">4</span><span class="s1">),</span>
+<a name="l273"><span class="ln">273  </span></a>    <span class="s0">// prints copies stats (GPU times, copy kinds, sizes, etc.) before process</span>
+<a name="l274"><span class="ln">274  </span></a>    <span class="s0">// terminates</span>
+<a name="l275"><span class="ln">275  </span></a>    <span class="s1">COPY_STATS = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">5</span><span class="s1">),</span>
+<a name="l276"><span class="ln">276  </span></a>    <span class="s0">// prints CPU Fallback stats (CPU times, run times, size of MPS&lt;-&gt;CPU copies</span>
+<a name="l277"><span class="ln">277  </span></a>    <span class="s0">// for tensors, etc.) before process terminates</span>
+<a name="l278"><span class="ln">278  </span></a>    <span class="s1">CPU_FALLBACK_STATS = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">6</span><span class="s1">),</span>
+<a name="l279"><span class="ln">279  </span></a>
+<a name="l280"><span class="ln">280  </span></a>    <span class="s0">// Metadata format options when logging the info</span>
+<a name="l281"><span class="ln">281  </span></a>    <span class="s0">// ---------------------------------------------</span>
+<a name="l282"><span class="ln">282  </span></a>    <span class="s0">// if enabled, includes GPU run time in metadata (i.e.,</span>
+<a name="l283"><span class="ln">283  </span></a>    <span class="s0">// GPUEndTime-GPUStartTime from Metal Command Buffers) (e.g., [GPU=0.324</span>
+<a name="l284"><span class="ln">284  </span></a>    <span class="s0">// ms])</span>
+<a name="l285"><span class="ln">285  </span></a>    <span class="s1">INCLUDE_GPU_TIME = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">7</span><span class="s1">),</span>
+<a name="l286"><span class="ln">286  </span></a>    <span class="s0">// if enabled, includes GPU scheduling time in metadata separately</span>
+<a name="l287"><span class="ln">287  </span></a>    <span class="s0">// (i.e., KernelEndTime-KernelStartTime from Metal Command Buffers)</span>
+<a name="l288"><span class="ln">288  </span></a>    <span class="s0">// e.g., [GPU=0.324 ms, KRNL=0.036 ms]</span>
+<a name="l289"><span class="ln">289  </span></a>    <span class="s1">INCLUDE_KERNEL_TIME = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">8</span><span class="s1">),</span>
+<a name="l290"><span class="ln">290  </span></a>    <span class="s0">// if enabled, includes the unique buffer ID in metadata for the storage</span>
+<a name="l291"><span class="ln">291  </span></a>    <span class="s0">// of a tensor that was allocated on MPSAllocator. This is useful (along</span>
+<a name="l292"><span class="ln">292  </span></a>    <span class="s0">// with the EV &quot;PYTORCH_DEBUG_MPS_ALLOCATOR&quot;) to identify buffers that are</span>
+<a name="l293"><span class="ln">293  </span></a>    <span class="s0">// involved with various operations.</span>
+<a name="l294"><span class="ln">294  </span></a>    <span class="s1">INCLUDE_BUFFER_ID = (</span><span class="s4">1 </span><span class="s1">&lt;&lt; </span><span class="s4">9</span><span class="s1">),</span>
+<a name="l295"><span class="ln">295  </span></a>
+<a name="l296"><span class="ln">296  </span></a>    <span class="s0">// used for sanity check (Change this when new option added)</span>
+<a name="l297"><span class="ln">297  </span></a>    <span class="s1">LOG_COUNT = (INCLUDE_BUFFER_ID &lt;&lt; </span><span class="s4">1</span><span class="s1">) - </span><span class="s4">1</span><span class="s1">,</span>
+<a name="l298"><span class="ln">298  </span></a>  <span class="s1">};</span>
+<a name="l299"><span class="ln">299  </span></a>
+<a name="l300"><span class="ln">300  </span></a>  <span class="s3">explicit </span><span class="s1">MPSProfiler();</span>
+<a name="l301"><span class="ln">301  </span></a>  <span class="s1">~MPSProfiler();</span>
+<a name="l302"><span class="ln">302  </span></a>
+<a name="l303"><span class="ln">303  </span></a>  <span class="s0">// the handle is either &quot;MPSGraph*&quot; or &quot;id&lt;MTLComputePipelineState&gt;&quot; for Metal</span>
+<a name="l304"><span class="ln">304  </span></a>  <span class="s0">// Kernels the beginProfile*() functions return a profileId which is unique</span>
+<a name="l305"><span class="ln">305  </span></a>  <span class="s0">// per graph/kernel/copy</span>
+<a name="l306"><span class="ln">306  </span></a>  <span class="s1">uint64_t beginProfileKernel(</span>
+<a name="l307"><span class="ln">307  </span></a>      <span class="s2">const void</span><span class="s1">* handle,</span>
+<a name="l308"><span class="ln">308  </span></a>      <span class="s2">const </span><span class="s1">std::string&amp; strKey,</span>
+<a name="l309"><span class="ln">309  </span></a>      <span class="s2">bool </span><span class="s1">isGraph);</span>
+<a name="l310"><span class="ln">310  </span></a>  <span class="s1">uint64_t beginProfileKernel(</span>
+<a name="l311"><span class="ln">311  </span></a>      <span class="s2">const void</span><span class="s1">* handle,</span>
+<a name="l312"><span class="ln">312  </span></a>      <span class="s2">const </span><span class="s1">std::string&amp; kernelName,</span>
+<a name="l313"><span class="ln">313  </span></a>      <span class="s2">const </span><span class="s1">TensorList&amp; tensors);</span>
+<a name="l314"><span class="ln">314  </span></a>  <span class="s1">uint64_t beginProfileCopy(</span>
+<a name="l315"><span class="ln">315  </span></a>      <span class="s2">const void</span><span class="s1">* srcBuffer,</span>
+<a name="l316"><span class="ln">316  </span></a>      <span class="s2">const void</span><span class="s1">* dstBuffer,</span>
+<a name="l317"><span class="ln">317  </span></a>      <span class="s2">const </span><span class="s1">OptionalTensorRef srcTensor,</span>
+<a name="l318"><span class="ln">318  </span></a>      <span class="s2">const </span><span class="s1">OptionalTensorRef dstTensor,</span>
+<a name="l319"><span class="ln">319  </span></a>      <span class="s1">size_t length,</span>
+<a name="l320"><span class="ln">320  </span></a>      <span class="s2">bool </span><span class="s1">isNonBlocking,</span>
+<a name="l321"><span class="ln">321  </span></a>      <span class="s2">bool </span><span class="s1">usesBlitter = </span><span class="s3">true</span><span class="s1">);</span>
+<a name="l322"><span class="ln">322  </span></a>  <span class="s1">uint64_t beginProfileCPUFallback(</span>
+<a name="l323"><span class="ln">323  </span></a>      <span class="s2">const </span><span class="s1">std::string&amp; opName,</span>
+<a name="l324"><span class="ln">324  </span></a>      <span class="s2">const </span><span class="s1">TensorList&amp; tensors);</span>
+<a name="l325"><span class="ln">325  </span></a>  <span class="s2">void </span><span class="s1">beginProfileGPUInterval(</span><span class="s2">const void</span><span class="s1">* handle);</span>
+<a name="l326"><span class="ln">326  </span></a>
+<a name="l327"><span class="ln">327  </span></a>  <span class="s2">void </span><span class="s1">endProfileCopy(uint64_t profileId, SyncType syncType);</span>
+<a name="l328"><span class="ln">328  </span></a>  <span class="s2">void </span><span class="s1">endProfileKernel(</span><span class="s2">const void</span><span class="s1">* handle, SyncType syncType = SyncType::NONE);</span>
+<a name="l329"><span class="ln">329  </span></a>  <span class="s2">void </span><span class="s1">endProfileCPUFallback(</span><span class="s2">const </span><span class="s1">std::string&amp; opName);</span>
+<a name="l330"><span class="ln">330  </span></a>
+<a name="l331"><span class="ln">331  </span></a>  <span class="s0">// these are used to hook into Python bindings for torch.mps.profiler module.</span>
+<a name="l332"><span class="ln">332  </span></a>  <span class="s0">// this enables generating OS Signpost traces from MPSProfiler on-demand</span>
+<a name="l333"><span class="ln">333  </span></a>  <span class="s0">// during runtime (instead of environment variables).</span>
+<a name="l334"><span class="ln">334  </span></a>  <span class="s0">// The &quot;mode&quot; could be either &quot;interval&quot;, &quot;event&quot;, or both &quot;interval,event&quot;</span>
+<a name="l335"><span class="ln">335  </span></a>  <span class="s0">// for interval-based and/or event-based signpost tracing.</span>
+<a name="l336"><span class="ln">336  </span></a>  <span class="s2">void </span><span class="s1">StartTrace(</span><span class="s2">const </span><span class="s1">std::string&amp; mode, </span><span class="s2">bool </span><span class="s1">waitUntilCompleted);</span>
+<a name="l337"><span class="ln">337  </span></a>  <span class="s2">void </span><span class="s1">StopTrace();</span>
+<a name="l338"><span class="ln">338  </span></a>
+<a name="l339"><span class="ln">339  </span></a>  <span class="s0">// Abstractions for GPU trace capturing</span>
+<a name="l340"><span class="ln">340  </span></a>  <span class="s2">bool </span><span class="s1">isCaptureEnabled() </span><span class="s2">const</span><span class="s1">;</span>
+<a name="l341"><span class="ln">341  </span></a>  <span class="s2">bool </span><span class="s1">isCapturing() </span><span class="s2">const</span><span class="s1">;</span>
+<a name="l342"><span class="ln">342  </span></a>  <span class="s2">void </span><span class="s1">startCapture(</span><span class="s2">const </span><span class="s1">std::string&amp; name, MPSStream* stream = nullptr);</span>
+<a name="l343"><span class="ln">343  </span></a>  <span class="s2">void </span><span class="s1">stopCapture(MPSStream* stream = nullptr);</span>
+<a name="l344"><span class="ln">344  </span></a>
+<a name="l345"><span class="ln">345  </span></a>  <span class="s0">// convenience functions to indicate whether signpost tracing or</span>
+<a name="l346"><span class="ln">346  </span></a>  <span class="s0">// logging are enabled for the SignpostTypes</span>
+<a name="l347"><span class="ln">347  </span></a>  <span class="s2">bool </span><span class="s1">isOperationProfilingEnabled() </span><span class="s2">const </span><span class="s1">{</span>
+<a name="l348"><span class="ln">348  </span></a>    <span class="s2">return </span><span class="s1">(m_signpost_types &amp; SignpostTypes::RUN_OPERATION) ||</span>
+<a name="l349"><span class="ln">349  </span></a>        <span class="s1">(m_log_options &amp;</span>
+<a name="l350"><span class="ln">350  </span></a>         <span class="s1">(LogOptions::OPERATION_INFO | LogOptions::OPERATION_STATS));</span>
+<a name="l351"><span class="ln">351  </span></a>  <span class="s1">}</span>
+<a name="l352"><span class="ln">352  </span></a>  <span class="s2">bool </span><span class="s1">isCopyProfilingEnabled() </span><span class="s2">const </span><span class="s1">{</span>
+<a name="l353"><span class="ln">353  </span></a>    <span class="s2">return </span><span class="s1">(m_signpost_types &amp; SignpostTypes::BLIT_COPY) ||</span>
+<a name="l354"><span class="ln">354  </span></a>        <span class="s1">(m_log_options &amp; (LogOptions::COPY_INFO | LogOptions::COPY_STATS));</span>
+<a name="l355"><span class="ln">355  </span></a>  <span class="s1">}</span>
+<a name="l356"><span class="ln">356  </span></a>  <span class="s2">bool </span><span class="s1">isCPUFallbackProfilingEnabled() </span><span class="s2">const </span><span class="s1">{</span>
+<a name="l357"><span class="ln">357  </span></a>    <span class="s2">return </span><span class="s1">(m_signpost_types &amp; SignpostTypes::CPU_FALLBACK) ||</span>
+<a name="l358"><span class="ln">358  </span></a>        <span class="s1">(m_log_options &amp;</span>
+<a name="l359"><span class="ln">359  </span></a>         <span class="s1">(LogOptions::CPU_FALLBACK_INFO | LogOptions::CPU_FALLBACK_STATS));</span>
+<a name="l360"><span class="ln">360  </span></a>  <span class="s1">}</span>
+<a name="l361"><span class="ln">361  </span></a>  <span class="s2">bool </span><span class="s1">isSignpostTracingEnabled() </span><span class="s2">const </span><span class="s1">{</span>
+<a name="l362"><span class="ln">362  </span></a>    <span class="s2">return </span><span class="s1">(m_signpost_types != SignpostTypes::SIGNPOST_NONE);</span>
+<a name="l363"><span class="ln">363  </span></a>  <span class="s1">}</span>
+<a name="l364"><span class="ln">364  </span></a>
+<a name="l365"><span class="ln">365  </span></a> <span class="s3">private</span><span class="s1">:</span>
+<a name="l366"><span class="ln">366  </span></a>  <span class="s0">// indicates what type of signpost types are enabled and traced by MPS</span>
+<a name="l367"><span class="ln">367  </span></a>  <span class="s0">// profiler.</span>
+<a name="l368"><span class="ln">368  </span></a>  <span class="s1">uint32_t m_signpost_types = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l369"><span class="ln">369  </span></a>  <span class="s1">uint32_t m_profile_options = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l370"><span class="ln">370  </span></a>  <span class="s1">uint32_t m_log_options = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l371"><span class="ln">371  </span></a>  <span class="s1">uint64_t m_kernel_counter = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l372"><span class="ln">372  </span></a>  <span class="s1">uint64_t m_graph_counter = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l373"><span class="ln">373  </span></a>  <span class="s1">uint64_t m_cpu_fb_counter = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l374"><span class="ln">374  </span></a>  <span class="s1">uint64_t m_copy_counter = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l375"><span class="ln">375  </span></a>  <span class="s0">// technically, it's possible to trace both events and intervals at the same</span>
+<a name="l376"><span class="ln">376  </span></a>  <span class="s0">// time so we use separate os_log categories for them</span>
+<a name="l377"><span class="ln">377  </span></a>  <span class="s1">os_log_t m_os_log_events;</span>
+<a name="l378"><span class="ln">378  </span></a>  <span class="s1">os_log_t m_os_log_intervals;</span>
+<a name="l379"><span class="ln">379  </span></a>  <span class="s0">// stats logging could run either from destructor or signal handler</span>
+<a name="l380"><span class="ln">380  </span></a>  <span class="s0">// so this is used to check if logging has already started.</span>
+<a name="l381"><span class="ln">381  </span></a>  <span class="s1">std::atomic_bool hasLoggedStats{</span><span class="s2">false</span><span class="s1">};</span>
+<a name="l382"><span class="ln">382  </span></a>  <span class="s0">// indicates there are pending completionHandler callbacks that haven't been</span>
+<a name="l383"><span class="ln">383  </span></a>  <span class="s0">// called yet.</span>
+<a name="l384"><span class="ln">384  </span></a>  <span class="s1">std::atomic_bool hasPendingCompletionHandlers{</span><span class="s2">false</span><span class="s1">};</span>
+<a name="l385"><span class="ln">385  </span></a>  <span class="s0">// used to capture sigint signal to log profiling stats</span>
+<a name="l386"><span class="ln">386  </span></a>  <span class="s2">static struct </span><span class="s1">sigaction currentSigint, previousSigint;</span>
+<a name="l387"><span class="ln">387  </span></a>
+<a name="l388"><span class="ln">388  </span></a>  <span class="s0">// We use the following lists for two reasons:</span>
+<a name="l389"><span class="ln">389  </span></a>  <span class="s0">// 1- for interval-based signposts the &quot;begin&quot; point won't be in same function</span>
+<a name="l390"><span class="ln">390  </span></a>  <span class="s0">// as the &quot;end&quot; point where we need to be able to retrieve signpost's info</span>
+<a name="l391"><span class="ln">391  </span></a>  <span class="s0">// 2- if Operations info need to be logged when process ends using</span>
+<a name="l392"><span class="ln">392  </span></a>  <span class="s0">// LogOptions::OPERATION_INFO.</span>
+<a name="l393"><span class="ln">393  </span></a>
+<a name="l394"><span class="ln">394  </span></a>  <span class="s0">// the pointer key for this map is either &quot;MPSGraph*&quot; or</span>
+<a name="l395"><span class="ln">395  </span></a>  <span class="s0">// &quot;id&lt;MTLComputePipelineState&gt;&quot; for Metal Kernels this list is retained and</span>
+<a name="l396"><span class="ln">396  </span></a>  <span class="s0">// could be logged along with aggregate profiling numbers when the process</span>
+<a name="l397"><span class="ln">397  </span></a>  <span class="s0">// ends.</span>
+<a name="l398"><span class="ln">398  </span></a>  <span class="s1">std::unordered_map&lt;uintptr_t, std::unique_ptr&lt;OperationInfo&gt;&gt;</span>
+<a name="l399"><span class="ln">399  </span></a>      <span class="s1">m_op_info_list{};</span>
+<a name="l400"><span class="ln">400  </span></a>  <span class="s0">// the string key for this map is the op name that we fall back to execute on</span>
+<a name="l401"><span class="ln">401  </span></a>  <span class="s0">// CPU this list is retained and could be logged along with aggregate</span>
+<a name="l402"><span class="ln">402  </span></a>  <span class="s0">// profiling numbers when the process ends.</span>
+<a name="l403"><span class="ln">403  </span></a>  <span class="s1">std::unordered_map&lt;std::string, std::unique_ptr&lt;CpuFbInfo&gt;&gt;</span>
+<a name="l404"><span class="ln">404  </span></a>      <span class="s1">m_cpu_fb_info_list{};</span>
+<a name="l405"><span class="ln">405  </span></a>  <span class="s0">// this list contains the info for copies, and its key is the unique profileId</span>
+<a name="l406"><span class="ln">406  </span></a>  <span class="s0">// which is generated from m_copy_counter</span>
+<a name="l407"><span class="ln">407  </span></a>  <span class="s0">// The copyInfo list is not retained.</span>
+<a name="l408"><span class="ln">408  </span></a>  <span class="s1">std::unordered_map&lt;uint64_t, std::unique_ptr&lt;CopyInfo&gt;&gt; m_copy_info_list{};</span>
+<a name="l409"><span class="ln">409  </span></a>  <span class="s0">// a short list that contains copy stats</span>
+<a name="l410"><span class="ln">410  </span></a>  <span class="s1">std::unordered_map&lt;CopyInfo::Kind, std::unique_ptr&lt;CopyStat&gt;&gt;</span>
+<a name="l411"><span class="ln">411  </span></a>      <span class="s1">m_copy_stat_list{};</span>
+<a name="l412"><span class="ln">412  </span></a>
+<a name="l413"><span class="ln">413  </span></a>  <span class="s3">mutable </span><span class="s1">MTLCaptureManager* captureManager = nil;</span>
+<a name="l414"><span class="ln">414  </span></a>  <span class="s2">unsigned </span><span class="s1">captureCount = </span><span class="s4">0</span><span class="s1">;</span>
+<a name="l415"><span class="ln">415  </span></a>
+<a name="l416"><span class="ln">416  </span></a>  <span class="s2">void </span><span class="s1">initialize();</span>
+<a name="l417"><span class="ln">417  </span></a>  <span class="s2">void </span><span class="s1">beginProfileExecution(BaseInfo&amp; info, </span><span class="s2">bool </span><span class="s1">cpuExecution = </span><span class="s2">false</span><span class="s1">);</span>
+<a name="l418"><span class="ln">418  </span></a>  <span class="s2">void </span><span class="s1">endProfileExecution(</span>
+<a name="l419"><span class="ln">419  </span></a>      <span class="s1">BaseInfo&amp; info,</span>
+<a name="l420"><span class="ln">420  </span></a>      <span class="s1">os_signpost_id_t event_signpost_id,</span>
+<a name="l421"><span class="ln">421  </span></a>      <span class="s1">os_signpost_id_t interval_signpost_id,</span>
+<a name="l422"><span class="ln">422  </span></a>      <span class="s2">double </span><span class="s1">gpuTime,</span>
+<a name="l423"><span class="ln">423  </span></a>      <span class="s2">double </span><span class="s1">schedulingTime);</span>
+<a name="l424"><span class="ln">424  </span></a>  <span class="s2">void </span><span class="s1">addProfilerScheduledHandler(BaseInfo&amp; info);</span>
+<a name="l425"><span class="ln">425  </span></a>  <span class="s2">void </span><span class="s1">addProfilerCompletedHandler(BaseInfo&amp; info, SyncType syncType);</span>
+<a name="l426"><span class="ln">426  </span></a>  <span class="s2">void </span><span class="s1">emitSignpostEvent(</span>
+<a name="l427"><span class="ln">427  </span></a>      <span class="s1">SignpostTypes signpost_type,</span>
+<a name="l428"><span class="ln">428  </span></a>      <span class="s1">os_signpost_id_t signpost_id,</span>
+<a name="l429"><span class="ln">429  </span></a>      <span class="s2">const </span><span class="s1">std::string&amp; msg) </span><span class="s2">const</span><span class="s1">;</span>
+<a name="l430"><span class="ln">430  </span></a>  <span class="s2">void </span><span class="s1">beginSignpostInterval(</span>
+<a name="l431"><span class="ln">431  </span></a>      <span class="s1">SignpostTypes signpost_type,</span>
+<a name="l432"><span class="ln">432  </span></a>      <span class="s1">os_signpost_id_t signpost_id,</span>
+<a name="l433"><span class="ln">433  </span></a>      <span class="s2">const </span><span class="s1">std::string&amp; msg) </span><span class="s2">const</span><span class="s1">;</span>
+<a name="l434"><span class="ln">434  </span></a>  <span class="s2">void </span><span class="s1">endSignpostInterval(</span>
+<a name="l435"><span class="ln">435  </span></a>      <span class="s1">SignpostTypes signpost_type,</span>
+<a name="l436"><span class="ln">436  </span></a>      <span class="s1">os_signpost_id_t signpost_id) </span><span class="s2">const</span><span class="s1">;</span>
+<a name="l437"><span class="ln">437  </span></a>
+<a name="l438"><span class="ln">438  </span></a>  <span class="s2">void </span><span class="s1">updateCopyStats(</span>
+<a name="l439"><span class="ln">439  </span></a>      <span class="s2">const </span><span class="s1">CopyInfo&amp; copyInfo,</span>
+<a name="l440"><span class="ln">440  </span></a>      <span class="s2">double </span><span class="s1">gpuTime,</span>
+<a name="l441"><span class="ln">441  </span></a>      <span class="s2">double </span><span class="s1">schedulingTime);</span>
+<a name="l442"><span class="ln">442  </span></a>  <span class="s0">// returns true if logging the profiling info &quot;during the execution&quot; is</span>
+<a name="l443"><span class="ln">443  </span></a>  <span class="s0">// enabled</span>
+<a name="l444"><span class="ln">444  </span></a>  <span class="s2">bool </span><span class="s1">isProfileInfoLoggingEnabled(</span>
+<a name="l445"><span class="ln">445  </span></a>      <span class="s1">BaseInfo::Type infoType,</span>
+<a name="l446"><span class="ln">446  </span></a>      <span class="s2">bool </span><span class="s1">isExecutionEnded);</span>
+<a name="l447"><span class="ln">447  </span></a>  <span class="s0">// logs all the profiling stats that are enabled</span>
+<a name="l448"><span class="ln">448  </span></a>  <span class="s2">void </span><span class="s1">logProfilingStats();</span>
+<a name="l449"><span class="ln">449  </span></a>  <span class="s0">// logs kernel profiling stats when the process ends.</span>
+<a name="l450"><span class="ln">450  </span></a>  <span class="s2">void </span><span class="s1">logOperationsProfilingStats(std::FILE* f) </span><span class="s2">const</span><span class="s1">;</span>
+<a name="l451"><span class="ln">451  </span></a>  <span class="s0">// logs CPU Fallback profiling stats when the process ends.</span>
+<a name="l452"><span class="ln">452  </span></a>  <span class="s2">void </span><span class="s1">logCPUFallbackProfilingStats(std::FILE* f) </span><span class="s2">const</span><span class="s1">;</span>
+<a name="l453"><span class="ln">453  </span></a>  <span class="s0">// logs copy profiling stats when the process ends.</span>
+<a name="l454"><span class="ln">454  </span></a>  <span class="s2">void </span><span class="s1">logCopyProfilingStats(std::FILE* f) </span><span class="s2">const</span><span class="s1">;</span>
+<a name="l455"><span class="ln">455  </span></a>
+<a name="l456"><span class="ln">456  </span></a>  <span class="s1">os_signpost_id_t generateSignpostId(</span>
+<a name="l457"><span class="ln">457  </span></a>      <span class="s1">os_signpost_type_t signpostType,</span>
+<a name="l458"><span class="ln">458  </span></a>      <span class="s2">const void</span><span class="s1">* ptr = nullptr);</span>
+<a name="l459"><span class="ln">459  </span></a>  <span class="s2">static </span><span class="s1">SignpostTypes getSignpostType(BaseInfo::Type infoType);</span>
+<a name="l460"><span class="ln">460  </span></a>  <span class="s2">static void </span><span class="s1">handleIntSignal(</span><span class="s2">int </span><span class="s1">signal);</span>
+<a name="l461"><span class="ln">461  </span></a><span class="s1">};</span>
+<a name="l462"><span class="ln">462  </span></a>
+<a name="l463"><span class="ln">463  </span></a><span class="s1">} </span><span class="s0">// namespace Profiler</span>
+<a name="l464"><span class="ln">464  </span></a>
+<a name="l465"><span class="ln">465  </span></a><span class="s1">Profiler::MPSProfiler&amp; getMPSProfiler();</span>
+<a name="l466"><span class="ln">466  </span></a>
+<a name="l467"><span class="ln">467  </span></a><span class="s1">} </span><span class="s0">// namespace at::mps</span>
+<a name="l468"><span class="ln">468  </span></a></pre>
+</body>
+</html>

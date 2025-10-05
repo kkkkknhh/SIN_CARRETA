@@ -1,0 +1,77 @@
+<html>
+<head>
+<title>Resize.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #000080; font-weight: bold;}
+.s2 { color: #660e7a; font-weight: bold;}
+.s3 { color: #969896; font-style: italic;}
+.s4 { color: #006666; font-weight: bold;}
+.s5 { color: #0086b3;}
+.s6 { color: #183691; font-weight: bold;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+Resize.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/EmptyTensor.h&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/native/ResizeCommon.h&gt;</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/cuda/CUDAGuard.h&gt;</span>
+<a name="l7"><span class="ln">7    </span></a>
+<a name="l8"><span class="ln">8    </span></a><span class="s2">namespace </span><span class="s0">at::native {</span>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">TORCH_CUDA_CPP_API </span><span class="s1">void </span><span class="s0">resize_bytes_cuda(StorageImpl* storage, size_t size_bytes);</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s1">static </span><span class="s2">inline </span><span class="s1">void </span><span class="s0">maybe_resize_storage_cuda(TensorImpl* self, size_t new_size_bytes) {</span>
+<a name="l13"><span class="ln">13   </span></a>  <span class="s3">// It does not make sense to try to resize a storage</span>
+<a name="l14"><span class="ln">14   </span></a>  <span class="s3">// to hold 0 elements, and this can break</span>
+<a name="l15"><span class="ln">15   </span></a>  <span class="s3">// if storage_offset is positive but</span>
+<a name="l16"><span class="ln">16   </span></a>  <span class="s3">// new_size is 0, so just bail in that case</span>
+<a name="l17"><span class="ln">17   </span></a>  <span class="s3">// (same comment is in Resize.h)</span>
+<a name="l18"><span class="ln">18   </span></a>  <span class="s1">if </span><span class="s0">(self</span><span class="s4">-&gt;</span><span class="s0">numel() == </span><span class="s5">0</span><span class="s0">) {</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s1">return</span><span class="s0">;</span>
+<a name="l20"><span class="ln">20   </span></a>  <span class="s0">}</span>
+<a name="l21"><span class="ln">21   </span></a>
+<a name="l22"><span class="ln">22   </span></a>  <span class="s1">const </span><span class="s0">Storage &amp;storage = self</span><span class="s4">-&gt;</span><span class="s0">unsafe_storage();</span>
+<a name="l23"><span class="ln">23   </span></a>  <span class="s0">TORCH_CHECK(storage, </span><span class="s6">&quot;Tensor: invalid null storage&quot;</span><span class="s0">);</span>
+<a name="l24"><span class="ln">24   </span></a>  <span class="s1">if </span><span class="s0">(new_size_bytes &gt; storage.nbytes()) {</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s0">resize_bytes_cuda(storage.unsafeGetStorageImpl(), new_size_bytes);</span>
+<a name="l26"><span class="ln">26   </span></a>  <span class="s0">}</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s0">}</span>
+<a name="l28"><span class="ln">28   </span></a>
+<a name="l29"><span class="ln">29   </span></a><span class="s2">inline </span><span class="s0">TensorImpl* resize_impl_cuda_(</span>
+<a name="l30"><span class="ln">30   </span></a>    <span class="s0">TensorImpl* self,</span>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s0">IntArrayRef size,</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s0">at::OptionalIntArrayRef stride) {</span>
+<a name="l33"><span class="ln">33   </span></a>  <span class="s1">if </span><span class="s0">(self</span><span class="s4">-&gt;</span><span class="s0">sizes() == size &amp;&amp; (!stride || self</span><span class="s4">-&gt;</span><span class="s0">strides() == stride)) {</span>
+<a name="l34"><span class="ln">34   </span></a>    <span class="s1">return </span><span class="s0">self;</span>
+<a name="l35"><span class="ln">35   </span></a>  <span class="s0">}</span>
+<a name="l36"><span class="ln">36   </span></a>  <span class="s1">const auto </span><span class="s0">itemsize = self</span><span class="s4">-&gt;</span><span class="s0">dtype().itemsize();</span>
+<a name="l37"><span class="ln">37   </span></a>  <span class="s1">const auto </span><span class="s0">storage_offset = self</span><span class="s4">-&gt;</span><span class="s0">storage_offset();</span>
+<a name="l38"><span class="ln">38   </span></a>  <span class="s0">size_t storage_size = </span><span class="s5">1</span><span class="s0">;</span>
+<a name="l39"><span class="ln">39   </span></a>  <span class="s1">if </span><span class="s0">(stride) {</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s0">self</span><span class="s4">-&gt;</span><span class="s0">set_sizes_and_strides(size, *stride);</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s0">storage_size = at::detail::computeStorageNbytes(</span>
+<a name="l42"><span class="ln">42   </span></a>        <span class="s0">size, *stride, itemsize, storage_offset);</span>
+<a name="l43"><span class="ln">43   </span></a>  <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s0">self</span><span class="s4">-&gt;</span><span class="s0">set_sizes_contiguous(size);</span>
+<a name="l45"><span class="ln">45   </span></a>    <span class="s0">storage_size = at::detail::computeStorageNbytesContiguous(</span>
+<a name="l46"><span class="ln">46   </span></a>        <span class="s0">size, itemsize, storage_offset);</span>
+<a name="l47"><span class="ln">47   </span></a>  <span class="s0">}</span>
+<a name="l48"><span class="ln">48   </span></a>  <span class="s0">maybe_resize_storage_cuda(self, storage_size);</span>
+<a name="l49"><span class="ln">49   </span></a>
+<a name="l50"><span class="ln">50   </span></a>  <span class="s1">return </span><span class="s0">self;</span>
+<a name="l51"><span class="ln">51   </span></a><span class="s0">}</span>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a><span class="s0">}</span>
+<a name="l54"><span class="ln">54   </span></a></pre>
+</body>
+</html>

@@ -1,0 +1,321 @@
+<html>
+<head>
+<title>pkg_resources.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #969896;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+pkg_resources.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">from </span><span class="s1">__future__ </span><span class="s0">import </span><span class="s1">annotations</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">import </span><span class="s1">email</span><span class="s2">.</span><span class="s1">message</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">import </span><span class="s1">email</span><span class="s2">.</span><span class="s1">parser</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">import </span><span class="s1">logging</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">import </span><span class="s1">os</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">import </span><span class="s1">zipfile</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">from </span><span class="s1">collections</span><span class="s2">.</span><span class="s1">abc </span><span class="s0">import </span><span class="s1">Collection</span><span class="s2">, </span><span class="s1">Iterable</span><span class="s2">, </span><span class="s1">Iterator</span><span class="s2">, </span><span class="s1">Mapping</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">from </span><span class="s1">typing </span><span class="s0">import </span><span class="s2">(</span>
+<a name="l10"><span class="ln">10   </span></a>    <span class="s1">NamedTuple</span><span class="s2">,</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">)</span>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_vendor </span><span class="s0">import </span><span class="s1">pkg_resources</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_vendor</span><span class="s2">.</span><span class="s1">packaging</span><span class="s2">.</span><span class="s1">requirements </span><span class="s0">import </span><span class="s1">Requirement</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_vendor</span><span class="s2">.</span><span class="s1">packaging</span><span class="s2">.</span><span class="s1">utils </span><span class="s0">import </span><span class="s1">NormalizedName</span><span class="s2">, </span><span class="s1">canonicalize_name</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_vendor</span><span class="s2">.</span><span class="s1">packaging</span><span class="s2">.</span><span class="s1">version </span><span class="s0">import </span><span class="s1">Version</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_vendor</span><span class="s2">.</span><span class="s1">packaging</span><span class="s2">.</span><span class="s1">version </span><span class="s0">import </span><span class="s1">parse </span><span class="s0">as </span><span class="s1">parse_version</span>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_internal</span><span class="s2">.</span><span class="s1">exceptions </span><span class="s0">import </span><span class="s1">InvalidWheel</span><span class="s2">, </span><span class="s1">NoneMetadataError</span><span class="s2">, </span><span class="s1">UnsupportedWheel</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_internal</span><span class="s2">.</span><span class="s1">utils</span><span class="s2">.</span><span class="s1">egg_link </span><span class="s0">import </span><span class="s1">egg_link_path_from_location</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_internal</span><span class="s2">.</span><span class="s1">utils</span><span class="s2">.</span><span class="s1">misc </span><span class="s0">import </span><span class="s1">display_path</span><span class="s2">, </span><span class="s1">normalize_path</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s0">from </span><span class="s1">pip</span><span class="s2">.</span><span class="s1">_internal</span><span class="s2">.</span><span class="s1">utils</span><span class="s2">.</span><span class="s1">wheel </span><span class="s0">import </span><span class="s1">parse_wheel</span><span class="s2">, </span><span class="s1">read_wheel_metadata_file</span>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">base </span><span class="s0">import </span><span class="s2">(</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s1">BaseDistribution</span><span class="s2">,</span>
+<a name="l26"><span class="ln">26   </span></a>    <span class="s1">BaseEntryPoint</span><span class="s2">,</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s1">BaseEnvironment</span><span class="s2">,</span>
+<a name="l28"><span class="ln">28   </span></a>    <span class="s1">InfoPath</span><span class="s2">,</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s1">Wheel</span><span class="s2">,</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s2">)</span>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span><span class="s3">&quot;NAME&quot;</span><span class="s2">, </span><span class="s3">&quot;Distribution&quot;</span><span class="s2">, </span><span class="s3">&quot;Environment&quot;</span><span class="s2">]</span>
+<a name="l33"><span class="ln">33   </span></a>
+<a name="l34"><span class="ln">34   </span></a><span class="s1">logger </span><span class="s0">= </span><span class="s1">logging</span><span class="s2">.</span><span class="s1">getLogger</span><span class="s2">(</span><span class="s1">__name__</span><span class="s2">)</span>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a><span class="s1">NAME </span><span class="s0">= </span><span class="s3">&quot;pkg_resources&quot;</span>
+<a name="l37"><span class="ln">37   </span></a>
+<a name="l38"><span class="ln">38   </span></a>
+<a name="l39"><span class="ln">39   </span></a><span class="s0">class </span><span class="s1">EntryPoint</span><span class="s2">(</span><span class="s1">NamedTuple</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s1">name</span><span class="s0">: </span><span class="s1">str</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s1">value</span><span class="s0">: </span><span class="s1">str</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s1">group</span><span class="s0">: </span><span class="s1">str</span>
+<a name="l43"><span class="ln">43   </span></a>
+<a name="l44"><span class="ln">44   </span></a>
+<a name="l45"><span class="ln">45   </span></a><span class="s0">class </span><span class="s1">InMemoryMetadata</span><span class="s0">:</span>
+<a name="l46"><span class="ln">46   </span></a>    <span class="s4">&quot;&quot;&quot;IMetadataProvider that reads metadata files from a dictionary. 
+<a name="l47"><span class="ln">47   </span></a> 
+<a name="l48"><span class="ln">48   </span></a>    This also maps metadata decoding exceptions to our internal exception type. 
+<a name="l49"><span class="ln">49   </span></a>    &quot;&quot;&quot;</span>
+<a name="l50"><span class="ln">50   </span></a>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s0">def </span><span class="s1">__init__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">metadata</span><span class="s0">: </span><span class="s1">Mapping</span><span class="s2">[</span><span class="s1">str</span><span class="s2">, </span><span class="s1">bytes</span><span class="s2">], </span><span class="s1">wheel_name</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s0">None:</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">_metadata </span><span class="s0">= </span><span class="s1">metadata</span>
+<a name="l53"><span class="ln">53   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">_wheel_name </span><span class="s0">= </span><span class="s1">wheel_name</span>
+<a name="l54"><span class="ln">54   </span></a>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s0">def </span><span class="s1">has_metadata</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">name</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l56"><span class="ln">56   </span></a>        <span class="s0">return </span><span class="s1">name </span><span class="s0">in </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_metadata</span>
+<a name="l57"><span class="ln">57   </span></a>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s0">def </span><span class="s1">get_metadata</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">name</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; str</span><span class="s0">:</span>
+<a name="l59"><span class="ln">59   </span></a>        <span class="s0">try:</span>
+<a name="l60"><span class="ln">60   </span></a>            <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_metadata</span><span class="s2">[</span><span class="s1">name</span><span class="s2">].</span><span class="s1">decode</span><span class="s2">()</span>
+<a name="l61"><span class="ln">61   </span></a>        <span class="s0">except </span><span class="s1">UnicodeDecodeError </span><span class="s0">as </span><span class="s1">e</span><span class="s0">:</span>
+<a name="l62"><span class="ln">62   </span></a>            <span class="s4"># Augment the default error with the origin of the file.</span>
+<a name="l63"><span class="ln">63   </span></a>            <span class="s0">raise </span><span class="s1">UnsupportedWheel</span><span class="s2">(</span>
+<a name="l64"><span class="ln">64   </span></a>                <span class="s3">f&quot;Error decoding metadata for {</span><span class="s1">self</span><span class="s2">.</span><span class="s1">_wheel_name</span><span class="s3">}: {</span><span class="s1">e</span><span class="s3">} in {</span><span class="s1">name</span><span class="s3">} file&quot;</span>
+<a name="l65"><span class="ln">65   </span></a>            <span class="s2">)</span>
+<a name="l66"><span class="ln">66   </span></a>
+<a name="l67"><span class="ln">67   </span></a>    <span class="s0">def </span><span class="s1">get_metadata_lines</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">name</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; Iterable</span><span class="s2">[</span><span class="s1">str</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l68"><span class="ln">68   </span></a>        <span class="s0">return </span><span class="s1">pkg_resources</span><span class="s2">.</span><span class="s1">yield_lines</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">get_metadata</span><span class="s2">(</span><span class="s1">name</span><span class="s2">))</span>
+<a name="l69"><span class="ln">69   </span></a>
+<a name="l70"><span class="ln">70   </span></a>    <span class="s0">def </span><span class="s1">metadata_isdir</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">name</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l71"><span class="ln">71   </span></a>        <span class="s0">return False</span>
+<a name="l72"><span class="ln">72   </span></a>
+<a name="l73"><span class="ln">73   </span></a>    <span class="s0">def </span><span class="s1">metadata_listdir</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">name</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; list</span><span class="s2">[</span><span class="s1">str</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l74"><span class="ln">74   </span></a>        <span class="s0">return </span><span class="s2">[]</span>
+<a name="l75"><span class="ln">75   </span></a>
+<a name="l76"><span class="ln">76   </span></a>    <span class="s0">def </span><span class="s1">run_script</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">script_name</span><span class="s0">: </span><span class="s1">str</span><span class="s2">, </span><span class="s1">namespace</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s0">None:</span>
+<a name="l77"><span class="ln">77   </span></a>        <span class="s0">pass</span>
+<a name="l78"><span class="ln">78   </span></a>
+<a name="l79"><span class="ln">79   </span></a>
+<a name="l80"><span class="ln">80   </span></a><span class="s0">class </span><span class="s1">Distribution</span><span class="s2">(</span><span class="s1">BaseDistribution</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l81"><span class="ln">81   </span></a>    <span class="s0">def </span><span class="s1">__init__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">dist</span><span class="s0">: </span><span class="s1">pkg_resources</span><span class="s2">.</span><span class="s1">Distribution</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s0">None:</span>
+<a name="l82"><span class="ln">82   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">_dist </span><span class="s0">= </span><span class="s1">dist</span>
+<a name="l83"><span class="ln">83   </span></a>        <span class="s4"># This is populated lazily, to avoid loading metadata for all possible</span>
+<a name="l84"><span class="ln">84   </span></a>        <span class="s4"># distributions eagerly.</span>
+<a name="l85"><span class="ln">85   </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">__extra_mapping</span><span class="s0">: </span><span class="s1">Mapping</span><span class="s2">[</span><span class="s1">NormalizedName</span><span class="s2">, </span><span class="s1">str</span><span class="s2">] </span><span class="s0">| None = None</span>
+<a name="l86"><span class="ln">86   </span></a>
+<a name="l87"><span class="ln">87   </span></a>    <span class="s0">@</span><span class="s1">property</span>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s0">def </span><span class="s1">_extra_mapping</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; Mapping</span><span class="s2">[</span><span class="s1">NormalizedName</span><span class="s2">, </span><span class="s1">str</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l89"><span class="ln">89   </span></a>        <span class="s0">if </span><span class="s1">self</span><span class="s2">.</span><span class="s1">__extra_mapping </span><span class="s0">is None:</span>
+<a name="l90"><span class="ln">90   </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">__extra_mapping </span><span class="s0">= </span><span class="s2">{</span>
+<a name="l91"><span class="ln">91   </span></a>                <span class="s1">canonicalize_name</span><span class="s2">(</span><span class="s1">extra</span><span class="s2">)</span><span class="s0">: </span><span class="s1">extra </span><span class="s0">for </span><span class="s1">extra </span><span class="s0">in </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">.</span><span class="s1">extras</span>
+<a name="l92"><span class="ln">92   </span></a>            <span class="s2">}</span>
+<a name="l93"><span class="ln">93   </span></a>
+<a name="l94"><span class="ln">94   </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">__extra_mapping</span>
+<a name="l95"><span class="ln">95   </span></a>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s0">def </span><span class="s1">from_directory</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">directory</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; BaseDistribution</span><span class="s0">:</span>
+<a name="l98"><span class="ln">98   </span></a>        <span class="s1">dist_dir </span><span class="s0">= </span><span class="s1">directory</span><span class="s2">.</span><span class="s1">rstrip</span><span class="s2">(</span><span class="s1">os</span><span class="s2">.</span><span class="s1">sep</span><span class="s2">)</span>
+<a name="l99"><span class="ln">99   </span></a>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s4"># Build a PathMetadata object, from path to metadata. :wink:</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s1">base_dir</span><span class="s2">, </span><span class="s1">dist_dir_name </span><span class="s0">= </span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">split</span><span class="s2">(</span><span class="s1">dist_dir</span><span class="s2">)</span>
+<a name="l102"><span class="ln">102  </span></a>        <span class="s1">metadata </span><span class="s0">= </span><span class="s1">pkg_resources</span><span class="s2">.</span><span class="s1">PathMetadata</span><span class="s2">(</span><span class="s1">base_dir</span><span class="s2">, </span><span class="s1">dist_dir</span><span class="s2">)</span>
+<a name="l103"><span class="ln">103  </span></a>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s4"># Determine the correct Distribution object type.</span>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s0">if </span><span class="s1">dist_dir</span><span class="s2">.</span><span class="s1">endswith</span><span class="s2">(</span><span class="s3">&quot;.egg-info&quot;</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l106"><span class="ln">106  </span></a>            <span class="s1">dist_cls </span><span class="s0">= </span><span class="s1">pkg_resources</span><span class="s2">.</span><span class="s1">Distribution</span>
+<a name="l107"><span class="ln">107  </span></a>            <span class="s1">dist_name </span><span class="s0">= </span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">splitext</span><span class="s2">(</span><span class="s1">dist_dir_name</span><span class="s2">)[</span><span class="s5">0</span><span class="s2">]</span>
+<a name="l108"><span class="ln">108  </span></a>        <span class="s0">else:</span>
+<a name="l109"><span class="ln">109  </span></a>            <span class="s0">assert </span><span class="s1">dist_dir</span><span class="s2">.</span><span class="s1">endswith</span><span class="s2">(</span><span class="s3">&quot;.dist-info&quot;</span><span class="s2">)</span>
+<a name="l110"><span class="ln">110  </span></a>            <span class="s1">dist_cls </span><span class="s0">= </span><span class="s1">pkg_resources</span><span class="s2">.</span><span class="s1">DistInfoDistribution</span>
+<a name="l111"><span class="ln">111  </span></a>            <span class="s1">dist_name </span><span class="s0">= </span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">splitext</span><span class="s2">(</span><span class="s1">dist_dir_name</span><span class="s2">)[</span><span class="s5">0</span><span class="s2">].</span><span class="s1">split</span><span class="s2">(</span><span class="s3">&quot;-&quot;</span><span class="s2">)[</span><span class="s5">0</span><span class="s2">]</span>
+<a name="l112"><span class="ln">112  </span></a>
+<a name="l113"><span class="ln">113  </span></a>        <span class="s1">dist </span><span class="s0">= </span><span class="s1">dist_cls</span><span class="s2">(</span><span class="s1">base_dir</span><span class="s2">, </span><span class="s1">project_name</span><span class="s0">=</span><span class="s1">dist_name</span><span class="s2">, </span><span class="s1">metadata</span><span class="s0">=</span><span class="s1">metadata</span><span class="s2">)</span>
+<a name="l114"><span class="ln">114  </span></a>        <span class="s0">return </span><span class="s1">cls</span><span class="s2">(</span><span class="s1">dist</span><span class="s2">)</span>
+<a name="l115"><span class="ln">115  </span></a>
+<a name="l116"><span class="ln">116  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l117"><span class="ln">117  </span></a>    <span class="s0">def </span><span class="s1">from_metadata_file_contents</span><span class="s2">(</span>
+<a name="l118"><span class="ln">118  </span></a>        <span class="s1">cls</span><span class="s2">,</span>
+<a name="l119"><span class="ln">119  </span></a>        <span class="s1">metadata_contents</span><span class="s0">: </span><span class="s1">bytes</span><span class="s2">,</span>
+<a name="l120"><span class="ln">120  </span></a>        <span class="s1">filename</span><span class="s0">: </span><span class="s1">str</span><span class="s2">,</span>
+<a name="l121"><span class="ln">121  </span></a>        <span class="s1">project_name</span><span class="s0">: </span><span class="s1">str</span><span class="s2">,</span>
+<a name="l122"><span class="ln">122  </span></a>    <span class="s2">) </span><span class="s1">-&gt; BaseDistribution</span><span class="s0">:</span>
+<a name="l123"><span class="ln">123  </span></a>        <span class="s1">metadata_dict </span><span class="s0">= </span><span class="s2">{</span>
+<a name="l124"><span class="ln">124  </span></a>            <span class="s3">&quot;METADATA&quot;</span><span class="s0">: </span><span class="s1">metadata_contents</span><span class="s2">,</span>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s2">}</span>
+<a name="l126"><span class="ln">126  </span></a>        <span class="s1">dist </span><span class="s0">= </span><span class="s1">pkg_resources</span><span class="s2">.</span><span class="s1">DistInfoDistribution</span><span class="s2">(</span>
+<a name="l127"><span class="ln">127  </span></a>            <span class="s1">location</span><span class="s0">=</span><span class="s1">filename</span><span class="s2">,</span>
+<a name="l128"><span class="ln">128  </span></a>            <span class="s1">metadata</span><span class="s0">=</span><span class="s1">InMemoryMetadata</span><span class="s2">(</span><span class="s1">metadata_dict</span><span class="s2">, </span><span class="s1">filename</span><span class="s2">),</span>
+<a name="l129"><span class="ln">129  </span></a>            <span class="s1">project_name</span><span class="s0">=</span><span class="s1">project_name</span><span class="s2">,</span>
+<a name="l130"><span class="ln">130  </span></a>        <span class="s2">)</span>
+<a name="l131"><span class="ln">131  </span></a>        <span class="s0">return </span><span class="s1">cls</span><span class="s2">(</span><span class="s1">dist</span><span class="s2">)</span>
+<a name="l132"><span class="ln">132  </span></a>
+<a name="l133"><span class="ln">133  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l134"><span class="ln">134  </span></a>    <span class="s0">def </span><span class="s1">from_wheel</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">wheel</span><span class="s0">: </span><span class="s1">Wheel</span><span class="s2">, </span><span class="s1">name</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; BaseDistribution</span><span class="s0">:</span>
+<a name="l135"><span class="ln">135  </span></a>        <span class="s0">try:</span>
+<a name="l136"><span class="ln">136  </span></a>            <span class="s0">with </span><span class="s1">wheel</span><span class="s2">.</span><span class="s1">as_zipfile</span><span class="s2">() </span><span class="s0">as </span><span class="s1">zf</span><span class="s0">:</span>
+<a name="l137"><span class="ln">137  </span></a>                <span class="s1">info_dir</span><span class="s2">, </span><span class="s1">_ </span><span class="s0">= </span><span class="s1">parse_wheel</span><span class="s2">(</span><span class="s1">zf</span><span class="s2">, </span><span class="s1">name</span><span class="s2">)</span>
+<a name="l138"><span class="ln">138  </span></a>                <span class="s1">metadata_dict </span><span class="s0">= </span><span class="s2">{</span>
+<a name="l139"><span class="ln">139  </span></a>                    <span class="s1">path</span><span class="s2">.</span><span class="s1">split</span><span class="s2">(</span><span class="s3">&quot;/&quot;</span><span class="s2">, </span><span class="s5">1</span><span class="s2">)[</span><span class="s0">-</span><span class="s5">1</span><span class="s2">]</span><span class="s0">: </span><span class="s1">read_wheel_metadata_file</span><span class="s2">(</span><span class="s1">zf</span><span class="s2">, </span><span class="s1">path</span><span class="s2">)</span>
+<a name="l140"><span class="ln">140  </span></a>                    <span class="s0">for </span><span class="s1">path </span><span class="s0">in </span><span class="s1">zf</span><span class="s2">.</span><span class="s1">namelist</span><span class="s2">()</span>
+<a name="l141"><span class="ln">141  </span></a>                    <span class="s0">if </span><span class="s1">path</span><span class="s2">.</span><span class="s1">startswith</span><span class="s2">(</span><span class="s3">f&quot;{</span><span class="s1">info_dir</span><span class="s3">}/&quot;</span><span class="s2">)</span>
+<a name="l142"><span class="ln">142  </span></a>                <span class="s2">}</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s0">except </span><span class="s1">zipfile</span><span class="s2">.</span><span class="s1">BadZipFile </span><span class="s0">as </span><span class="s1">e</span><span class="s0">:</span>
+<a name="l144"><span class="ln">144  </span></a>            <span class="s0">raise </span><span class="s1">InvalidWheel</span><span class="s2">(</span><span class="s1">wheel</span><span class="s2">.</span><span class="s1">location</span><span class="s2">, </span><span class="s1">name</span><span class="s2">) </span><span class="s0">from </span><span class="s1">e</span>
+<a name="l145"><span class="ln">145  </span></a>        <span class="s0">except </span><span class="s1">UnsupportedWheel </span><span class="s0">as </span><span class="s1">e</span><span class="s0">:</span>
+<a name="l146"><span class="ln">146  </span></a>            <span class="s0">raise </span><span class="s1">UnsupportedWheel</span><span class="s2">(</span><span class="s3">f&quot;{</span><span class="s1">name</span><span class="s3">} has an invalid wheel, {</span><span class="s1">e</span><span class="s3">}&quot;</span><span class="s2">)</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s1">dist </span><span class="s0">= </span><span class="s1">pkg_resources</span><span class="s2">.</span><span class="s1">DistInfoDistribution</span><span class="s2">(</span>
+<a name="l148"><span class="ln">148  </span></a>            <span class="s1">location</span><span class="s0">=</span><span class="s1">wheel</span><span class="s2">.</span><span class="s1">location</span><span class="s2">,</span>
+<a name="l149"><span class="ln">149  </span></a>            <span class="s1">metadata</span><span class="s0">=</span><span class="s1">InMemoryMetadata</span><span class="s2">(</span><span class="s1">metadata_dict</span><span class="s2">, </span><span class="s1">wheel</span><span class="s2">.</span><span class="s1">location</span><span class="s2">),</span>
+<a name="l150"><span class="ln">150  </span></a>            <span class="s1">project_name</span><span class="s0">=</span><span class="s1">name</span><span class="s2">,</span>
+<a name="l151"><span class="ln">151  </span></a>        <span class="s2">)</span>
+<a name="l152"><span class="ln">152  </span></a>        <span class="s0">return </span><span class="s1">cls</span><span class="s2">(</span><span class="s1">dist</span><span class="s2">)</span>
+<a name="l153"><span class="ln">153  </span></a>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s0">@</span><span class="s1">property</span>
+<a name="l155"><span class="ln">155  </span></a>    <span class="s0">def </span><span class="s1">location</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; str </span><span class="s0">| None:</span>
+<a name="l156"><span class="ln">156  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">.</span><span class="s1">location</span>
+<a name="l157"><span class="ln">157  </span></a>
+<a name="l158"><span class="ln">158  </span></a>    <span class="s0">@</span><span class="s1">property</span>
+<a name="l159"><span class="ln">159  </span></a>    <span class="s0">def </span><span class="s1">installed_location</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; str </span><span class="s0">| None:</span>
+<a name="l160"><span class="ln">160  </span></a>        <span class="s1">egg_link </span><span class="s0">= </span><span class="s1">egg_link_path_from_location</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">raw_name</span><span class="s2">)</span>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s0">if </span><span class="s1">egg_link</span><span class="s0">:</span>
+<a name="l162"><span class="ln">162  </span></a>            <span class="s1">location </span><span class="s0">= </span><span class="s1">egg_link</span>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s0">elif </span><span class="s1">self</span><span class="s2">.</span><span class="s1">location</span><span class="s0">:</span>
+<a name="l164"><span class="ln">164  </span></a>            <span class="s1">location </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">location</span>
+<a name="l165"><span class="ln">165  </span></a>        <span class="s0">else:</span>
+<a name="l166"><span class="ln">166  </span></a>            <span class="s0">return None</span>
+<a name="l167"><span class="ln">167  </span></a>        <span class="s0">return </span><span class="s1">normalize_path</span><span class="s2">(</span><span class="s1">location</span><span class="s2">)</span>
+<a name="l168"><span class="ln">168  </span></a>
+<a name="l169"><span class="ln">169  </span></a>    <span class="s0">@</span><span class="s1">property</span>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s0">def </span><span class="s1">info_location</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; str </span><span class="s0">| None:</span>
+<a name="l171"><span class="ln">171  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">.</span><span class="s1">egg_info</span>
+<a name="l172"><span class="ln">172  </span></a>
+<a name="l173"><span class="ln">173  </span></a>    <span class="s0">@</span><span class="s1">property</span>
+<a name="l174"><span class="ln">174  </span></a>    <span class="s0">def </span><span class="s1">installed_by_distutils</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l175"><span class="ln">175  </span></a>        <span class="s4"># A distutils-installed distribution is provided by FileMetadata. This</span>
+<a name="l176"><span class="ln">176  </span></a>        <span class="s4"># provider has a &quot;path&quot; attribute not present anywhere else. Not the</span>
+<a name="l177"><span class="ln">177  </span></a>        <span class="s4"># best introspection logic, but pip has been doing this for a long time.</span>
+<a name="l178"><span class="ln">178  </span></a>        <span class="s0">try:</span>
+<a name="l179"><span class="ln">179  </span></a>            <span class="s0">return </span><span class="s1">bool</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">.</span><span class="s1">_provider</span><span class="s2">.</span><span class="s1">path</span><span class="s2">)</span>
+<a name="l180"><span class="ln">180  </span></a>        <span class="s0">except </span><span class="s1">AttributeError</span><span class="s0">:</span>
+<a name="l181"><span class="ln">181  </span></a>            <span class="s0">return False</span>
+<a name="l182"><span class="ln">182  </span></a>
+<a name="l183"><span class="ln">183  </span></a>    <span class="s0">@</span><span class="s1">property</span>
+<a name="l184"><span class="ln">184  </span></a>    <span class="s0">def </span><span class="s1">canonical_name</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; NormalizedName</span><span class="s0">:</span>
+<a name="l185"><span class="ln">185  </span></a>        <span class="s0">return </span><span class="s1">canonicalize_name</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">.</span><span class="s1">project_name</span><span class="s2">)</span>
+<a name="l186"><span class="ln">186  </span></a>
+<a name="l187"><span class="ln">187  </span></a>    <span class="s0">@</span><span class="s1">property</span>
+<a name="l188"><span class="ln">188  </span></a>    <span class="s0">def </span><span class="s1">version</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; Version</span><span class="s0">:</span>
+<a name="l189"><span class="ln">189  </span></a>        <span class="s0">return </span><span class="s1">parse_version</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">.</span><span class="s1">version</span><span class="s2">)</span>
+<a name="l190"><span class="ln">190  </span></a>
+<a name="l191"><span class="ln">191  </span></a>    <span class="s0">@</span><span class="s1">property</span>
+<a name="l192"><span class="ln">192  </span></a>    <span class="s0">def </span><span class="s1">raw_version</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; str</span><span class="s0">:</span>
+<a name="l193"><span class="ln">193  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">.</span><span class="s1">version</span>
+<a name="l194"><span class="ln">194  </span></a>
+<a name="l195"><span class="ln">195  </span></a>    <span class="s0">def </span><span class="s1">is_file</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">path</span><span class="s0">: </span><span class="s1">InfoPath</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l196"><span class="ln">196  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">.</span><span class="s1">has_metadata</span><span class="s2">(</span><span class="s1">str</span><span class="s2">(</span><span class="s1">path</span><span class="s2">))</span>
+<a name="l197"><span class="ln">197  </span></a>
+<a name="l198"><span class="ln">198  </span></a>    <span class="s0">def </span><span class="s1">iter_distutils_script_names</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; Iterator</span><span class="s2">[</span><span class="s1">str</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l199"><span class="ln">199  </span></a>        <span class="s0">yield from </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">.</span><span class="s1">metadata_listdir</span><span class="s2">(</span><span class="s3">&quot;scripts&quot;</span><span class="s2">)</span>
+<a name="l200"><span class="ln">200  </span></a>
+<a name="l201"><span class="ln">201  </span></a>    <span class="s0">def </span><span class="s1">read_text</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">path</span><span class="s0">: </span><span class="s1">InfoPath</span><span class="s2">) </span><span class="s1">-&gt; str</span><span class="s0">:</span>
+<a name="l202"><span class="ln">202  </span></a>        <span class="s1">name </span><span class="s0">= </span><span class="s1">str</span><span class="s2">(</span><span class="s1">path</span><span class="s2">)</span>
+<a name="l203"><span class="ln">203  </span></a>        <span class="s0">if not </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">.</span><span class="s1">has_metadata</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l204"><span class="ln">204  </span></a>            <span class="s0">raise </span><span class="s1">FileNotFoundError</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)</span>
+<a name="l205"><span class="ln">205  </span></a>        <span class="s1">content </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">.</span><span class="s1">get_metadata</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)</span>
+<a name="l206"><span class="ln">206  </span></a>        <span class="s0">if </span><span class="s1">content </span><span class="s0">is None:</span>
+<a name="l207"><span class="ln">207  </span></a>            <span class="s0">raise </span><span class="s1">NoneMetadataError</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">name</span><span class="s2">)</span>
+<a name="l208"><span class="ln">208  </span></a>        <span class="s0">return </span><span class="s1">content</span>
+<a name="l209"><span class="ln">209  </span></a>
+<a name="l210"><span class="ln">210  </span></a>    <span class="s0">def </span><span class="s1">iter_entry_points</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; Iterable</span><span class="s2">[</span><span class="s1">BaseEntryPoint</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l211"><span class="ln">211  </span></a>        <span class="s0">for </span><span class="s1">group</span><span class="s2">, </span><span class="s1">entries </span><span class="s0">in </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">.</span><span class="s1">get_entry_map</span><span class="s2">().</span><span class="s1">items</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l212"><span class="ln">212  </span></a>            <span class="s0">for </span><span class="s1">name</span><span class="s2">, </span><span class="s1">entry_point </span><span class="s0">in </span><span class="s1">entries</span><span class="s2">.</span><span class="s1">items</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l213"><span class="ln">213  </span></a>                <span class="s1">name</span><span class="s2">, </span><span class="s1">_</span><span class="s2">, </span><span class="s1">value </span><span class="s0">= </span><span class="s1">str</span><span class="s2">(</span><span class="s1">entry_point</span><span class="s2">).</span><span class="s1">partition</span><span class="s2">(</span><span class="s3">&quot;=&quot;</span><span class="s2">)</span>
+<a name="l214"><span class="ln">214  </span></a>                <span class="s0">yield </span><span class="s1">EntryPoint</span><span class="s2">(</span><span class="s1">name</span><span class="s0">=</span><span class="s1">name</span><span class="s2">.</span><span class="s1">strip</span><span class="s2">(), </span><span class="s1">value</span><span class="s0">=</span><span class="s1">value</span><span class="s2">.</span><span class="s1">strip</span><span class="s2">(), </span><span class="s1">group</span><span class="s0">=</span><span class="s1">group</span><span class="s2">)</span>
+<a name="l215"><span class="ln">215  </span></a>
+<a name="l216"><span class="ln">216  </span></a>    <span class="s0">def </span><span class="s1">_metadata_impl</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; email</span><span class="s2">.</span><span class="s1">message</span><span class="s2">.</span><span class="s1">Message</span><span class="s0">:</span>
+<a name="l217"><span class="ln">217  </span></a>        <span class="s4">&quot;&quot;&quot; 
+<a name="l218"><span class="ln">218  </span></a>        :raises NoneMetadataError: if the distribution reports `has_metadata()` 
+<a name="l219"><span class="ln">219  </span></a>            True but `get_metadata()` returns None. 
+<a name="l220"><span class="ln">220  </span></a>        &quot;&quot;&quot;</span>
+<a name="l221"><span class="ln">221  </span></a>        <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">, </span><span class="s1">pkg_resources</span><span class="s2">.</span><span class="s1">DistInfoDistribution</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l222"><span class="ln">222  </span></a>            <span class="s1">metadata_name </span><span class="s0">= </span><span class="s3">&quot;METADATA&quot;</span>
+<a name="l223"><span class="ln">223  </span></a>        <span class="s0">else:</span>
+<a name="l224"><span class="ln">224  </span></a>            <span class="s1">metadata_name </span><span class="s0">= </span><span class="s3">&quot;PKG-INFO&quot;</span>
+<a name="l225"><span class="ln">225  </span></a>        <span class="s0">try:</span>
+<a name="l226"><span class="ln">226  </span></a>            <span class="s1">metadata </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">read_text</span><span class="s2">(</span><span class="s1">metadata_name</span><span class="s2">)</span>
+<a name="l227"><span class="ln">227  </span></a>        <span class="s0">except </span><span class="s1">FileNotFoundError</span><span class="s0">:</span>
+<a name="l228"><span class="ln">228  </span></a>            <span class="s0">if </span><span class="s1">self</span><span class="s2">.</span><span class="s1">location</span><span class="s0">:</span>
+<a name="l229"><span class="ln">229  </span></a>                <span class="s1">displaying_path </span><span class="s0">= </span><span class="s1">display_path</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">location</span><span class="s2">)</span>
+<a name="l230"><span class="ln">230  </span></a>            <span class="s0">else:</span>
+<a name="l231"><span class="ln">231  </span></a>                <span class="s1">displaying_path </span><span class="s0">= </span><span class="s1">repr</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">location</span><span class="s2">)</span>
+<a name="l232"><span class="ln">232  </span></a>            <span class="s1">logger</span><span class="s2">.</span><span class="s1">warning</span><span class="s2">(</span><span class="s3">&quot;No metadata found in %s&quot;</span><span class="s2">, </span><span class="s1">displaying_path</span><span class="s2">)</span>
+<a name="l233"><span class="ln">233  </span></a>            <span class="s1">metadata </span><span class="s0">= </span><span class="s3">&quot;&quot;</span>
+<a name="l234"><span class="ln">234  </span></a>        <span class="s1">feed_parser </span><span class="s0">= </span><span class="s1">email</span><span class="s2">.</span><span class="s1">parser</span><span class="s2">.</span><span class="s1">FeedParser</span><span class="s2">()</span>
+<a name="l235"><span class="ln">235  </span></a>        <span class="s1">feed_parser</span><span class="s2">.</span><span class="s1">feed</span><span class="s2">(</span><span class="s1">metadata</span><span class="s2">)</span>
+<a name="l236"><span class="ln">236  </span></a>        <span class="s0">return </span><span class="s1">feed_parser</span><span class="s2">.</span><span class="s1">close</span><span class="s2">()</span>
+<a name="l237"><span class="ln">237  </span></a>
+<a name="l238"><span class="ln">238  </span></a>    <span class="s0">def </span><span class="s1">iter_dependencies</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">extras</span><span class="s0">: </span><span class="s1">Collection</span><span class="s2">[</span><span class="s1">str</span><span class="s2">] </span><span class="s0">= </span><span class="s2">()) </span><span class="s1">-&gt; Iterable</span><span class="s2">[</span><span class="s1">Requirement</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l239"><span class="ln">239  </span></a>        <span class="s0">if </span><span class="s1">extras</span><span class="s0">:</span>
+<a name="l240"><span class="ln">240  </span></a>            <span class="s1">relevant_extras </span><span class="s0">= </span><span class="s1">set</span><span class="s2">(</span><span class="s1">self</span><span class="s2">.</span><span class="s1">_extra_mapping</span><span class="s2">) </span><span class="s0">&amp; </span><span class="s1">set</span><span class="s2">(</span>
+<a name="l241"><span class="ln">241  </span></a>                <span class="s1">map</span><span class="s2">(</span><span class="s1">canonicalize_name</span><span class="s2">, </span><span class="s1">extras</span><span class="s2">)</span>
+<a name="l242"><span class="ln">242  </span></a>            <span class="s2">)</span>
+<a name="l243"><span class="ln">243  </span></a>            <span class="s1">extras </span><span class="s0">= </span><span class="s2">[</span><span class="s1">self</span><span class="s2">.</span><span class="s1">_extra_mapping</span><span class="s2">[</span><span class="s1">extra</span><span class="s2">] </span><span class="s0">for </span><span class="s1">extra </span><span class="s0">in </span><span class="s1">relevant_extras</span><span class="s2">]</span>
+<a name="l244"><span class="ln">244  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_dist</span><span class="s2">.</span><span class="s1">requires</span><span class="s2">(</span><span class="s1">extras</span><span class="s2">)</span>
+<a name="l245"><span class="ln">245  </span></a>
+<a name="l246"><span class="ln">246  </span></a>    <span class="s0">def </span><span class="s1">iter_provided_extras</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; Iterable</span><span class="s2">[</span><span class="s1">NormalizedName</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l247"><span class="ln">247  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_extra_mapping</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">()</span>
+<a name="l248"><span class="ln">248  </span></a>
+<a name="l249"><span class="ln">249  </span></a>
+<a name="l250"><span class="ln">250  </span></a><span class="s0">class </span><span class="s1">Environment</span><span class="s2">(</span><span class="s1">BaseEnvironment</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l251"><span class="ln">251  </span></a>    <span class="s0">def </span><span class="s1">__init__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">ws</span><span class="s0">: </span><span class="s1">pkg_resources</span><span class="s2">.</span><span class="s1">WorkingSet</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s0">None:</span>
+<a name="l252"><span class="ln">252  </span></a>        <span class="s1">self</span><span class="s2">.</span><span class="s1">_ws </span><span class="s0">= </span><span class="s1">ws</span>
+<a name="l253"><span class="ln">253  </span></a>
+<a name="l254"><span class="ln">254  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l255"><span class="ln">255  </span></a>    <span class="s0">def </span><span class="s1">default</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">) </span><span class="s1">-&gt; BaseEnvironment</span><span class="s0">:</span>
+<a name="l256"><span class="ln">256  </span></a>        <span class="s0">return </span><span class="s1">cls</span><span class="s2">(</span><span class="s1">pkg_resources</span><span class="s2">.</span><span class="s1">working_set</span><span class="s2">)</span>
+<a name="l257"><span class="ln">257  </span></a>
+<a name="l258"><span class="ln">258  </span></a>    <span class="s0">@</span><span class="s1">classmethod</span>
+<a name="l259"><span class="ln">259  </span></a>    <span class="s0">def </span><span class="s1">from_paths</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">paths</span><span class="s0">: </span><span class="s1">list</span><span class="s2">[</span><span class="s1">str</span><span class="s2">] </span><span class="s0">| None</span><span class="s2">) </span><span class="s1">-&gt; BaseEnvironment</span><span class="s0">:</span>
+<a name="l260"><span class="ln">260  </span></a>        <span class="s0">return </span><span class="s1">cls</span><span class="s2">(</span><span class="s1">pkg_resources</span><span class="s2">.</span><span class="s1">WorkingSet</span><span class="s2">(</span><span class="s1">paths</span><span class="s2">))</span>
+<a name="l261"><span class="ln">261  </span></a>
+<a name="l262"><span class="ln">262  </span></a>    <span class="s0">def </span><span class="s1">_iter_distributions</span><span class="s2">(</span><span class="s1">self</span><span class="s2">) </span><span class="s1">-&gt; Iterator</span><span class="s2">[</span><span class="s1">BaseDistribution</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l263"><span class="ln">263  </span></a>        <span class="s0">for </span><span class="s1">dist </span><span class="s0">in </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_ws</span><span class="s0">:</span>
+<a name="l264"><span class="ln">264  </span></a>            <span class="s0">yield </span><span class="s1">Distribution</span><span class="s2">(</span><span class="s1">dist</span><span class="s2">)</span>
+<a name="l265"><span class="ln">265  </span></a>
+<a name="l266"><span class="ln">266  </span></a>    <span class="s0">def </span><span class="s1">_search_distribution</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">name</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; BaseDistribution </span><span class="s0">| None:</span>
+<a name="l267"><span class="ln">267  </span></a>        <span class="s4">&quot;&quot;&quot;Find a distribution matching the ``name`` in the environment. 
+<a name="l268"><span class="ln">268  </span></a> 
+<a name="l269"><span class="ln">269  </span></a>        This searches from *all* distributions available in the environment, to 
+<a name="l270"><span class="ln">270  </span></a>        match the behavior of ``pkg_resources.get_distribution()``. 
+<a name="l271"><span class="ln">271  </span></a>        &quot;&quot;&quot;</span>
+<a name="l272"><span class="ln">272  </span></a>        <span class="s1">canonical_name </span><span class="s0">= </span><span class="s1">canonicalize_name</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)</span>
+<a name="l273"><span class="ln">273  </span></a>        <span class="s0">for </span><span class="s1">dist </span><span class="s0">in </span><span class="s1">self</span><span class="s2">.</span><span class="s1">iter_all_distributions</span><span class="s2">()</span><span class="s0">:</span>
+<a name="l274"><span class="ln">274  </span></a>            <span class="s0">if </span><span class="s1">dist</span><span class="s2">.</span><span class="s1">canonical_name </span><span class="s0">== </span><span class="s1">canonical_name</span><span class="s0">:</span>
+<a name="l275"><span class="ln">275  </span></a>                <span class="s0">return </span><span class="s1">dist</span>
+<a name="l276"><span class="ln">276  </span></a>        <span class="s0">return None</span>
+<a name="l277"><span class="ln">277  </span></a>
+<a name="l278"><span class="ln">278  </span></a>    <span class="s0">def </span><span class="s1">get_distribution</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">name</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; BaseDistribution </span><span class="s0">| None:</span>
+<a name="l279"><span class="ln">279  </span></a>        <span class="s4"># Search the distribution by looking through the working set.</span>
+<a name="l280"><span class="ln">280  </span></a>        <span class="s1">dist </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_search_distribution</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)</span>
+<a name="l281"><span class="ln">281  </span></a>        <span class="s0">if </span><span class="s1">dist</span><span class="s0">:</span>
+<a name="l282"><span class="ln">282  </span></a>            <span class="s0">return </span><span class="s1">dist</span>
+<a name="l283"><span class="ln">283  </span></a>
+<a name="l284"><span class="ln">284  </span></a>        <span class="s4"># If distribution could not be found, call working_set.require to</span>
+<a name="l285"><span class="ln">285  </span></a>        <span class="s4"># update the working set, and try to find the distribution again.</span>
+<a name="l286"><span class="ln">286  </span></a>        <span class="s4"># This might happen for e.g. when you install a package twice, once</span>
+<a name="l287"><span class="ln">287  </span></a>        <span class="s4"># using setup.py develop and again using setup.py install. Now when</span>
+<a name="l288"><span class="ln">288  </span></a>        <span class="s4"># running pip uninstall twice, the package gets removed from the</span>
+<a name="l289"><span class="ln">289  </span></a>        <span class="s4"># working set in the first uninstall, so we have to populate the</span>
+<a name="l290"><span class="ln">290  </span></a>        <span class="s4"># working set again so that pip knows about it and the packages gets</span>
+<a name="l291"><span class="ln">291  </span></a>        <span class="s4"># picked up and is successfully uninstalled the second time too.</span>
+<a name="l292"><span class="ln">292  </span></a>        <span class="s0">try:</span>
+<a name="l293"><span class="ln">293  </span></a>            <span class="s4"># We didn't pass in any version specifiers, so this can never</span>
+<a name="l294"><span class="ln">294  </span></a>            <span class="s4"># raise pkg_resources.VersionConflict.</span>
+<a name="l295"><span class="ln">295  </span></a>            <span class="s1">self</span><span class="s2">.</span><span class="s1">_ws</span><span class="s2">.</span><span class="s1">require</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)</span>
+<a name="l296"><span class="ln">296  </span></a>        <span class="s0">except </span><span class="s1">pkg_resources</span><span class="s2">.</span><span class="s1">DistributionNotFound</span><span class="s0">:</span>
+<a name="l297"><span class="ln">297  </span></a>            <span class="s0">return None</span>
+<a name="l298"><span class="ln">298  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_search_distribution</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)</span>
+<a name="l299"><span class="ln">299  </span></a></pre>
+</body>
+</html>

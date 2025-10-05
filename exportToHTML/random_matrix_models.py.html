@@ -1,0 +1,480 @@
+<html>
+<head>
+<title>random_matrix_models.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #969896;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+random_matrix_models.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">concrete</span><span class="s2">.</span><span class="s1">products </span><span class="s0">import </span><span class="s1">Product</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">concrete</span><span class="s2">.</span><span class="s1">summations </span><span class="s0">import </span><span class="s1">Sum</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">basic </span><span class="s0">import </span><span class="s1">Basic</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">function </span><span class="s0">import </span><span class="s1">Lambda</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">numbers </span><span class="s0">import </span><span class="s2">(</span><span class="s1">I</span><span class="s2">, </span><span class="s1">pi</span><span class="s2">)</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">singleton </span><span class="s0">import </span><span class="s1">S</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">symbol </span><span class="s0">import </span><span class="s1">Dummy</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">functions</span><span class="s2">.</span><span class="s1">elementary</span><span class="s2">.</span><span class="s1">complexes </span><span class="s0">import </span><span class="s1">Abs</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">functions</span><span class="s2">.</span><span class="s1">elementary</span><span class="s2">.</span><span class="s1">exponential </span><span class="s0">import </span><span class="s1">exp</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">functions</span><span class="s2">.</span><span class="s1">special</span><span class="s2">.</span><span class="s1">gamma_functions </span><span class="s0">import </span><span class="s1">gamma</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">integrals</span><span class="s2">.</span><span class="s1">integrals </span><span class="s0">import </span><span class="s1">Integral</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">matrices</span><span class="s2">.</span><span class="s1">expressions</span><span class="s2">.</span><span class="s1">matexpr </span><span class="s0">import </span><span class="s1">MatrixSymbol</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">matrices</span><span class="s2">.</span><span class="s1">expressions</span><span class="s2">.</span><span class="s1">trace </span><span class="s0">import </span><span class="s1">Trace</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">tensor</span><span class="s2">.</span><span class="s1">indexed </span><span class="s0">import </span><span class="s1">IndexedBase</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">sympify </span><span class="s0">import </span><span class="s1">_sympify</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">stats</span><span class="s2">.</span><span class="s1">rv </span><span class="s0">import </span><span class="s1">_symbol_converter</span><span class="s2">, </span><span class="s1">Density</span><span class="s2">, </span><span class="s1">RandomMatrixSymbol</span><span class="s2">, </span><span class="s1">is_random</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">stats</span><span class="s2">.</span><span class="s1">joint_rv_types </span><span class="s0">import </span><span class="s1">JointDistributionHandmade</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">stats</span><span class="s2">.</span><span class="s1">random_matrix </span><span class="s0">import </span><span class="s1">RandomMatrixPSpace</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s0">from </span><span class="s1">sympy</span><span class="s2">.</span><span class="s1">tensor</span><span class="s2">.</span><span class="s1">array </span><span class="s0">import </span><span class="s1">ArrayComprehension</span>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s3">'CircularEnsemble'</span><span class="s2">,</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s3">'CircularUnitaryEnsemble'</span><span class="s2">,</span>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s3">'CircularOrthogonalEnsemble'</span><span class="s2">,</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s3">'CircularSymplecticEnsemble'</span><span class="s2">,</span>
+<a name="l26"><span class="ln">26   </span></a>    <span class="s3">'GaussianEnsemble'</span><span class="s2">,</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s3">'GaussianUnitaryEnsemble'</span><span class="s2">,</span>
+<a name="l28"><span class="ln">28   </span></a>    <span class="s3">'GaussianOrthogonalEnsemble'</span><span class="s2">,</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s3">'GaussianSymplecticEnsemble'</span><span class="s2">,</span>
+<a name="l30"><span class="ln">30   </span></a>    <span class="s3">'joint_eigen_distribution'</span><span class="s2">,</span>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s3">'JointEigenDistribution'</span><span class="s2">,</span>
+<a name="l32"><span class="ln">32   </span></a>    <span class="s3">'level_spacing_distribution'</span>
+<a name="l33"><span class="ln">33   </span></a><span class="s2">]</span>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a><span class="s0">@</span><span class="s1">is_random</span><span class="s2">.</span><span class="s1">register</span><span class="s2">(</span><span class="s1">RandomMatrixSymbol</span><span class="s2">)</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s0">def </span><span class="s1">_</span><span class="s2">(</span><span class="s1">x</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s0">return True</span>
+<a name="l38"><span class="ln">38   </span></a>
+<a name="l39"><span class="ln">39   </span></a>
+<a name="l40"><span class="ln">40   </span></a><span class="s0">class </span><span class="s1">RandomMatrixEnsembleModel</span><span class="s2">(</span><span class="s1">Basic</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l42"><span class="ln">42   </span></a>    Base class for random matrix ensembles. 
+<a name="l43"><span class="ln">43   </span></a>    It acts as an umbrella and contains 
+<a name="l44"><span class="ln">44   </span></a>    the methods common to all the ensembles 
+<a name="l45"><span class="ln">45   </span></a>    defined in sympy.stats.random_matrix_models. 
+<a name="l46"><span class="ln">46   </span></a>    &quot;&quot;&quot;</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s0">def </span><span class="s1">__new__</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s0">=None</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l48"><span class="ln">48   </span></a>        <span class="s1">sym</span><span class="s2">, </span><span class="s1">dim </span><span class="s0">= </span><span class="s1">_symbol_converter</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">), </span><span class="s1">_sympify</span><span class="s2">(</span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l49"><span class="ln">49   </span></a>        <span class="s0">if </span><span class="s1">dim</span><span class="s2">.</span><span class="s1">is_integer </span><span class="s0">== False:</span>
+<a name="l50"><span class="ln">50   </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s3">&quot;Dimension of the random matrices must be &quot;</span>
+<a name="l51"><span class="ln">51   </span></a>                                <span class="s3">&quot;integers, received %s instead.&quot;</span><span class="s0">%</span><span class="s2">(</span><span class="s1">dim</span><span class="s2">))</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s0">return </span><span class="s1">Basic</span><span class="s2">.</span><span class="s1">__new__</span><span class="s2">(</span><span class="s1">cls</span><span class="s2">, </span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l53"><span class="ln">53   </span></a>
+<a name="l54"><span class="ln">54   </span></a>    <span class="s1">symbol </span><span class="s0">= </span><span class="s1">property</span><span class="s2">(</span><span class="s0">lambda </span><span class="s1">self</span><span class="s0">: </span><span class="s1">self</span><span class="s2">.</span><span class="s1">args</span><span class="s2">[</span><span class="s5">0</span><span class="s2">])</span>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s1">dimension </span><span class="s0">= </span><span class="s1">property</span><span class="s2">(</span><span class="s0">lambda </span><span class="s1">self</span><span class="s0">: </span><span class="s1">self</span><span class="s2">.</span><span class="s1">args</span><span class="s2">[</span><span class="s5">1</span><span class="s2">])</span>
+<a name="l56"><span class="ln">56   </span></a>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s0">def </span><span class="s1">density</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">expr</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l58"><span class="ln">58   </span></a>        <span class="s0">return </span><span class="s1">Density</span><span class="s2">(</span><span class="s1">expr</span><span class="s2">)</span>
+<a name="l59"><span class="ln">59   </span></a>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s0">def </span><span class="s1">__call__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">expr</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l61"><span class="ln">61   </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">density</span><span class="s2">(</span><span class="s1">expr</span><span class="s2">)</span>
+<a name="l62"><span class="ln">62   </span></a>
+<a name="l63"><span class="ln">63   </span></a><span class="s0">class </span><span class="s1">GaussianEnsembleModel</span><span class="s2">(</span><span class="s1">RandomMatrixEnsembleModel</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l65"><span class="ln">65   </span></a>    Abstract class for Gaussian ensembles. 
+<a name="l66"><span class="ln">66   </span></a>    Contains the properties common to all the 
+<a name="l67"><span class="ln">67   </span></a>    gaussian ensembles. 
+<a name="l68"><span class="ln">68   </span></a> 
+<a name="l69"><span class="ln">69   </span></a>    References 
+<a name="l70"><span class="ln">70   </span></a>    ========== 
+<a name="l71"><span class="ln">71   </span></a> 
+<a name="l72"><span class="ln">72   </span></a>    .. [1] https://en.wikipedia.org/wiki/Random_matrix#Gaussian_ensembles 
+<a name="l73"><span class="ln">73   </span></a>    .. [2] https://arxiv.org/pdf/1712.07903.pdf 
+<a name="l74"><span class="ln">74   </span></a>    &quot;&quot;&quot;</span>
+<a name="l75"><span class="ln">75   </span></a>    <span class="s0">def </span><span class="s1">_compute_normalization_constant</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">beta</span><span class="s2">, </span><span class="s1">n</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l76"><span class="ln">76   </span></a>        <span class="s4">&quot;&quot;&quot; 
+<a name="l77"><span class="ln">77   </span></a>        Helper function for computing normalization 
+<a name="l78"><span class="ln">78   </span></a>        constant for joint probability density of eigen 
+<a name="l79"><span class="ln">79   </span></a>        values of Gaussian ensembles. 
+<a name="l80"><span class="ln">80   </span></a> 
+<a name="l81"><span class="ln">81   </span></a>        References 
+<a name="l82"><span class="ln">82   </span></a>        ========== 
+<a name="l83"><span class="ln">83   </span></a> 
+<a name="l84"><span class="ln">84   </span></a>        .. [1] https://en.wikipedia.org/wiki/Selberg_integral#Mehta's_integral 
+<a name="l85"><span class="ln">85   </span></a>        &quot;&quot;&quot;</span>
+<a name="l86"><span class="ln">86   </span></a>        <span class="s1">n </span><span class="s0">= </span><span class="s1">S</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span>
+<a name="l87"><span class="ln">87   </span></a>        <span class="s1">prod_term </span><span class="s0">= lambda </span><span class="s1">j</span><span class="s0">: </span><span class="s1">gamma</span><span class="s2">(</span><span class="s5">1 </span><span class="s0">+ </span><span class="s1">beta</span><span class="s0">*</span><span class="s1">S</span><span class="s2">(</span><span class="s1">j</span><span class="s2">)</span><span class="s0">/</span><span class="s5">2</span><span class="s2">)</span><span class="s0">/</span><span class="s1">gamma</span><span class="s2">(</span><span class="s1">S</span><span class="s2">.</span><span class="s1">One </span><span class="s0">+ </span><span class="s1">beta</span><span class="s0">/</span><span class="s1">S</span><span class="s2">(</span><span class="s5">2</span><span class="s2">))</span>
+<a name="l88"><span class="ln">88   </span></a>        <span class="s1">j </span><span class="s0">= </span><span class="s1">Dummy</span><span class="s2">(</span><span class="s3">'j'</span><span class="s2">, </span><span class="s1">integer</span><span class="s0">=True</span><span class="s2">, </span><span class="s1">positive</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l89"><span class="ln">89   </span></a>        <span class="s1">term1 </span><span class="s0">= </span><span class="s1">Product</span><span class="s2">(</span><span class="s1">prod_term</span><span class="s2">(</span><span class="s1">j</span><span class="s2">), (</span><span class="s1">j</span><span class="s2">, </span><span class="s5">1</span><span class="s2">, </span><span class="s1">n</span><span class="s2">)).</span><span class="s1">doit</span><span class="s2">()</span>
+<a name="l90"><span class="ln">90   </span></a>        <span class="s1">term2 </span><span class="s0">= </span><span class="s2">(</span><span class="s5">2</span><span class="s0">/</span><span class="s2">(</span><span class="s1">beta</span><span class="s0">*</span><span class="s1">n</span><span class="s2">))</span><span class="s0">**</span><span class="s2">(</span><span class="s1">beta</span><span class="s0">*</span><span class="s1">n</span><span class="s0">*</span><span class="s2">(</span><span class="s1">n </span><span class="s0">- </span><span class="s5">1</span><span class="s2">)</span><span class="s0">/</span><span class="s5">4 </span><span class="s0">+ </span><span class="s1">n</span><span class="s0">/</span><span class="s5">2</span><span class="s2">)</span>
+<a name="l91"><span class="ln">91   </span></a>        <span class="s1">term3 </span><span class="s0">= </span><span class="s2">(</span><span class="s5">2</span><span class="s0">*</span><span class="s1">pi</span><span class="s2">)</span><span class="s0">**</span><span class="s2">(</span><span class="s1">n</span><span class="s0">/</span><span class="s5">2</span><span class="s2">)</span>
+<a name="l92"><span class="ln">92   </span></a>        <span class="s0">return </span><span class="s1">term1 </span><span class="s0">* </span><span class="s1">term2 </span><span class="s0">* </span><span class="s1">term3</span>
+<a name="l93"><span class="ln">93   </span></a>
+<a name="l94"><span class="ln">94   </span></a>    <span class="s0">def </span><span class="s1">_compute_joint_eigen_distribution</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">beta</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l95"><span class="ln">95   </span></a>        <span class="s4">&quot;&quot;&quot; 
+<a name="l96"><span class="ln">96   </span></a>        Helper function for computing the joint 
+<a name="l97"><span class="ln">97   </span></a>        probability distribution of eigen values 
+<a name="l98"><span class="ln">98   </span></a>        of the random matrix. 
+<a name="l99"><span class="ln">99   </span></a>        &quot;&quot;&quot;</span>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s1">n </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">dimension</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s1">Zbn </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_compute_normalization_constant</span><span class="s2">(</span><span class="s1">beta</span><span class="s2">, </span><span class="s1">n</span><span class="s2">)</span>
+<a name="l102"><span class="ln">102  </span></a>        <span class="s1">l </span><span class="s0">= </span><span class="s1">IndexedBase</span><span class="s2">(</span><span class="s3">'l'</span><span class="s2">)</span>
+<a name="l103"><span class="ln">103  </span></a>        <span class="s1">i </span><span class="s0">= </span><span class="s1">Dummy</span><span class="s2">(</span><span class="s3">'i'</span><span class="s2">, </span><span class="s1">integer</span><span class="s0">=True</span><span class="s2">, </span><span class="s1">positive</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s1">j </span><span class="s0">= </span><span class="s1">Dummy</span><span class="s2">(</span><span class="s3">'j'</span><span class="s2">, </span><span class="s1">integer</span><span class="s0">=True</span><span class="s2">, </span><span class="s1">positive</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l105"><span class="ln">105  </span></a>        <span class="s1">k </span><span class="s0">= </span><span class="s1">Dummy</span><span class="s2">(</span><span class="s3">'k'</span><span class="s2">, </span><span class="s1">integer</span><span class="s0">=True</span><span class="s2">, </span><span class="s1">positive</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l106"><span class="ln">106  </span></a>        <span class="s1">term1 </span><span class="s0">= </span><span class="s1">exp</span><span class="s2">((</span><span class="s0">-</span><span class="s1">S</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span><span class="s0">/</span><span class="s5">2</span><span class="s2">) </span><span class="s0">* </span><span class="s1">Sum</span><span class="s2">(</span><span class="s1">l</span><span class="s2">[</span><span class="s1">k</span><span class="s2">]</span><span class="s0">**</span><span class="s5">2</span><span class="s2">, (</span><span class="s1">k</span><span class="s2">, </span><span class="s5">1</span><span class="s2">, </span><span class="s1">n</span><span class="s2">)).</span><span class="s1">doit</span><span class="s2">())</span>
+<a name="l107"><span class="ln">107  </span></a>        <span class="s1">sub_term </span><span class="s0">= </span><span class="s1">Lambda</span><span class="s2">(</span><span class="s1">i</span><span class="s2">, </span><span class="s1">Product</span><span class="s2">(</span><span class="s1">Abs</span><span class="s2">(</span><span class="s1">l</span><span class="s2">[</span><span class="s1">j</span><span class="s2">] </span><span class="s0">- </span><span class="s1">l</span><span class="s2">[</span><span class="s1">i</span><span class="s2">])</span><span class="s0">**</span><span class="s1">beta</span><span class="s2">, (</span><span class="s1">j</span><span class="s2">, </span><span class="s1">i </span><span class="s0">+ </span><span class="s5">1</span><span class="s2">, </span><span class="s1">n</span><span class="s2">)))</span>
+<a name="l108"><span class="ln">108  </span></a>        <span class="s1">term2 </span><span class="s0">= </span><span class="s1">Product</span><span class="s2">(</span><span class="s1">sub_term</span><span class="s2">(</span><span class="s1">i</span><span class="s2">).</span><span class="s1">doit</span><span class="s2">(), (</span><span class="s1">i</span><span class="s2">, </span><span class="s5">1</span><span class="s2">, </span><span class="s1">n </span><span class="s0">- </span><span class="s5">1</span><span class="s2">)).</span><span class="s1">doit</span><span class="s2">()</span>
+<a name="l109"><span class="ln">109  </span></a>        <span class="s1">syms </span><span class="s0">= </span><span class="s1">ArrayComprehension</span><span class="s2">(</span><span class="s1">l</span><span class="s2">[</span><span class="s1">k</span><span class="s2">], (</span><span class="s1">k</span><span class="s2">, </span><span class="s5">1</span><span class="s2">, </span><span class="s1">n</span><span class="s2">)).</span><span class="s1">doit</span><span class="s2">()</span>
+<a name="l110"><span class="ln">110  </span></a>        <span class="s0">return </span><span class="s1">Lambda</span><span class="s2">(</span><span class="s1">tuple</span><span class="s2">(</span><span class="s1">syms</span><span class="s2">), (</span><span class="s1">term1 </span><span class="s0">* </span><span class="s1">term2</span><span class="s2">)</span><span class="s0">/</span><span class="s1">Zbn</span><span class="s2">)</span>
+<a name="l111"><span class="ln">111  </span></a>
+<a name="l112"><span class="ln">112  </span></a><span class="s0">class </span><span class="s1">GaussianUnitaryEnsembleModel</span><span class="s2">(</span><span class="s1">GaussianEnsembleModel</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l113"><span class="ln">113  </span></a>    <span class="s0">@</span><span class="s1">property</span>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s0">def </span><span class="s1">normalization_constant</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l115"><span class="ln">115  </span></a>        <span class="s1">n </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">dimension</span>
+<a name="l116"><span class="ln">116  </span></a>        <span class="s0">return </span><span class="s5">2</span><span class="s0">**</span><span class="s2">(</span><span class="s1">S</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span><span class="s0">/</span><span class="s5">2</span><span class="s2">) </span><span class="s0">* </span><span class="s1">pi</span><span class="s0">**</span><span class="s2">(</span><span class="s1">S</span><span class="s2">(</span><span class="s1">n</span><span class="s0">**</span><span class="s5">2</span><span class="s2">)</span><span class="s0">/</span><span class="s5">2</span><span class="s2">)</span>
+<a name="l117"><span class="ln">117  </span></a>
+<a name="l118"><span class="ln">118  </span></a>    <span class="s0">def </span><span class="s1">density</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">expr</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l119"><span class="ln">119  </span></a>        <span class="s1">n</span><span class="s2">, </span><span class="s1">ZGUE </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">dimension</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">normalization_constant</span>
+<a name="l120"><span class="ln">120  </span></a>        <span class="s1">h_pspace </span><span class="s0">= </span><span class="s1">RandomMatrixPSpace</span><span class="s2">(</span><span class="s3">'P'</span><span class="s2">, </span><span class="s1">model</span><span class="s0">=</span><span class="s1">self</span><span class="s2">)</span>
+<a name="l121"><span class="ln">121  </span></a>        <span class="s1">H </span><span class="s0">= </span><span class="s1">RandomMatrixSymbol</span><span class="s2">(</span><span class="s3">'H'</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">pspace</span><span class="s0">=</span><span class="s1">h_pspace</span><span class="s2">)</span>
+<a name="l122"><span class="ln">122  </span></a>        <span class="s0">return </span><span class="s1">Lambda</span><span class="s2">(</span><span class="s1">H</span><span class="s2">, </span><span class="s1">exp</span><span class="s2">(</span><span class="s0">-</span><span class="s1">S</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span><span class="s0">/</span><span class="s5">2 </span><span class="s0">* </span><span class="s1">Trace</span><span class="s2">(</span><span class="s1">H</span><span class="s0">**</span><span class="s5">2</span><span class="s2">))</span><span class="s0">/</span><span class="s1">ZGUE</span><span class="s2">)(</span><span class="s1">expr</span><span class="s2">)</span>
+<a name="l123"><span class="ln">123  </span></a>
+<a name="l124"><span class="ln">124  </span></a>    <span class="s0">def </span><span class="s1">joint_eigen_distribution</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_compute_joint_eigen_distribution</span><span class="s2">(</span><span class="s1">S</span><span class="s2">(</span><span class="s5">2</span><span class="s2">))</span>
+<a name="l126"><span class="ln">126  </span></a>
+<a name="l127"><span class="ln">127  </span></a>    <span class="s0">def </span><span class="s1">level_spacing_distribution</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l128"><span class="ln">128  </span></a>        <span class="s1">s </span><span class="s0">= </span><span class="s1">Dummy</span><span class="s2">(</span><span class="s3">'s'</span><span class="s2">)</span>
+<a name="l129"><span class="ln">129  </span></a>        <span class="s1">f </span><span class="s0">= </span><span class="s2">(</span><span class="s5">32</span><span class="s0">/</span><span class="s1">pi</span><span class="s0">**</span><span class="s5">2</span><span class="s2">)</span><span class="s0">*</span><span class="s2">(</span><span class="s1">s</span><span class="s0">**</span><span class="s5">2</span><span class="s2">)</span><span class="s0">*</span><span class="s1">exp</span><span class="s2">((</span><span class="s0">-</span><span class="s5">4</span><span class="s0">/</span><span class="s1">pi</span><span class="s2">)</span><span class="s0">*</span><span class="s1">s</span><span class="s0">**</span><span class="s5">2</span><span class="s2">)</span>
+<a name="l130"><span class="ln">130  </span></a>        <span class="s0">return </span><span class="s1">Lambda</span><span class="s2">(</span><span class="s1">s</span><span class="s2">, </span><span class="s1">f</span><span class="s2">)</span>
+<a name="l131"><span class="ln">131  </span></a>
+<a name="l132"><span class="ln">132  </span></a><span class="s0">class </span><span class="s1">GaussianOrthogonalEnsembleModel</span><span class="s2">(</span><span class="s1">GaussianEnsembleModel</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l133"><span class="ln">133  </span></a>    <span class="s0">@</span><span class="s1">property</span>
+<a name="l134"><span class="ln">134  </span></a>    <span class="s0">def </span><span class="s1">normalization_constant</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l135"><span class="ln">135  </span></a>        <span class="s1">n </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">dimension</span>
+<a name="l136"><span class="ln">136  </span></a>        <span class="s1">_H </span><span class="s0">= </span><span class="s1">MatrixSymbol</span><span class="s2">(</span><span class="s3">'_H'</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">n</span><span class="s2">)</span>
+<a name="l137"><span class="ln">137  </span></a>        <span class="s0">return </span><span class="s1">Integral</span><span class="s2">(</span><span class="s1">exp</span><span class="s2">(</span><span class="s0">-</span><span class="s1">S</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span><span class="s0">/</span><span class="s5">4 </span><span class="s0">* </span><span class="s1">Trace</span><span class="s2">(</span><span class="s1">_H</span><span class="s0">**</span><span class="s5">2</span><span class="s2">)))</span>
+<a name="l138"><span class="ln">138  </span></a>
+<a name="l139"><span class="ln">139  </span></a>    <span class="s0">def </span><span class="s1">density</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">expr</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l140"><span class="ln">140  </span></a>        <span class="s1">n</span><span class="s2">, </span><span class="s1">ZGOE </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">dimension</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">normalization_constant</span>
+<a name="l141"><span class="ln">141  </span></a>        <span class="s1">h_pspace </span><span class="s0">= </span><span class="s1">RandomMatrixPSpace</span><span class="s2">(</span><span class="s3">'P'</span><span class="s2">, </span><span class="s1">model</span><span class="s0">=</span><span class="s1">self</span><span class="s2">)</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s1">H </span><span class="s0">= </span><span class="s1">RandomMatrixSymbol</span><span class="s2">(</span><span class="s3">'H'</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">pspace</span><span class="s0">=</span><span class="s1">h_pspace</span><span class="s2">)</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s0">return </span><span class="s1">Lambda</span><span class="s2">(</span><span class="s1">H</span><span class="s2">, </span><span class="s1">exp</span><span class="s2">(</span><span class="s0">-</span><span class="s1">S</span><span class="s2">(</span><span class="s1">n</span><span class="s2">)</span><span class="s0">/</span><span class="s5">4 </span><span class="s0">* </span><span class="s1">Trace</span><span class="s2">(</span><span class="s1">H</span><span class="s0">**</span><span class="s5">2</span><span class="s2">))</span><span class="s0">/</span><span class="s1">ZGOE</span><span class="s2">)(</span><span class="s1">expr</span><span class="s2">)</span>
+<a name="l144"><span class="ln">144  </span></a>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s0">def </span><span class="s1">joint_eigen_distribution</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l146"><span class="ln">146  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_compute_joint_eigen_distribution</span><span class="s2">(</span><span class="s1">S</span><span class="s2">.</span><span class="s1">One</span><span class="s2">)</span>
+<a name="l147"><span class="ln">147  </span></a>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s0">def </span><span class="s1">level_spacing_distribution</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l149"><span class="ln">149  </span></a>        <span class="s1">s </span><span class="s0">= </span><span class="s1">Dummy</span><span class="s2">(</span><span class="s3">'s'</span><span class="s2">)</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s1">f </span><span class="s0">= </span><span class="s2">(</span><span class="s1">pi</span><span class="s0">/</span><span class="s5">2</span><span class="s2">)</span><span class="s0">*</span><span class="s1">s</span><span class="s0">*</span><span class="s1">exp</span><span class="s2">((</span><span class="s0">-</span><span class="s1">pi</span><span class="s0">/</span><span class="s5">4</span><span class="s2">)</span><span class="s0">*</span><span class="s1">s</span><span class="s0">**</span><span class="s5">2</span><span class="s2">)</span>
+<a name="l151"><span class="ln">151  </span></a>        <span class="s0">return </span><span class="s1">Lambda</span><span class="s2">(</span><span class="s1">s</span><span class="s2">, </span><span class="s1">f</span><span class="s2">)</span>
+<a name="l152"><span class="ln">152  </span></a>
+<a name="l153"><span class="ln">153  </span></a><span class="s0">class </span><span class="s1">GaussianSymplecticEnsembleModel</span><span class="s2">(</span><span class="s1">GaussianEnsembleModel</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l154"><span class="ln">154  </span></a>    <span class="s0">@</span><span class="s1">property</span>
+<a name="l155"><span class="ln">155  </span></a>    <span class="s0">def </span><span class="s1">normalization_constant</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l156"><span class="ln">156  </span></a>        <span class="s1">n </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">dimension</span>
+<a name="l157"><span class="ln">157  </span></a>        <span class="s1">_H </span><span class="s0">= </span><span class="s1">MatrixSymbol</span><span class="s2">(</span><span class="s3">'_H'</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">n</span><span class="s2">)</span>
+<a name="l158"><span class="ln">158  </span></a>        <span class="s0">return </span><span class="s1">Integral</span><span class="s2">(</span><span class="s1">exp</span><span class="s2">(</span><span class="s0">-</span><span class="s1">S</span><span class="s2">(</span><span class="s1">n</span><span class="s2">) </span><span class="s0">* </span><span class="s1">Trace</span><span class="s2">(</span><span class="s1">_H</span><span class="s0">**</span><span class="s5">2</span><span class="s2">)))</span>
+<a name="l159"><span class="ln">159  </span></a>
+<a name="l160"><span class="ln">160  </span></a>    <span class="s0">def </span><span class="s1">density</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">expr</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s1">n</span><span class="s2">, </span><span class="s1">ZGSE </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">dimension</span><span class="s2">, </span><span class="s1">self</span><span class="s2">.</span><span class="s1">normalization_constant</span>
+<a name="l162"><span class="ln">162  </span></a>        <span class="s1">h_pspace </span><span class="s0">= </span><span class="s1">RandomMatrixPSpace</span><span class="s2">(</span><span class="s3">'P'</span><span class="s2">, </span><span class="s1">model</span><span class="s0">=</span><span class="s1">self</span><span class="s2">)</span>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s1">H </span><span class="s0">= </span><span class="s1">RandomMatrixSymbol</span><span class="s2">(</span><span class="s3">'H'</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">n</span><span class="s2">, </span><span class="s1">pspace</span><span class="s0">=</span><span class="s1">h_pspace</span><span class="s2">)</span>
+<a name="l164"><span class="ln">164  </span></a>        <span class="s0">return </span><span class="s1">Lambda</span><span class="s2">(</span><span class="s1">H</span><span class="s2">, </span><span class="s1">exp</span><span class="s2">(</span><span class="s0">-</span><span class="s1">S</span><span class="s2">(</span><span class="s1">n</span><span class="s2">) </span><span class="s0">* </span><span class="s1">Trace</span><span class="s2">(</span><span class="s1">H</span><span class="s0">**</span><span class="s5">2</span><span class="s2">))</span><span class="s0">/</span><span class="s1">ZGSE</span><span class="s2">)(</span><span class="s1">expr</span><span class="s2">)</span>
+<a name="l165"><span class="ln">165  </span></a>
+<a name="l166"><span class="ln">166  </span></a>    <span class="s0">def </span><span class="s1">joint_eigen_distribution</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l167"><span class="ln">167  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_compute_joint_eigen_distribution</span><span class="s2">(</span><span class="s1">S</span><span class="s2">(</span><span class="s5">4</span><span class="s2">))</span>
+<a name="l168"><span class="ln">168  </span></a>
+<a name="l169"><span class="ln">169  </span></a>    <span class="s0">def </span><span class="s1">level_spacing_distribution</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l170"><span class="ln">170  </span></a>        <span class="s1">s </span><span class="s0">= </span><span class="s1">Dummy</span><span class="s2">(</span><span class="s3">'s'</span><span class="s2">)</span>
+<a name="l171"><span class="ln">171  </span></a>        <span class="s1">f </span><span class="s0">= </span><span class="s2">((</span><span class="s1">S</span><span class="s2">(</span><span class="s5">2</span><span class="s2">)</span><span class="s0">**</span><span class="s5">18</span><span class="s2">)</span><span class="s0">/</span><span class="s2">((</span><span class="s1">S</span><span class="s2">(</span><span class="s5">3</span><span class="s2">)</span><span class="s0">**</span><span class="s5">6</span><span class="s2">)</span><span class="s0">*</span><span class="s2">(</span><span class="s1">pi</span><span class="s0">**</span><span class="s5">3</span><span class="s2">)))</span><span class="s0">*</span><span class="s2">(</span><span class="s1">s</span><span class="s0">**</span><span class="s5">4</span><span class="s2">)</span><span class="s0">*</span><span class="s1">exp</span><span class="s2">((</span><span class="s0">-</span><span class="s5">64</span><span class="s0">/</span><span class="s2">(</span><span class="s5">9</span><span class="s0">*</span><span class="s1">pi</span><span class="s2">))</span><span class="s0">*</span><span class="s1">s</span><span class="s0">**</span><span class="s5">2</span><span class="s2">)</span>
+<a name="l172"><span class="ln">172  </span></a>        <span class="s0">return </span><span class="s1">Lambda</span><span class="s2">(</span><span class="s1">s</span><span class="s2">, </span><span class="s1">f</span><span class="s2">)</span>
+<a name="l173"><span class="ln">173  </span></a>
+<a name="l174"><span class="ln">174  </span></a><span class="s0">def </span><span class="s1">GaussianEnsemble</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l175"><span class="ln">175  </span></a>    <span class="s1">sym</span><span class="s2">, </span><span class="s1">dim </span><span class="s0">= </span><span class="s1">_symbol_converter</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">), </span><span class="s1">_sympify</span><span class="s2">(</span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l176"><span class="ln">176  </span></a>    <span class="s1">model </span><span class="s0">= </span><span class="s1">GaussianEnsembleModel</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l177"><span class="ln">177  </span></a>    <span class="s1">rmp </span><span class="s0">= </span><span class="s1">RandomMatrixPSpace</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">model</span><span class="s0">=</span><span class="s1">model</span><span class="s2">)</span>
+<a name="l178"><span class="ln">178  </span></a>    <span class="s0">return </span><span class="s1">RandomMatrixSymbol</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">pspace</span><span class="s0">=</span><span class="s1">rmp</span><span class="s2">)</span>
+<a name="l179"><span class="ln">179  </span></a>
+<a name="l180"><span class="ln">180  </span></a><span class="s0">def </span><span class="s1">GaussianUnitaryEnsemble</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l181"><span class="ln">181  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l182"><span class="ln">182  </span></a>    Represents Gaussian Unitary Ensembles. 
+<a name="l183"><span class="ln">183  </span></a> 
+<a name="l184"><span class="ln">184  </span></a>    Examples 
+<a name="l185"><span class="ln">185  </span></a>    ======== 
+<a name="l186"><span class="ln">186  </span></a> 
+<a name="l187"><span class="ln">187  </span></a>    &gt;&gt;&gt; from sympy.stats import GaussianUnitaryEnsemble as GUE, density 
+<a name="l188"><span class="ln">188  </span></a>    &gt;&gt;&gt; from sympy import MatrixSymbol 
+<a name="l189"><span class="ln">189  </span></a>    &gt;&gt;&gt; G = GUE('U', 2) 
+<a name="l190"><span class="ln">190  </span></a>    &gt;&gt;&gt; X = MatrixSymbol('X', 2, 2) 
+<a name="l191"><span class="ln">191  </span></a>    &gt;&gt;&gt; density(G)(X) 
+<a name="l192"><span class="ln">192  </span></a>    exp(-Trace(X**2))/(2*pi**2) 
+<a name="l193"><span class="ln">193  </span></a>    &quot;&quot;&quot;</span>
+<a name="l194"><span class="ln">194  </span></a>    <span class="s1">sym</span><span class="s2">, </span><span class="s1">dim </span><span class="s0">= </span><span class="s1">_symbol_converter</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">), </span><span class="s1">_sympify</span><span class="s2">(</span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l195"><span class="ln">195  </span></a>    <span class="s1">model </span><span class="s0">= </span><span class="s1">GaussianUnitaryEnsembleModel</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l196"><span class="ln">196  </span></a>    <span class="s1">rmp </span><span class="s0">= </span><span class="s1">RandomMatrixPSpace</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">model</span><span class="s0">=</span><span class="s1">model</span><span class="s2">)</span>
+<a name="l197"><span class="ln">197  </span></a>    <span class="s0">return </span><span class="s1">RandomMatrixSymbol</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">pspace</span><span class="s0">=</span><span class="s1">rmp</span><span class="s2">)</span>
+<a name="l198"><span class="ln">198  </span></a>
+<a name="l199"><span class="ln">199  </span></a><span class="s0">def </span><span class="s1">GaussianOrthogonalEnsemble</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l200"><span class="ln">200  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l201"><span class="ln">201  </span></a>    Represents Gaussian Orthogonal Ensembles. 
+<a name="l202"><span class="ln">202  </span></a> 
+<a name="l203"><span class="ln">203  </span></a>    Examples 
+<a name="l204"><span class="ln">204  </span></a>    ======== 
+<a name="l205"><span class="ln">205  </span></a> 
+<a name="l206"><span class="ln">206  </span></a>    &gt;&gt;&gt; from sympy.stats import GaussianOrthogonalEnsemble as GOE, density 
+<a name="l207"><span class="ln">207  </span></a>    &gt;&gt;&gt; from sympy import MatrixSymbol 
+<a name="l208"><span class="ln">208  </span></a>    &gt;&gt;&gt; G = GOE('U', 2) 
+<a name="l209"><span class="ln">209  </span></a>    &gt;&gt;&gt; X = MatrixSymbol('X', 2, 2) 
+<a name="l210"><span class="ln">210  </span></a>    &gt;&gt;&gt; density(G)(X) 
+<a name="l211"><span class="ln">211  </span></a>    exp(-Trace(X**2)/2)/Integral(exp(-Trace(_H**2)/2), _H) 
+<a name="l212"><span class="ln">212  </span></a>    &quot;&quot;&quot;</span>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s1">sym</span><span class="s2">, </span><span class="s1">dim </span><span class="s0">= </span><span class="s1">_symbol_converter</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">), </span><span class="s1">_sympify</span><span class="s2">(</span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l214"><span class="ln">214  </span></a>    <span class="s1">model </span><span class="s0">= </span><span class="s1">GaussianOrthogonalEnsembleModel</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l215"><span class="ln">215  </span></a>    <span class="s1">rmp </span><span class="s0">= </span><span class="s1">RandomMatrixPSpace</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">model</span><span class="s0">=</span><span class="s1">model</span><span class="s2">)</span>
+<a name="l216"><span class="ln">216  </span></a>    <span class="s0">return </span><span class="s1">RandomMatrixSymbol</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">pspace</span><span class="s0">=</span><span class="s1">rmp</span><span class="s2">)</span>
+<a name="l217"><span class="ln">217  </span></a>
+<a name="l218"><span class="ln">218  </span></a><span class="s0">def </span><span class="s1">GaussianSymplecticEnsemble</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l219"><span class="ln">219  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l220"><span class="ln">220  </span></a>    Represents Gaussian Symplectic Ensembles. 
+<a name="l221"><span class="ln">221  </span></a> 
+<a name="l222"><span class="ln">222  </span></a>    Examples 
+<a name="l223"><span class="ln">223  </span></a>    ======== 
+<a name="l224"><span class="ln">224  </span></a> 
+<a name="l225"><span class="ln">225  </span></a>    &gt;&gt;&gt; from sympy.stats import GaussianSymplecticEnsemble as GSE, density 
+<a name="l226"><span class="ln">226  </span></a>    &gt;&gt;&gt; from sympy import MatrixSymbol 
+<a name="l227"><span class="ln">227  </span></a>    &gt;&gt;&gt; G = GSE('U', 2) 
+<a name="l228"><span class="ln">228  </span></a>    &gt;&gt;&gt; X = MatrixSymbol('X', 2, 2) 
+<a name="l229"><span class="ln">229  </span></a>    &gt;&gt;&gt; density(G)(X) 
+<a name="l230"><span class="ln">230  </span></a>    exp(-2*Trace(X**2))/Integral(exp(-2*Trace(_H**2)), _H) 
+<a name="l231"><span class="ln">231  </span></a>    &quot;&quot;&quot;</span>
+<a name="l232"><span class="ln">232  </span></a>    <span class="s1">sym</span><span class="s2">, </span><span class="s1">dim </span><span class="s0">= </span><span class="s1">_symbol_converter</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">), </span><span class="s1">_sympify</span><span class="s2">(</span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l233"><span class="ln">233  </span></a>    <span class="s1">model </span><span class="s0">= </span><span class="s1">GaussianSymplecticEnsembleModel</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l234"><span class="ln">234  </span></a>    <span class="s1">rmp </span><span class="s0">= </span><span class="s1">RandomMatrixPSpace</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">model</span><span class="s0">=</span><span class="s1">model</span><span class="s2">)</span>
+<a name="l235"><span class="ln">235  </span></a>    <span class="s0">return </span><span class="s1">RandomMatrixSymbol</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">pspace</span><span class="s0">=</span><span class="s1">rmp</span><span class="s2">)</span>
+<a name="l236"><span class="ln">236  </span></a>
+<a name="l237"><span class="ln">237  </span></a><span class="s0">class </span><span class="s1">CircularEnsembleModel</span><span class="s2">(</span><span class="s1">RandomMatrixEnsembleModel</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l238"><span class="ln">238  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l239"><span class="ln">239  </span></a>    Abstract class for Circular ensembles. 
+<a name="l240"><span class="ln">240  </span></a>    Contains the properties and methods 
+<a name="l241"><span class="ln">241  </span></a>    common to all the circular ensembles. 
+<a name="l242"><span class="ln">242  </span></a> 
+<a name="l243"><span class="ln">243  </span></a>    References 
+<a name="l244"><span class="ln">244  </span></a>    ========== 
+<a name="l245"><span class="ln">245  </span></a> 
+<a name="l246"><span class="ln">246  </span></a>    .. [1] https://en.wikipedia.org/wiki/Circular_ensemble 
+<a name="l247"><span class="ln">247  </span></a>    &quot;&quot;&quot;</span>
+<a name="l248"><span class="ln">248  </span></a>    <span class="s0">def </span><span class="s1">density</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">expr</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l249"><span class="ln">249  </span></a>        <span class="s4"># TODO : Add support for Lie groups(as extensions of sympy.diffgeom)</span>
+<a name="l250"><span class="ln">250  </span></a>        <span class="s4">#        and define measures on them</span>
+<a name="l251"><span class="ln">251  </span></a>        <span class="s0">raise </span><span class="s1">NotImplementedError</span><span class="s2">(</span><span class="s3">&quot;Support for Haar measure hasn't been &quot;</span>
+<a name="l252"><span class="ln">252  </span></a>                                  <span class="s3">&quot;implemented yet, therefore the density of &quot;</span>
+<a name="l253"><span class="ln">253  </span></a>                                  <span class="s3">&quot;%s cannot be computed.&quot;</span><span class="s0">%</span><span class="s2">(</span><span class="s1">self</span><span class="s2">))</span>
+<a name="l254"><span class="ln">254  </span></a>
+<a name="l255"><span class="ln">255  </span></a>    <span class="s0">def </span><span class="s1">_compute_joint_eigen_distribution</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">beta</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l256"><span class="ln">256  </span></a>        <span class="s4">&quot;&quot;&quot; 
+<a name="l257"><span class="ln">257  </span></a>        Helper function to compute the joint distribution of phases 
+<a name="l258"><span class="ln">258  </span></a>        of the complex eigen values of matrices belonging to any 
+<a name="l259"><span class="ln">259  </span></a>        circular ensembles. 
+<a name="l260"><span class="ln">260  </span></a>        &quot;&quot;&quot;</span>
+<a name="l261"><span class="ln">261  </span></a>        <span class="s1">n </span><span class="s0">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">dimension</span>
+<a name="l262"><span class="ln">262  </span></a>        <span class="s1">Zbn </span><span class="s0">= </span><span class="s2">((</span><span class="s5">2</span><span class="s0">*</span><span class="s1">pi</span><span class="s2">)</span><span class="s0">**</span><span class="s1">n</span><span class="s2">)</span><span class="s0">*</span><span class="s2">(</span><span class="s1">gamma</span><span class="s2">(</span><span class="s1">beta</span><span class="s0">*</span><span class="s1">n</span><span class="s0">/</span><span class="s5">2 </span><span class="s0">+ </span><span class="s5">1</span><span class="s2">)</span><span class="s0">/</span><span class="s1">S</span><span class="s2">(</span><span class="s1">gamma</span><span class="s2">(</span><span class="s1">beta</span><span class="s0">/</span><span class="s5">2 </span><span class="s0">+ </span><span class="s5">1</span><span class="s2">))</span><span class="s0">**</span><span class="s1">n</span><span class="s2">)</span>
+<a name="l263"><span class="ln">263  </span></a>        <span class="s1">t </span><span class="s0">= </span><span class="s1">IndexedBase</span><span class="s2">(</span><span class="s3">'t'</span><span class="s2">)</span>
+<a name="l264"><span class="ln">264  </span></a>        <span class="s1">i</span><span class="s2">, </span><span class="s1">j</span><span class="s2">, </span><span class="s1">k </span><span class="s0">= </span><span class="s2">(</span><span class="s1">Dummy</span><span class="s2">(</span><span class="s3">'i'</span><span class="s2">, </span><span class="s1">integer</span><span class="s0">=True</span><span class="s2">), </span><span class="s1">Dummy</span><span class="s2">(</span><span class="s3">'j'</span><span class="s2">, </span><span class="s1">integer</span><span class="s0">=True</span><span class="s2">),</span>
+<a name="l265"><span class="ln">265  </span></a>                   <span class="s1">Dummy</span><span class="s2">(</span><span class="s3">'k'</span><span class="s2">, </span><span class="s1">integer</span><span class="s0">=True</span><span class="s2">))</span>
+<a name="l266"><span class="ln">266  </span></a>        <span class="s1">syms </span><span class="s0">= </span><span class="s1">ArrayComprehension</span><span class="s2">(</span><span class="s1">t</span><span class="s2">[</span><span class="s1">i</span><span class="s2">], (</span><span class="s1">i</span><span class="s2">, </span><span class="s5">1</span><span class="s2">, </span><span class="s1">n</span><span class="s2">)).</span><span class="s1">doit</span><span class="s2">()</span>
+<a name="l267"><span class="ln">267  </span></a>        <span class="s1">f </span><span class="s0">= </span><span class="s1">Product</span><span class="s2">(</span><span class="s1">Product</span><span class="s2">(</span><span class="s1">Abs</span><span class="s2">(</span><span class="s1">exp</span><span class="s2">(</span><span class="s1">I</span><span class="s0">*</span><span class="s1">t</span><span class="s2">[</span><span class="s1">k</span><span class="s2">]) </span><span class="s0">- </span><span class="s1">exp</span><span class="s2">(</span><span class="s1">I</span><span class="s0">*</span><span class="s1">t</span><span class="s2">[</span><span class="s1">j</span><span class="s2">]))</span><span class="s0">**</span><span class="s1">beta</span><span class="s2">, (</span><span class="s1">j</span><span class="s2">, </span><span class="s1">k </span><span class="s0">+ </span><span class="s5">1</span><span class="s2">, </span><span class="s1">n</span><span class="s2">)).</span><span class="s1">doit</span><span class="s2">(),</span>
+<a name="l268"><span class="ln">268  </span></a>                    <span class="s2">(</span><span class="s1">k</span><span class="s2">, </span><span class="s5">1</span><span class="s2">, </span><span class="s1">n </span><span class="s0">- </span><span class="s5">1</span><span class="s2">)).</span><span class="s1">doit</span><span class="s2">()</span>
+<a name="l269"><span class="ln">269  </span></a>        <span class="s0">return </span><span class="s1">Lambda</span><span class="s2">(</span><span class="s1">tuple</span><span class="s2">(</span><span class="s1">syms</span><span class="s2">), </span><span class="s1">f</span><span class="s0">/</span><span class="s1">Zbn</span><span class="s2">)</span>
+<a name="l270"><span class="ln">270  </span></a>
+<a name="l271"><span class="ln">271  </span></a><span class="s0">class </span><span class="s1">CircularUnitaryEnsembleModel</span><span class="s2">(</span><span class="s1">CircularEnsembleModel</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l272"><span class="ln">272  </span></a>    <span class="s0">def </span><span class="s1">joint_eigen_distribution</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l273"><span class="ln">273  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_compute_joint_eigen_distribution</span><span class="s2">(</span><span class="s1">S</span><span class="s2">(</span><span class="s5">2</span><span class="s2">))</span>
+<a name="l274"><span class="ln">274  </span></a>
+<a name="l275"><span class="ln">275  </span></a><span class="s0">class </span><span class="s1">CircularOrthogonalEnsembleModel</span><span class="s2">(</span><span class="s1">CircularEnsembleModel</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l276"><span class="ln">276  </span></a>    <span class="s0">def </span><span class="s1">joint_eigen_distribution</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l277"><span class="ln">277  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_compute_joint_eigen_distribution</span><span class="s2">(</span><span class="s1">S</span><span class="s2">.</span><span class="s1">One</span><span class="s2">)</span>
+<a name="l278"><span class="ln">278  </span></a>
+<a name="l279"><span class="ln">279  </span></a><span class="s0">class </span><span class="s1">CircularSymplecticEnsembleModel</span><span class="s2">(</span><span class="s1">CircularEnsembleModel</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l280"><span class="ln">280  </span></a>    <span class="s0">def </span><span class="s1">joint_eigen_distribution</span><span class="s2">(</span><span class="s1">self</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l281"><span class="ln">281  </span></a>        <span class="s0">return </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_compute_joint_eigen_distribution</span><span class="s2">(</span><span class="s1">S</span><span class="s2">(</span><span class="s5">4</span><span class="s2">))</span>
+<a name="l282"><span class="ln">282  </span></a>
+<a name="l283"><span class="ln">283  </span></a><span class="s0">def </span><span class="s1">CircularEnsemble</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l284"><span class="ln">284  </span></a>    <span class="s1">sym</span><span class="s2">, </span><span class="s1">dim </span><span class="s0">= </span><span class="s1">_symbol_converter</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">), </span><span class="s1">_sympify</span><span class="s2">(</span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l285"><span class="ln">285  </span></a>    <span class="s1">model </span><span class="s0">= </span><span class="s1">CircularEnsembleModel</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l286"><span class="ln">286  </span></a>    <span class="s1">rmp </span><span class="s0">= </span><span class="s1">RandomMatrixPSpace</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">model</span><span class="s0">=</span><span class="s1">model</span><span class="s2">)</span>
+<a name="l287"><span class="ln">287  </span></a>    <span class="s0">return </span><span class="s1">RandomMatrixSymbol</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">pspace</span><span class="s0">=</span><span class="s1">rmp</span><span class="s2">)</span>
+<a name="l288"><span class="ln">288  </span></a>
+<a name="l289"><span class="ln">289  </span></a><span class="s0">def </span><span class="s1">CircularUnitaryEnsemble</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l290"><span class="ln">290  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l291"><span class="ln">291  </span></a>    Represents Circular Unitary Ensembles. 
+<a name="l292"><span class="ln">292  </span></a> 
+<a name="l293"><span class="ln">293  </span></a>    Examples 
+<a name="l294"><span class="ln">294  </span></a>    ======== 
+<a name="l295"><span class="ln">295  </span></a> 
+<a name="l296"><span class="ln">296  </span></a>    &gt;&gt;&gt; from sympy.stats import CircularUnitaryEnsemble as CUE 
+<a name="l297"><span class="ln">297  </span></a>    &gt;&gt;&gt; from sympy.stats import joint_eigen_distribution 
+<a name="l298"><span class="ln">298  </span></a>    &gt;&gt;&gt; C = CUE('U', 1) 
+<a name="l299"><span class="ln">299  </span></a>    &gt;&gt;&gt; joint_eigen_distribution(C) 
+<a name="l300"><span class="ln">300  </span></a>    Lambda(t[1], Product(Abs(exp(I*t[_j]) - exp(I*t[_k]))**2, (_j, _k + 1, 1), (_k, 1, 0))/(2*pi)) 
+<a name="l301"><span class="ln">301  </span></a> 
+<a name="l302"><span class="ln">302  </span></a>    Note 
+<a name="l303"><span class="ln">303  </span></a>    ==== 
+<a name="l304"><span class="ln">304  </span></a> 
+<a name="l305"><span class="ln">305  </span></a>    As can be seen above in the example, density of CiruclarUnitaryEnsemble 
+<a name="l306"><span class="ln">306  </span></a>    is not evaluated because the exact definition is based on haar measure of 
+<a name="l307"><span class="ln">307  </span></a>    unitary group which is not unique. 
+<a name="l308"><span class="ln">308  </span></a>    &quot;&quot;&quot;</span>
+<a name="l309"><span class="ln">309  </span></a>    <span class="s1">sym</span><span class="s2">, </span><span class="s1">dim </span><span class="s0">= </span><span class="s1">_symbol_converter</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">), </span><span class="s1">_sympify</span><span class="s2">(</span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l310"><span class="ln">310  </span></a>    <span class="s1">model </span><span class="s0">= </span><span class="s1">CircularUnitaryEnsembleModel</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l311"><span class="ln">311  </span></a>    <span class="s1">rmp </span><span class="s0">= </span><span class="s1">RandomMatrixPSpace</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">model</span><span class="s0">=</span><span class="s1">model</span><span class="s2">)</span>
+<a name="l312"><span class="ln">312  </span></a>    <span class="s0">return </span><span class="s1">RandomMatrixSymbol</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">pspace</span><span class="s0">=</span><span class="s1">rmp</span><span class="s2">)</span>
+<a name="l313"><span class="ln">313  </span></a>
+<a name="l314"><span class="ln">314  </span></a><span class="s0">def </span><span class="s1">CircularOrthogonalEnsemble</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l315"><span class="ln">315  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l316"><span class="ln">316  </span></a>    Represents Circular Orthogonal Ensembles. 
+<a name="l317"><span class="ln">317  </span></a> 
+<a name="l318"><span class="ln">318  </span></a>    Examples 
+<a name="l319"><span class="ln">319  </span></a>    ======== 
+<a name="l320"><span class="ln">320  </span></a> 
+<a name="l321"><span class="ln">321  </span></a>    &gt;&gt;&gt; from sympy.stats import CircularOrthogonalEnsemble as COE 
+<a name="l322"><span class="ln">322  </span></a>    &gt;&gt;&gt; from sympy.stats import joint_eigen_distribution 
+<a name="l323"><span class="ln">323  </span></a>    &gt;&gt;&gt; C = COE('O', 1) 
+<a name="l324"><span class="ln">324  </span></a>    &gt;&gt;&gt; joint_eigen_distribution(C) 
+<a name="l325"><span class="ln">325  </span></a>    Lambda(t[1], Product(Abs(exp(I*t[_j]) - exp(I*t[_k])), (_j, _k + 1, 1), (_k, 1, 0))/(2*pi)) 
+<a name="l326"><span class="ln">326  </span></a> 
+<a name="l327"><span class="ln">327  </span></a>    Note 
+<a name="l328"><span class="ln">328  </span></a>    ==== 
+<a name="l329"><span class="ln">329  </span></a> 
+<a name="l330"><span class="ln">330  </span></a>    As can be seen above in the example, density of CiruclarOrthogonalEnsemble 
+<a name="l331"><span class="ln">331  </span></a>    is not evaluated because the exact definition is based on haar measure of 
+<a name="l332"><span class="ln">332  </span></a>    unitary group which is not unique. 
+<a name="l333"><span class="ln">333  </span></a>    &quot;&quot;&quot;</span>
+<a name="l334"><span class="ln">334  </span></a>    <span class="s1">sym</span><span class="s2">, </span><span class="s1">dim </span><span class="s0">= </span><span class="s1">_symbol_converter</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">), </span><span class="s1">_sympify</span><span class="s2">(</span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l335"><span class="ln">335  </span></a>    <span class="s1">model </span><span class="s0">= </span><span class="s1">CircularOrthogonalEnsembleModel</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l336"><span class="ln">336  </span></a>    <span class="s1">rmp </span><span class="s0">= </span><span class="s1">RandomMatrixPSpace</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">model</span><span class="s0">=</span><span class="s1">model</span><span class="s2">)</span>
+<a name="l337"><span class="ln">337  </span></a>    <span class="s0">return </span><span class="s1">RandomMatrixSymbol</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">pspace</span><span class="s0">=</span><span class="s1">rmp</span><span class="s2">)</span>
+<a name="l338"><span class="ln">338  </span></a>
+<a name="l339"><span class="ln">339  </span></a><span class="s0">def </span><span class="s1">CircularSymplecticEnsemble</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l340"><span class="ln">340  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l341"><span class="ln">341  </span></a>    Represents Circular Symplectic Ensembles. 
+<a name="l342"><span class="ln">342  </span></a> 
+<a name="l343"><span class="ln">343  </span></a>    Examples 
+<a name="l344"><span class="ln">344  </span></a>    ======== 
+<a name="l345"><span class="ln">345  </span></a> 
+<a name="l346"><span class="ln">346  </span></a>    &gt;&gt;&gt; from sympy.stats import CircularSymplecticEnsemble as CSE 
+<a name="l347"><span class="ln">347  </span></a>    &gt;&gt;&gt; from sympy.stats import joint_eigen_distribution 
+<a name="l348"><span class="ln">348  </span></a>    &gt;&gt;&gt; C = CSE('S', 1) 
+<a name="l349"><span class="ln">349  </span></a>    &gt;&gt;&gt; joint_eigen_distribution(C) 
+<a name="l350"><span class="ln">350  </span></a>    Lambda(t[1], Product(Abs(exp(I*t[_j]) - exp(I*t[_k]))**4, (_j, _k + 1, 1), (_k, 1, 0))/(2*pi)) 
+<a name="l351"><span class="ln">351  </span></a> 
+<a name="l352"><span class="ln">352  </span></a>    Note 
+<a name="l353"><span class="ln">353  </span></a>    ==== 
+<a name="l354"><span class="ln">354  </span></a> 
+<a name="l355"><span class="ln">355  </span></a>    As can be seen above in the example, density of CiruclarSymplecticEnsemble 
+<a name="l356"><span class="ln">356  </span></a>    is not evaluated because the exact definition is based on haar measure of 
+<a name="l357"><span class="ln">357  </span></a>    unitary group which is not unique. 
+<a name="l358"><span class="ln">358  </span></a>    &quot;&quot;&quot;</span>
+<a name="l359"><span class="ln">359  </span></a>    <span class="s1">sym</span><span class="s2">, </span><span class="s1">dim </span><span class="s0">= </span><span class="s1">_symbol_converter</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">), </span><span class="s1">_sympify</span><span class="s2">(</span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l360"><span class="ln">360  </span></a>    <span class="s1">model </span><span class="s0">= </span><span class="s1">CircularSymplecticEnsembleModel</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">)</span>
+<a name="l361"><span class="ln">361  </span></a>    <span class="s1">rmp </span><span class="s0">= </span><span class="s1">RandomMatrixPSpace</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">model</span><span class="s0">=</span><span class="s1">model</span><span class="s2">)</span>
+<a name="l362"><span class="ln">362  </span></a>    <span class="s0">return </span><span class="s1">RandomMatrixSymbol</span><span class="s2">(</span><span class="s1">sym</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">dim</span><span class="s2">, </span><span class="s1">pspace</span><span class="s0">=</span><span class="s1">rmp</span><span class="s2">)</span>
+<a name="l363"><span class="ln">363  </span></a>
+<a name="l364"><span class="ln">364  </span></a><span class="s0">def </span><span class="s1">joint_eigen_distribution</span><span class="s2">(</span><span class="s1">mat</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l365"><span class="ln">365  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l366"><span class="ln">366  </span></a>    For obtaining joint probability distribution 
+<a name="l367"><span class="ln">367  </span></a>    of eigen values of random matrix. 
+<a name="l368"><span class="ln">368  </span></a> 
+<a name="l369"><span class="ln">369  </span></a>    Parameters 
+<a name="l370"><span class="ln">370  </span></a>    ========== 
+<a name="l371"><span class="ln">371  </span></a> 
+<a name="l372"><span class="ln">372  </span></a>    mat: RandomMatrixSymbol 
+<a name="l373"><span class="ln">373  </span></a>        The matrix symbol whose eigen values are to be considered. 
+<a name="l374"><span class="ln">374  </span></a> 
+<a name="l375"><span class="ln">375  </span></a>    Returns 
+<a name="l376"><span class="ln">376  </span></a>    ======= 
+<a name="l377"><span class="ln">377  </span></a> 
+<a name="l378"><span class="ln">378  </span></a>    Lambda 
+<a name="l379"><span class="ln">379  </span></a> 
+<a name="l380"><span class="ln">380  </span></a>    Examples 
+<a name="l381"><span class="ln">381  </span></a>    ======== 
+<a name="l382"><span class="ln">382  </span></a> 
+<a name="l383"><span class="ln">383  </span></a>    &gt;&gt;&gt; from sympy.stats import GaussianUnitaryEnsemble as GUE 
+<a name="l384"><span class="ln">384  </span></a>    &gt;&gt;&gt; from sympy.stats import joint_eigen_distribution 
+<a name="l385"><span class="ln">385  </span></a>    &gt;&gt;&gt; U = GUE('U', 2) 
+<a name="l386"><span class="ln">386  </span></a>    &gt;&gt;&gt; joint_eigen_distribution(U) 
+<a name="l387"><span class="ln">387  </span></a>    Lambda((l[1], l[2]), exp(-l[1]**2 - l[2]**2)*Product(Abs(l[_i] - l[_j])**2, (_j, _i + 1, 2), (_i, 1, 1))/pi) 
+<a name="l388"><span class="ln">388  </span></a>    &quot;&quot;&quot;</span>
+<a name="l389"><span class="ln">389  </span></a>    <span class="s0">if not </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">mat</span><span class="s2">, </span><span class="s1">RandomMatrixSymbol</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l390"><span class="ln">390  </span></a>        <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s3">&quot;%s is not of type, RandomMatrixSymbol.&quot;</span><span class="s0">%</span><span class="s2">(</span><span class="s1">mat</span><span class="s2">))</span>
+<a name="l391"><span class="ln">391  </span></a>    <span class="s0">return </span><span class="s1">mat</span><span class="s2">.</span><span class="s1">pspace</span><span class="s2">.</span><span class="s1">model</span><span class="s2">.</span><span class="s1">joint_eigen_distribution</span><span class="s2">()</span>
+<a name="l392"><span class="ln">392  </span></a>
+<a name="l393"><span class="ln">393  </span></a><span class="s0">def </span><span class="s1">JointEigenDistribution</span><span class="s2">(</span><span class="s1">mat</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l394"><span class="ln">394  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l395"><span class="ln">395  </span></a>    Creates joint distribution of eigen values of matrices with random 
+<a name="l396"><span class="ln">396  </span></a>    expressions. 
+<a name="l397"><span class="ln">397  </span></a> 
+<a name="l398"><span class="ln">398  </span></a>    Parameters 
+<a name="l399"><span class="ln">399  </span></a>    ========== 
+<a name="l400"><span class="ln">400  </span></a> 
+<a name="l401"><span class="ln">401  </span></a>    mat: Matrix 
+<a name="l402"><span class="ln">402  </span></a>        The matrix under consideration. 
+<a name="l403"><span class="ln">403  </span></a> 
+<a name="l404"><span class="ln">404  </span></a>    Returns 
+<a name="l405"><span class="ln">405  </span></a>    ======= 
+<a name="l406"><span class="ln">406  </span></a> 
+<a name="l407"><span class="ln">407  </span></a>    JointDistributionHandmade 
+<a name="l408"><span class="ln">408  </span></a> 
+<a name="l409"><span class="ln">409  </span></a>    Examples 
+<a name="l410"><span class="ln">410  </span></a>    ======== 
+<a name="l411"><span class="ln">411  </span></a> 
+<a name="l412"><span class="ln">412  </span></a>    &gt;&gt;&gt; from sympy.stats import Normal, JointEigenDistribution 
+<a name="l413"><span class="ln">413  </span></a>    &gt;&gt;&gt; from sympy import Matrix 
+<a name="l414"><span class="ln">414  </span></a>    &gt;&gt;&gt; A = [[Normal('A00', 0, 1), Normal('A01', 0, 1)], 
+<a name="l415"><span class="ln">415  </span></a>    ... [Normal('A10', 0, 1), Normal('A11', 0, 1)]] 
+<a name="l416"><span class="ln">416  </span></a>    &gt;&gt;&gt; JointEigenDistribution(Matrix(A)) 
+<a name="l417"><span class="ln">417  </span></a>    JointDistributionHandmade(-sqrt(A00**2 - 2*A00*A11 + 4*A01*A10 + A11**2)/2 
+<a name="l418"><span class="ln">418  </span></a>    + A00/2 + A11/2, sqrt(A00**2 - 2*A00*A11 + 4*A01*A10 + A11**2)/2 + A00/2 + A11/2) 
+<a name="l419"><span class="ln">419  </span></a> 
+<a name="l420"><span class="ln">420  </span></a>    &quot;&quot;&quot;</span>
+<a name="l421"><span class="ln">421  </span></a>    <span class="s1">eigenvals </span><span class="s0">= </span><span class="s1">mat</span><span class="s2">.</span><span class="s1">eigenvals</span><span class="s2">(</span><span class="s1">multiple</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l422"><span class="ln">422  </span></a>    <span class="s0">if not </span><span class="s1">all</span><span class="s2">(</span><span class="s1">is_random</span><span class="s2">(</span><span class="s1">eigenval</span><span class="s2">) </span><span class="s0">for </span><span class="s1">eigenval </span><span class="s0">in </span><span class="s1">set</span><span class="s2">(</span><span class="s1">eigenvals</span><span class="s2">))</span><span class="s0">:</span>
+<a name="l423"><span class="ln">423  </span></a>        <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s3">&quot;Eigen values do not have any random expression, &quot;</span>
+<a name="l424"><span class="ln">424  </span></a>                         <span class="s3">&quot;joint distribution cannot be generated.&quot;</span><span class="s2">)</span>
+<a name="l425"><span class="ln">425  </span></a>    <span class="s0">return </span><span class="s1">JointDistributionHandmade</span><span class="s2">(</span><span class="s0">*</span><span class="s1">eigenvals</span><span class="s2">)</span>
+<a name="l426"><span class="ln">426  </span></a>
+<a name="l427"><span class="ln">427  </span></a><span class="s0">def </span><span class="s1">level_spacing_distribution</span><span class="s2">(</span><span class="s1">mat</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l428"><span class="ln">428  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l429"><span class="ln">429  </span></a>    For obtaining distribution of level spacings. 
+<a name="l430"><span class="ln">430  </span></a> 
+<a name="l431"><span class="ln">431  </span></a>    Parameters 
+<a name="l432"><span class="ln">432  </span></a>    ========== 
+<a name="l433"><span class="ln">433  </span></a> 
+<a name="l434"><span class="ln">434  </span></a>    mat: RandomMatrixSymbol 
+<a name="l435"><span class="ln">435  </span></a>        The random matrix symbol whose eigen values are 
+<a name="l436"><span class="ln">436  </span></a>        to be considered for finding the level spacings. 
+<a name="l437"><span class="ln">437  </span></a> 
+<a name="l438"><span class="ln">438  </span></a>    Returns 
+<a name="l439"><span class="ln">439  </span></a>    ======= 
+<a name="l440"><span class="ln">440  </span></a> 
+<a name="l441"><span class="ln">441  </span></a>    Lambda 
+<a name="l442"><span class="ln">442  </span></a> 
+<a name="l443"><span class="ln">443  </span></a>    Examples 
+<a name="l444"><span class="ln">444  </span></a>    ======== 
+<a name="l445"><span class="ln">445  </span></a> 
+<a name="l446"><span class="ln">446  </span></a>    &gt;&gt;&gt; from sympy.stats import GaussianUnitaryEnsemble as GUE 
+<a name="l447"><span class="ln">447  </span></a>    &gt;&gt;&gt; from sympy.stats import level_spacing_distribution 
+<a name="l448"><span class="ln">448  </span></a>    &gt;&gt;&gt; U = GUE('U', 2) 
+<a name="l449"><span class="ln">449  </span></a>    &gt;&gt;&gt; level_spacing_distribution(U) 
+<a name="l450"><span class="ln">450  </span></a>    Lambda(_s, 32*_s**2*exp(-4*_s**2/pi)/pi**2) 
+<a name="l451"><span class="ln">451  </span></a> 
+<a name="l452"><span class="ln">452  </span></a>    References 
+<a name="l453"><span class="ln">453  </span></a>    ========== 
+<a name="l454"><span class="ln">454  </span></a> 
+<a name="l455"><span class="ln">455  </span></a>    .. [1] https://en.wikipedia.org/wiki/Random_matrix#Distribution_of_level_spacings 
+<a name="l456"><span class="ln">456  </span></a>    &quot;&quot;&quot;</span>
+<a name="l457"><span class="ln">457  </span></a>    <span class="s0">return </span><span class="s1">mat</span><span class="s2">.</span><span class="s1">pspace</span><span class="s2">.</span><span class="s1">model</span><span class="s2">.</span><span class="s1">level_spacing_distribution</span><span class="s2">()</span>
+<a name="l458"><span class="ln">458  </span></a></pre>
+</body>
+</html>

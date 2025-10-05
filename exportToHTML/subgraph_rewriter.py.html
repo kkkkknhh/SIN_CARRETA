@@ -1,0 +1,451 @@
+<html>
+<head>
+<title>subgraph_rewriter.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #969896;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+subgraph_rewriter.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">import </span><span class="s1">copy</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">from </span><span class="s1">dataclasses </span><span class="s0">import </span><span class="s1">dataclass</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">from </span><span class="s1">typing </span><span class="s0">import </span><span class="s1">Any</span><span class="s2">, </span><span class="s1">Callable</span><span class="s2">, </span><span class="s1">NamedTuple</span><span class="s2">, </span><span class="s1">Optional</span><span class="s2">, </span><span class="s1">TYPE_CHECKING</span><span class="s2">, </span><span class="s1">Union</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">import </span><span class="s1">torch</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">_compatibility </span><span class="s0">import </span><span class="s1">compatibility</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">_symbolic_trace </span><span class="s0">import </span><span class="s1">symbolic_trace</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">graph </span><span class="s0">import </span><span class="s1">Graph</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">graph_module </span><span class="s0">import </span><span class="s1">GraphModule</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">node </span><span class="s0">import </span><span class="s1">Node</span>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s0">if </span><span class="s1">TYPE_CHECKING</span><span class="s0">:</span>
+<a name="l15"><span class="ln">15   </span></a>    <span class="s0">from </span><span class="s2">.</span><span class="s1">passes</span><span class="s2">.</span><span class="s1">utils</span><span class="s2">.</span><span class="s1">matcher_with_name_node_map_utils </span><span class="s0">import </span><span class="s1">InternalMatch</span>
+<a name="l16"><span class="ln">16   </span></a>
+<a name="l17"><span class="ln">17   </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s3">&quot;Match&quot;</span><span class="s2">,</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s3">&quot;replace_pattern&quot;</span><span class="s2">,</span>
+<a name="l20"><span class="ln">20   </span></a>    <span class="s3">&quot;replace_pattern_with_filters&quot;</span><span class="s2">,</span>
+<a name="l21"><span class="ln">21   </span></a>    <span class="s3">&quot;ReplacedPatterns&quot;</span><span class="s2">,</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s2">]</span>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a><span class="s0">@</span><span class="s1">compatibility</span><span class="s2">(</span><span class="s1">is_backward_compatible</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s0">class </span><span class="s1">Match</span><span class="s2">(</span><span class="s1">NamedTuple</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s4"># Node from which the match was found</span>
+<a name="l28"><span class="ln">28   </span></a>    <span class="s1">anchor</span><span class="s0">: </span><span class="s1">Node</span>
+<a name="l29"><span class="ln">29   </span></a>    <span class="s4"># Maps nodes in the pattern subgraph to nodes in the larger graph</span>
+<a name="l30"><span class="ln">30   </span></a>    <span class="s1">nodes_map</span><span class="s0">: </span><span class="s1">dict</span><span class="s2">[</span><span class="s1">Node</span><span class="s2">, </span><span class="s1">Node</span><span class="s2">]</span>
+<a name="l31"><span class="ln">31   </span></a>
+<a name="l32"><span class="ln">32   </span></a>
+<a name="l33"><span class="ln">33   </span></a><span class="s0">@</span><span class="s1">compatibility</span><span class="s2">(</span><span class="s1">is_backward_compatible</span><span class="s0">=False</span><span class="s2">)</span>
+<a name="l34"><span class="ln">34   </span></a><span class="s0">@</span><span class="s1">dataclass</span>
+<a name="l35"><span class="ln">35   </span></a><span class="s0">class </span><span class="s1">ReplacedPatterns</span><span class="s0">:</span>
+<a name="l36"><span class="ln">36   </span></a>    <span class="s4"># Node from which the match was found</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s1">anchor</span><span class="s0">: </span><span class="s1">Node</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s4"># Maps nodes in the pattern subgraph to nodes in the larger graph</span>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s1">nodes_map</span><span class="s0">: </span><span class="s1">dict</span><span class="s2">[</span><span class="s1">Node</span><span class="s2">, </span><span class="s1">Node</span><span class="s2">]</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s4"># List of nodes that were added into the graph</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s1">replacements</span><span class="s0">: </span><span class="s1">list</span><span class="s2">[</span><span class="s1">Node</span><span class="s2">]</span>
+<a name="l42"><span class="ln">42   </span></a>
+<a name="l43"><span class="ln">43   </span></a>
+<a name="l44"><span class="ln">44   </span></a><span class="s0">def </span><span class="s1">_replace_attributes</span><span class="s2">(</span><span class="s1">gm</span><span class="s0">: </span><span class="s1">GraphModule</span><span class="s2">, </span><span class="s1">replacement</span><span class="s0">: </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">nn</span><span class="s2">.</span><span class="s1">Module</span><span class="s2">) </span><span class="s1">-&gt; </span><span class="s0">None:</span>
+<a name="l45"><span class="ln">45   </span></a>    <span class="s1">gm</span><span class="s2">.</span><span class="s1">delete_all_unused_submodules</span><span class="s2">()</span>
+<a name="l46"><span class="ln">46   </span></a>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">replacement</span><span class="s2">, </span><span class="s1">GraphModule</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l48"><span class="ln">48   </span></a>        <span class="s1">replacement</span><span class="s2">.</span><span class="s1">graph</span><span class="s2">.</span><span class="s1">lint</span><span class="s2">()</span>
+<a name="l49"><span class="ln">49   </span></a>
+<a name="l50"><span class="ln">50   </span></a>    <span class="s0">def </span><span class="s1">try_get_attr</span><span class="s2">(</span><span class="s1">gm</span><span class="s0">: </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">nn</span><span class="s2">.</span><span class="s1">Module</span><span class="s2">, </span><span class="s1">target</span><span class="s0">: </span><span class="s1">str</span><span class="s2">) </span><span class="s1">-&gt; Optional</span><span class="s2">[</span><span class="s1">Any</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l51"><span class="ln">51   </span></a>        <span class="s1">module_path</span><span class="s2">, </span><span class="s1">_</span><span class="s2">, </span><span class="s1">attr_name </span><span class="s0">= </span><span class="s1">target</span><span class="s2">.</span><span class="s1">rpartition</span><span class="s2">(</span><span class="s3">&quot;.&quot;</span><span class="s2">)</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s0">try:</span>
+<a name="l53"><span class="ln">53   </span></a>            <span class="s1">mod</span><span class="s0">: </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">nn</span><span class="s2">.</span><span class="s1">Module </span><span class="s0">= </span><span class="s1">gm</span><span class="s2">.</span><span class="s1">get_submodule</span><span class="s2">(</span><span class="s1">module_path</span><span class="s2">)</span>
+<a name="l54"><span class="ln">54   </span></a>        <span class="s0">except </span><span class="s1">AttributeError</span><span class="s0">:</span>
+<a name="l55"><span class="ln">55   </span></a>            <span class="s0">return None</span>
+<a name="l56"><span class="ln">56   </span></a>        <span class="s1">attr </span><span class="s0">= </span><span class="s1">getattr</span><span class="s2">(</span><span class="s1">mod</span><span class="s2">, </span><span class="s1">attr_name</span><span class="s2">, </span><span class="s0">None</span><span class="s2">)</span>
+<a name="l57"><span class="ln">57   </span></a>        <span class="s0">return </span><span class="s1">attr</span>
+<a name="l58"><span class="ln">58   </span></a>
+<a name="l59"><span class="ln">59   </span></a>    <span class="s0">for </span><span class="s1">node </span><span class="s0">in </span><span class="s1">gm</span><span class="s2">.</span><span class="s1">graph</span><span class="s2">.</span><span class="s1">nodes</span><span class="s0">:</span>
+<a name="l60"><span class="ln">60   </span></a>        <span class="s0">if </span><span class="s1">node</span><span class="s2">.</span><span class="s1">op </span><span class="s0">== </span><span class="s3">&quot;call_module&quot; </span><span class="s0">or </span><span class="s1">node</span><span class="s2">.</span><span class="s1">op </span><span class="s0">== </span><span class="s3">&quot;get_attr&quot;</span><span class="s0">:</span>
+<a name="l61"><span class="ln">61   </span></a>            <span class="s1">gm_attr </span><span class="s0">= </span><span class="s1">try_get_attr</span><span class="s2">(</span><span class="s1">gm</span><span class="s2">, </span><span class="s1">node</span><span class="s2">.</span><span class="s1">target</span><span class="s2">)</span>
+<a name="l62"><span class="ln">62   </span></a>            <span class="s1">replacement_attr </span><span class="s0">= </span><span class="s1">try_get_attr</span><span class="s2">(</span><span class="s1">replacement</span><span class="s2">, </span><span class="s1">node</span><span class="s2">.</span><span class="s1">target</span><span class="s2">)</span>
+<a name="l63"><span class="ln">63   </span></a>
+<a name="l64"><span class="ln">64   </span></a>            <span class="s4"># CASE 1: This target already exists as an attribute in our</span>
+<a name="l65"><span class="ln">65   </span></a>            <span class="s4"># result GraphModule. Whether or not it exists in</span>
+<a name="l66"><span class="ln">66   </span></a>            <span class="s4"># `replacement`, the existing submodule takes precedence.</span>
+<a name="l67"><span class="ln">67   </span></a>            <span class="s0">if </span><span class="s1">gm_attr </span><span class="s0">is not None:</span>
+<a name="l68"><span class="ln">68   </span></a>                <span class="s0">continue</span>
+<a name="l69"><span class="ln">69   </span></a>
+<a name="l70"><span class="ln">70   </span></a>            <span class="s4"># CASE 2: The target exists as an attribute in `replacement`</span>
+<a name="l71"><span class="ln">71   </span></a>            <span class="s4"># only, so we need to copy it over.</span>
+<a name="l72"><span class="ln">72   </span></a>            <span class="s0">elif </span><span class="s1">replacement_attr </span><span class="s0">is not None:</span>
+<a name="l73"><span class="ln">73   </span></a>                <span class="s1">new_attr </span><span class="s0">= </span><span class="s1">copy</span><span class="s2">.</span><span class="s1">deepcopy</span><span class="s2">(</span><span class="s1">replacement_attr</span><span class="s2">)</span>
+<a name="l74"><span class="ln">74   </span></a>                <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">replacement_attr</span><span class="s2">, </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">nn</span><span class="s2">.</span><span class="s1">Module</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l75"><span class="ln">75   </span></a>                    <span class="s1">gm</span><span class="s2">.</span><span class="s1">add_submodule</span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">target</span><span class="s2">, </span><span class="s1">new_attr</span><span class="s2">)</span>
+<a name="l76"><span class="ln">76   </span></a>                <span class="s0">else:</span>
+<a name="l77"><span class="ln">77   </span></a>                    <span class="s1">setattr</span><span class="s2">(</span><span class="s1">gm</span><span class="s2">, </span><span class="s1">node</span><span class="s2">.</span><span class="s1">target</span><span class="s2">, </span><span class="s1">new_attr</span><span class="s2">)</span>
+<a name="l78"><span class="ln">78   </span></a>
+<a name="l79"><span class="ln">79   </span></a>            <span class="s4"># CASE 3: The target doesn't exist as an attribute in `gm`</span>
+<a name="l80"><span class="ln">80   </span></a>            <span class="s4"># or `replacement`</span>
+<a name="l81"><span class="ln">81   </span></a>            <span class="s0">else:</span>
+<a name="l82"><span class="ln">82   </span></a>                <span class="s0">raise </span><span class="s1">RuntimeError</span><span class="s2">(</span>
+<a name="l83"><span class="ln">83   </span></a>                    <span class="s3">'Attempted to create a &quot;'</span><span class="s2">,</span>
+<a name="l84"><span class="ln">84   </span></a>                    <span class="s1">node</span><span class="s2">.</span><span class="s1">op</span><span class="s2">,</span>
+<a name="l85"><span class="ln">85   </span></a>                    <span class="s3">'&quot; node during subgraph rewriting '</span>
+<a name="l86"><span class="ln">86   </span></a>                    <span class="s3">f&quot;with target {</span><span class="s1">node</span><span class="s2">.</span><span class="s1">target</span><span class="s3">}, but &quot;</span>
+<a name="l87"><span class="ln">87   </span></a>                    <span class="s3">&quot;the referenced attribute does not &quot;</span>
+<a name="l88"><span class="ln">88   </span></a>                    <span class="s3">&quot;exist in the replacement GraphModule&quot;</span><span class="s2">,</span>
+<a name="l89"><span class="ln">89   </span></a>                <span class="s2">)</span>
+<a name="l90"><span class="ln">90   </span></a>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s1">gm</span><span class="s2">.</span><span class="s1">graph</span><span class="s2">.</span><span class="s1">lint</span><span class="s2">()</span>
+<a name="l92"><span class="ln">92   </span></a>
+<a name="l93"><span class="ln">93   </span></a>
+<a name="l94"><span class="ln">94   </span></a><span class="s0">@</span><span class="s1">compatibility</span><span class="s2">(</span><span class="s1">is_backward_compatible</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l95"><span class="ln">95   </span></a><span class="s0">def </span><span class="s1">replace_pattern</span><span class="s2">(</span>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s1">gm</span><span class="s0">: </span><span class="s1">GraphModule</span><span class="s2">,</span>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s1">pattern</span><span class="s0">: </span><span class="s1">Union</span><span class="s2">[</span><span class="s1">Callable</span><span class="s2">, </span><span class="s1">GraphModule</span><span class="s2">],</span>
+<a name="l98"><span class="ln">98   </span></a>    <span class="s1">replacement</span><span class="s0">: </span><span class="s1">Union</span><span class="s2">[</span><span class="s1">Callable</span><span class="s2">, </span><span class="s1">GraphModule</span><span class="s2">],</span>
+<a name="l99"><span class="ln">99   </span></a><span class="s2">) </span><span class="s1">-&gt; list</span><span class="s2">[</span><span class="s1">Match</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l100"><span class="ln">100  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l101"><span class="ln">101  </span></a>    Matches all possible non-overlapping sets of operators and their 
+<a name="l102"><span class="ln">102  </span></a>    data dependencies (``pattern``) in the Graph of a GraphModule 
+<a name="l103"><span class="ln">103  </span></a>    (``gm``), then replaces each of these matched subgraphs with another 
+<a name="l104"><span class="ln">104  </span></a>    subgraph (``replacement``). 
+<a name="l105"><span class="ln">105  </span></a> 
+<a name="l106"><span class="ln">106  </span></a>    Args: 
+<a name="l107"><span class="ln">107  </span></a>        ``gm``: The GraphModule that wraps the Graph to operate on 
+<a name="l108"><span class="ln">108  </span></a>        ``pattern``: The subgraph to match in ``gm`` for replacement 
+<a name="l109"><span class="ln">109  </span></a>        ``replacement``: The subgraph to replace ``pattern`` with 
+<a name="l110"><span class="ln">110  </span></a> 
+<a name="l111"><span class="ln">111  </span></a>    Returns: 
+<a name="l112"><span class="ln">112  </span></a>        List[Match]: A list of ``Match`` objects representing the places 
+<a name="l113"><span class="ln">113  </span></a>        in the original graph that ``pattern`` was matched to. The list 
+<a name="l114"><span class="ln">114  </span></a>        is empty if there are no matches. ``Match`` is defined as: 
+<a name="l115"><span class="ln">115  </span></a> 
+<a name="l116"><span class="ln">116  </span></a>        .. code-block:: python 
+<a name="l117"><span class="ln">117  </span></a> 
+<a name="l118"><span class="ln">118  </span></a>            class Match(NamedTuple): 
+<a name="l119"><span class="ln">119  </span></a>                # Node from which the match was found 
+<a name="l120"><span class="ln">120  </span></a>                anchor: Node 
+<a name="l121"><span class="ln">121  </span></a>                # Maps nodes in the pattern subgraph to nodes in the larger graph 
+<a name="l122"><span class="ln">122  </span></a>                nodes_map: Dict[Node, Node] 
+<a name="l123"><span class="ln">123  </span></a> 
+<a name="l124"><span class="ln">124  </span></a>    Examples: 
+<a name="l125"><span class="ln">125  </span></a> 
+<a name="l126"><span class="ln">126  </span></a>    .. code-block:: python 
+<a name="l127"><span class="ln">127  </span></a> 
+<a name="l128"><span class="ln">128  </span></a>        import torch 
+<a name="l129"><span class="ln">129  </span></a>        from torch.fx import symbolic_trace, subgraph_rewriter 
+<a name="l130"><span class="ln">130  </span></a> 
+<a name="l131"><span class="ln">131  </span></a> 
+<a name="l132"><span class="ln">132  </span></a>        class M(torch.nn.Module): 
+<a name="l133"><span class="ln">133  </span></a>            def __init__(self) -&gt; None: 
+<a name="l134"><span class="ln">134  </span></a>                super().__init__() 
+<a name="l135"><span class="ln">135  </span></a> 
+<a name="l136"><span class="ln">136  </span></a>            def forward(self, x, w1, w2): 
+<a name="l137"><span class="ln">137  </span></a>                m1 = torch.cat([w1, w2]).sum() 
+<a name="l138"><span class="ln">138  </span></a>                m2 = torch.cat([w1, w2]).sum() 
+<a name="l139"><span class="ln">139  </span></a>                return x + torch.max(m1) + torch.max(m2) 
+<a name="l140"><span class="ln">140  </span></a> 
+<a name="l141"><span class="ln">141  </span></a> 
+<a name="l142"><span class="ln">142  </span></a>        def pattern(w1, w2): 
+<a name="l143"><span class="ln">143  </span></a>            return torch.cat([w1, w2]) 
+<a name="l144"><span class="ln">144  </span></a> 
+<a name="l145"><span class="ln">145  </span></a> 
+<a name="l146"><span class="ln">146  </span></a>        def replacement(w1, w2): 
+<a name="l147"><span class="ln">147  </span></a>            return torch.stack([w1, w2]) 
+<a name="l148"><span class="ln">148  </span></a> 
+<a name="l149"><span class="ln">149  </span></a> 
+<a name="l150"><span class="ln">150  </span></a>        traced_module = symbolic_trace(M()) 
+<a name="l151"><span class="ln">151  </span></a> 
+<a name="l152"><span class="ln">152  </span></a>        subgraph_rewriter.replace_pattern(traced_module, pattern, replacement) 
+<a name="l153"><span class="ln">153  </span></a> 
+<a name="l154"><span class="ln">154  </span></a>    The above code will first match ``pattern`` in the ``forward`` 
+<a name="l155"><span class="ln">155  </span></a>    method of ``traced_module``. Pattern-matching is done based on 
+<a name="l156"><span class="ln">156  </span></a>    use-def relationships, not node names. For example, if you had 
+<a name="l157"><span class="ln">157  </span></a>    ``p = torch.cat([a, b])`` in ``pattern``, you could match 
+<a name="l158"><span class="ln">158  </span></a>    ``m = torch.cat([a, b])`` in the original ``forward`` function, 
+<a name="l159"><span class="ln">159  </span></a>    despite the variable names being different (``p`` vs ``m``). 
+<a name="l160"><span class="ln">160  </span></a> 
+<a name="l161"><span class="ln">161  </span></a>    The ``return`` statement in ``pattern`` is matched based on its 
+<a name="l162"><span class="ln">162  </span></a>    value only; it may or may not match to the ``return`` statement in 
+<a name="l163"><span class="ln">163  </span></a>    the larger graph. In other words, the pattern doesn't have to extend 
+<a name="l164"><span class="ln">164  </span></a>    to the end of the larger graph. 
+<a name="l165"><span class="ln">165  </span></a> 
+<a name="l166"><span class="ln">166  </span></a>    When the pattern is matched, it will be removed from the larger 
+<a name="l167"><span class="ln">167  </span></a>    function and replaced by ``replacement``. If there are multiple 
+<a name="l168"><span class="ln">168  </span></a>    matches for ``pattern`` in the larger function, each non-overlapping 
+<a name="l169"><span class="ln">169  </span></a>    match will be replaced. In the case of a match overlap, the first 
+<a name="l170"><span class="ln">170  </span></a>    found match in the set of overlapping matches will be replaced. 
+<a name="l171"><span class="ln">171  </span></a>    (&quot;First&quot; here being defined as the first in a topological ordering 
+<a name="l172"><span class="ln">172  </span></a>    of the Nodes' use-def relationships. In most cases, the first Node 
+<a name="l173"><span class="ln">173  </span></a>    is the parameter that appears directly after ``self``, while the 
+<a name="l174"><span class="ln">174  </span></a>    last Node is whatever the function returns.) 
+<a name="l175"><span class="ln">175  </span></a> 
+<a name="l176"><span class="ln">176  </span></a>    One important thing to note is that the parameters of the 
+<a name="l177"><span class="ln">177  </span></a>    ``pattern`` Callable must be used in the Callable itself, 
+<a name="l178"><span class="ln">178  </span></a>    and the parameters of the ``replacement`` Callable must match 
+<a name="l179"><span class="ln">179  </span></a>    the pattern. The first rule is why, in the above code block, the 
+<a name="l180"><span class="ln">180  </span></a>    ``forward`` function has parameters ``x, w1, w2``, but the 
+<a name="l181"><span class="ln">181  </span></a>    ``pattern`` function only has parameters ``w1, w2``. ``pattern`` 
+<a name="l182"><span class="ln">182  </span></a>    doesn't use ``x``, so it shouldn't specify ``x`` as a parameter. 
+<a name="l183"><span class="ln">183  </span></a>    As an example of the second rule, consider replacing 
+<a name="l184"><span class="ln">184  </span></a> 
+<a name="l185"><span class="ln">185  </span></a>    .. code-block:: python 
+<a name="l186"><span class="ln">186  </span></a> 
+<a name="l187"><span class="ln">187  </span></a>        def pattern(x, y): 
+<a name="l188"><span class="ln">188  </span></a>            return torch.neg(x) + torch.relu(y) 
+<a name="l189"><span class="ln">189  </span></a> 
+<a name="l190"><span class="ln">190  </span></a>    with 
+<a name="l191"><span class="ln">191  </span></a> 
+<a name="l192"><span class="ln">192  </span></a>    .. code-block:: python 
+<a name="l193"><span class="ln">193  </span></a> 
+<a name="l194"><span class="ln">194  </span></a>        def replacement(x, y): 
+<a name="l195"><span class="ln">195  </span></a>            return torch.relu(x) 
+<a name="l196"><span class="ln">196  </span></a> 
+<a name="l197"><span class="ln">197  </span></a>    In this case, ``replacement`` needs the same number of parameters 
+<a name="l198"><span class="ln">198  </span></a>    as ``pattern`` (both ``x`` and ``y``), even though the parameter 
+<a name="l199"><span class="ln">199  </span></a>    ``y`` isn't used in ``replacement``. 
+<a name="l200"><span class="ln">200  </span></a> 
+<a name="l201"><span class="ln">201  </span></a>    After calling ``subgraph_rewriter.replace_pattern``, the generated 
+<a name="l202"><span class="ln">202  </span></a>    Python code looks like this: 
+<a name="l203"><span class="ln">203  </span></a> 
+<a name="l204"><span class="ln">204  </span></a>    .. code-block:: python 
+<a name="l205"><span class="ln">205  </span></a> 
+<a name="l206"><span class="ln">206  </span></a>        def forward(self, x, w1, w2): 
+<a name="l207"><span class="ln">207  </span></a>            stack_1 = torch.stack([w1, w2]) 
+<a name="l208"><span class="ln">208  </span></a>            sum_1 = stack_1.sum() 
+<a name="l209"><span class="ln">209  </span></a>            stack_2 = torch.stack([w1, w2]) 
+<a name="l210"><span class="ln">210  </span></a>            sum_2 = stack_2.sum() 
+<a name="l211"><span class="ln">211  </span></a>            max_1 = torch.max(sum_1) 
+<a name="l212"><span class="ln">212  </span></a>            add_1 = x + max_1 
+<a name="l213"><span class="ln">213  </span></a>            max_2 = torch.max(sum_2) 
+<a name="l214"><span class="ln">214  </span></a>            add_2 = add_1 + max_2 
+<a name="l215"><span class="ln">215  </span></a>            return add_2 
+<a name="l216"><span class="ln">216  </span></a>    &quot;&quot;&quot;</span>
+<a name="l217"><span class="ln">217  </span></a>    <span class="s1">match_and_replacements </span><span class="s0">= </span><span class="s1">_replace_pattern</span><span class="s2">(</span><span class="s1">gm</span><span class="s2">, </span><span class="s1">pattern</span><span class="s2">, </span><span class="s1">replacement</span><span class="s2">)</span>
+<a name="l218"><span class="ln">218  </span></a>    <span class="s0">return </span><span class="s2">[</span>
+<a name="l219"><span class="ln">219  </span></a>        <span class="s1">Match</span><span class="s2">(</span><span class="s1">anchor</span><span class="s0">=</span><span class="s1">m</span><span class="s2">.</span><span class="s1">anchor</span><span class="s2">, </span><span class="s1">nodes_map</span><span class="s0">=</span><span class="s1">m</span><span class="s2">.</span><span class="s1">nodes_map</span><span class="s2">) </span><span class="s0">for </span><span class="s1">m </span><span class="s0">in </span><span class="s1">match_and_replacements</span>
+<a name="l220"><span class="ln">220  </span></a>    <span class="s2">]</span>
+<a name="l221"><span class="ln">221  </span></a>
+<a name="l222"><span class="ln">222  </span></a>
+<a name="l223"><span class="ln">223  </span></a><span class="s4"># Experimental API, not backward compatible</span>
+<a name="l224"><span class="ln">224  </span></a><span class="s0">@</span><span class="s1">compatibility</span><span class="s2">(</span><span class="s1">is_backward_compatible</span><span class="s0">=False</span><span class="s2">)</span>
+<a name="l225"><span class="ln">225  </span></a><span class="s0">def </span><span class="s1">replace_pattern_with_filters</span><span class="s2">(</span>
+<a name="l226"><span class="ln">226  </span></a>    <span class="s1">gm</span><span class="s0">: </span><span class="s1">GraphModule</span><span class="s2">,</span>
+<a name="l227"><span class="ln">227  </span></a>    <span class="s1">pattern</span><span class="s0">: </span><span class="s1">Union</span><span class="s2">[</span><span class="s1">Callable</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">, </span><span class="s1">GraphModule</span><span class="s2">],</span>
+<a name="l228"><span class="ln">228  </span></a>    <span class="s1">replacement</span><span class="s0">: </span><span class="s1">Union</span><span class="s2">[</span><span class="s1">Callable</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">, </span><span class="s1">GraphModule</span><span class="s2">, </span><span class="s0">None</span><span class="s2">] </span><span class="s0">= None</span><span class="s2">,</span>
+<a name="l229"><span class="ln">229  </span></a>    <span class="s1">match_filters</span><span class="s0">: </span><span class="s1">Optional</span><span class="s2">[</span>
+<a name="l230"><span class="ln">230  </span></a>        <span class="s1">list</span><span class="s2">[</span><span class="s1">Callable</span><span class="s2">[[</span><span class="s3">&quot;InternalMatch&quot;</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">], </span><span class="s1">bool</span><span class="s2">]]</span>
+<a name="l231"><span class="ln">231  </span></a>    <span class="s2">] </span><span class="s0">= None</span><span class="s2">,</span>
+<a name="l232"><span class="ln">232  </span></a>    <span class="s1">ignore_literals</span><span class="s0">: </span><span class="s1">bool </span><span class="s0">= False</span><span class="s2">,</span>
+<a name="l233"><span class="ln">233  </span></a>    <span class="s4"># Placed at the end to avoid breaking backward compatibility</span>
+<a name="l234"><span class="ln">234  </span></a>    <span class="s1">replacement_callback</span><span class="s0">: </span><span class="s1">Optional</span><span class="s2">[</span>
+<a name="l235"><span class="ln">235  </span></a>        <span class="s1">Callable</span><span class="s2">[[</span><span class="s3">&quot;InternalMatch&quot;</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">], </span><span class="s1">Graph</span><span class="s2">]</span>
+<a name="l236"><span class="ln">236  </span></a>    <span class="s2">] </span><span class="s0">= None</span><span class="s2">,</span>
+<a name="l237"><span class="ln">237  </span></a><span class="s2">) </span><span class="s1">-&gt; list</span><span class="s2">[</span><span class="s1">ReplacedPatterns</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l238"><span class="ln">238  </span></a>    <span class="s4">&quot;&quot;&quot; 
+<a name="l239"><span class="ln">239  </span></a>    See replace_pattern for documentation. This function is an overload with an additional match_filter argument. 
+<a name="l240"><span class="ln">240  </span></a> 
+<a name="l241"><span class="ln">241  </span></a>    Args: 
+<a name="l242"><span class="ln">242  </span></a>        ``match_filters``: A list of functions that take in 
+<a name="l243"><span class="ln">243  </span></a>            (match: InternalMatch, original_graph: Graph, pattern_graph: Graph) and return a boolean indicating 
+<a name="l244"><span class="ln">244  </span></a>            whether the match satisfies the condition. 
+<a name="l245"><span class="ln">245  </span></a>            See matcher_utils.py for definition of InternalMatch. 
+<a name="l246"><span class="ln">246  </span></a>        ``replacement_callback``: A function that takes in a match and returns a 
+<a name="l247"><span class="ln">247  </span></a>            Graph to be used as the replacement. This allows you to construct a 
+<a name="l248"><span class="ln">248  </span></a>            replacement graph based on the match. 
+<a name="l249"><span class="ln">249  </span></a>    &quot;&quot;&quot;</span>
+<a name="l250"><span class="ln">250  </span></a>
+<a name="l251"><span class="ln">251  </span></a>    <span class="s0">return </span><span class="s1">_replace_pattern</span><span class="s2">(</span>
+<a name="l252"><span class="ln">252  </span></a>        <span class="s1">gm</span><span class="s2">, </span><span class="s1">pattern</span><span class="s2">, </span><span class="s1">replacement</span><span class="s2">, </span><span class="s1">match_filters</span><span class="s2">, </span><span class="s1">ignore_literals</span><span class="s2">, </span><span class="s1">replacement_callback</span>
+<a name="l253"><span class="ln">253  </span></a>    <span class="s2">)</span>
+<a name="l254"><span class="ln">254  </span></a>
+<a name="l255"><span class="ln">255  </span></a>
+<a name="l256"><span class="ln">256  </span></a><span class="s0">def </span><span class="s1">_replace_pattern</span><span class="s2">(</span>
+<a name="l257"><span class="ln">257  </span></a>    <span class="s1">gm</span><span class="s0">: </span><span class="s1">GraphModule</span><span class="s2">,</span>
+<a name="l258"><span class="ln">258  </span></a>    <span class="s1">pattern</span><span class="s0">: </span><span class="s1">Union</span><span class="s2">[</span><span class="s1">Callable</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">, </span><span class="s1">GraphModule</span><span class="s2">],</span>
+<a name="l259"><span class="ln">259  </span></a>    <span class="s1">replacement</span><span class="s0">: </span><span class="s1">Union</span><span class="s2">[</span><span class="s1">Callable</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">, </span><span class="s1">GraphModule</span><span class="s2">, </span><span class="s0">None</span><span class="s2">] </span><span class="s0">= None</span><span class="s2">,</span>
+<a name="l260"><span class="ln">260  </span></a>    <span class="s1">match_filters</span><span class="s0">: </span><span class="s1">Optional</span><span class="s2">[</span>
+<a name="l261"><span class="ln">261  </span></a>        <span class="s1">list</span><span class="s2">[</span><span class="s1">Callable</span><span class="s2">[[</span><span class="s3">&quot;InternalMatch&quot;</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">], </span><span class="s1">bool</span><span class="s2">]]</span>
+<a name="l262"><span class="ln">262  </span></a>    <span class="s2">] </span><span class="s0">= None</span><span class="s2">,</span>
+<a name="l263"><span class="ln">263  </span></a>    <span class="s1">ignore_literals</span><span class="s0">: </span><span class="s1">bool </span><span class="s0">= False</span><span class="s2">,</span>
+<a name="l264"><span class="ln">264  </span></a>    <span class="s4"># Placed at the end to avoid breaking backward compatibility</span>
+<a name="l265"><span class="ln">265  </span></a>    <span class="s1">replacement_callback</span><span class="s0">: </span><span class="s1">Optional</span><span class="s2">[</span>
+<a name="l266"><span class="ln">266  </span></a>        <span class="s1">Callable</span><span class="s2">[[</span><span class="s3">&quot;InternalMatch&quot;</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">], </span><span class="s1">Graph</span><span class="s2">]</span>
+<a name="l267"><span class="ln">267  </span></a>    <span class="s2">] </span><span class="s0">= None</span><span class="s2">,</span>
+<a name="l268"><span class="ln">268  </span></a><span class="s2">) </span><span class="s1">-&gt; list</span><span class="s2">[</span><span class="s1">ReplacedPatterns</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l269"><span class="ln">269  </span></a>    <span class="s0">from </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">fx</span><span class="s2">.</span><span class="s1">passes</span><span class="s2">.</span><span class="s1">utils</span><span class="s2">.</span><span class="s1">matcher_utils </span><span class="s0">import </span><span class="s1">InternalMatch</span><span class="s2">, </span><span class="s1">SubgraphMatcher</span>
+<a name="l270"><span class="ln">270  </span></a>
+<a name="l271"><span class="ln">271  </span></a>    <span class="s0">if </span><span class="s1">match_filters </span><span class="s0">is None:</span>
+<a name="l272"><span class="ln">272  </span></a>        <span class="s1">match_filters </span><span class="s0">= </span><span class="s2">[]</span>
+<a name="l273"><span class="ln">273  </span></a>
+<a name="l274"><span class="ln">274  </span></a>    <span class="s4"># Get the graphs for `gm`, `pattern`, `replacement`</span>
+<a name="l275"><span class="ln">275  </span></a>    <span class="s1">original_graph</span><span class="s0">: </span><span class="s1">Graph </span><span class="s0">= </span><span class="s1">gm</span><span class="s2">.</span><span class="s1">graph</span>
+<a name="l276"><span class="ln">276  </span></a>
+<a name="l277"><span class="ln">277  </span></a>    <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">pattern</span><span class="s2">, </span><span class="s1">GraphModule</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l278"><span class="ln">278  </span></a>        <span class="s1">pattern_graph </span><span class="s0">= </span><span class="s1">pattern</span><span class="s2">.</span><span class="s1">graph</span>
+<a name="l279"><span class="ln">279  </span></a>    <span class="s0">elif </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">pattern</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l280"><span class="ln">280  </span></a>        <span class="s1">pattern_graph </span><span class="s0">= </span><span class="s1">pattern</span>
+<a name="l281"><span class="ln">281  </span></a>    <span class="s0">else:</span>
+<a name="l282"><span class="ln">282  </span></a>        <span class="s1">pattern_graph </span><span class="s0">= </span><span class="s1">symbolic_trace</span><span class="s2">(</span><span class="s1">pattern</span><span class="s2">).</span><span class="s1">graph</span>
+<a name="l283"><span class="ln">283  </span></a>
+<a name="l284"><span class="ln">284  </span></a>    <span class="s1">matcher </span><span class="s0">= </span><span class="s1">SubgraphMatcher</span><span class="s2">(</span>
+<a name="l285"><span class="ln">285  </span></a>        <span class="s1">pattern_graph</span><span class="s2">,</span>
+<a name="l286"><span class="ln">286  </span></a>        <span class="s1">match_output</span><span class="s0">=False</span><span class="s2">,</span>
+<a name="l287"><span class="ln">287  </span></a>        <span class="s1">match_placeholder</span><span class="s0">=False</span><span class="s2">,</span>
+<a name="l288"><span class="ln">288  </span></a>        <span class="s1">remove_overlapping_matches</span><span class="s0">=True</span><span class="s2">,</span>
+<a name="l289"><span class="ln">289  </span></a>        <span class="s1">ignore_literals</span><span class="s0">=</span><span class="s1">ignore_literals</span><span class="s2">,</span>
+<a name="l290"><span class="ln">290  </span></a>    <span class="s2">)</span>
+<a name="l291"><span class="ln">291  </span></a>    <span class="s1">_matches</span><span class="s0">: </span><span class="s1">list</span><span class="s2">[</span><span class="s1">InternalMatch</span><span class="s2">] </span><span class="s0">= </span><span class="s1">matcher</span><span class="s2">.</span><span class="s1">match</span><span class="s2">(</span><span class="s1">original_graph</span><span class="s2">)</span>
+<a name="l292"><span class="ln">292  </span></a>
+<a name="l293"><span class="ln">293  </span></a>    <span class="s4"># Filter out matches that don't match the filter</span>
+<a name="l294"><span class="ln">294  </span></a>    <span class="s1">_matches </span><span class="s0">= </span><span class="s2">[</span>
+<a name="l295"><span class="ln">295  </span></a>        <span class="s1">m</span>
+<a name="l296"><span class="ln">296  </span></a>        <span class="s0">for </span><span class="s1">m </span><span class="s0">in </span><span class="s1">_matches</span>
+<a name="l297"><span class="ln">297  </span></a>        <span class="s0">if </span><span class="s1">all</span><span class="s2">(</span>
+<a name="l298"><span class="ln">298  </span></a>            <span class="s1">match_filter</span><span class="s2">(</span><span class="s1">m</span><span class="s2">, </span><span class="s1">original_graph</span><span class="s2">, </span><span class="s1">pattern_graph</span><span class="s2">)</span>
+<a name="l299"><span class="ln">299  </span></a>            <span class="s0">for </span><span class="s1">match_filter </span><span class="s0">in </span><span class="s1">match_filters</span>
+<a name="l300"><span class="ln">300  </span></a>        <span class="s2">)</span>
+<a name="l301"><span class="ln">301  </span></a>    <span class="s2">]</span>
+<a name="l302"><span class="ln">302  </span></a>
+<a name="l303"><span class="ln">303  </span></a>    <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">replacement</span><span class="s2">, </span><span class="s1">GraphModule</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l304"><span class="ln">304  </span></a>        <span class="s1">common_replacement_graph </span><span class="s0">= </span><span class="s1">replacement</span><span class="s2">.</span><span class="s1">graph</span>
+<a name="l305"><span class="ln">305  </span></a>    <span class="s0">elif </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">replacement</span><span class="s2">, </span><span class="s1">Graph</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l306"><span class="ln">306  </span></a>        <span class="s1">common_replacement_graph </span><span class="s0">= </span><span class="s1">replacement</span>
+<a name="l307"><span class="ln">307  </span></a>    <span class="s0">elif </span><span class="s1">callable</span><span class="s2">(</span><span class="s1">replacement</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l308"><span class="ln">308  </span></a>        <span class="s1">common_replacement_graph </span><span class="s0">= </span><span class="s1">symbolic_trace</span><span class="s2">(</span><span class="s1">replacement</span><span class="s2">).</span><span class="s1">graph</span>
+<a name="l309"><span class="ln">309  </span></a>    <span class="s0">else:</span>
+<a name="l310"><span class="ln">310  </span></a>        <span class="s0">assert </span><span class="s1">replacement_callback </span><span class="s0">is not None</span><span class="s2">, (</span>
+<a name="l311"><span class="ln">311  </span></a>            <span class="s3">&quot;Must provide either a replacement GraphModule or a replacement callback&quot;</span>
+<a name="l312"><span class="ln">312  </span></a>        <span class="s2">)</span>
+<a name="l313"><span class="ln">313  </span></a>        <span class="s1">common_replacement_graph </span><span class="s0">= None</span>
+<a name="l314"><span class="ln">314  </span></a>
+<a name="l315"><span class="ln">315  </span></a>    <span class="s4"># As we progressively replace nodes, we'll need to keep track of how the match results should change</span>
+<a name="l316"><span class="ln">316  </span></a>    <span class="s1">match_changed_node</span><span class="s0">: </span><span class="s1">dict</span><span class="s2">[</span><span class="s1">Node</span><span class="s2">, </span><span class="s1">Node</span><span class="s2">] </span><span class="s0">= </span><span class="s2">{}</span>
+<a name="l317"><span class="ln">317  </span></a>
+<a name="l318"><span class="ln">318  </span></a>    <span class="s1">match_and_replacements </span><span class="s0">= </span><span class="s2">[]</span>
+<a name="l319"><span class="ln">319  </span></a>    <span class="s0">for </span><span class="s1">match </span><span class="s0">in </span><span class="s1">_matches</span><span class="s0">:</span>
+<a name="l320"><span class="ln">320  </span></a>        <span class="s0">if </span><span class="s1">replacement_callback </span><span class="s0">is not None:</span>
+<a name="l321"><span class="ln">321  </span></a>            <span class="s1">replacement_graph </span><span class="s0">= </span><span class="s1">replacement_callback</span><span class="s2">(</span>
+<a name="l322"><span class="ln">322  </span></a>                <span class="s1">match</span><span class="s2">, </span><span class="s1">original_graph</span><span class="s2">, </span><span class="s1">pattern_graph</span>
+<a name="l323"><span class="ln">323  </span></a>            <span class="s2">)</span>
+<a name="l324"><span class="ln">324  </span></a>        <span class="s0">else:</span>
+<a name="l325"><span class="ln">325  </span></a>            <span class="s0">assert </span><span class="s1">common_replacement_graph </span><span class="s0">is not None</span><span class="s2">, (</span>
+<a name="l326"><span class="ln">326  </span></a>                <span class="s3">&quot;Must provide either a replacement GraphModule or a replacement callback&quot;</span>
+<a name="l327"><span class="ln">327  </span></a>            <span class="s2">)</span>
+<a name="l328"><span class="ln">328  </span></a>            <span class="s1">replacement_graph </span><span class="s0">= </span><span class="s1">common_replacement_graph</span>
+<a name="l329"><span class="ln">329  </span></a>        <span class="s1">replacement_placeholders </span><span class="s0">= </span><span class="s2">[</span>
+<a name="l330"><span class="ln">330  </span></a>            <span class="s1">n </span><span class="s0">for </span><span class="s1">n </span><span class="s0">in </span><span class="s1">replacement_graph</span><span class="s2">.</span><span class="s1">nodes </span><span class="s0">if </span><span class="s1">n</span><span class="s2">.</span><span class="s1">op </span><span class="s0">== </span><span class="s3">&quot;placeholder&quot;</span>
+<a name="l331"><span class="ln">331  </span></a>        <span class="s2">]</span>
+<a name="l332"><span class="ln">332  </span></a>
+<a name="l333"><span class="ln">333  </span></a>        <span class="s4"># Build connecting between replacement graph's input and original graph input producer node</span>
+<a name="l334"><span class="ln">334  </span></a>
+<a name="l335"><span class="ln">335  </span></a>        <span class="s4"># Initialize `val_map` with mappings from placeholder nodes in</span>
+<a name="l336"><span class="ln">336  </span></a>        <span class="s4"># `replacement` to their corresponding node in `original_graph`</span>
+<a name="l337"><span class="ln">337  </span></a>        <span class="s0">assert </span><span class="s1">len</span><span class="s2">(</span><span class="s1">match</span><span class="s2">.</span><span class="s1">placeholder_nodes</span><span class="s2">) </span><span class="s0">== </span><span class="s1">len</span><span class="s2">(</span><span class="s1">replacement_placeholders</span><span class="s2">)</span>
+<a name="l338"><span class="ln">338  </span></a>        <span class="s1">val_map</span><span class="s0">: </span><span class="s1">dict</span><span class="s2">[</span><span class="s1">Node</span><span class="s2">, </span><span class="s1">Node</span><span class="s2">] </span><span class="s0">= </span><span class="s2">{}</span>
+<a name="l339"><span class="ln">339  </span></a>        <span class="s0">for </span><span class="s1">rn</span><span class="s2">, </span><span class="s1">gn </span><span class="s0">in </span><span class="s1">zip</span><span class="s2">(</span><span class="s1">replacement_placeholders</span><span class="s2">, </span><span class="s1">match</span><span class="s2">.</span><span class="s1">placeholder_nodes</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l340"><span class="ln">340  </span></a>            <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">gn</span><span class="s2">, </span><span class="s1">Node</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l341"><span class="ln">341  </span></a>                <span class="s1">val_map</span><span class="s2">[</span><span class="s1">rn</span><span class="s2">] </span><span class="s0">= </span><span class="s1">match_changed_node</span><span class="s2">.</span><span class="s1">get</span><span class="s2">(</span><span class="s1">gn</span><span class="s2">, </span><span class="s1">gn</span><span class="s2">)</span>
+<a name="l342"><span class="ln">342  </span></a>                <span class="s0">if </span><span class="s1">gn </span><span class="s0">!= </span><span class="s1">val_map</span><span class="s2">[</span><span class="s1">rn</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l343"><span class="ln">343  </span></a>                    <span class="s4"># Update match.placeholder_nodes and match.nodes_map with the node that replaced gn</span>
+<a name="l344"><span class="ln">344  </span></a>                    <span class="s1">gn_ind </span><span class="s0">= </span><span class="s1">match</span><span class="s2">.</span><span class="s1">placeholder_nodes</span><span class="s2">.</span><span class="s1">index</span><span class="s2">(</span><span class="s1">gn</span><span class="s2">)</span>
+<a name="l345"><span class="ln">345  </span></a>                    <span class="s1">match</span><span class="s2">.</span><span class="s1">placeholder_nodes</span><span class="s2">[</span><span class="s1">gn_ind</span><span class="s2">] </span><span class="s0">= </span><span class="s1">match_changed_node</span><span class="s2">[</span><span class="s1">gn</span><span class="s2">]</span>
+<a name="l346"><span class="ln">346  </span></a>                    <span class="s1">map_key </span><span class="s0">= </span><span class="s1">list</span><span class="s2">(</span><span class="s1">match</span><span class="s2">.</span><span class="s1">nodes_map</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">())[</span>
+<a name="l347"><span class="ln">347  </span></a>                        <span class="s1">list</span><span class="s2">(</span><span class="s1">match</span><span class="s2">.</span><span class="s1">nodes_map</span><span class="s2">.</span><span class="s1">values</span><span class="s2">()).</span><span class="s1">index</span><span class="s2">(</span><span class="s1">gn</span><span class="s2">)</span>
+<a name="l348"><span class="ln">348  </span></a>                    <span class="s2">]</span>
+<a name="l349"><span class="ln">349  </span></a>                    <span class="s1">match</span><span class="s2">.</span><span class="s1">nodes_map</span><span class="s2">[</span><span class="s1">map_key</span><span class="s2">] </span><span class="s0">= </span><span class="s1">match_changed_node</span><span class="s2">[</span><span class="s1">gn</span><span class="s2">]</span>
+<a name="l350"><span class="ln">350  </span></a>            <span class="s0">else:</span>
+<a name="l351"><span class="ln">351  </span></a>                <span class="s1">val_map</span><span class="s2">[</span><span class="s1">rn</span><span class="s2">] </span><span class="s0">= </span><span class="s1">gn</span>
+<a name="l352"><span class="ln">352  </span></a>
+<a name="l353"><span class="ln">353  </span></a>        <span class="s4"># Copy the replacement graph over</span>
+<a name="l354"><span class="ln">354  </span></a>        <span class="s1">user_nodes</span><span class="s0">: </span><span class="s1">set</span><span class="s2">[</span><span class="s1">Node</span><span class="s2">] </span><span class="s0">= </span><span class="s1">set</span><span class="s2">()</span>
+<a name="l355"><span class="ln">355  </span></a>        <span class="s0">for </span><span class="s1">n </span><span class="s0">in </span><span class="s1">match</span><span class="s2">.</span><span class="s1">returning_nodes</span><span class="s0">:</span>
+<a name="l356"><span class="ln">356  </span></a>            <span class="s1">user_nodes</span><span class="s2">.</span><span class="s1">update</span><span class="s2">(</span><span class="s1">n</span><span class="s2">.</span><span class="s1">users</span><span class="s2">)</span>
+<a name="l357"><span class="ln">357  </span></a>
+<a name="l358"><span class="ln">358  </span></a>        <span class="s1">first_user_node </span><span class="s0">= None</span>
+<a name="l359"><span class="ln">359  </span></a>        <span class="s0">if </span><span class="s1">len</span><span class="s2">(</span><span class="s1">user_nodes</span><span class="s2">) </span><span class="s0">== </span><span class="s5">0</span><span class="s0">:</span>
+<a name="l360"><span class="ln">360  </span></a>            <span class="s1">first_user_node </span><span class="s0">= None</span>
+<a name="l361"><span class="ln">361  </span></a>        <span class="s0">elif </span><span class="s1">len</span><span class="s2">(</span><span class="s1">user_nodes</span><span class="s2">) </span><span class="s0">== </span><span class="s5">1</span><span class="s0">:</span>
+<a name="l362"><span class="ln">362  </span></a>            <span class="s1">first_user_node </span><span class="s0">= </span><span class="s1">next</span><span class="s2">(</span><span class="s1">iter</span><span class="s2">(</span><span class="s1">user_nodes</span><span class="s2">))</span>
+<a name="l363"><span class="ln">363  </span></a>        <span class="s0">else:</span>
+<a name="l364"><span class="ln">364  </span></a>            <span class="s4"># If there are multiple user nodes, we need to find the first user node</span>
+<a name="l365"><span class="ln">365  </span></a>            <span class="s4"># in the current execution order of the `original_graph`</span>
+<a name="l366"><span class="ln">366  </span></a>            <span class="s0">for </span><span class="s1">n </span><span class="s0">in </span><span class="s1">original_graph</span><span class="s2">.</span><span class="s1">nodes</span><span class="s0">:</span>
+<a name="l367"><span class="ln">367  </span></a>                <span class="s0">if </span><span class="s1">n </span><span class="s0">in </span><span class="s1">user_nodes</span><span class="s0">:</span>
+<a name="l368"><span class="ln">368  </span></a>                    <span class="s1">first_user_node </span><span class="s0">= </span><span class="s1">n</span>
+<a name="l369"><span class="ln">369  </span></a>                    <span class="s0">break</span>
+<a name="l370"><span class="ln">370  </span></a>
+<a name="l371"><span class="ln">371  </span></a>        <span class="s1">first_next_node </span><span class="s0">= None</span>
+<a name="l372"><span class="ln">372  </span></a>        <span class="s0">if </span><span class="s1">first_user_node </span><span class="s0">is None:</span>
+<a name="l373"><span class="ln">373  </span></a>            <span class="s4"># no users, so we insert the replacement graph before the first next</span>
+<a name="l374"><span class="ln">374  </span></a>            <span class="s4"># node of returning nodes</span>
+<a name="l375"><span class="ln">375  </span></a>            <span class="s1">next_node </span><span class="s0">= None</span>
+<a name="l376"><span class="ln">376  </span></a>            <span class="s0">for </span><span class="s1">n </span><span class="s0">in </span><span class="s1">reversed</span><span class="s2">(</span><span class="s1">original_graph</span><span class="s2">.</span><span class="s1">nodes</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l377"><span class="ln">377  </span></a>                <span class="s0">if </span><span class="s1">n </span><span class="s0">in </span><span class="s1">match</span><span class="s2">.</span><span class="s1">returning_nodes</span><span class="s0">:</span>
+<a name="l378"><span class="ln">378  </span></a>                    <span class="s1">first_next_node </span><span class="s0">= </span><span class="s1">next_node</span>
+<a name="l379"><span class="ln">379  </span></a>                    <span class="s0">break</span>
+<a name="l380"><span class="ln">380  </span></a>                <span class="s0">else:</span>
+<a name="l381"><span class="ln">381  </span></a>                    <span class="s1">next_node </span><span class="s0">= </span><span class="s1">n</span>
+<a name="l382"><span class="ln">382  </span></a>        <span class="s1">insert_point </span><span class="s0">= </span><span class="s2">(</span>
+<a name="l383"><span class="ln">383  </span></a>            <span class="s1">first_user_node </span><span class="s0">if </span><span class="s1">first_user_node </span><span class="s0">is not None else </span><span class="s1">first_next_node</span>
+<a name="l384"><span class="ln">384  </span></a>        <span class="s2">)</span>
+<a name="l385"><span class="ln">385  </span></a>        <span class="s0">assert </span><span class="s1">insert_point </span><span class="s0">is not None</span><span class="s2">, </span><span class="s3">&quot;The insert point can't be None&quot;</span>
+<a name="l386"><span class="ln">386  </span></a>        <span class="s0">with </span><span class="s1">original_graph</span><span class="s2">.</span><span class="s1">inserting_before</span><span class="s2">(</span><span class="s1">insert_point</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l387"><span class="ln">387  </span></a>            <span class="s1">copied_returning_nodes </span><span class="s0">= </span><span class="s1">original_graph</span><span class="s2">.</span><span class="s1">graph_copy</span><span class="s2">(</span>
+<a name="l388"><span class="ln">388  </span></a>                <span class="s1">replacement_graph</span><span class="s2">, </span><span class="s1">val_map</span>
+<a name="l389"><span class="ln">389  </span></a>            <span class="s2">)</span>
+<a name="l390"><span class="ln">390  </span></a>
+<a name="l391"><span class="ln">391  </span></a>        <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">copied_returning_nodes</span><span class="s2">, </span><span class="s1">Node</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l392"><span class="ln">392  </span></a>            <span class="s1">copied_returning_nodes </span><span class="s0">= </span><span class="s2">(</span><span class="s1">copied_returning_nodes</span><span class="s2">,)</span>
+<a name="l393"><span class="ln">393  </span></a>
+<a name="l394"><span class="ln">394  </span></a>        <span class="s4"># Get a list of nodes that have been replaced into the graph</span>
+<a name="l395"><span class="ln">395  </span></a>        <span class="s1">replacement_nodes</span><span class="s0">: </span><span class="s1">list</span><span class="s2">[</span><span class="s1">Node</span><span class="s2">] </span><span class="s0">= </span><span class="s2">[</span>
+<a name="l396"><span class="ln">396  </span></a>            <span class="s1">v </span><span class="s0">for </span><span class="s1">v </span><span class="s0">in </span><span class="s1">val_map</span><span class="s2">.</span><span class="s1">values</span><span class="s2">() </span><span class="s0">if </span><span class="s1">v </span><span class="s0">not in </span><span class="s1">match</span><span class="s2">.</span><span class="s1">placeholder_nodes</span>
+<a name="l397"><span class="ln">397  </span></a>        <span class="s2">]</span>
+<a name="l398"><span class="ln">398  </span></a>
+<a name="l399"><span class="ln">399  </span></a>        <span class="s4"># Hook the output Node of the replacement subgraph in to the</span>
+<a name="l400"><span class="ln">400  </span></a>        <span class="s4"># original Graph at the correct location</span>
+<a name="l401"><span class="ln">401  </span></a>        <span class="s0">assert </span><span class="s1">len</span><span class="s2">(</span><span class="s1">match</span><span class="s2">.</span><span class="s1">returning_nodes</span><span class="s2">) </span><span class="s0">== </span><span class="s1">len</span><span class="s2">(</span><span class="s1">copied_returning_nodes</span><span class="s2">)  </span><span class="s4"># type: ignore[arg-type]</span>
+<a name="l402"><span class="ln">402  </span></a>        <span class="s0">for </span><span class="s1">gn</span><span class="s2">, </span><span class="s1">copied_node </span><span class="s0">in </span><span class="s1">zip</span><span class="s2">(</span><span class="s1">match</span><span class="s2">.</span><span class="s1">returning_nodes</span><span class="s2">, </span><span class="s1">copied_returning_nodes</span><span class="s2">)</span><span class="s0">:  </span><span class="s4"># type: ignore[arg-type]</span>
+<a name="l403"><span class="ln">403  </span></a>            <span class="s1">gn</span><span class="s2">.</span><span class="s1">replace_all_uses_with</span><span class="s2">(</span><span class="s1">copied_node</span><span class="s2">)</span>
+<a name="l404"><span class="ln">404  </span></a>            <span class="s1">match_changed_node</span><span class="s2">[</span><span class="s1">gn</span><span class="s2">] </span><span class="s0">= </span><span class="s1">copied_node</span>
+<a name="l405"><span class="ln">405  </span></a>        <span class="s4"># Remove the original nodes</span>
+<a name="l406"><span class="ln">406  </span></a>        <span class="s0">for </span><span class="s1">node </span><span class="s0">in </span><span class="s1">reversed</span><span class="s2">(</span><span class="s1">pattern_graph</span><span class="s2">.</span><span class="s1">nodes</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l407"><span class="ln">407  </span></a>            <span class="s0">if </span><span class="s1">node</span><span class="s2">.</span><span class="s1">op </span><span class="s0">!= </span><span class="s3">&quot;placeholder&quot; </span><span class="s0">and </span><span class="s1">node</span><span class="s2">.</span><span class="s1">op </span><span class="s0">!= </span><span class="s3">&quot;output&quot;</span><span class="s0">:</span>
+<a name="l408"><span class="ln">408  </span></a>                <span class="s1">gn </span><span class="s0">= </span><span class="s1">match</span><span class="s2">.</span><span class="s1">nodes_map</span><span class="s2">[</span><span class="s1">node</span><span class="s2">]</span>
+<a name="l409"><span class="ln">409  </span></a>                <span class="s1">gm</span><span class="s2">.</span><span class="s1">graph</span><span class="s2">.</span><span class="s1">erase_node</span><span class="s2">(</span><span class="s1">gn</span><span class="s2">)</span>
+<a name="l410"><span class="ln">410  </span></a>
+<a name="l411"><span class="ln">411  </span></a>        <span class="s1">match_and_replacements</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span>
+<a name="l412"><span class="ln">412  </span></a>            <span class="s1">ReplacedPatterns</span><span class="s2">(</span>
+<a name="l413"><span class="ln">413  </span></a>                <span class="s1">anchor</span><span class="s0">=</span><span class="s1">match</span><span class="s2">.</span><span class="s1">anchors</span><span class="s2">[</span><span class="s5">0</span><span class="s2">],</span>
+<a name="l414"><span class="ln">414  </span></a>                <span class="s1">nodes_map</span><span class="s0">=</span><span class="s1">match</span><span class="s2">.</span><span class="s1">nodes_map</span><span class="s2">,</span>
+<a name="l415"><span class="ln">415  </span></a>                <span class="s1">replacements</span><span class="s0">=</span><span class="s1">replacement_nodes</span><span class="s2">,</span>
+<a name="l416"><span class="ln">416  </span></a>            <span class="s2">)</span>
+<a name="l417"><span class="ln">417  </span></a>        <span class="s2">)</span>
+<a name="l418"><span class="ln">418  </span></a>
+<a name="l419"><span class="ln">419  </span></a>    <span class="s4"># Update the passed-in GraphModule to reflect the new state of</span>
+<a name="l420"><span class="ln">420  </span></a>    <span class="s4"># `original_graph`</span>
+<a name="l421"><span class="ln">421  </span></a>    <span class="s1">gm</span><span class="s2">.</span><span class="s1">recompile</span><span class="s2">()</span>
+<a name="l422"><span class="ln">422  </span></a>
+<a name="l423"><span class="ln">423  </span></a>    <span class="s4"># If `replacement` was an nn.Module, we'll need to make sure that</span>
+<a name="l424"><span class="ln">424  </span></a>    <span class="s4"># all the submodules have been copied over correctly</span>
+<a name="l425"><span class="ln">425  </span></a>    <span class="s0">if </span><span class="s1">isinstance</span><span class="s2">(</span><span class="s1">replacement</span><span class="s2">, </span><span class="s1">torch</span><span class="s2">.</span><span class="s1">nn</span><span class="s2">.</span><span class="s1">Module</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l426"><span class="ln">426  </span></a>        <span class="s1">_replace_attributes</span><span class="s2">(</span><span class="s1">gm</span><span class="s2">, </span><span class="s1">replacement</span><span class="s2">)</span>
+<a name="l427"><span class="ln">427  </span></a>
+<a name="l428"><span class="ln">428  </span></a>    <span class="s0">return </span><span class="s1">match_and_replacements</span>
+<a name="l429"><span class="ln">429  </span></a></pre>
+</body>
+</html>

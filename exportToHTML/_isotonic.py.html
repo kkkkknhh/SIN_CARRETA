@@ -1,0 +1,180 @@
+<html>
+<head>
+<title>_isotonic.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #183691;}
+.s4 { color: #969896;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_isotonic.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">from </span><span class="s1">typing </span><span class="s0">import </span><span class="s1">TYPE_CHECKING</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">import </span><span class="s1">numpy </span><span class="s0">as </span><span class="s1">np</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">_optimize </span><span class="s0">import </span><span class="s1">OptimizeResult</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">_pava_pybind </span><span class="s0">import </span><span class="s1">pava</span>
+<a name="l7"><span class="ln">7    </span></a>
+<a name="l8"><span class="ln">8    </span></a><span class="s0">if </span><span class="s1">TYPE_CHECKING</span><span class="s0">:</span>
+<a name="l9"><span class="ln">9    </span></a>    <span class="s0">import </span><span class="s1">numpy</span><span class="s2">.</span><span class="s1">typing </span><span class="s0">as </span><span class="s1">npt</span>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s1">__all__ </span><span class="s0">= </span><span class="s2">[</span><span class="s3">&quot;isotonic_regression&quot;</span><span class="s2">]</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s0">def </span><span class="s1">isotonic_regression</span><span class="s2">(</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s1">y</span><span class="s0">: </span><span class="s3">&quot;npt.ArrayLike&quot;</span><span class="s2">,</span>
+<a name="l17"><span class="ln">17   </span></a>    <span class="s0">*</span><span class="s2">,</span>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s1">weights</span><span class="s0">: </span><span class="s3">&quot;npt.ArrayLike | None&quot; </span><span class="s0">= None</span><span class="s2">,</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s1">increasing</span><span class="s0">: </span><span class="s1">bool </span><span class="s0">= True</span><span class="s2">,</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s2">) </span><span class="s1">-&gt; OptimizeResult</span><span class="s0">:</span>
+<a name="l21"><span class="ln">21   </span></a>    <span class="s4">r&quot;&quot;&quot;Nonparametric isotonic regression. 
+<a name="l22"><span class="ln">22   </span></a> 
+<a name="l23"><span class="ln">23   </span></a>    A (not strictly) monotonically increasing array `x` with the same length 
+<a name="l24"><span class="ln">24   </span></a>    as `y` is calculated by the pool adjacent violators algorithm (PAVA), see 
+<a name="l25"><span class="ln">25   </span></a>    [1]_. See the Notes section for more details. 
+<a name="l26"><span class="ln">26   </span></a> 
+<a name="l27"><span class="ln">27   </span></a>    Parameters 
+<a name="l28"><span class="ln">28   </span></a>    ---------- 
+<a name="l29"><span class="ln">29   </span></a>    y : (N,) array_like 
+<a name="l30"><span class="ln">30   </span></a>        Response variable. 
+<a name="l31"><span class="ln">31   </span></a>    weights : (N,) array_like or None 
+<a name="l32"><span class="ln">32   </span></a>        Case weights. 
+<a name="l33"><span class="ln">33   </span></a>    increasing : bool 
+<a name="l34"><span class="ln">34   </span></a>        If True, fit monotonic increasing, i.e. isotonic, regression. 
+<a name="l35"><span class="ln">35   </span></a>        If False, fit a monotonic decreasing, i.e. antitonic, regression. 
+<a name="l36"><span class="ln">36   </span></a>        Default is True. 
+<a name="l37"><span class="ln">37   </span></a> 
+<a name="l38"><span class="ln">38   </span></a>    Returns 
+<a name="l39"><span class="ln">39   </span></a>    ------- 
+<a name="l40"><span class="ln">40   </span></a>    res : OptimizeResult 
+<a name="l41"><span class="ln">41   </span></a>        The optimization result represented as a ``OptimizeResult`` object. 
+<a name="l42"><span class="ln">42   </span></a>        Important attributes are: 
+<a name="l43"><span class="ln">43   </span></a> 
+<a name="l44"><span class="ln">44   </span></a>        - ``x``: The isotonic regression solution, i.e. an increasing (or 
+<a name="l45"><span class="ln">45   </span></a>          decreasing) array of the same length than y, with elements in the 
+<a name="l46"><span class="ln">46   </span></a>          range from min(y) to max(y). 
+<a name="l47"><span class="ln">47   </span></a>        - ``weights`` : Array with the sum of case weights for each block 
+<a name="l48"><span class="ln">48   </span></a>          (or pool) B. 
+<a name="l49"><span class="ln">49   </span></a>        - ``blocks``: Array of length B+1 with the indices of the start 
+<a name="l50"><span class="ln">50   </span></a>          positions of each block (or pool) B. The j-th block is given by 
+<a name="l51"><span class="ln">51   </span></a>          ``x[blocks[j]:blocks[j+1]]`` for which all values are the same. 
+<a name="l52"><span class="ln">52   </span></a> 
+<a name="l53"><span class="ln">53   </span></a>    Notes 
+<a name="l54"><span class="ln">54   </span></a>    ----- 
+<a name="l55"><span class="ln">55   </span></a>    Given data :math:`y` and case weights :math:`w`, the isotonic regression 
+<a name="l56"><span class="ln">56   </span></a>    solves the following optimization problem: 
+<a name="l57"><span class="ln">57   </span></a> 
+<a name="l58"><span class="ln">58   </span></a>    .. math:: 
+<a name="l59"><span class="ln">59   </span></a> 
+<a name="l60"><span class="ln">60   </span></a>        \operatorname{argmin}_{x_i} \sum_i w_i (y_i - x_i)^2 \quad 
+<a name="l61"><span class="ln">61   </span></a>        \text{subject to } x_i \leq x_j \text{ whenever } i \leq j \,. 
+<a name="l62"><span class="ln">62   </span></a> 
+<a name="l63"><span class="ln">63   </span></a>    For every input value :math:`y_i`, it generates a value :math:`x_i` such 
+<a name="l64"><span class="ln">64   </span></a>    that :math:`x` is increasing (but not strictly), i.e. 
+<a name="l65"><span class="ln">65   </span></a>    :math:`x_i \leq x_{i+1}`. This is accomplished by the PAVA. 
+<a name="l66"><span class="ln">66   </span></a>    The solution consists of pools or blocks, i.e. neighboring elements of 
+<a name="l67"><span class="ln">67   </span></a>    :math:`x`, e.g. :math:`x_i` and :math:`x_{i+1}`, that all have the same 
+<a name="l68"><span class="ln">68   </span></a>    value. 
+<a name="l69"><span class="ln">69   </span></a> 
+<a name="l70"><span class="ln">70   </span></a>    Most interestingly, the solution stays the same if the squared loss is 
+<a name="l71"><span class="ln">71   </span></a>    replaced by the wide class of Bregman functions which are the unique 
+<a name="l72"><span class="ln">72   </span></a>    class of strictly consistent scoring functions for the mean, see [2]_ 
+<a name="l73"><span class="ln">73   </span></a>    and references therein. 
+<a name="l74"><span class="ln">74   </span></a> 
+<a name="l75"><span class="ln">75   </span></a>    The implemented version of PAVA according to [1]_ has a computational 
+<a name="l76"><span class="ln">76   </span></a>    complexity of O(N) with input size N. 
+<a name="l77"><span class="ln">77   </span></a> 
+<a name="l78"><span class="ln">78   </span></a>    References 
+<a name="l79"><span class="ln">79   </span></a>    ---------- 
+<a name="l80"><span class="ln">80   </span></a>    .. [1] Busing, F. M. T. A. (2022). 
+<a name="l81"><span class="ln">81   </span></a>           Monotone Regression: A Simple and Fast O(n) PAVA Implementation. 
+<a name="l82"><span class="ln">82   </span></a>           Journal of Statistical Software, Code Snippets, 102(1), 1-25. 
+<a name="l83"><span class="ln">83   </span></a>           :doi:`10.18637/jss.v102.c01` 
+<a name="l84"><span class="ln">84   </span></a>    .. [2] Jordan, A.I., Mühlemann, A. &amp; Ziegel, J.F. 
+<a name="l85"><span class="ln">85   </span></a>           Characterizing the optimal solutions to the isotonic regression 
+<a name="l86"><span class="ln">86   </span></a>           problem for identifiable functionals. 
+<a name="l87"><span class="ln">87   </span></a>           Ann Inst Stat Math 74, 489-514 (2022). 
+<a name="l88"><span class="ln">88   </span></a>           :doi:`10.1007/s10463-021-00808-0` 
+<a name="l89"><span class="ln">89   </span></a> 
+<a name="l90"><span class="ln">90   </span></a>    Examples 
+<a name="l91"><span class="ln">91   </span></a>    -------- 
+<a name="l92"><span class="ln">92   </span></a>    This example demonstrates that ``isotonic_regression`` really solves a 
+<a name="l93"><span class="ln">93   </span></a>    constrained optimization problem. 
+<a name="l94"><span class="ln">94   </span></a> 
+<a name="l95"><span class="ln">95   </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l96"><span class="ln">96   </span></a>    &gt;&gt;&gt; from scipy.optimize import isotonic_regression, minimize 
+<a name="l97"><span class="ln">97   </span></a>    &gt;&gt;&gt; y = [1.5, 1.0, 4.0, 6.0, 5.7, 5.0, 7.8, 9.0, 7.5, 9.5, 9.0] 
+<a name="l98"><span class="ln">98   </span></a>    &gt;&gt;&gt; def objective(yhat, y): 
+<a name="l99"><span class="ln">99   </span></a>    ...     return np.sum((yhat - y)**2) 
+<a name="l100"><span class="ln">100  </span></a>    &gt;&gt;&gt; def constraint(yhat, y): 
+<a name="l101"><span class="ln">101  </span></a>    ...     # This is for a monotonically increasing regression. 
+<a name="l102"><span class="ln">102  </span></a>    ...     return np.diff(yhat) 
+<a name="l103"><span class="ln">103  </span></a>    &gt;&gt;&gt; result = minimize(objective, x0=y, args=(y,), 
+<a name="l104"><span class="ln">104  </span></a>    ...                   constraints=[{'type': 'ineq', 
+<a name="l105"><span class="ln">105  </span></a>    ...                                 'fun': lambda x: constraint(x, y)}]) 
+<a name="l106"><span class="ln">106  </span></a>    &gt;&gt;&gt; result.x 
+<a name="l107"><span class="ln">107  </span></a>    array([1.25      , 1.25      , 4.        , 5.56666667, 5.56666667, 
+<a name="l108"><span class="ln">108  </span></a>           5.56666667, 7.8       , 8.25      , 8.25      , 9.25      , 
+<a name="l109"><span class="ln">109  </span></a>           9.25      ]) 
+<a name="l110"><span class="ln">110  </span></a>    &gt;&gt;&gt; result = isotonic_regression(y) 
+<a name="l111"><span class="ln">111  </span></a>    &gt;&gt;&gt; result.x 
+<a name="l112"><span class="ln">112  </span></a>    array([1.25      , 1.25      , 4.        , 5.56666667, 5.56666667, 
+<a name="l113"><span class="ln">113  </span></a>           5.56666667, 7.8       , 8.25      , 8.25      , 9.25      , 
+<a name="l114"><span class="ln">114  </span></a>           9.25      ]) 
+<a name="l115"><span class="ln">115  </span></a> 
+<a name="l116"><span class="ln">116  </span></a>    The big advantage of ``isotonic_regression`` compared to calling 
+<a name="l117"><span class="ln">117  </span></a>    ``minimize`` is that it is more user friendly, i.e. one does not need to 
+<a name="l118"><span class="ln">118  </span></a>    define objective and constraint functions, and that it is orders of 
+<a name="l119"><span class="ln">119  </span></a>    magnitudes faster. On commodity hardware (in 2023), for normal distributed 
+<a name="l120"><span class="ln">120  </span></a>    input y of length 1000, the minimizer takes about 4 seconds, while 
+<a name="l121"><span class="ln">121  </span></a>    ``isotonic_regression`` takes about 200 microseconds. 
+<a name="l122"><span class="ln">122  </span></a>    &quot;&quot;&quot;</span>
+<a name="l123"><span class="ln">123  </span></a>    <span class="s1">yarr </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">atleast_1d</span><span class="s2">(</span><span class="s1">y</span><span class="s2">)  </span><span class="s4"># Check yarr.ndim == 1 is implicit (pybind11) in pava.</span>
+<a name="l124"><span class="ln">124  </span></a>    <span class="s1">order </span><span class="s0">= </span><span class="s1">slice</span><span class="s2">(</span><span class="s0">None</span><span class="s2">) </span><span class="s0">if </span><span class="s1">increasing </span><span class="s0">else </span><span class="s1">slice</span><span class="s2">(</span><span class="s0">None</span><span class="s2">, </span><span class="s0">None</span><span class="s2">, </span><span class="s0">-</span><span class="s5">1</span><span class="s2">)</span>
+<a name="l125"><span class="ln">125  </span></a>    <span class="s1">x </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">array</span><span class="s2">(</span><span class="s1">yarr</span><span class="s2">[</span><span class="s1">order</span><span class="s2">], </span><span class="s1">order</span><span class="s0">=</span><span class="s3">&quot;C&quot;</span><span class="s2">, </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">np</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">, </span><span class="s1">copy</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l126"><span class="ln">126  </span></a>    <span class="s0">if </span><span class="s1">weights </span><span class="s0">is None:</span>
+<a name="l127"><span class="ln">127  </span></a>        <span class="s1">wx </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">ones_like</span><span class="s2">(</span><span class="s1">yarr</span><span class="s2">, </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">np</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">)</span>
+<a name="l128"><span class="ln">128  </span></a>    <span class="s0">else:</span>
+<a name="l129"><span class="ln">129  </span></a>        <span class="s1">warr </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">atleast_1d</span><span class="s2">(</span><span class="s1">weights</span><span class="s2">)</span>
+<a name="l130"><span class="ln">130  </span></a>
+<a name="l131"><span class="ln">131  </span></a>        <span class="s0">if not </span><span class="s2">(</span><span class="s1">yarr</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">== </span><span class="s1">warr</span><span class="s2">.</span><span class="s1">ndim </span><span class="s0">== </span><span class="s5">1 </span><span class="s0">and </span><span class="s1">yarr</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s5">0</span><span class="s2">] </span><span class="s0">== </span><span class="s1">warr</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s5">0</span><span class="s2">])</span><span class="s0">:</span>
+<a name="l132"><span class="ln">132  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span>
+<a name="l133"><span class="ln">133  </span></a>                <span class="s3">&quot;Input arrays y and w must have one dimension of equal length.&quot;</span>
+<a name="l134"><span class="ln">134  </span></a>            <span class="s2">)</span>
+<a name="l135"><span class="ln">135  </span></a>        <span class="s0">if </span><span class="s1">np</span><span class="s2">.</span><span class="s1">any</span><span class="s2">(</span><span class="s1">warr </span><span class="s0">&lt;= </span><span class="s5">0</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l136"><span class="ln">136  </span></a>            <span class="s0">raise </span><span class="s1">ValueError</span><span class="s2">(</span><span class="s3">&quot;Weights w must be strictly positive.&quot;</span><span class="s2">)</span>
+<a name="l137"><span class="ln">137  </span></a>
+<a name="l138"><span class="ln">138  </span></a>        <span class="s1">wx </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">array</span><span class="s2">(</span><span class="s1">warr</span><span class="s2">[</span><span class="s1">order</span><span class="s2">], </span><span class="s1">order</span><span class="s0">=</span><span class="s3">&quot;C&quot;</span><span class="s2">, </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">np</span><span class="s2">.</span><span class="s1">float64</span><span class="s2">, </span><span class="s1">copy</span><span class="s0">=True</span><span class="s2">)</span>
+<a name="l139"><span class="ln">139  </span></a>    <span class="s1">n </span><span class="s0">= </span><span class="s1">x</span><span class="s2">.</span><span class="s1">shape</span><span class="s2">[</span><span class="s5">0</span><span class="s2">]</span>
+<a name="l140"><span class="ln">140  </span></a>    <span class="s1">r </span><span class="s0">= </span><span class="s1">np</span><span class="s2">.</span><span class="s1">full</span><span class="s2">(</span><span class="s1">shape</span><span class="s0">=</span><span class="s1">n </span><span class="s0">+ </span><span class="s5">1</span><span class="s2">, </span><span class="s1">fill_value</span><span class="s0">=-</span><span class="s5">1</span><span class="s2">, </span><span class="s1">dtype</span><span class="s0">=</span><span class="s1">np</span><span class="s2">.</span><span class="s1">intp</span><span class="s2">)</span>
+<a name="l141"><span class="ln">141  </span></a>    <span class="s1">x</span><span class="s2">, </span><span class="s1">wx</span><span class="s2">, </span><span class="s1">r</span><span class="s2">, </span><span class="s1">b </span><span class="s0">= </span><span class="s1">pava</span><span class="s2">(</span><span class="s1">x</span><span class="s2">, </span><span class="s1">wx</span><span class="s2">, </span><span class="s1">r</span><span class="s2">)</span>
+<a name="l142"><span class="ln">142  </span></a>    <span class="s4"># Now that we know the number of blocks b, we only keep the relevant part</span>
+<a name="l143"><span class="ln">143  </span></a>    <span class="s4"># of r and wx.</span>
+<a name="l144"><span class="ln">144  </span></a>    <span class="s4"># As information: Due to the pava implementation, after the last block</span>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s4"># index, there might be smaller numbers appended to r, e.g.</span>
+<a name="l146"><span class="ln">146  </span></a>    <span class="s4"># r = [0, 10, 8, 7] which in the end should be r = [0, 10].</span>
+<a name="l147"><span class="ln">147  </span></a>    <span class="s1">r </span><span class="s0">= </span><span class="s1">r</span><span class="s2">[</span><span class="s0">:</span><span class="s1">b </span><span class="s0">+ </span><span class="s5">1</span><span class="s2">]  </span><span class="s4"># type: ignore[assignment]</span>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s1">wx </span><span class="s0">= </span><span class="s1">wx</span><span class="s2">[</span><span class="s0">:</span><span class="s1">b</span><span class="s2">]</span>
+<a name="l149"><span class="ln">149  </span></a>    <span class="s0">if not </span><span class="s1">increasing</span><span class="s0">:</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s1">x </span><span class="s0">= </span><span class="s1">x</span><span class="s2">[</span><span class="s0">::-</span><span class="s5">1</span><span class="s2">]</span>
+<a name="l151"><span class="ln">151  </span></a>        <span class="s1">wx </span><span class="s0">= </span><span class="s1">wx</span><span class="s2">[</span><span class="s0">::-</span><span class="s5">1</span><span class="s2">]</span>
+<a name="l152"><span class="ln">152  </span></a>        <span class="s1">r </span><span class="s0">= </span><span class="s1">r</span><span class="s2">[</span><span class="s0">-</span><span class="s5">1</span><span class="s2">] </span><span class="s0">- </span><span class="s1">r</span><span class="s2">[</span><span class="s0">::-</span><span class="s5">1</span><span class="s2">]</span>
+<a name="l153"><span class="ln">153  </span></a>    <span class="s0">return </span><span class="s1">OptimizeResult</span><span class="s2">(</span>
+<a name="l154"><span class="ln">154  </span></a>        <span class="s1">x</span><span class="s0">=</span><span class="s1">x</span><span class="s2">,</span>
+<a name="l155"><span class="ln">155  </span></a>        <span class="s1">weights</span><span class="s0">=</span><span class="s1">wx</span><span class="s2">,</span>
+<a name="l156"><span class="ln">156  </span></a>        <span class="s1">blocks</span><span class="s0">=</span><span class="s1">r</span><span class="s2">,</span>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s2">)</span>
+<a name="l158"><span class="ln">158  </span></a></pre>
+</body>
+</html>

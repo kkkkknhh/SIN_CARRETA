@@ -1,0 +1,472 @@
+<html>
+<head>
+    <title>tvm.py</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <style type="text/css">
+        .s0 { color: #969896;}
+        .s1 { color: #333333;}
+        .s2 { color: #a71d5d;}
+        .s3 { color: #63a35c;}
+        .s4 { color: #183691;}
+        .s5 { color: #0086b3;}
+        .ln { color: #333333; font-weight: normal; font-style: normal; }
+    </style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0">
+    <tr>
+        <td>
+            <center>
+                <font face="Arial, Helvetica" color="#000000">
+                    tvm.py</font>
+            </center>
+        </td>
+    </tr>
+</table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: ignore-errors</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l4"><span class="ln">4    </span></a>This module provides TVM backend integration for TorchDynamo. 
+<a name="l5"><span class="ln">5    </span></a> 
+<a name="l6"><span class="ln">6    </span></a>Apache TVM is a deep learning compiler framework that can optimize and execute 
+<a name="l7"><span class="ln">7    </span></a>models on various hardware backends. This module enables: 
+<a name="l8"><span class="ln">8    </span></a> 
+<a name="l9"><span class="ln">9    </span></a>- Compilation of PyTorch models to TVM's computation graphs 
+<a name="l10"><span class="ln">10   </span></a>- Multiple scheduling options: 
+<a name="l11"><span class="ln">11   </span></a>  - Default scheduler 
+<a name="l12"><span class="ln">12   </span></a>  - Auto-scheduler for automatic optimization 
+<a name="l13"><span class="ln">13   </span></a>  - Meta-schedule for evolutionary search-based tuning 
+<a name="l14"><span class="ln">14   </span></a>- Hardware-specific optimizations: 
+<a name="l15"><span class="ln">15   </span></a>  - CUDA GPU support 
+<a name="l16"><span class="ln">16   </span></a>  - CPU support with LLVM targeting and architecture-specific tuning 
+<a name="l17"><span class="ln">17   </span></a>  - Automatic detection of CPU capabilities (AVX2, AVX512) 
+<a name="l18"><span class="ln">18   </span></a>- Tensor conversion utilities between PyTorch and TVM formats 
+<a name="l19"><span class="ln">19   </span></a>- Configurable optimization levels and tuning trials 
+<a name="l20"><span class="ln">20   </span></a> 
+<a name="l21"><span class="ln">21   </span></a>The backend can be used with torch.compile(): 
+<a name="l22"><span class="ln">22   </span></a>    model = torch.compile(model, backend=&quot;tvm&quot;) 
+<a name="l23"><span class="ln">23   </span></a>&quot;&quot;&quot;</span>
+<a name="l24"><span class="ln">24   </span></a>
+<a name="l25"><span class="ln">25   </span></a><span class="s2">import </span><span class="s1">functools</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s2">import </span><span class="s1">importlib</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s2">import </span><span class="s1">logging</span>
+<a name="l28"><span class="ln">28   </span></a><span class="s2">import </span><span class="s1">os</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s2">import </span><span class="s1">sys</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s2">import </span><span class="s1">tempfile</span>
+<a name="l31"><span class="ln">31   </span></a><span class="s2">from </span><span class="s1">types </span><span
+            class="s2">import </span><span class="s1">MappingProxyType</span>
+<a name="l32"><span class="ln">32   </span></a><span class="s2">from </span><span class="s1">typing </span><span
+            class="s2">import </span><span class="s1">Optional</span>
+<a name="l33"><span class="ln">33   </span></a>
+<a name="l34"><span class="ln">34   </span></a><span class="s2">import </span><span class="s1">torch</span>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">common </span><span
+            class="s2">import </span><span class="s1">device_from_inputs</span><span class="s3">, </span><span
+            class="s1">fake_tensor_unsupported</span>
+<a name="l37"><span class="ln">37   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">registry </span><span
+            class="s2">import </span><span class="s1">register_backend</span>
+<a name="l38"><span class="ln">38   </span></a>
+<a name="l39"><span class="ln">39   </span></a>
+<a name="l40"><span class="ln">40   </span></a><span class="s1">log </span><span class="s2">= </span><span class="s1">logging</span><span
+            class="s3">.</span><span class="s1">getLogger</span><span class="s3">(</span><span
+            class="s1">__name__</span><span class="s3">)</span>
+<a name="l41"><span class="ln">41   </span></a>
+<a name="l42"><span class="ln">42   </span></a>
+<a name="l43"><span class="ln">43   </span></a><span class="s2">@</span><span class="s1">register_backend</span>
+<a name="l44"><span class="ln">44   </span></a><span class="s2">@</span><span class="s1">fake_tensor_unsupported</span>
+<a name="l45"><span class="ln">45   </span></a><span class="s2">def </span><span class="s1">tvm</span><span
+            class="s3">(</span>
+<a name="l46"><span class="ln">46   </span></a>    <span class="s1">gm</span><span class="s3">,</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s1">example_inputs</span><span class="s3">,</span>
+<a name="l48"><span class="ln">48   </span></a>    <span class="s2">*</span><span class="s3">,</span>
+<a name="l49"><span class="ln">49   </span></a>    <span class="s1">options</span><span class="s2">: </span><span
+            class="s1">Optional</span><span class="s3">[</span><span class="s1">MappingProxyType</span><span class="s3">] </span><span
+            class="s2">= </span><span class="s1">MappingProxyType</span><span class="s3">(</span>
+<a name="l50"><span class="ln">50   </span></a>        <span class="s3">{</span><span
+            class="s4">&quot;scheduler&quot;</span><span class="s2">: None</span><span class="s3">, </span><span
+            class="s4">&quot;trials&quot;</span><span class="s2">: </span><span class="s5">20000</span><span class="s3">, </span><span
+            class="s4">&quot;opt_level&quot;</span><span class="s2">: </span><span class="s5">3</span><span
+            class="s3">}</span>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s3">),</span>
+<a name="l52"><span class="ln">52   </span></a><span class="s3">)</span><span class="s2">:</span>
+<a name="l53"><span class="ln">53   </span></a>    <span class="s2">import </span><span class="s1">tvm  </span><span
+            class="s0"># type: ignore[import]</span>
+<a name="l54"><span class="ln">54   </span></a>    <span class="s2">from </span><span class="s1">tvm </span><span
+            class="s2">import </span><span class="s1">relay  </span><span class="s0"># type: ignore[import]</span>
+<a name="l55"><span class="ln">55   </span></a>    <span class="s2">from </span><span class="s1">tvm</span><span
+            class="s3">.</span><span class="s1">contrib </span><span class="s2">import </span><span class="s1">graph_executor  </span><span
+            class="s0"># type: ignore[import]</span>
+<a name="l56"><span class="ln">56   </span></a>
+<a name="l57"><span class="ln">57   </span></a>    <span class="s1">jit_mod </span><span class="s2">= </span><span
+            class="s1">torch</span><span class="s3">.</span><span class="s1">jit</span><span class="s3">.</span><span
+            class="s1">trace</span><span class="s3">(</span><span class="s1">gm</span><span class="s3">, </span><span
+            class="s1">example_inputs</span><span class="s3">)</span>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s1">device </span><span class="s2">= </span><span
+            class="s1">device_from_inputs</span><span class="s3">(</span><span class="s1">example_inputs</span><span
+            class="s3">)</span>
+<a name="l59"><span class="ln">59   </span></a>    <span class="s1">shape_list </span><span class="s2">= </span><span
+            class="s3">[(</span><span class="s4">f&quot;inp_{</span><span class="s1">idx</span><span
+            class="s4">}&quot;</span><span class="s3">, </span><span class="s1">i</span><span class="s3">.</span><span
+            class="s1">shape</span><span class="s3">) </span><span class="s2">for </span><span
+            class="s1">idx</span><span class="s3">, </span><span class="s1">i </span><span class="s2">in </span><span
+            class="s1">enumerate</span><span class="s3">(</span><span class="s1">example_inputs</span><span class="s3">)]</span>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s1">example_outputs </span><span
+            class="s2">= </span><span class="s1">gm</span><span class="s3">(</span><span class="s2">*</span><span
+            class="s1">example_inputs</span><span class="s3">)</span>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s2">if </span><span class="s1">len</span><span
+            class="s3">(</span><span class="s1">example_outputs</span><span class="s3">) </span><span
+            class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l62"><span class="ln">62   </span></a>        <span class="s1">log</span><span class="s3">.</span><span
+            class="s1">warning</span><span class="s3">(</span><span class="s4">&quot;Explicitly fall back to eager due to zero output&quot;</span><span
+            class="s3">)</span>
+<a name="l63"><span class="ln">63   </span></a>        <span class="s2">return </span><span class="s1">gm</span><span
+            class="s3">.</span><span class="s1">forward</span>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s1">mod</span><span class="s3">, </span><span
+            class="s1">params </span><span class="s2">= </span><span class="s1">relay</span><span
+            class="s3">.</span><span class="s1">frontend</span><span class="s3">.</span><span
+            class="s1">from_pytorch</span><span class="s3">(</span><span class="s1">jit_mod</span><span
+            class="s3">, </span><span class="s1">shape_list</span><span class="s3">)</span>
+<a name="l65"><span class="ln">65   </span></a>    <span class="s2">if </span><span class="s1">device</span><span
+            class="s3">.</span><span class="s1">type </span><span class="s2">== </span><span
+            class="s4">&quot;cuda&quot;</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s1">dev </span><span class="s2">= </span><span
+            class="s1">tvm</span><span class="s3">.</span><span class="s1">cuda</span><span class="s3">(</span><span
+            class="s1">device</span><span class="s3">.</span><span class="s1">index</span><span class="s3">)</span>
+<a name="l67"><span class="ln">67   </span></a>        <span class="s1">target </span><span class="s2">= </span><span
+            class="s1">tvm</span><span class="s3">.</span><span class="s1">target</span><span class="s3">.</span><span
+            class="s1">cuda</span><span class="s3">()</span>
+<a name="l68"><span class="ln">68   </span></a>    <span class="s2">else:</span>
+<a name="l69"><span class="ln">69   </span></a>        <span class="s1">dev </span><span class="s2">= </span><span
+            class="s1">tvm</span><span class="s3">.</span><span class="s1">cpu</span><span class="s3">(</span><span
+            class="s5">0</span><span class="s3">)</span>
+<a name="l70"><span class="ln">70   </span></a>        <span class="s1">target </span><span class="s2">= </span><span
+            class="s1">tvm</span><span class="s3">.</span><span class="s1">target</span><span class="s3">.</span><span
+            class="s1">Target</span><span class="s3">(</span><span class="s1">llvm_target</span><span
+            class="s3">())</span>
+<a name="l71"><span class="ln">71   </span></a>
+<a name="l72"><span class="ln">72   </span></a>    <span class="s1">scheduler </span><span class="s2">= </span><span
+            class="s1">options</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span
+            class="s4">&quot;scheduler&quot;</span><span class="s3">, </span><span class="s2">None</span><span
+            class="s3">)</span>
+<a name="l73"><span class="ln">73   </span></a>    <span class="s2">if </span><span class="s1">scheduler </span><span
+            class="s2">is None:</span>
+<a name="l74"><span class="ln">74   </span></a>        <span class="s1">scheduler </span><span class="s2">= </span><span
+            class="s1">os</span><span class="s3">.</span><span class="s1">environ</span><span class="s3">.</span><span
+            class="s1">get</span><span class="s3">(</span><span class="s4">&quot;TVM_SCHEDULER&quot;</span><span
+            class="s3">, </span><span class="s2">None</span><span class="s3">)</span>
+<a name="l75"><span class="ln">75   </span></a>
+<a name="l76"><span class="ln">76   </span></a>    <span class="s1">trials </span><span class="s2">= </span><span
+            class="s1">options</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span
+            class="s4">&quot;trials&quot;</span><span class="s3">, </span><span class="s5">20000</span><span class="s3">)</span>
+<a name="l77"><span class="ln">77   </span></a>    <span class="s1">opt_level </span><span class="s2">= </span><span
+            class="s1">options</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span
+            class="s4">&quot;opt_level&quot;</span><span class="s3">, </span><span class="s5">3</span><span
+            class="s3">)</span>
+<a name="l78"><span class="ln">78   </span></a>
+<a name="l79"><span class="ln">79   </span></a>    <span class="s2">if </span><span class="s1">scheduler </span><span
+            class="s2">== </span><span class="s4">&quot;auto_scheduler&quot;</span><span class="s2">:</span>
+<a name="l80"><span class="ln">80   </span></a>        <span class="s2">from </span><span class="s1">tvm </span><span
+            class="s2">import </span><span class="s1">auto_scheduler</span>
+<a name="l81"><span class="ln">81   </span></a>
+<a name="l82"><span class="ln">82   </span></a>        <span class="s1">log_file </span><span class="s2">= </span><span
+            class="s1">tempfile</span><span class="s3">.</span><span class="s1">NamedTemporaryFile</span><span
+            class="s3">()</span>
+<a name="l83"><span class="ln">83   </span></a>
+<a name="l84"><span class="ln">84   </span></a>        <span class="s2">if not </span><span class="s1">os</span><span
+            class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">exists</span><span
+            class="s3">(</span><span class="s1">log_file</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l85"><span class="ln">85   </span></a>            <span class="s1">tasks</span><span class="s3">, </span><span
+            class="s1">task_weights </span><span class="s2">= </span><span class="s1">auto_scheduler</span><span
+            class="s3">.</span><span class="s1">extract_tasks</span><span class="s3">(</span>
+<a name="l86"><span class="ln">86   </span></a>                <span class="s1">mod</span><span class="s3">[</span><span
+            class="s4">&quot;main&quot;</span><span class="s3">], </span><span class="s1">params</span><span class="s3">, </span><span
+            class="s1">target</span>
+<a name="l87"><span class="ln">87   </span></a>            <span class="s3">)</span>
+<a name="l88"><span class="ln">88   </span></a>            <span class="s2">if </span><span class="s1">len</span><span
+            class="s3">(</span><span class="s1">tasks</span><span class="s3">) </span><span class="s2">!= </span><span
+            class="s5">0</span><span class="s2">:</span>
+<a name="l89"><span class="ln">89   </span></a>                <span class="s1">tuner </span><span
+            class="s2">= </span><span class="s1">auto_scheduler</span><span class="s3">.</span><span class="s1">TaskScheduler</span><span
+            class="s3">(</span><span class="s1">tasks</span><span class="s3">, </span><span
+            class="s1">task_weights</span><span class="s3">)</span>
+<a name="l90"><span class="ln">90   </span></a>                <span class="s2">if not </span><span class="s1">os</span><span
+            class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">exists</span><span
+            class="s3">(</span><span class="s1">log_file</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l91"><span class="ln">91   </span></a>                    <span class="s2">assert </span><span class="s1">trials </span><span
+            class="s2">&gt; </span><span class="s5">0</span>
+<a name="l92"><span class="ln">92   </span></a>                    <span class="s1">tune_option </span><span class="s2">= </span><span
+            class="s1">auto_scheduler</span><span class="s3">.</span><span class="s1">TuningOptions</span><span
+            class="s3">(</span>
+<a name="l93"><span class="ln">93   </span></a>                        <span class="s1">num_measure_trials</span><span
+            class="s2">=</span><span class="s1">trials</span><span class="s3">,</span>
+<a name="l94"><span class="ln">94   </span></a>                        <span class="s1">measure_callbacks</span><span
+            class="s2">=</span><span class="s3">[</span><span class="s1">auto_scheduler</span><span
+            class="s3">.</span><span class="s1">RecordToFile</span><span class="s3">(</span><span
+            class="s1">log_file</span><span class="s3">)],</span>
+<a name="l95"><span class="ln">95   </span></a>                        <span class="s1">early_stopping</span><span
+            class="s2">=</span><span class="s5">2000</span><span class="s3">,</span>
+<a name="l96"><span class="ln">96   </span></a>                    <span class="s3">)</span>
+<a name="l97"><span class="ln">97   </span></a>                    <span class="s2">try:</span>
+<a name="l98"><span class="ln">98   </span></a>                        <span class="s1">tuner</span><span
+            class="s3">.</span><span class="s1">tune</span><span class="s3">(</span><span
+            class="s1">tune_option</span><span class="s3">)</span>
+<a name="l99"><span class="ln">99   </span></a>                    <span class="s2">except </span><span class="s1">Exception</span><span
+            class="s2">:</span>
+<a name="l100"><span class="ln">100  </span></a>                        <span class="s2">if </span><span
+            class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span
+            class="s1">exists</span><span class="s3">(</span><span class="s1">log_file</span><span
+            class="s3">)</span><span class="s2">:</span>
+<a name="l101"><span class="ln">101  </span></a>                            <span class="s1">os</span><span
+            class="s3">.</span><span class="s1">unlink</span><span class="s3">(</span><span
+            class="s1">log_file</span><span class="s3">)</span>
+<a name="l102"><span class="ln">102  </span></a>                        <span class="s2">raise</span>
+<a name="l103"><span class="ln">103  </span></a>
+<a name="l104"><span class="ln">104  </span></a>        <span class="s2">with </span><span
+            class="s1">auto_scheduler</span><span class="s3">.</span><span class="s1">ApplyHistoryBest</span><span
+            class="s3">(</span><span class="s1">log_file</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l105"><span class="ln">105  </span></a>            <span class="s2">with </span><span
+            class="s1">tvm</span><span class="s3">.</span><span class="s1">transform</span><span
+            class="s3">.</span><span class="s1">PassContext</span><span class="s3">(</span>
+<a name="l106"><span class="ln">106  </span></a>                <span class="s1">opt_level</span><span
+            class="s2">=</span><span class="s1">opt_level</span><span class="s3">, </span><span class="s1">config</span><span
+            class="s2">=</span><span class="s3">{</span><span
+            class="s4">&quot;relay.backend.use_auto_scheduler&quot;</span><span class="s2">: True</span><span
+            class="s3">}</span>
+<a name="l107"><span class="ln">107  </span></a>            <span class="s3">)</span><span class="s2">:</span>
+<a name="l108"><span class="ln">108  </span></a>                <span class="s1">lib </span><span
+            class="s2">= </span><span class="s1">relay</span><span class="s3">.</span><span class="s1">build</span><span
+            class="s3">(</span><span class="s1">mod</span><span class="s3">, </span><span class="s1">target</span><span
+            class="s2">=</span><span class="s1">target</span><span class="s3">, </span><span
+            class="s1">params</span><span class="s2">=</span><span class="s1">params</span><span class="s3">)</span>
+<a name="l109"><span class="ln">109  </span></a>    <span class="s2">elif </span><span class="s1">scheduler </span><span
+            class="s2">== </span><span class="s4">&quot;meta_schedule&quot;</span><span class="s2">:</span>
+<a name="l110"><span class="ln">110  </span></a>        <span class="s2">from </span><span class="s1">tvm </span><span
+            class="s2">import </span><span class="s1">meta_schedule </span><span class="s2">as </span><span class="s1">ms</span>
+<a name="l111"><span class="ln">111  </span></a>
+<a name="l112"><span class="ln">112  </span></a>        <span class="s2">with </span><span
+            class="s1">tempfile</span><span class="s3">.</span><span class="s1">TemporaryDirectory</span><span
+            class="s3">() </span><span class="s2">as </span><span class="s1">work_dir</span><span class="s2">:</span>
+<a name="l113"><span class="ln">113  </span></a>            <span class="s2">if </span><span
+            class="s1">device</span><span class="s3">.</span><span class="s1">type </span><span
+            class="s2">!= </span><span class="s4">&quot;cuda&quot;</span><span class="s2">:</span>
+<a name="l114"><span class="ln">114  </span></a>                <span class="s0"># meta_schedule needs num-cores to be specified</span>
+<a name="l115"><span class="ln">115  </span></a>                <span
+            class="s0"># here we use the maximum core count</span>
+<a name="l116"><span class="ln">116  </span></a>                <span class="s1">target </span><span
+            class="s2">= </span><span class="s1">tvm</span><span class="s3">.</span><span class="s1">target</span><span
+            class="s3">.</span><span class="s1">Target</span><span class="s3">(</span>
+<a name="l117"><span class="ln">117  </span></a>                    <span class="s4">f&quot;{</span><span class="s1">llvm_target</span><span
+            class="s3">()</span><span class="s4">} --num-cores {</span><span class="s1">ms</span><span
+            class="s3">.</span><span class="s1">utils</span><span class="s3">.</span><span
+            class="s1">cpu_count</span><span class="s3">(</span><span class="s1">logical</span><span
+            class="s2">=False</span><span class="s3">)</span><span class="s4">}&quot;</span>
+<a name="l118"><span class="ln">118  </span></a>                <span class="s3">)</span>
+<a name="l119"><span class="ln">119  </span></a>            <span class="s0"># TODO(shingjan): This could be replaced by tvm.contrib.torch.optimize_torch</span>
+<a name="l120"><span class="ln">120  </span></a>            <span class="s0"># once USE_PT_TVMDSOOP is updated and turned on by default in TVM.</span>
+<a name="l121"><span class="ln">121  </span></a>            <span class="s2">assert </span><span
+            class="s1">trials </span><span class="s2">&gt; </span><span class="s5">0</span>
+<a name="l122"><span class="ln">122  </span></a>            <span class="s1">database </span><span
+            class="s2">= </span><span class="s1">ms</span><span class="s3">.</span><span
+            class="s1">relay_integration</span><span class="s3">.</span><span class="s1">tune_relay</span><span
+            class="s3">(</span>
+<a name="l123"><span class="ln">123  </span></a>                <span class="s1">mod</span><span
+            class="s2">=</span><span class="s1">mod</span><span class="s3">,</span>
+<a name="l124"><span class="ln">124  </span></a>                <span class="s1">target</span><span
+            class="s2">=</span><span class="s1">target</span><span class="s3">,</span>
+<a name="l125"><span class="ln">125  </span></a>                <span class="s1">work_dir</span><span
+            class="s2">=</span><span class="s1">work_dir</span><span class="s3">,</span>
+<a name="l126"><span class="ln">126  </span></a>                <span class="s1">max_trials_global</span><span
+            class="s2">=</span><span class="s1">trials</span><span class="s3">,</span>
+<a name="l127"><span class="ln">127  </span></a>                <span class="s1">num_trials_per_iter</span><span
+            class="s2">=</span><span class="s5">64</span><span class="s3">,</span>
+<a name="l128"><span class="ln">128  </span></a>                <span class="s1">params</span><span
+            class="s2">=</span><span class="s1">params</span><span class="s3">,</span>
+<a name="l129"><span class="ln">129  </span></a>                <span class="s1">strategy</span><span
+            class="s2">=</span><span class="s4">&quot;evolutionary&quot;</span><span class="s3">,</span>
+<a name="l130"><span class="ln">130  </span></a>                <span class="s1">opt_level</span><span
+            class="s2">=</span><span class="s1">opt_level</span><span class="s3">,</span>
+<a name="l131"><span class="ln">131  </span></a>            <span class="s3">)</span>
+<a name="l132"><span class="ln">132  </span></a>            <span class="s1">lib </span><span class="s2">= </span><span
+            class="s1">ms</span><span class="s3">.</span><span class="s1">relay_integration</span><span
+            class="s3">.</span><span class="s1">compile_relay</span><span class="s3">(</span>
+<a name="l133"><span class="ln">133  </span></a>                <span class="s1">database</span><span
+            class="s2">=</span><span class="s1">database</span><span class="s3">,</span>
+<a name="l134"><span class="ln">134  </span></a>                <span class="s1">mod</span><span
+            class="s2">=</span><span class="s1">mod</span><span class="s3">,</span>
+<a name="l135"><span class="ln">135  </span></a>                <span class="s1">target</span><span
+            class="s2">=</span><span class="s1">target</span><span class="s3">,</span>
+<a name="l136"><span class="ln">136  </span></a>                <span class="s1">params</span><span
+            class="s2">=</span><span class="s1">params</span><span class="s3">,</span>
+<a name="l137"><span class="ln">137  </span></a>                <span class="s1">opt_level</span><span
+            class="s2">=</span><span class="s1">opt_level</span><span class="s3">,</span>
+<a name="l138"><span class="ln">138  </span></a>            <span class="s3">)</span>
+<a name="l139"><span class="ln">139  </span></a>    <span class="s2">elif </span><span class="s1">scheduler </span><span
+            class="s2">== </span><span class="s4">&quot;default&quot; </span><span class="s2">or not </span><span
+            class="s1">scheduler</span><span class="s2">:</span>
+<a name="l140"><span class="ln">140  </span></a>        <span class="s0"># no autotuning</span>
+<a name="l141"><span class="ln">141  </span></a>        <span class="s2">with </span><span class="s1">tvm</span><span
+            class="s3">.</span><span class="s1">transform</span><span class="s3">.</span><span
+            class="s1">PassContext</span><span class="s3">(</span><span class="s1">opt_level</span><span
+            class="s2">=</span><span class="s1">opt_level</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l142"><span class="ln">142  </span></a>            <span class="s1">lib </span><span class="s2">= </span><span
+            class="s1">relay</span><span class="s3">.</span><span class="s1">build</span><span class="s3">(</span><span
+            class="s1">mod</span><span class="s3">, </span><span class="s1">target</span><span class="s2">=</span><span
+            class="s1">target</span><span class="s3">, </span><span class="s1">params</span><span
+            class="s2">=</span><span class="s1">params</span><span class="s3">)</span>
+<a name="l143"><span class="ln">143  </span></a>    <span class="s2">else:</span>
+<a name="l144"><span class="ln">144  </span></a>        <span class="s2">raise </span><span class="s1">NotImplementedError</span><span
+            class="s3">(</span>
+<a name="l145"><span class="ln">145  </span></a>            <span class="s4">&quot;This tuning option is invalid/not implemented for torchdynamo's TVM-related backend. &quot;</span>
+<a name="l146"><span class="ln">146  </span></a>            <span class="s4">&quot;There are three available options: default, auto_scheduler and meta_schedule.&quot;</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s3">)</span>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s1">m </span><span class="s2">= </span><span
+            class="s1">graph_executor</span><span class="s3">.</span><span class="s1">GraphModule</span><span
+            class="s3">(</span><span class="s1">lib</span><span class="s3">[</span><span
+            class="s4">&quot;default&quot;</span><span class="s3">](</span><span class="s1">dev</span><span class="s3">))</span>
+<a name="l149"><span class="ln">149  </span></a>
+<a name="l150"><span class="ln">150  </span></a>    <span class="s2">def </span><span
+            class="s1">to_torch_tensor</span><span class="s3">(</span><span class="s1">nd_tensor</span><span class="s3">)</span><span
+            class="s2">:</span>
+<a name="l151"><span class="ln">151  </span></a>        <span class="s0">&quot;&quot;&quot;A helper function to transfer a NDArray to torch.tensor.&quot;&quot;&quot;</span>
+<a name="l152"><span class="ln">152  </span></a>        <span class="s2">if </span><span
+            class="s1">nd_tensor</span><span class="s3">.</span><span class="s1">dtype </span><span
+            class="s2">== </span><span class="s4">&quot;bool&quot;</span><span class="s2">:</span>
+<a name="l153"><span class="ln">153  </span></a>            <span class="s0"># DLPack does not support boolean so it can't be handled by</span>
+<a name="l154"><span class="ln">154  </span></a>            <span class="s0"># torch.utils.dlpack.from_pack. Workaround by going through</span>
+<a name="l155"><span class="ln">155  </span></a>            <span class="s0"># numpy, although this brings additional data copy overhead.</span>
+<a name="l156"><span class="ln">156  </span></a>            <span class="s2">return </span><span class="s1">torch</span><span
+            class="s3">.</span><span class="s1">from_numpy</span><span class="s3">(</span><span
+            class="s1">nd_tensor</span><span class="s3">.</span><span class="s1">numpy</span><span class="s3">())</span>
+<a name="l157"><span class="ln">157  </span></a>        <span class="s2">return </span><span
+            class="s1">torch</span><span class="s3">.</span><span class="s1">utils</span><span class="s3">.</span><span
+            class="s1">dlpack</span><span class="s3">.</span><span class="s1">from_dlpack</span><span
+            class="s3">(</span><span class="s1">nd_tensor</span><span class="s3">.</span><span
+            class="s1">to_dlpack</span><span class="s3">())</span>
+<a name="l158"><span class="ln">158  </span></a>
+<a name="l159"><span class="ln">159  </span></a>    <span class="s2">def </span><span
+            class="s1">to_tvm_tensor</span><span class="s3">(</span><span class="s1">torch_tensor</span><span
+            class="s3">)</span><span class="s2">:</span>
+<a name="l160"><span class="ln">160  </span></a>        <span class="s0">&quot;&quot;&quot;A helper function to transfer a torch.tensor to NDArray.&quot;&quot;&quot;</span>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s2">if </span><span
+            class="s1">torch_tensor</span><span class="s3">.</span><span class="s1">dtype </span><span
+            class="s2">== </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">bool</span><span
+            class="s2">:</span>
+<a name="l162"><span class="ln">162  </span></a>            <span class="s0"># same reason as above, fallback to numpy conversion which</span>
+<a name="l163"><span class="ln">163  </span></a>            <span class="s0"># could introduce data copy overhead</span>
+<a name="l164"><span class="ln">164  </span></a>            <span class="s2">return </span><span
+            class="s1">tvm</span><span class="s3">.</span><span class="s1">nd</span><span class="s3">.</span><span
+            class="s1">array</span><span class="s3">(</span><span class="s1">torch_tensor</span><span
+            class="s3">.</span><span class="s1">cpu</span><span class="s3">().</span><span class="s1">numpy</span><span
+            class="s3">())</span>
+<a name="l165"><span class="ln">165  </span></a>        <span class="s2">return </span><span class="s1">tvm</span><span
+            class="s3">.</span><span class="s1">nd</span><span class="s3">.</span><span
+            class="s1">from_dlpack</span><span class="s3">(</span><span class="s1">torch_tensor</span><span
+            class="s3">)</span>
+<a name="l166"><span class="ln">166  </span></a>
+<a name="l167"><span class="ln">167  </span></a>    <span class="s2">def </span><span class="s1">exec_tvm</span><span
+            class="s3">(</span><span class="s2">*</span><span class="s1">i_args</span><span class="s3">)</span><span
+            class="s2">:</span>
+<a name="l168"><span class="ln">168  </span></a>        <span class="s1">args </span><span class="s2">= </span><span
+            class="s3">[</span><span class="s1">a</span><span class="s3">.</span><span class="s1">contiguous</span><span
+            class="s3">() </span><span class="s2">for </span><span class="s1">a </span><span class="s2">in </span><span
+            class="s1">i_args</span><span class="s3">]</span>
+<a name="l169"><span class="ln">169  </span></a>        <span class="s1">shape_info</span><span
+            class="s3">, </span><span class="s1">_ </span><span class="s2">= </span><span class="s1">m</span><span
+            class="s3">.</span><span class="s1">get_input_info</span><span class="s3">()</span>
+<a name="l170"><span class="ln">170  </span></a>        <span class="s1">active_inputs </span><span class="s2">= </span><span
+            class="s3">{</span><span class="s1">name </span><span class="s2">for </span><span
+            class="s1">name</span><span class="s3">, </span><span class="s1">_ </span><span class="s2">in </span><span
+            class="s1">shape_info</span><span class="s3">.</span><span class="s1">items</span><span
+            class="s3">()}</span>
+<a name="l171"><span class="ln">171  </span></a>        <span class="s2">for </span><span class="s1">idx</span><span
+            class="s3">, </span><span class="s1">arg </span><span class="s2">in </span><span class="s1">enumerate</span><span
+            class="s3">(</span><span class="s1">args</span><span class="s3">, </span><span class="s5">0</span><span
+            class="s3">)</span><span class="s2">:</span>
+<a name="l172"><span class="ln">172  </span></a>            <span class="s2">if </span><span class="s1">arg</span><span
+            class="s3">.</span><span class="s1">dim</span><span class="s3">() </span><span class="s2">!= </span><span
+            class="s5">0</span><span class="s2">:</span>
+<a name="l173"><span class="ln">173  </span></a>                <span class="s2">if </span><span
+            class="s1">arg</span><span class="s3">.</span><span class="s1">requires_grad</span><span class="s2">:</span>
+<a name="l174"><span class="ln">174  </span></a>                    <span class="s1">arg </span><span
+            class="s2">= </span><span class="s1">arg</span><span class="s3">.</span><span class="s1">detach</span><span
+            class="s3">()</span>
+<a name="l175"><span class="ln">175  </span></a>                <span class="s1">inp_name </span><span
+            class="s2">= </span><span class="s4">f&quot;inp_{</span><span class="s1">idx</span><span
+            class="s4">}&quot;</span>
+<a name="l176"><span class="ln">176  </span></a>                <span class="s2">if </span><span
+            class="s1">inp_name </span><span class="s2">not in </span><span class="s1">active_inputs</span><span
+            class="s2">:</span>
+<a name="l177"><span class="ln">177  </span></a>                    <span class="s1">log</span><span class="s3">.</span><span
+            class="s1">warning</span><span class="s3">(</span>
+<a name="l178"><span class="ln">178  </span></a>                        <span class="s4">&quot;input %s skipped as not found in tvm's runtime library&quot;</span><span
+            class="s3">,</span>
+<a name="l179"><span class="ln">179  </span></a>                        <span class="s1">inp_name</span><span
+            class="s3">,</span>
+<a name="l180"><span class="ln">180  </span></a>                    <span class="s3">)</span>
+<a name="l181"><span class="ln">181  </span></a>                    <span class="s2">continue</span>
+<a name="l182"><span class="ln">182  </span></a>                <span class="s1">m</span><span class="s3">.</span><span
+            class="s1">set_input</span><span class="s3">(</span>
+<a name="l183"><span class="ln">183  </span></a>                    <span class="s1">inp_name</span><span
+            class="s3">,</span>
+<a name="l184"><span class="ln">184  </span></a>                    <span class="s1">to_tvm_tensor</span><span
+            class="s3">(</span><span class="s1">arg</span><span class="s3">),</span>
+<a name="l185"><span class="ln">185  </span></a>                <span class="s3">)</span>
+<a name="l186"><span class="ln">186  </span></a>        <span class="s1">m</span><span class="s3">.</span><span
+            class="s1">run</span><span class="s3">()</span>
+<a name="l187"><span class="ln">187  </span></a>        <span class="s2">return </span><span class="s3">[</span><span
+            class="s1">to_torch_tensor</span><span class="s3">(</span><span class="s1">m</span><span class="s3">.</span><span
+            class="s1">get_output</span><span class="s3">(</span><span class="s1">i</span><span
+            class="s3">)) </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span
+            class="s1">range</span><span class="s3">(</span><span class="s1">m</span><span class="s3">.</span><span
+            class="s1">get_num_outputs</span><span class="s3">())]</span>
+<a name="l188"><span class="ln">188  </span></a>
+<a name="l189"><span class="ln">189  </span></a>    <span class="s2">return </span><span class="s1">exec_tvm</span>
+<a name="l190"><span class="ln">190  </span></a>
+<a name="l191"><span class="ln">191  </span></a>
+<a name="l192"><span class="ln">192  </span></a><span class="s1">tvm_meta_schedule </span><span
+            class="s2">= </span><span class="s1">functools</span><span class="s3">.</span><span
+            class="s1">partial</span><span class="s3">(</span><span class="s1">tvm</span><span class="s3">, </span><span
+            class="s1">scheduler</span><span class="s2">=</span><span class="s4">&quot;meta_schedule&quot;</span><span
+            class="s3">)</span>
+<a name="l193"><span class="ln">193  </span></a><span class="s1">tvm_auto_scheduler </span><span
+            class="s2">= </span><span class="s1">functools</span><span class="s3">.</span><span
+            class="s1">partial</span><span class="s3">(</span><span class="s1">tvm</span><span class="s3">, </span><span
+            class="s1">scheduler</span><span class="s2">=</span><span class="s4">&quot;auto_scheduler&quot;</span><span
+            class="s3">)</span>
+<a name="l194"><span class="ln">194  </span></a>
+<a name="l195"><span class="ln">195  </span></a>
+<a name="l196"><span class="ln">196  </span></a><span class="s2">def </span><span class="s1">has_tvm</span><span
+            class="s3">()</span><span class="s2">:</span>
+<a name="l197"><span class="ln">197  </span></a>    <span class="s2">try:</span>
+<a name="l198"><span class="ln">198  </span></a>        <span class="s1">importlib</span><span class="s3">.</span><span
+            class="s1">import_module</span><span class="s3">(</span><span class="s4">&quot;tvm&quot;</span><span
+            class="s3">)</span>
+<a name="l199"><span class="ln">199  </span></a>        <span class="s2">return True</span>
+<a name="l200"><span class="ln">200  </span></a>    <span class="s2">except </span><span
+            class="s1">ImportError</span><span class="s2">:</span>
+<a name="l201"><span class="ln">201  </span></a>        <span class="s2">return False</span>
+<a name="l202"><span class="ln">202  </span></a>
+<a name="l203"><span class="ln">203  </span></a>
+<a name="l204"><span class="ln">204  </span></a><span class="s2">@</span><span class="s1">functools</span><span
+            class="s3">.</span><span class="s1">cache</span>
+<a name="l205"><span class="ln">205  </span></a><span class="s2">def </span><span class="s1">llvm_target</span><span
+            class="s3">()</span><span class="s2">:</span>
+<a name="l206"><span class="ln">206  </span></a>    <span class="s2">if </span><span class="s1">sys</span><span
+            class="s3">.</span><span class="s1">platform </span><span class="s2">== </span><span class="s4">&quot;linux&quot;</span><span
+            class="s2">:</span>
+<a name="l207"><span class="ln">207  </span></a>        <span class="s1">cpuinfo </span><span class="s2">= </span><span
+            class="s1">open</span><span class="s3">(</span><span class="s4">&quot;/proc/cpuinfo&quot;</span><span
+            class="s3">).</span><span class="s1">read</span><span class="s3">()</span>
+<a name="l208"><span class="ln">208  </span></a>        <span class="s2">if </span><span
+            class="s4">&quot;avx512&quot; </span><span class="s2">in </span><span class="s1">cpuinfo</span><span
+            class="s2">:</span>
+<a name="l209"><span class="ln">209  </span></a>            <span class="s2">return </span><span class="s4">&quot;llvm -mcpu=skylake-avx512&quot;</span>
+<a name="l210"><span class="ln">210  </span></a>        <span class="s2">elif </span><span
+            class="s4">&quot;avx2&quot; </span><span class="s2">in </span><span class="s1">cpuinfo</span><span
+            class="s2">:</span>
+<a name="l211"><span class="ln">211  </span></a>            <span class="s2">return </span><span class="s4">&quot;llvm -mcpu=core-avx2&quot;</span>
+<a name="l212"><span class="ln">212  </span></a>    <span class="s2">return </span><span
+            class="s4">&quot;llvm&quot;</span>
+<a name="l213"><span class="ln">213  </span></a></pre>
+</body>
+</html>

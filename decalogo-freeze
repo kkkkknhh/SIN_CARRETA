@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Genera locks y hashes reproducibles para los decálogos limpios."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Congelar bundle de decálogos")
+    parser.add_argument("--bundle", required=True, help="Directorio con los JSON limpios")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    bundle_dir = Path(args.bundle)
+    lock_entries = {}
+    for path in bundle_dir.glob("*.clean.json"):
+        content = path.read_bytes()
+        lock_entries[path.name] = hashlib.sha256(content).hexdigest()
+    crosswalk_path = bundle_dir / "crosswalk.latest.json"
+    if crosswalk_path.exists():
+        lock_entries[crosswalk_path.name] = hashlib.sha256(crosswalk_path.read_bytes()).hexdigest()
+    lock_path = bundle_dir / "decalogo.lock.json"
+    lock_path.write_text(json.dumps(lock_entries, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print("Lock file generado en", lock_path)
+    
+    # MINIMINIMOON Decalogo Freezer
+    # ============================
+    # Creates an immutable snapshot of the DECALOGO_INDUSTRIAL and its evaluations
+    # Guarantees consistency across evaluations by preserving evaluation criteria
+
+    print("MINIMINIMOON Decalogo Freezer")
+    print("============================")
+
+    # Directory for snapshots
+    snapshot_dir = Path("/Users/recovered/MINIMINIMOON/decalogo_snapshots")
+
+    # Create snapshot directory if it doesn't exist
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+
+    # Timestamp for this snapshot
+    timestamp = lock_path.stat().st_mtime
+    snapshot_file = snapshot_dir / f"decalogo_snapshot_{timestamp}.json"
+
+    # Copy current decalogo file with timestamp
+    if (bundle_dir / "decalogo_industrial.json").exists():
+        print("Creating decalogo snapshot...")
+        (bundle_dir / "decalogo_industrial.json").replace(snapshot_file)
+        
+        # Create cryptographic hash
+        hash_value = hashlib.sha256(snapshot_file.read_bytes()).hexdigest()
+        (snapshot_file.with_suffix(".sha256")).write_text(hash_value + "\n", encoding="utf-8")
+        
+        print("Snapshot created:", snapshot_file)
+        print("SHA-256:", hash_value)
+        
+        # Create symlink to latest
+        (snapshot_dir / "decalogo_latest.json").unlink(missing_ok=True)
+        snapshot_file.symlink_to(snapshot_dir / "decalogo_latest.json")
+        print("Updated latest snapshot link")
+
+        # Update freeze record
+        freeze_record = {"timestamp": timestamp, "hash": hash_value, "file": str(snapshot_file)}
+        (snapshot_dir / "freeze_record.json").write_text(json.dumps(freeze_record, indent=2) + "\n", encoding="utf-8")
+        
+        # Run Python immutability verification
+        print("Registering with immutability contract...")
+        try:
+            from miniminimoon_immutability import ImmutabilityContract
+            contract = ImmutabilityContract()
+            freeze_result = contract.freeze_integration()
+            print(f"Immutability registration: {freeze_result['status']}")
+        except Exception as e:
+            print(f"Error registering with immutability contract: {e}")
+        
+        print("Decalogo successfully frozen!")
+        
+    else:
+        print("Error: decalogo_industrial.json not found")
+        return 1
+
+    # Check for decalogo validator tool and run verification
+    validator_script = Path("/Users/recovered/MINIMINIMOON/validate.py")
+    if validator_script.exists():
+        print("Running decalogo validation...")
+        sys.exit(os.system(f"python3 {validator_script} --snapshot {snapshot_file}"))
+
+    print("Done!")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

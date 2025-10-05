@@ -1,0 +1,217 @@
+<html>
+<head>
+<title>providers.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #a71d5d;}
+.s1 { color: #333333;}
+.s2 { color: #63a35c;}
+.s3 { color: #969896;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+providers.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">from </span><span class="s1">__future__ </span><span class="s0">import </span><span class="s1">annotations</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s0">from </span><span class="s1">typing </span><span class="s0">import </span><span class="s2">(</span>
+<a name="l4"><span class="ln">4    </span></a>    <span class="s1">TYPE_CHECKING</span><span class="s2">,</span>
+<a name="l5"><span class="ln">5    </span></a>    <span class="s1">Generic</span><span class="s2">,</span>
+<a name="l6"><span class="ln">6    </span></a>    <span class="s1">Iterable</span><span class="s2">,</span>
+<a name="l7"><span class="ln">7    </span></a>    <span class="s1">Iterator</span><span class="s2">,</span>
+<a name="l8"><span class="ln">8    </span></a>    <span class="s1">Mapping</span><span class="s2">,</span>
+<a name="l9"><span class="ln">9    </span></a>    <span class="s1">Sequence</span><span class="s2">,</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">)</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s0">from </span><span class="s2">.</span><span class="s1">structs </span><span class="s0">import </span><span class="s1">CT</span><span class="s2">, </span><span class="s1">KT</span><span class="s2">, </span><span class="s1">RT</span><span class="s2">, </span><span class="s1">Matches</span><span class="s2">, </span><span class="s1">RequirementInformation</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s0">if </span><span class="s1">TYPE_CHECKING</span><span class="s0">:</span>
+<a name="l15"><span class="ln">15   </span></a>    <span class="s0">from </span><span class="s1">typing </span><span class="s0">import </span><span class="s1">Any</span><span class="s2">, </span><span class="s1">Protocol</span>
+<a name="l16"><span class="ln">16   </span></a>
+<a name="l17"><span class="ln">17   </span></a>    <span class="s0">class </span><span class="s1">Preference</span><span class="s2">(</span><span class="s1">Protocol</span><span class="s2">)</span><span class="s0">:</span>
+<a name="l18"><span class="ln">18   </span></a>        <span class="s0">def </span><span class="s1">__lt__</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">__other</span><span class="s0">: </span><span class="s1">Any</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">: </span><span class="s2">...</span>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s0">class </span><span class="s1">AbstractProvider</span><span class="s2">(</span><span class="s1">Generic</span><span class="s2">[</span><span class="s1">RT</span><span class="s2">, </span><span class="s1">CT</span><span class="s2">, </span><span class="s1">KT</span><span class="s2">])</span><span class="s0">:</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s3">&quot;&quot;&quot;Delegate class to provide the required interface for the resolver.&quot;&quot;&quot;</span>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s0">def </span><span class="s1">identify</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">requirement_or_candidate</span><span class="s0">: </span><span class="s1">RT </span><span class="s0">| </span><span class="s1">CT</span><span class="s2">) </span><span class="s1">-&gt; KT</span><span class="s0">:</span>
+<a name="l25"><span class="ln">25   </span></a>        <span class="s3">&quot;&quot;&quot;Given a requirement or candidate, return an identifier for it. 
+<a name="l26"><span class="ln">26   </span></a> 
+<a name="l27"><span class="ln">27   </span></a>        This is used to identify, e.g. whether two requirements 
+<a name="l28"><span class="ln">28   </span></a>        should have their specifier parts merged or a candidate matches a 
+<a name="l29"><span class="ln">29   </span></a>        requirement via ``find_matches()``. 
+<a name="l30"><span class="ln">30   </span></a>        &quot;&quot;&quot;</span>
+<a name="l31"><span class="ln">31   </span></a>        <span class="s0">raise </span><span class="s1">NotImplementedError</span>
+<a name="l32"><span class="ln">32   </span></a>
+<a name="l33"><span class="ln">33   </span></a>    <span class="s0">def </span><span class="s1">get_preference</span><span class="s2">(</span>
+<a name="l34"><span class="ln">34   </span></a>        <span class="s1">self</span><span class="s2">,</span>
+<a name="l35"><span class="ln">35   </span></a>        <span class="s1">identifier</span><span class="s0">: </span><span class="s1">KT</span><span class="s2">,</span>
+<a name="l36"><span class="ln">36   </span></a>        <span class="s1">resolutions</span><span class="s0">: </span><span class="s1">Mapping</span><span class="s2">[</span><span class="s1">KT</span><span class="s2">, </span><span class="s1">CT</span><span class="s2">],</span>
+<a name="l37"><span class="ln">37   </span></a>        <span class="s1">candidates</span><span class="s0">: </span><span class="s1">Mapping</span><span class="s2">[</span><span class="s1">KT</span><span class="s2">, </span><span class="s1">Iterator</span><span class="s2">[</span><span class="s1">CT</span><span class="s2">]],</span>
+<a name="l38"><span class="ln">38   </span></a>        <span class="s1">information</span><span class="s0">: </span><span class="s1">Mapping</span><span class="s2">[</span><span class="s1">KT</span><span class="s2">, </span><span class="s1">Iterator</span><span class="s2">[</span><span class="s1">RequirementInformation</span><span class="s2">[</span><span class="s1">RT</span><span class="s2">, </span><span class="s1">CT</span><span class="s2">]]],</span>
+<a name="l39"><span class="ln">39   </span></a>        <span class="s1">backtrack_causes</span><span class="s0">: </span><span class="s1">Sequence</span><span class="s2">[</span><span class="s1">RequirementInformation</span><span class="s2">[</span><span class="s1">RT</span><span class="s2">, </span><span class="s1">CT</span><span class="s2">]],</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s2">) </span><span class="s1">-&gt; Preference</span><span class="s0">:</span>
+<a name="l41"><span class="ln">41   </span></a>        <span class="s3">&quot;&quot;&quot;Produce a sort key for given requirement based on preference. 
+<a name="l42"><span class="ln">42   </span></a> 
+<a name="l43"><span class="ln">43   </span></a>        As this is a sort key it will be called O(n) times per backtrack 
+<a name="l44"><span class="ln">44   </span></a>        step, where n is the number of `identifier`s, if you have a check 
+<a name="l45"><span class="ln">45   </span></a>        which is expensive in some sense. E.g. It needs to make O(n) checks 
+<a name="l46"><span class="ln">46   </span></a>        per call or takes significant wall clock time, consider using 
+<a name="l47"><span class="ln">47   </span></a>        `narrow_requirement_selection` to filter the `identifier`s, which 
+<a name="l48"><span class="ln">48   </span></a>        is applied before this sort key is called. 
+<a name="l49"><span class="ln">49   </span></a> 
+<a name="l50"><span class="ln">50   </span></a>        The preference is defined as &quot;I think this requirement should be 
+<a name="l51"><span class="ln">51   </span></a>        resolved first&quot;. The lower the return value is, the more preferred 
+<a name="l52"><span class="ln">52   </span></a>        this group of arguments is. 
+<a name="l53"><span class="ln">53   </span></a> 
+<a name="l54"><span class="ln">54   </span></a>        :param identifier: An identifier as returned by ``identify()``. This 
+<a name="l55"><span class="ln">55   </span></a>            identifies the requirement being considered. 
+<a name="l56"><span class="ln">56   </span></a>        :param resolutions: Mapping of candidates currently pinned by the 
+<a name="l57"><span class="ln">57   </span></a>            resolver. Each key is an identifier, and the value is a candidate. 
+<a name="l58"><span class="ln">58   </span></a>            The candidate may conflict with requirements from ``information``. 
+<a name="l59"><span class="ln">59   </span></a>        :param candidates: Mapping of each dependency's possible candidates. 
+<a name="l60"><span class="ln">60   </span></a>            Each value is an iterator of candidates. 
+<a name="l61"><span class="ln">61   </span></a>        :param information: Mapping of requirement information of each package. 
+<a name="l62"><span class="ln">62   </span></a>            Each value is an iterator of *requirement information*. 
+<a name="l63"><span class="ln">63   </span></a>        :param backtrack_causes: Sequence of *requirement information* that are 
+<a name="l64"><span class="ln">64   </span></a>            the requirements that caused the resolver to most recently 
+<a name="l65"><span class="ln">65   </span></a>            backtrack. 
+<a name="l66"><span class="ln">66   </span></a> 
+<a name="l67"><span class="ln">67   </span></a>        A *requirement information* instance is a named tuple with two members: 
+<a name="l68"><span class="ln">68   </span></a> 
+<a name="l69"><span class="ln">69   </span></a>        * ``requirement`` specifies a requirement contributing to the current 
+<a name="l70"><span class="ln">70   </span></a>          list of candidates. 
+<a name="l71"><span class="ln">71   </span></a>        * ``parent`` specifies the candidate that provides (depended on) the 
+<a name="l72"><span class="ln">72   </span></a>          requirement, or ``None`` to indicate a root requirement. 
+<a name="l73"><span class="ln">73   </span></a> 
+<a name="l74"><span class="ln">74   </span></a>        The preference could depend on various issues, including (not 
+<a name="l75"><span class="ln">75   </span></a>        necessarily in this order): 
+<a name="l76"><span class="ln">76   </span></a> 
+<a name="l77"><span class="ln">77   </span></a>        * Is this package pinned in the current resolution result? 
+<a name="l78"><span class="ln">78   </span></a>        * How relaxed is the requirement? Stricter ones should probably be 
+<a name="l79"><span class="ln">79   </span></a>          worked on first? (I don't know, actually.) 
+<a name="l80"><span class="ln">80   </span></a>        * How many possibilities are there to satisfy this requirement? Those 
+<a name="l81"><span class="ln">81   </span></a>          with few left should likely be worked on first, I guess? 
+<a name="l82"><span class="ln">82   </span></a>        * Are there any known conflicts for this requirement? We should 
+<a name="l83"><span class="ln">83   </span></a>          probably work on those with the most known conflicts. 
+<a name="l84"><span class="ln">84   </span></a> 
+<a name="l85"><span class="ln">85   </span></a>        A sortable value should be returned (this will be used as the ``key`` 
+<a name="l86"><span class="ln">86   </span></a>        parameter of the built-in sorting function). The smaller the value is, 
+<a name="l87"><span class="ln">87   </span></a>        the more preferred this requirement is (i.e. the sorting function 
+<a name="l88"><span class="ln">88   </span></a>        is called with ``reverse=False``). 
+<a name="l89"><span class="ln">89   </span></a>        &quot;&quot;&quot;</span>
+<a name="l90"><span class="ln">90   </span></a>        <span class="s0">raise </span><span class="s1">NotImplementedError</span>
+<a name="l91"><span class="ln">91   </span></a>
+<a name="l92"><span class="ln">92   </span></a>    <span class="s0">def </span><span class="s1">find_matches</span><span class="s2">(</span>
+<a name="l93"><span class="ln">93   </span></a>        <span class="s1">self</span><span class="s2">,</span>
+<a name="l94"><span class="ln">94   </span></a>        <span class="s1">identifier</span><span class="s0">: </span><span class="s1">KT</span><span class="s2">,</span>
+<a name="l95"><span class="ln">95   </span></a>        <span class="s1">requirements</span><span class="s0">: </span><span class="s1">Mapping</span><span class="s2">[</span><span class="s1">KT</span><span class="s2">, </span><span class="s1">Iterator</span><span class="s2">[</span><span class="s1">RT</span><span class="s2">]],</span>
+<a name="l96"><span class="ln">96   </span></a>        <span class="s1">incompatibilities</span><span class="s0">: </span><span class="s1">Mapping</span><span class="s2">[</span><span class="s1">KT</span><span class="s2">, </span><span class="s1">Iterator</span><span class="s2">[</span><span class="s1">CT</span><span class="s2">]],</span>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s2">) </span><span class="s1">-&gt; Matches</span><span class="s2">[</span><span class="s1">CT</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l98"><span class="ln">98   </span></a>        <span class="s3">&quot;&quot;&quot;Find all possible candidates that satisfy the given constraints. 
+<a name="l99"><span class="ln">99   </span></a> 
+<a name="l100"><span class="ln">100  </span></a>        :param identifier: An identifier as returned by ``identify()``. All 
+<a name="l101"><span class="ln">101  </span></a>            candidates returned by this method should produce the same 
+<a name="l102"><span class="ln">102  </span></a>            identifier. 
+<a name="l103"><span class="ln">103  </span></a>        :param requirements: A mapping of requirements that all returned 
+<a name="l104"><span class="ln">104  </span></a>            candidates must satisfy. Each key is an identifier, and the value 
+<a name="l105"><span class="ln">105  </span></a>            an iterator of requirements for that dependency. 
+<a name="l106"><span class="ln">106  </span></a>        :param incompatibilities: A mapping of known incompatibile candidates of 
+<a name="l107"><span class="ln">107  </span></a>            each dependency. Each key is an identifier, and the value an 
+<a name="l108"><span class="ln">108  </span></a>            iterator of incompatibilities known to the resolver. All 
+<a name="l109"><span class="ln">109  </span></a>            incompatibilities *must* be excluded from the return value. 
+<a name="l110"><span class="ln">110  </span></a> 
+<a name="l111"><span class="ln">111  </span></a>        This should try to get candidates based on the requirements' types. 
+<a name="l112"><span class="ln">112  </span></a>        For VCS, local, and archive requirements, the one-and-only match is 
+<a name="l113"><span class="ln">113  </span></a>        returned, and for a &quot;named&quot; requirement, the index(es) should be 
+<a name="l114"><span class="ln">114  </span></a>        consulted to find concrete candidates for this requirement. 
+<a name="l115"><span class="ln">115  </span></a> 
+<a name="l116"><span class="ln">116  </span></a>        The return value should produce candidates ordered by preference; the 
+<a name="l117"><span class="ln">117  </span></a>        most preferred candidate should come first. The return type may be one 
+<a name="l118"><span class="ln">118  </span></a>        of the following: 
+<a name="l119"><span class="ln">119  </span></a> 
+<a name="l120"><span class="ln">120  </span></a>        * A callable that returns an iterator that yields candidates. 
+<a name="l121"><span class="ln">121  </span></a>        * An collection of candidates. 
+<a name="l122"><span class="ln">122  </span></a>        * An iterable of candidates. This will be consumed immediately into a 
+<a name="l123"><span class="ln">123  </span></a>          list of candidates. 
+<a name="l124"><span class="ln">124  </span></a>        &quot;&quot;&quot;</span>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s0">raise </span><span class="s1">NotImplementedError</span>
+<a name="l126"><span class="ln">126  </span></a>
+<a name="l127"><span class="ln">127  </span></a>    <span class="s0">def </span><span class="s1">is_satisfied_by</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">requirement</span><span class="s0">: </span><span class="s1">RT</span><span class="s2">, </span><span class="s1">candidate</span><span class="s0">: </span><span class="s1">CT</span><span class="s2">) </span><span class="s1">-&gt; bool</span><span class="s0">:</span>
+<a name="l128"><span class="ln">128  </span></a>        <span class="s3">&quot;&quot;&quot;Whether the given requirement can be satisfied by a candidate. 
+<a name="l129"><span class="ln">129  </span></a> 
+<a name="l130"><span class="ln">130  </span></a>        The candidate is guaranteed to have been generated from the 
+<a name="l131"><span class="ln">131  </span></a>        requirement. 
+<a name="l132"><span class="ln">132  </span></a> 
+<a name="l133"><span class="ln">133  </span></a>        A boolean should be returned to indicate whether ``candidate`` is a 
+<a name="l134"><span class="ln">134  </span></a>        viable solution to the requirement. 
+<a name="l135"><span class="ln">135  </span></a>        &quot;&quot;&quot;</span>
+<a name="l136"><span class="ln">136  </span></a>        <span class="s0">raise </span><span class="s1">NotImplementedError</span>
+<a name="l137"><span class="ln">137  </span></a>
+<a name="l138"><span class="ln">138  </span></a>    <span class="s0">def </span><span class="s1">get_dependencies</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">candidate</span><span class="s0">: </span><span class="s1">CT</span><span class="s2">) </span><span class="s1">-&gt; Iterable</span><span class="s2">[</span><span class="s1">RT</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l139"><span class="ln">139  </span></a>        <span class="s3">&quot;&quot;&quot;Get dependencies of a candidate. 
+<a name="l140"><span class="ln">140  </span></a> 
+<a name="l141"><span class="ln">141  </span></a>        This should return a collection of requirements that `candidate` 
+<a name="l142"><span class="ln">142  </span></a>        specifies as its dependencies. 
+<a name="l143"><span class="ln">143  </span></a>        &quot;&quot;&quot;</span>
+<a name="l144"><span class="ln">144  </span></a>        <span class="s0">raise </span><span class="s1">NotImplementedError</span>
+<a name="l145"><span class="ln">145  </span></a>
+<a name="l146"><span class="ln">146  </span></a>    <span class="s0">def </span><span class="s1">narrow_requirement_selection</span><span class="s2">(</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s1">self</span><span class="s2">,</span>
+<a name="l148"><span class="ln">148  </span></a>        <span class="s1">identifiers</span><span class="s0">: </span><span class="s1">Iterable</span><span class="s2">[</span><span class="s1">KT</span><span class="s2">],</span>
+<a name="l149"><span class="ln">149  </span></a>        <span class="s1">resolutions</span><span class="s0">: </span><span class="s1">Mapping</span><span class="s2">[</span><span class="s1">KT</span><span class="s2">, </span><span class="s1">CT</span><span class="s2">],</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s1">candidates</span><span class="s0">: </span><span class="s1">Mapping</span><span class="s2">[</span><span class="s1">KT</span><span class="s2">, </span><span class="s1">Iterator</span><span class="s2">[</span><span class="s1">CT</span><span class="s2">]],</span>
+<a name="l151"><span class="ln">151  </span></a>        <span class="s1">information</span><span class="s0">: </span><span class="s1">Mapping</span><span class="s2">[</span><span class="s1">KT</span><span class="s2">, </span><span class="s1">Iterator</span><span class="s2">[</span><span class="s1">RequirementInformation</span><span class="s2">[</span><span class="s1">RT</span><span class="s2">, </span><span class="s1">CT</span><span class="s2">]]],</span>
+<a name="l152"><span class="ln">152  </span></a>        <span class="s1">backtrack_causes</span><span class="s0">: </span><span class="s1">Sequence</span><span class="s2">[</span><span class="s1">RequirementInformation</span><span class="s2">[</span><span class="s1">RT</span><span class="s2">, </span><span class="s1">CT</span><span class="s2">]],</span>
+<a name="l153"><span class="ln">153  </span></a>    <span class="s2">) </span><span class="s1">-&gt; Iterable</span><span class="s2">[</span><span class="s1">KT</span><span class="s2">]</span><span class="s0">:</span>
+<a name="l154"><span class="ln">154  </span></a>        <span class="s3">&quot;&quot;&quot; 
+<a name="l155"><span class="ln">155  </span></a>        An optional method to narrow the selection of requirements being 
+<a name="l156"><span class="ln">156  </span></a>        considered during resolution. This method is called O(1) time per 
+<a name="l157"><span class="ln">157  </span></a>        backtrack step. 
+<a name="l158"><span class="ln">158  </span></a> 
+<a name="l159"><span class="ln">159  </span></a>        :param identifiers: An iterable of `identifiers` as returned by 
+<a name="l160"><span class="ln">160  </span></a>            ``identify()``. These identify all requirements currently being 
+<a name="l161"><span class="ln">161  </span></a>            considered. 
+<a name="l162"><span class="ln">162  </span></a>        :param resolutions: A mapping of candidates currently pinned by the 
+<a name="l163"><span class="ln">163  </span></a>            resolver. Each key is an identifier, and the value is a candidate 
+<a name="l164"><span class="ln">164  </span></a>            that may conflict with requirements from ``information``. 
+<a name="l165"><span class="ln">165  </span></a>        :param candidates: A mapping of each dependency's possible candidates. 
+<a name="l166"><span class="ln">166  </span></a>            Each value is an iterator of candidates. 
+<a name="l167"><span class="ln">167  </span></a>        :param information: A mapping of requirement information for each package. 
+<a name="l168"><span class="ln">168  </span></a>            Each value is an iterator of *requirement information*. 
+<a name="l169"><span class="ln">169  </span></a>        :param backtrack_causes: A sequence of *requirement information* that are 
+<a name="l170"><span class="ln">170  </span></a>            the requirements causing the resolver to most recently 
+<a name="l171"><span class="ln">171  </span></a>            backtrack. 
+<a name="l172"><span class="ln">172  </span></a> 
+<a name="l173"><span class="ln">173  </span></a>        A *requirement information* instance is a named tuple with two members: 
+<a name="l174"><span class="ln">174  </span></a> 
+<a name="l175"><span class="ln">175  </span></a>        * ``requirement`` specifies a requirement contributing to the current 
+<a name="l176"><span class="ln">176  </span></a>          list of candidates. 
+<a name="l177"><span class="ln">177  </span></a>        * ``parent`` specifies the candidate that provides (is depended on for) 
+<a name="l178"><span class="ln">178  </span></a>          the requirement, or ``None`` to indicate a root requirement. 
+<a name="l179"><span class="ln">179  </span></a> 
+<a name="l180"><span class="ln">180  </span></a>        Must return a non-empty subset of `identifiers`, with the default 
+<a name="l181"><span class="ln">181  </span></a>        implementation being to return `identifiers` unchanged. Those `identifiers` 
+<a name="l182"><span class="ln">182  </span></a>        will then be passed to the sort key `get_preference` to pick the most 
+<a name="l183"><span class="ln">183  </span></a>        prefered requirement to attempt to pin, unless `narrow_requirement_selection` 
+<a name="l184"><span class="ln">184  </span></a>        returns only 1 requirement, in which case that will be used without 
+<a name="l185"><span class="ln">185  </span></a>        calling the sort key `get_preference`. 
+<a name="l186"><span class="ln">186  </span></a> 
+<a name="l187"><span class="ln">187  </span></a>        This method is designed to be used by the provider to optimize the 
+<a name="l188"><span class="ln">188  </span></a>        dependency resolution, e.g. if a check cost is O(m) and it can be done 
+<a name="l189"><span class="ln">189  </span></a>        against all identifiers at once then filtering the requirement selection 
+<a name="l190"><span class="ln">190  </span></a>        here will cost O(m) but making it part of the sort key in `get_preference` 
+<a name="l191"><span class="ln">191  </span></a>        will cost O(m*n), where n is the number of `identifiers`. 
+<a name="l192"><span class="ln">192  </span></a> 
+<a name="l193"><span class="ln">193  </span></a>        Returns: 
+<a name="l194"><span class="ln">194  </span></a>            Iterable[KT]: A non-empty subset of `identifiers`. 
+<a name="l195"><span class="ln">195  </span></a>        &quot;&quot;&quot;</span>
+<a name="l196"><span class="ln">196  </span></a>        <span class="s0">return </span><span class="s1">identifiers</span>
+<a name="l197"><span class="ln">197  </span></a></pre>
+</body>
+</html>

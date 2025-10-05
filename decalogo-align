@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""CLI para normalizar y alinear los decálogos."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+from pdm_contra.decalogo_alignment import align_decalogos
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Normalización determinista de decálogos")
+    parser.add_argument("--full", required=True, help="Ruta a DECALOGO_FULL.json crudo")
+    parser.add_argument("--industrial", required=True, help="Ruta a decalogo_industrial.json crudo")
+    parser.add_argument("--dnp", required=True, help="Ruta a DNP_STANDARDS.json crudo")
+    parser.add_argument("--out", required=True, help="Directorio de salida")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    bundle = align_decalogos(
+        Path(args.full),
+        Path(args.industrial),
+        Path(args.dnp),
+        Path(args.out),
+    )
+    print("Alineación completada. Clusters generados:", len(bundle.clusters))
+    for issue in bundle.audit:
+        print(f"- {issue.source}: {issue.category} -> {issue.message}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
+#!/bin/bash
+
+# MINIMINIMOON Decalogo Alignment Tool
+# ===================================
+# Ensures that the evaluation criteria are aligned with the latest decalogo
+# and that all components reference the same immutable standard
+
+echo "MINIMINIMOON Decalogo Alignment Tool"
+echo "==================================="
+
+# Default paths
+SNAPSHOT_DIR="/Users/recovered/MINIMINIMOON/decalogo_snapshots"
+LATEST_LINK="$SNAPSHOT_DIR/decalogo_latest.json"
+STANDARDS_FILE="/Users/recovered/MINIMINIMOON/DNP_STANDARDS.json"
+DECALOGO_FILE="/Users/recovered/MINIMINIMOON/decalogo_industrial.json"
+
+# Check if we need to use a specific snapshot
+if [ -n "$1" ]; then
+    if [ -f "$SNAPSHOT_DIR/decalogo_snapshot_$1.json" ]; then
+        REFERENCE_FILE="$SNAPSHOT_DIR/decalogo_snapshot_$1.json"
+        echo "Using specific snapshot: $REFERENCE_FILE"
+    else
+        echo "Snapshot not found: $1"
+        echo "Available snapshots:"
+        ls -l "$SNAPSHOT_DIR" | grep "decalogo_snapshot" | awk '{print $9}'
+        exit 1
+    fi
+else
+    # Use latest snapshot by default
+    if [ -f "$LATEST_LINK" ]; then
+        REFERENCE_FILE="$LATEST_LINK"
+        echo "Using latest snapshot: $REFERENCE_FILE"
+    else
+        echo "No snapshots found. Please freeze a decalogo first."
+        exit 1
+    fi
+fi
+
+# Verify hash of reference file
+if [ -f "$REFERENCE_FILE.sha256" ]; then
+    EXPECTED_HASH=$(cat "$REFERENCE_FILE.sha256")
+    ACTUAL_HASH=$(shasum -a 256 "$REFERENCE_FILE" | cut -d ' ' -f1)
+    
+    if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
+        echo "ERROR: Snapshot integrity check failed!"
+        echo "Expected hash: $EXPECTED_HASH"
+        echo "Actual hash: $ACTUAL_HASH"
+        echo "The snapshot may have been tampered with."
+        exit 1
+    else
+        echo "Snapshot integrity verified."
+    fi
+else
+    echo "Warning: No hash file found for verification."
+fi
+
+# Align the active decalogo with the frozen reference
+echo "Aligning decalogo with frozen reference..."
+cp "$REFERENCE_FILE" "$DECALOGO_FILE"
+
+# Run Python alignment script to update references in modules
+echo "Running alignment script..."
+python3 -c "
+import sys, json, time, os
+sys.path.append('/Users/recovered/MINIMINIMOON')
+try:
+    # Load reference decalogo
+    with open('$REFERENCE_FILE', 'r') as f:
+        reference_data = json.load(f)
+    
+    # Update DNP standards with alignment information if needed
+    standards_file = '$STANDARDS_FILE'
+    if os.path.exists(standards_file):
+        try:
+            with open(standards_file, 'r') as f:
+                standards_data = json.load(f)
+            
+            # Add alignment metadata
+            if 'metadata' not in standards_data:
+                standards_data['metadata'] = {}
+            
+            standards_data['metadata']['aligned_with'] = os.path.basename('$REFERENCE_FILE')
+            standards_data['metadata']['alignment_time'] = time.time()
+            
+            # Write updated standards
+            with open(standards_file, 'w') as f:
+                json.dump(standards_data, f, indent=2)
+            
+            print('DNP standards aligned with reference.')
+        except Exception as e:
+            print(f'Error updating standards file: {e}')
+    
+    # Run immutability verification
+    try:
+        from miniminimoon_immutability import ImmutabilityContract
+        contract = ImmutabilityContract()
+        verify_result = contract.verify_components('normal')
+        print(f'System integrity: {verify_result[\"integrity_status\"]}')
+        if verify_result['integrity_status'] != 'verified':
+            print('Warning: System may have been modified since freezing!')
+    except Exception as e:
+        print(f'Error verifying system integrity: {e}')
+    
+    print('Alignment completed.')
+except Exception as e:
+    print(f'Error in alignment process: {e}')
+    sys.exit(1)
+"
+
+echo "Checking for other components that need alignment..."
+python3 -c "
+import os, glob, re
+from pathlib import Path
+
+def check_file(filepath):
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+            if 'decalogo' in content.lower() or 'DECALOGO' in content:
+                return filepath
+    except:
+        pass
+    return None
+
+# Check Python files
+python_files = list(Path('/Users/recovered/MINIMINIMOON').glob('*.py'))
+matches = []
+
+for pyfile in python_files:
+    result = check_file(pyfile)
+    if result:
+        matches.append(result)
+
+if matches:
+    print('Files that may need decalogo alignment:')
+    for match in matches:
+        print(f'  - {match}')
+else:
+    print('No additional files found that need alignment.')
+"
+
+echo "Done!"
+exit 0

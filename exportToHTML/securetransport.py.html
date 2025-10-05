@@ -1,0 +1,943 @@
+<html>
+<head>
+<title>securetransport.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+securetransport.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>SecureTranport support for urllib3 via ctypes. 
+<a name="l3"><span class="ln">3    </span></a> 
+<a name="l4"><span class="ln">4    </span></a>This makes platform-native TLS available to urllib3 users on macOS without the 
+<a name="l5"><span class="ln">5    </span></a>use of a compiler. This is an important feature because the Python Package 
+<a name="l6"><span class="ln">6    </span></a>Index is moving to become a TLSv1.2-or-higher server, and the default OpenSSL 
+<a name="l7"><span class="ln">7    </span></a>that ships with macOS is not capable of doing TLSv1.2. The only way to resolve 
+<a name="l8"><span class="ln">8    </span></a>this is to give macOS users an alternative solution to the problem, and that 
+<a name="l9"><span class="ln">9    </span></a>solution is to use SecureTransport. 
+<a name="l10"><span class="ln">10   </span></a> 
+<a name="l11"><span class="ln">11   </span></a>We use ctypes here because this solution must not require a compiler. That's 
+<a name="l12"><span class="ln">12   </span></a>because pip is not allowed to require a compiler either. 
+<a name="l13"><span class="ln">13   </span></a> 
+<a name="l14"><span class="ln">14   </span></a>This is not intended to be a seriously long-term solution to this problem. 
+<a name="l15"><span class="ln">15   </span></a>The hope is that PEP 543 will eventually solve this issue for us, at which 
+<a name="l16"><span class="ln">16   </span></a>point we can retire this contrib module. But in the short term, we need to 
+<a name="l17"><span class="ln">17   </span></a>solve the impending tire fire that is Python on Mac without this kind of 
+<a name="l18"><span class="ln">18   </span></a>contrib module. So...here we are. 
+<a name="l19"><span class="ln">19   </span></a> 
+<a name="l20"><span class="ln">20   </span></a>To use this module, simply import and inject it:: 
+<a name="l21"><span class="ln">21   </span></a> 
+<a name="l22"><span class="ln">22   </span></a>    import pip._vendor.urllib3.contrib.securetransport as securetransport 
+<a name="l23"><span class="ln">23   </span></a>    securetransport.inject_into_urllib3() 
+<a name="l24"><span class="ln">24   </span></a> 
+<a name="l25"><span class="ln">25   </span></a>Happy TLSing! 
+<a name="l26"><span class="ln">26   </span></a> 
+<a name="l27"><span class="ln">27   </span></a>This code is a bastardised version of the code found in Will Bond's oscrypto 
+<a name="l28"><span class="ln">28   </span></a>library. An enormous debt is owed to him for blazing this trail for us. For 
+<a name="l29"><span class="ln">29   </span></a>that reason, this code should be considered to be covered both by urllib3's 
+<a name="l30"><span class="ln">30   </span></a>license and by oscrypto's: 
+<a name="l31"><span class="ln">31   </span></a> 
+<a name="l32"><span class="ln">32   </span></a>.. code-block:: 
+<a name="l33"><span class="ln">33   </span></a> 
+<a name="l34"><span class="ln">34   </span></a>    Copyright (c) 2015-2016 Will Bond &lt;will@wbond.net&gt; 
+<a name="l35"><span class="ln">35   </span></a> 
+<a name="l36"><span class="ln">36   </span></a>    Permission is hereby granted, free of charge, to any person obtaining a 
+<a name="l37"><span class="ln">37   </span></a>    copy of this software and associated documentation files (the &quot;Software&quot;), 
+<a name="l38"><span class="ln">38   </span></a>    to deal in the Software without restriction, including without limitation 
+<a name="l39"><span class="ln">39   </span></a>    the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+<a name="l40"><span class="ln">40   </span></a>    and/or sell copies of the Software, and to permit persons to whom the 
+<a name="l41"><span class="ln">41   </span></a>    Software is furnished to do so, subject to the following conditions: 
+<a name="l42"><span class="ln">42   </span></a> 
+<a name="l43"><span class="ln">43   </span></a>    The above copyright notice and this permission notice shall be included in 
+<a name="l44"><span class="ln">44   </span></a>    all copies or substantial portions of the Software. 
+<a name="l45"><span class="ln">45   </span></a> 
+<a name="l46"><span class="ln">46   </span></a>    THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+<a name="l47"><span class="ln">47   </span></a>    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+<a name="l48"><span class="ln">48   </span></a>    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+<a name="l49"><span class="ln">49   </span></a>    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+<a name="l50"><span class="ln">50   </span></a>    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+<a name="l51"><span class="ln">51   </span></a>    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
+<a name="l52"><span class="ln">52   </span></a>    DEALINGS IN THE SOFTWARE. 
+<a name="l53"><span class="ln">53   </span></a>&quot;&quot;&quot;</span>
+<a name="l54"><span class="ln">54   </span></a><span class="s2">from </span><span class="s1">__future__ </span><span class="s2">import </span><span class="s1">absolute_import</span>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a><span class="s2">import </span><span class="s1">contextlib</span>
+<a name="l57"><span class="ln">57   </span></a><span class="s2">import </span><span class="s1">ctypes</span>
+<a name="l58"><span class="ln">58   </span></a><span class="s2">import </span><span class="s1">errno</span>
+<a name="l59"><span class="ln">59   </span></a><span class="s2">import </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span>
+<a name="l60"><span class="ln">60   </span></a><span class="s2">import </span><span class="s1">shutil</span>
+<a name="l61"><span class="ln">61   </span></a><span class="s2">import </span><span class="s1">socket</span>
+<a name="l62"><span class="ln">62   </span></a><span class="s2">import </span><span class="s1">ssl</span>
+<a name="l63"><span class="ln">63   </span></a><span class="s2">import </span><span class="s1">struct</span>
+<a name="l64"><span class="ln">64   </span></a><span class="s2">import </span><span class="s1">threading</span>
+<a name="l65"><span class="ln">65   </span></a><span class="s2">import </span><span class="s1">weakref</span>
+<a name="l66"><span class="ln">66   </span></a>
+<a name="l67"><span class="ln">67   </span></a><span class="s2">from </span><span class="s3">.. </span><span class="s2">import </span><span class="s1">util</span>
+<a name="l68"><span class="ln">68   </span></a><span class="s2">from </span><span class="s3">..</span><span class="s1">packages </span><span class="s2">import </span><span class="s1">six</span>
+<a name="l69"><span class="ln">69   </span></a><span class="s2">from </span><span class="s3">..</span><span class="s1">util</span><span class="s3">.</span><span class="s1">ssl_ </span><span class="s2">import </span><span class="s1">PROTOCOL_TLS_CLIENT</span>
+<a name="l70"><span class="ln">70   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">_securetransport</span><span class="s3">.</span><span class="s1">bindings </span><span class="s2">import </span><span class="s1">CoreFoundation</span><span class="s3">, </span><span class="s1">Security</span><span class="s3">, </span><span class="s1">SecurityConst</span>
+<a name="l71"><span class="ln">71   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">_securetransport</span><span class="s3">.</span><span class="s1">low_level </span><span class="s2">import </span><span class="s3">(</span>
+<a name="l72"><span class="ln">72   </span></a>    <span class="s1">_assert_no_error</span><span class="s3">,</span>
+<a name="l73"><span class="ln">73   </span></a>    <span class="s1">_build_tls_unknown_ca_alert</span><span class="s3">,</span>
+<a name="l74"><span class="ln">74   </span></a>    <span class="s1">_cert_array_from_pem</span><span class="s3">,</span>
+<a name="l75"><span class="ln">75   </span></a>    <span class="s1">_create_cfstring_array</span><span class="s3">,</span>
+<a name="l76"><span class="ln">76   </span></a>    <span class="s1">_load_client_cert_chain</span><span class="s3">,</span>
+<a name="l77"><span class="ln">77   </span></a>    <span class="s1">_temporary_keychain</span><span class="s3">,</span>
+<a name="l78"><span class="ln">78   </span></a><span class="s3">)</span>
+<a name="l79"><span class="ln">79   </span></a>
+<a name="l80"><span class="ln">80   </span></a><span class="s2">try:  </span><span class="s0"># Platform-specific: Python 2</span>
+<a name="l81"><span class="ln">81   </span></a>    <span class="s2">from </span><span class="s1">socket </span><span class="s2">import </span><span class="s1">_fileobject</span>
+<a name="l82"><span class="ln">82   </span></a><span class="s2">except </span><span class="s1">ImportError</span><span class="s2">:  </span><span class="s0"># Platform-specific: Python 3</span>
+<a name="l83"><span class="ln">83   </span></a>    <span class="s1">_fileobject </span><span class="s2">= None</span>
+<a name="l84"><span class="ln">84   </span></a>    <span class="s2">from </span><span class="s3">..</span><span class="s1">packages</span><span class="s3">.</span><span class="s1">backports</span><span class="s3">.</span><span class="s1">makefile </span><span class="s2">import </span><span class="s1">backport_makefile</span>
+<a name="l85"><span class="ln">85   </span></a>
+<a name="l86"><span class="ln">86   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">&quot;inject_into_urllib3&quot;</span><span class="s3">, </span><span class="s4">&quot;extract_from_urllib3&quot;</span><span class="s3">]</span>
+<a name="l87"><span class="ln">87   </span></a>
+<a name="l88"><span class="ln">88   </span></a><span class="s0"># SNI always works</span>
+<a name="l89"><span class="ln">89   </span></a><span class="s1">HAS_SNI </span><span class="s2">= True</span>
+<a name="l90"><span class="ln">90   </span></a>
+<a name="l91"><span class="ln">91   </span></a><span class="s1">orig_util_HAS_SNI </span><span class="s2">= </span><span class="s1">util</span><span class="s3">.</span><span class="s1">HAS_SNI</span>
+<a name="l92"><span class="ln">92   </span></a><span class="s1">orig_util_SSLContext </span><span class="s2">= </span><span class="s1">util</span><span class="s3">.</span><span class="s1">ssl_</span><span class="s3">.</span><span class="s1">SSLContext</span>
+<a name="l93"><span class="ln">93   </span></a>
+<a name="l94"><span class="ln">94   </span></a><span class="s0"># This dictionary is used by the read callback to obtain a handle to the</span>
+<a name="l95"><span class="ln">95   </span></a><span class="s0"># calling wrapped socket. This is a pretty silly approach, but for now it'll</span>
+<a name="l96"><span class="ln">96   </span></a><span class="s0"># do. I feel like I should be able to smuggle a handle to the wrapped socket</span>
+<a name="l97"><span class="ln">97   </span></a><span class="s0"># directly in the SSLConnectionRef, but for now this approach will work I</span>
+<a name="l98"><span class="ln">98   </span></a><span class="s0"># guess.</span>
+<a name="l99"><span class="ln">99   </span></a><span class="s0">#</span>
+<a name="l100"><span class="ln">100  </span></a><span class="s0"># We need to lock around this structure for inserts, but we don't do it for</span>
+<a name="l101"><span class="ln">101  </span></a><span class="s0"># reads/writes in the callbacks. The reasoning here goes as follows:</span>
+<a name="l102"><span class="ln">102  </span></a><span class="s0">#</span>
+<a name="l103"><span class="ln">103  </span></a><span class="s0">#    1. It is not possible to call into the callbacks before the dictionary is</span>
+<a name="l104"><span class="ln">104  </span></a><span class="s0">#       populated, so once in the callback the id must be in the dictionary.</span>
+<a name="l105"><span class="ln">105  </span></a><span class="s0">#    2. The callbacks don't mutate the dictionary, they only read from it, and</span>
+<a name="l106"><span class="ln">106  </span></a><span class="s0">#       so cannot conflict with any of the insertions.</span>
+<a name="l107"><span class="ln">107  </span></a><span class="s0">#</span>
+<a name="l108"><span class="ln">108  </span></a><span class="s0"># This is good: if we had to lock in the callbacks we'd drastically slow down</span>
+<a name="l109"><span class="ln">109  </span></a><span class="s0"># the performance of this code.</span>
+<a name="l110"><span class="ln">110  </span></a><span class="s1">_connection_refs </span><span class="s2">= </span><span class="s1">weakref</span><span class="s3">.</span><span class="s1">WeakValueDictionary</span><span class="s3">()</span>
+<a name="l111"><span class="ln">111  </span></a><span class="s1">_connection_ref_lock </span><span class="s2">= </span><span class="s1">threading</span><span class="s3">.</span><span class="s1">Lock</span><span class="s3">()</span>
+<a name="l112"><span class="ln">112  </span></a>
+<a name="l113"><span class="ln">113  </span></a><span class="s0"># Limit writes to 16kB. This is OpenSSL's limit, but we'll cargo-cult it over</span>
+<a name="l114"><span class="ln">114  </span></a><span class="s0"># for no better reason than we need *a* limit, and this one is right there.</span>
+<a name="l115"><span class="ln">115  </span></a><span class="s1">SSL_WRITE_BLOCKSIZE </span><span class="s2">= </span><span class="s5">16384</span>
+<a name="l116"><span class="ln">116  </span></a>
+<a name="l117"><span class="ln">117  </span></a><span class="s0"># This is our equivalent of util.ssl_.DEFAULT_CIPHERS, but expanded out to</span>
+<a name="l118"><span class="ln">118  </span></a><span class="s0"># individual cipher suites. We need to do this because this is how</span>
+<a name="l119"><span class="ln">119  </span></a><span class="s0"># SecureTransport wants them.</span>
+<a name="l120"><span class="ln">120  </span></a><span class="s1">CIPHER_SUITES </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l121"><span class="ln">121  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384</span><span class="s3">,</span>
+<a name="l122"><span class="ln">122  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256</span><span class="s3">,</span>
+<a name="l123"><span class="ln">123  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384</span><span class="s3">,</span>
+<a name="l124"><span class="ln">124  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256</span><span class="s3">,</span>
+<a name="l125"><span class="ln">125  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256</span><span class="s3">,</span>
+<a name="l126"><span class="ln">126  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256</span><span class="s3">,</span>
+<a name="l127"><span class="ln">127  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_DHE_RSA_WITH_AES_256_GCM_SHA384</span><span class="s3">,</span>
+<a name="l128"><span class="ln">128  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_DHE_RSA_WITH_AES_128_GCM_SHA256</span><span class="s3">,</span>
+<a name="l129"><span class="ln">129  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384</span><span class="s3">,</span>
+<a name="l130"><span class="ln">130  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA</span><span class="s3">,</span>
+<a name="l131"><span class="ln">131  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256</span><span class="s3">,</span>
+<a name="l132"><span class="ln">132  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA</span><span class="s3">,</span>
+<a name="l133"><span class="ln">133  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384</span><span class="s3">,</span>
+<a name="l134"><span class="ln">134  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA</span><span class="s3">,</span>
+<a name="l135"><span class="ln">135  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256</span><span class="s3">,</span>
+<a name="l136"><span class="ln">136  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA</span><span class="s3">,</span>
+<a name="l137"><span class="ln">137  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_DHE_RSA_WITH_AES_256_CBC_SHA256</span><span class="s3">,</span>
+<a name="l138"><span class="ln">138  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_DHE_RSA_WITH_AES_256_CBC_SHA</span><span class="s3">,</span>
+<a name="l139"><span class="ln">139  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_DHE_RSA_WITH_AES_128_CBC_SHA256</span><span class="s3">,</span>
+<a name="l140"><span class="ln">140  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_DHE_RSA_WITH_AES_128_CBC_SHA</span><span class="s3">,</span>
+<a name="l141"><span class="ln">141  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_AES_256_GCM_SHA384</span><span class="s3">,</span>
+<a name="l142"><span class="ln">142  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_AES_128_GCM_SHA256</span><span class="s3">,</span>
+<a name="l143"><span class="ln">143  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_RSA_WITH_AES_256_GCM_SHA384</span><span class="s3">,</span>
+<a name="l144"><span class="ln">144  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_RSA_WITH_AES_128_GCM_SHA256</span><span class="s3">,</span>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_AES_128_CCM_8_SHA256</span><span class="s3">,</span>
+<a name="l146"><span class="ln">146  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_AES_128_CCM_SHA256</span><span class="s3">,</span>
+<a name="l147"><span class="ln">147  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_RSA_WITH_AES_256_CBC_SHA256</span><span class="s3">,</span>
+<a name="l148"><span class="ln">148  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_RSA_WITH_AES_128_CBC_SHA256</span><span class="s3">,</span>
+<a name="l149"><span class="ln">149  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_RSA_WITH_AES_256_CBC_SHA</span><span class="s3">,</span>
+<a name="l150"><span class="ln">150  </span></a>    <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">TLS_RSA_WITH_AES_128_CBC_SHA</span><span class="s3">,</span>
+<a name="l151"><span class="ln">151  </span></a><span class="s3">]</span>
+<a name="l152"><span class="ln">152  </span></a>
+<a name="l153"><span class="ln">153  </span></a><span class="s0"># Basically this is simple: for PROTOCOL_SSLv23 we turn it into a low of</span>
+<a name="l154"><span class="ln">154  </span></a><span class="s0"># TLSv1 and a high of TLSv1.2. For everything else, we pin to that version.</span>
+<a name="l155"><span class="ln">155  </span></a><span class="s0"># TLSv1 to 1.2 are supported on macOS 10.8+</span>
+<a name="l156"><span class="ln">156  </span></a><span class="s1">_protocol_to_min_max </span><span class="s2">= </span><span class="s3">{</span>
+<a name="l157"><span class="ln">157  </span></a>    <span class="s1">util</span><span class="s3">.</span><span class="s1">PROTOCOL_TLS</span><span class="s2">: </span><span class="s3">(</span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol1</span><span class="s3">, </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol12</span><span class="s3">),</span>
+<a name="l158"><span class="ln">158  </span></a>    <span class="s1">PROTOCOL_TLS_CLIENT</span><span class="s2">: </span><span class="s3">(</span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol1</span><span class="s3">, </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol12</span><span class="s3">),</span>
+<a name="l159"><span class="ln">159  </span></a><span class="s3">}</span>
+<a name="l160"><span class="ln">160  </span></a>
+<a name="l161"><span class="ln">161  </span></a><span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">ssl</span><span class="s3">, </span><span class="s4">&quot;PROTOCOL_SSLv2&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l162"><span class="ln">162  </span></a>    <span class="s1">_protocol_to_min_max</span><span class="s3">[</span><span class="s1">ssl</span><span class="s3">.</span><span class="s1">PROTOCOL_SSLv2</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kSSLProtocol2</span><span class="s3">,</span>
+<a name="l164"><span class="ln">164  </span></a>        <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kSSLProtocol2</span><span class="s3">,</span>
+<a name="l165"><span class="ln">165  </span></a>    <span class="s3">)</span>
+<a name="l166"><span class="ln">166  </span></a><span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">ssl</span><span class="s3">, </span><span class="s4">&quot;PROTOCOL_SSLv3&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l167"><span class="ln">167  </span></a>    <span class="s1">_protocol_to_min_max</span><span class="s3">[</span><span class="s1">ssl</span><span class="s3">.</span><span class="s1">PROTOCOL_SSLv3</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l168"><span class="ln">168  </span></a>        <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kSSLProtocol3</span><span class="s3">,</span>
+<a name="l169"><span class="ln">169  </span></a>        <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kSSLProtocol3</span><span class="s3">,</span>
+<a name="l170"><span class="ln">170  </span></a>    <span class="s3">)</span>
+<a name="l171"><span class="ln">171  </span></a><span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">ssl</span><span class="s3">, </span><span class="s4">&quot;PROTOCOL_TLSv1&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l172"><span class="ln">172  </span></a>    <span class="s1">_protocol_to_min_max</span><span class="s3">[</span><span class="s1">ssl</span><span class="s3">.</span><span class="s1">PROTOCOL_TLSv1</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l173"><span class="ln">173  </span></a>        <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol1</span><span class="s3">,</span>
+<a name="l174"><span class="ln">174  </span></a>        <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol1</span><span class="s3">,</span>
+<a name="l175"><span class="ln">175  </span></a>    <span class="s3">)</span>
+<a name="l176"><span class="ln">176  </span></a><span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">ssl</span><span class="s3">, </span><span class="s4">&quot;PROTOCOL_TLSv1_1&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l177"><span class="ln">177  </span></a>    <span class="s1">_protocol_to_min_max</span><span class="s3">[</span><span class="s1">ssl</span><span class="s3">.</span><span class="s1">PROTOCOL_TLSv1_1</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l178"><span class="ln">178  </span></a>        <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol11</span><span class="s3">,</span>
+<a name="l179"><span class="ln">179  </span></a>        <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol11</span><span class="s3">,</span>
+<a name="l180"><span class="ln">180  </span></a>    <span class="s3">)</span>
+<a name="l181"><span class="ln">181  </span></a><span class="s2">if </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">ssl</span><span class="s3">, </span><span class="s4">&quot;PROTOCOL_TLSv1_2&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l182"><span class="ln">182  </span></a>    <span class="s1">_protocol_to_min_max</span><span class="s3">[</span><span class="s1">ssl</span><span class="s3">.</span><span class="s1">PROTOCOL_TLSv1_2</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l183"><span class="ln">183  </span></a>        <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol12</span><span class="s3">,</span>
+<a name="l184"><span class="ln">184  </span></a>        <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol12</span><span class="s3">,</span>
+<a name="l185"><span class="ln">185  </span></a>    <span class="s3">)</span>
+<a name="l186"><span class="ln">186  </span></a>
+<a name="l187"><span class="ln">187  </span></a>
+<a name="l188"><span class="ln">188  </span></a><span class="s2">def </span><span class="s1">inject_into_urllib3</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l189"><span class="ln">189  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l190"><span class="ln">190  </span></a>    Monkey-patch urllib3 with SecureTransport-backed SSL-support. 
+<a name="l191"><span class="ln">191  </span></a>    &quot;&quot;&quot;</span>
+<a name="l192"><span class="ln">192  </span></a>    <span class="s1">util</span><span class="s3">.</span><span class="s1">SSLContext </span><span class="s2">= </span><span class="s1">SecureTransportContext</span>
+<a name="l193"><span class="ln">193  </span></a>    <span class="s1">util</span><span class="s3">.</span><span class="s1">ssl_</span><span class="s3">.</span><span class="s1">SSLContext </span><span class="s2">= </span><span class="s1">SecureTransportContext</span>
+<a name="l194"><span class="ln">194  </span></a>    <span class="s1">util</span><span class="s3">.</span><span class="s1">HAS_SNI </span><span class="s2">= </span><span class="s1">HAS_SNI</span>
+<a name="l195"><span class="ln">195  </span></a>    <span class="s1">util</span><span class="s3">.</span><span class="s1">ssl_</span><span class="s3">.</span><span class="s1">HAS_SNI </span><span class="s2">= </span><span class="s1">HAS_SNI</span>
+<a name="l196"><span class="ln">196  </span></a>    <span class="s1">util</span><span class="s3">.</span><span class="s1">IS_SECURETRANSPORT </span><span class="s2">= True</span>
+<a name="l197"><span class="ln">197  </span></a>    <span class="s1">util</span><span class="s3">.</span><span class="s1">ssl_</span><span class="s3">.</span><span class="s1">IS_SECURETRANSPORT </span><span class="s2">= True</span>
+<a name="l198"><span class="ln">198  </span></a>
+<a name="l199"><span class="ln">199  </span></a>
+<a name="l200"><span class="ln">200  </span></a><span class="s2">def </span><span class="s1">extract_from_urllib3</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l201"><span class="ln">201  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l202"><span class="ln">202  </span></a>    Undo monkey-patching by :func:`inject_into_urllib3`. 
+<a name="l203"><span class="ln">203  </span></a>    &quot;&quot;&quot;</span>
+<a name="l204"><span class="ln">204  </span></a>    <span class="s1">util</span><span class="s3">.</span><span class="s1">SSLContext </span><span class="s2">= </span><span class="s1">orig_util_SSLContext</span>
+<a name="l205"><span class="ln">205  </span></a>    <span class="s1">util</span><span class="s3">.</span><span class="s1">ssl_</span><span class="s3">.</span><span class="s1">SSLContext </span><span class="s2">= </span><span class="s1">orig_util_SSLContext</span>
+<a name="l206"><span class="ln">206  </span></a>    <span class="s1">util</span><span class="s3">.</span><span class="s1">HAS_SNI </span><span class="s2">= </span><span class="s1">orig_util_HAS_SNI</span>
+<a name="l207"><span class="ln">207  </span></a>    <span class="s1">util</span><span class="s3">.</span><span class="s1">ssl_</span><span class="s3">.</span><span class="s1">HAS_SNI </span><span class="s2">= </span><span class="s1">orig_util_HAS_SNI</span>
+<a name="l208"><span class="ln">208  </span></a>    <span class="s1">util</span><span class="s3">.</span><span class="s1">IS_SECURETRANSPORT </span><span class="s2">= False</span>
+<a name="l209"><span class="ln">209  </span></a>    <span class="s1">util</span><span class="s3">.</span><span class="s1">ssl_</span><span class="s3">.</span><span class="s1">IS_SECURETRANSPORT </span><span class="s2">= False</span>
+<a name="l210"><span class="ln">210  </span></a>
+<a name="l211"><span class="ln">211  </span></a>
+<a name="l212"><span class="ln">212  </span></a><span class="s2">def </span><span class="s1">_read_callback</span><span class="s3">(</span><span class="s1">connection_id</span><span class="s3">, </span><span class="s1">data_buffer</span><span class="s3">, </span><span class="s1">data_length_pointer</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l214"><span class="ln">214  </span></a>    SecureTransport read callback. This is called by ST to request that data 
+<a name="l215"><span class="ln">215  </span></a>    be returned from the socket. 
+<a name="l216"><span class="ln">216  </span></a>    &quot;&quot;&quot;</span>
+<a name="l217"><span class="ln">217  </span></a>    <span class="s1">wrapped_socket </span><span class="s2">= None</span>
+<a name="l218"><span class="ln">218  </span></a>    <span class="s2">try:</span>
+<a name="l219"><span class="ln">219  </span></a>        <span class="s1">wrapped_socket </span><span class="s2">= </span><span class="s1">_connection_refs</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">connection_id</span><span class="s3">)</span>
+<a name="l220"><span class="ln">220  </span></a>        <span class="s2">if </span><span class="s1">wrapped_socket </span><span class="s2">is None:</span>
+<a name="l221"><span class="ln">221  </span></a>            <span class="s2">return </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLInternal</span>
+<a name="l222"><span class="ln">222  </span></a>        <span class="s1">base_socket </span><span class="s2">= </span><span class="s1">wrapped_socket</span><span class="s3">.</span><span class="s1">socket</span>
+<a name="l223"><span class="ln">223  </span></a>
+<a name="l224"><span class="ln">224  </span></a>        <span class="s1">requested_length </span><span class="s2">= </span><span class="s1">data_length_pointer</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l225"><span class="ln">225  </span></a>
+<a name="l226"><span class="ln">226  </span></a>        <span class="s1">timeout </span><span class="s2">= </span><span class="s1">wrapped_socket</span><span class="s3">.</span><span class="s1">gettimeout</span><span class="s3">()</span>
+<a name="l227"><span class="ln">227  </span></a>        <span class="s1">error </span><span class="s2">= None</span>
+<a name="l228"><span class="ln">228  </span></a>        <span class="s1">read_count </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l229"><span class="ln">229  </span></a>
+<a name="l230"><span class="ln">230  </span></a>        <span class="s2">try:</span>
+<a name="l231"><span class="ln">231  </span></a>            <span class="s2">while </span><span class="s1">read_count </span><span class="s2">&lt; </span><span class="s1">requested_length</span><span class="s2">:</span>
+<a name="l232"><span class="ln">232  </span></a>                <span class="s2">if </span><span class="s1">timeout </span><span class="s2">is None or </span><span class="s1">timeout </span><span class="s2">&gt;= </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l233"><span class="ln">233  </span></a>                    <span class="s2">if not </span><span class="s1">util</span><span class="s3">.</span><span class="s1">wait_for_read</span><span class="s3">(</span><span class="s1">base_socket</span><span class="s3">, </span><span class="s1">timeout</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l234"><span class="ln">234  </span></a>                        <span class="s2">raise </span><span class="s1">socket</span><span class="s3">.</span><span class="s1">error</span><span class="s3">(</span><span class="s1">errno</span><span class="s3">.</span><span class="s1">EAGAIN</span><span class="s3">, </span><span class="s4">&quot;timed out&quot;</span><span class="s3">)</span>
+<a name="l235"><span class="ln">235  </span></a>
+<a name="l236"><span class="ln">236  </span></a>                <span class="s1">remaining </span><span class="s2">= </span><span class="s1">requested_length </span><span class="s2">- </span><span class="s1">read_count</span>
+<a name="l237"><span class="ln">237  </span></a>                <span class="s1">buffer </span><span class="s2">= </span><span class="s3">(</span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">c_char </span><span class="s2">* </span><span class="s1">remaining</span><span class="s3">).</span><span class="s1">from_address</span><span class="s3">(</span>
+<a name="l238"><span class="ln">238  </span></a>                    <span class="s1">data_buffer </span><span class="s2">+ </span><span class="s1">read_count</span>
+<a name="l239"><span class="ln">239  </span></a>                <span class="s3">)</span>
+<a name="l240"><span class="ln">240  </span></a>                <span class="s1">chunk_size </span><span class="s2">= </span><span class="s1">base_socket</span><span class="s3">.</span><span class="s1">recv_into</span><span class="s3">(</span><span class="s1">buffer</span><span class="s3">, </span><span class="s1">remaining</span><span class="s3">)</span>
+<a name="l241"><span class="ln">241  </span></a>                <span class="s1">read_count </span><span class="s2">+= </span><span class="s1">chunk_size</span>
+<a name="l242"><span class="ln">242  </span></a>                <span class="s2">if not </span><span class="s1">chunk_size</span><span class="s2">:</span>
+<a name="l243"><span class="ln">243  </span></a>                    <span class="s2">if not </span><span class="s1">read_count</span><span class="s2">:</span>
+<a name="l244"><span class="ln">244  </span></a>                        <span class="s2">return </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLClosedGraceful</span>
+<a name="l245"><span class="ln">245  </span></a>                    <span class="s2">break</span>
+<a name="l246"><span class="ln">246  </span></a>        <span class="s2">except </span><span class="s3">(</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">error</span><span class="s3">) </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l247"><span class="ln">247  </span></a>            <span class="s1">error </span><span class="s2">= </span><span class="s1">e</span><span class="s3">.</span><span class="s1">errno</span>
+<a name="l248"><span class="ln">248  </span></a>
+<a name="l249"><span class="ln">249  </span></a>            <span class="s2">if </span><span class="s1">error </span><span class="s2">is not None and </span><span class="s1">error </span><span class="s2">!= </span><span class="s1">errno</span><span class="s3">.</span><span class="s1">EAGAIN</span><span class="s2">:</span>
+<a name="l250"><span class="ln">250  </span></a>                <span class="s1">data_length_pointer</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s1">read_count</span>
+<a name="l251"><span class="ln">251  </span></a>                <span class="s2">if </span><span class="s1">error </span><span class="s2">== </span><span class="s1">errno</span><span class="s3">.</span><span class="s1">ECONNRESET </span><span class="s2">or </span><span class="s1">error </span><span class="s2">== </span><span class="s1">errno</span><span class="s3">.</span><span class="s1">EPIPE</span><span class="s2">:</span>
+<a name="l252"><span class="ln">252  </span></a>                    <span class="s2">return </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLClosedAbort</span>
+<a name="l253"><span class="ln">253  </span></a>                <span class="s2">raise</span>
+<a name="l254"><span class="ln">254  </span></a>
+<a name="l255"><span class="ln">255  </span></a>        <span class="s1">data_length_pointer</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s1">read_count</span>
+<a name="l256"><span class="ln">256  </span></a>
+<a name="l257"><span class="ln">257  </span></a>        <span class="s2">if </span><span class="s1">read_count </span><span class="s2">!= </span><span class="s1">requested_length</span><span class="s2">:</span>
+<a name="l258"><span class="ln">258  </span></a>            <span class="s2">return </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLWouldBlock</span>
+<a name="l259"><span class="ln">259  </span></a>
+<a name="l260"><span class="ln">260  </span></a>        <span class="s2">return </span><span class="s5">0</span>
+<a name="l261"><span class="ln">261  </span></a>    <span class="s2">except </span><span class="s1">Exception </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l262"><span class="ln">262  </span></a>        <span class="s2">if </span><span class="s1">wrapped_socket </span><span class="s2">is not None:</span>
+<a name="l263"><span class="ln">263  </span></a>            <span class="s1">wrapped_socket</span><span class="s3">.</span><span class="s1">_exception </span><span class="s2">= </span><span class="s1">e</span>
+<a name="l264"><span class="ln">264  </span></a>        <span class="s2">return </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLInternal</span>
+<a name="l265"><span class="ln">265  </span></a>
+<a name="l266"><span class="ln">266  </span></a>
+<a name="l267"><span class="ln">267  </span></a><span class="s2">def </span><span class="s1">_write_callback</span><span class="s3">(</span><span class="s1">connection_id</span><span class="s3">, </span><span class="s1">data_buffer</span><span class="s3">, </span><span class="s1">data_length_pointer</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l268"><span class="ln">268  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l269"><span class="ln">269  </span></a>    SecureTransport write callback. This is called by ST to request that data 
+<a name="l270"><span class="ln">270  </span></a>    actually be sent on the network. 
+<a name="l271"><span class="ln">271  </span></a>    &quot;&quot;&quot;</span>
+<a name="l272"><span class="ln">272  </span></a>    <span class="s1">wrapped_socket </span><span class="s2">= None</span>
+<a name="l273"><span class="ln">273  </span></a>    <span class="s2">try:</span>
+<a name="l274"><span class="ln">274  </span></a>        <span class="s1">wrapped_socket </span><span class="s2">= </span><span class="s1">_connection_refs</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">connection_id</span><span class="s3">)</span>
+<a name="l275"><span class="ln">275  </span></a>        <span class="s2">if </span><span class="s1">wrapped_socket </span><span class="s2">is None:</span>
+<a name="l276"><span class="ln">276  </span></a>            <span class="s2">return </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLInternal</span>
+<a name="l277"><span class="ln">277  </span></a>        <span class="s1">base_socket </span><span class="s2">= </span><span class="s1">wrapped_socket</span><span class="s3">.</span><span class="s1">socket</span>
+<a name="l278"><span class="ln">278  </span></a>
+<a name="l279"><span class="ln">279  </span></a>        <span class="s1">bytes_to_write </span><span class="s2">= </span><span class="s1">data_length_pointer</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l280"><span class="ln">280  </span></a>        <span class="s1">data </span><span class="s2">= </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">string_at</span><span class="s3">(</span><span class="s1">data_buffer</span><span class="s3">, </span><span class="s1">bytes_to_write</span><span class="s3">)</span>
+<a name="l281"><span class="ln">281  </span></a>
+<a name="l282"><span class="ln">282  </span></a>        <span class="s1">timeout </span><span class="s2">= </span><span class="s1">wrapped_socket</span><span class="s3">.</span><span class="s1">gettimeout</span><span class="s3">()</span>
+<a name="l283"><span class="ln">283  </span></a>        <span class="s1">error </span><span class="s2">= None</span>
+<a name="l284"><span class="ln">284  </span></a>        <span class="s1">sent </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l285"><span class="ln">285  </span></a>
+<a name="l286"><span class="ln">286  </span></a>        <span class="s2">try:</span>
+<a name="l287"><span class="ln">287  </span></a>            <span class="s2">while </span><span class="s1">sent </span><span class="s2">&lt; </span><span class="s1">bytes_to_write</span><span class="s2">:</span>
+<a name="l288"><span class="ln">288  </span></a>                <span class="s2">if </span><span class="s1">timeout </span><span class="s2">is None or </span><span class="s1">timeout </span><span class="s2">&gt;= </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l289"><span class="ln">289  </span></a>                    <span class="s2">if not </span><span class="s1">util</span><span class="s3">.</span><span class="s1">wait_for_write</span><span class="s3">(</span><span class="s1">base_socket</span><span class="s3">, </span><span class="s1">timeout</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l290"><span class="ln">290  </span></a>                        <span class="s2">raise </span><span class="s1">socket</span><span class="s3">.</span><span class="s1">error</span><span class="s3">(</span><span class="s1">errno</span><span class="s3">.</span><span class="s1">EAGAIN</span><span class="s3">, </span><span class="s4">&quot;timed out&quot;</span><span class="s3">)</span>
+<a name="l291"><span class="ln">291  </span></a>                <span class="s1">chunk_sent </span><span class="s2">= </span><span class="s1">base_socket</span><span class="s3">.</span><span class="s1">send</span><span class="s3">(</span><span class="s1">data</span><span class="s3">)</span>
+<a name="l292"><span class="ln">292  </span></a>                <span class="s1">sent </span><span class="s2">+= </span><span class="s1">chunk_sent</span>
+<a name="l293"><span class="ln">293  </span></a>
+<a name="l294"><span class="ln">294  </span></a>                <span class="s0"># This has some needless copying here, but I'm not sure there's</span>
+<a name="l295"><span class="ln">295  </span></a>                <span class="s0"># much value in optimising this data path.</span>
+<a name="l296"><span class="ln">296  </span></a>                <span class="s1">data </span><span class="s2">= </span><span class="s1">data</span><span class="s3">[</span><span class="s1">chunk_sent</span><span class="s2">:</span><span class="s3">]</span>
+<a name="l297"><span class="ln">297  </span></a>        <span class="s2">except </span><span class="s3">(</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">error</span><span class="s3">) </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l298"><span class="ln">298  </span></a>            <span class="s1">error </span><span class="s2">= </span><span class="s1">e</span><span class="s3">.</span><span class="s1">errno</span>
+<a name="l299"><span class="ln">299  </span></a>
+<a name="l300"><span class="ln">300  </span></a>            <span class="s2">if </span><span class="s1">error </span><span class="s2">is not None and </span><span class="s1">error </span><span class="s2">!= </span><span class="s1">errno</span><span class="s3">.</span><span class="s1">EAGAIN</span><span class="s2">:</span>
+<a name="l301"><span class="ln">301  </span></a>                <span class="s1">data_length_pointer</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s1">sent</span>
+<a name="l302"><span class="ln">302  </span></a>                <span class="s2">if </span><span class="s1">error </span><span class="s2">== </span><span class="s1">errno</span><span class="s3">.</span><span class="s1">ECONNRESET </span><span class="s2">or </span><span class="s1">error </span><span class="s2">== </span><span class="s1">errno</span><span class="s3">.</span><span class="s1">EPIPE</span><span class="s2">:</span>
+<a name="l303"><span class="ln">303  </span></a>                    <span class="s2">return </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLClosedAbort</span>
+<a name="l304"><span class="ln">304  </span></a>                <span class="s2">raise</span>
+<a name="l305"><span class="ln">305  </span></a>
+<a name="l306"><span class="ln">306  </span></a>        <span class="s1">data_length_pointer</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">= </span><span class="s1">sent</span>
+<a name="l307"><span class="ln">307  </span></a>
+<a name="l308"><span class="ln">308  </span></a>        <span class="s2">if </span><span class="s1">sent </span><span class="s2">!= </span><span class="s1">bytes_to_write</span><span class="s2">:</span>
+<a name="l309"><span class="ln">309  </span></a>            <span class="s2">return </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLWouldBlock</span>
+<a name="l310"><span class="ln">310  </span></a>
+<a name="l311"><span class="ln">311  </span></a>        <span class="s2">return </span><span class="s5">0</span>
+<a name="l312"><span class="ln">312  </span></a>    <span class="s2">except </span><span class="s1">Exception </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l313"><span class="ln">313  </span></a>        <span class="s2">if </span><span class="s1">wrapped_socket </span><span class="s2">is not None:</span>
+<a name="l314"><span class="ln">314  </span></a>            <span class="s1">wrapped_socket</span><span class="s3">.</span><span class="s1">_exception </span><span class="s2">= </span><span class="s1">e</span>
+<a name="l315"><span class="ln">315  </span></a>        <span class="s2">return </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLInternal</span>
+<a name="l316"><span class="ln">316  </span></a>
+<a name="l317"><span class="ln">317  </span></a>
+<a name="l318"><span class="ln">318  </span></a><span class="s0"># We need to keep these two objects references alive: if they get GC'd while</span>
+<a name="l319"><span class="ln">319  </span></a><span class="s0"># in use then SecureTransport could attempt to call a function that is in freed</span>
+<a name="l320"><span class="ln">320  </span></a><span class="s0"># memory. That would be...uh...bad. Yeah, that's the word. Bad.</span>
+<a name="l321"><span class="ln">321  </span></a><span class="s1">_read_callback_pointer </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLReadFunc</span><span class="s3">(</span><span class="s1">_read_callback</span><span class="s3">)</span>
+<a name="l322"><span class="ln">322  </span></a><span class="s1">_write_callback_pointer </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLWriteFunc</span><span class="s3">(</span><span class="s1">_write_callback</span><span class="s3">)</span>
+<a name="l323"><span class="ln">323  </span></a>
+<a name="l324"><span class="ln">324  </span></a>
+<a name="l325"><span class="ln">325  </span></a><span class="s2">class </span><span class="s1">WrappedSocket</span><span class="s3">(</span><span class="s1">object</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l326"><span class="ln">326  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l327"><span class="ln">327  </span></a>    API-compatibility wrapper for Python's OpenSSL wrapped socket object. 
+<a name="l328"><span class="ln">328  </span></a> 
+<a name="l329"><span class="ln">329  </span></a>    Note: _makefile_refs, _drop(), and _reuse() are needed for the garbage 
+<a name="l330"><span class="ln">330  </span></a>    collector of PyPy. 
+<a name="l331"><span class="ln">331  </span></a>    &quot;&quot;&quot;</span>
+<a name="l332"><span class="ln">332  </span></a>
+<a name="l333"><span class="ln">333  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">socket</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l334"><span class="ln">334  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">socket </span><span class="s2">= </span><span class="s1">socket</span>
+<a name="l335"><span class="ln">335  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">context </span><span class="s2">= None</span>
+<a name="l336"><span class="ln">336  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_makefile_refs </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l337"><span class="ln">337  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_closed </span><span class="s2">= False</span>
+<a name="l338"><span class="ln">338  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_exception </span><span class="s2">= None</span>
+<a name="l339"><span class="ln">339  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_keychain </span><span class="s2">= None</span>
+<a name="l340"><span class="ln">340  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_keychain_dir </span><span class="s2">= None</span>
+<a name="l341"><span class="ln">341  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_client_cert_chain </span><span class="s2">= None</span>
+<a name="l342"><span class="ln">342  </span></a>
+<a name="l343"><span class="ln">343  </span></a>        <span class="s0"># We save off the previously-configured timeout and then set it to</span>
+<a name="l344"><span class="ln">344  </span></a>        <span class="s0"># zero. This is done because we use select and friends to handle the</span>
+<a name="l345"><span class="ln">345  </span></a>        <span class="s0"># timeouts, but if we leave the timeout set on the lower socket then</span>
+<a name="l346"><span class="ln">346  </span></a>        <span class="s0"># Python will &quot;kindly&quot; call select on that socket again for us. Avoid</span>
+<a name="l347"><span class="ln">347  </span></a>        <span class="s0"># that by forcing the timeout to zero.</span>
+<a name="l348"><span class="ln">348  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_timeout </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">gettimeout</span><span class="s3">()</span>
+<a name="l349"><span class="ln">349  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">settimeout</span><span class="s3">(</span><span class="s5">0</span><span class="s3">)</span>
+<a name="l350"><span class="ln">350  </span></a>
+<a name="l351"><span class="ln">351  </span></a>    <span class="s2">@</span><span class="s1">contextlib</span><span class="s3">.</span><span class="s1">contextmanager</span>
+<a name="l352"><span class="ln">352  </span></a>    <span class="s2">def </span><span class="s1">_raise_on_error</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l353"><span class="ln">353  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l354"><span class="ln">354  </span></a>        A context manager that can be used to wrap calls that do I/O from 
+<a name="l355"><span class="ln">355  </span></a>        SecureTransport. If any of the I/O callbacks hit an exception, this 
+<a name="l356"><span class="ln">356  </span></a>        context manager will correctly propagate the exception after the fact. 
+<a name="l357"><span class="ln">357  </span></a>        This avoids silently swallowing those exceptions. 
+<a name="l358"><span class="ln">358  </span></a> 
+<a name="l359"><span class="ln">359  </span></a>        It also correctly forces the socket closed. 
+<a name="l360"><span class="ln">360  </span></a>        &quot;&quot;&quot;</span>
+<a name="l361"><span class="ln">361  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_exception </span><span class="s2">= None</span>
+<a name="l362"><span class="ln">362  </span></a>
+<a name="l363"><span class="ln">363  </span></a>        <span class="s0"># We explicitly don't catch around this yield because in the unlikely</span>
+<a name="l364"><span class="ln">364  </span></a>        <span class="s0"># event that an exception was hit in the block we don't want to swallow</span>
+<a name="l365"><span class="ln">365  </span></a>        <span class="s0"># it.</span>
+<a name="l366"><span class="ln">366  </span></a>        <span class="s2">yield</span>
+<a name="l367"><span class="ln">367  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_exception </span><span class="s2">is not None:</span>
+<a name="l368"><span class="ln">368  </span></a>            <span class="s1">exception</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_exception </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_exception</span><span class="s3">, </span><span class="s2">None</span>
+<a name="l369"><span class="ln">369  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">close</span><span class="s3">()</span>
+<a name="l370"><span class="ln">370  </span></a>            <span class="s2">raise </span><span class="s1">exception</span>
+<a name="l371"><span class="ln">371  </span></a>
+<a name="l372"><span class="ln">372  </span></a>    <span class="s2">def </span><span class="s1">_set_ciphers</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l373"><span class="ln">373  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l374"><span class="ln">374  </span></a>        Sets up the allowed ciphers. By default this matches the set in 
+<a name="l375"><span class="ln">375  </span></a>        util.ssl_.DEFAULT_CIPHERS, at least as supported by macOS. This is done 
+<a name="l376"><span class="ln">376  </span></a>        custom and doesn't allow changing at this time, mostly because parsing 
+<a name="l377"><span class="ln">377  </span></a>        OpenSSL cipher strings is going to be a freaking nightmare. 
+<a name="l378"><span class="ln">378  </span></a>        &quot;&quot;&quot;</span>
+<a name="l379"><span class="ln">379  </span></a>        <span class="s1">ciphers </span><span class="s2">= </span><span class="s3">(</span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLCipherSuite </span><span class="s2">* </span><span class="s1">len</span><span class="s3">(</span><span class="s1">CIPHER_SUITES</span><span class="s3">))(</span><span class="s2">*</span><span class="s1">CIPHER_SUITES</span><span class="s3">)</span>
+<a name="l380"><span class="ln">380  </span></a>        <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLSetEnabledCiphers</span><span class="s3">(</span>
+<a name="l381"><span class="ln">381  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">ciphers</span><span class="s3">, </span><span class="s1">len</span><span class="s3">(</span><span class="s1">CIPHER_SUITES</span><span class="s3">)</span>
+<a name="l382"><span class="ln">382  </span></a>        <span class="s3">)</span>
+<a name="l383"><span class="ln">383  </span></a>        <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l384"><span class="ln">384  </span></a>
+<a name="l385"><span class="ln">385  </span></a>    <span class="s2">def </span><span class="s1">_set_alpn_protocols</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">protocols</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l386"><span class="ln">386  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l387"><span class="ln">387  </span></a>        Sets up the ALPN protocols on the context. 
+<a name="l388"><span class="ln">388  </span></a>        &quot;&quot;&quot;</span>
+<a name="l389"><span class="ln">389  </span></a>        <span class="s2">if not </span><span class="s1">protocols</span><span class="s2">:</span>
+<a name="l390"><span class="ln">390  </span></a>            <span class="s2">return</span>
+<a name="l391"><span class="ln">391  </span></a>        <span class="s1">protocols_arr </span><span class="s2">= </span><span class="s1">_create_cfstring_array</span><span class="s3">(</span><span class="s1">protocols</span><span class="s3">)</span>
+<a name="l392"><span class="ln">392  </span></a>        <span class="s2">try:</span>
+<a name="l393"><span class="ln">393  </span></a>            <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLSetALPNProtocols</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">protocols_arr</span><span class="s3">)</span>
+<a name="l394"><span class="ln">394  </span></a>            <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l395"><span class="ln">395  </span></a>        <span class="s2">finally:</span>
+<a name="l396"><span class="ln">396  </span></a>            <span class="s1">CoreFoundation</span><span class="s3">.</span><span class="s1">CFRelease</span><span class="s3">(</span><span class="s1">protocols_arr</span><span class="s3">)</span>
+<a name="l397"><span class="ln">397  </span></a>
+<a name="l398"><span class="ln">398  </span></a>    <span class="s2">def </span><span class="s1">_custom_validate</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">verify</span><span class="s3">, </span><span class="s1">trust_bundle</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l399"><span class="ln">399  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l400"><span class="ln">400  </span></a>        Called when we have set custom validation. We do this in two cases: 
+<a name="l401"><span class="ln">401  </span></a>        first, when cert validation is entirely disabled; and second, when 
+<a name="l402"><span class="ln">402  </span></a>        using a custom trust DB. 
+<a name="l403"><span class="ln">403  </span></a>        Raises an SSLError if the connection is not trusted. 
+<a name="l404"><span class="ln">404  </span></a>        &quot;&quot;&quot;</span>
+<a name="l405"><span class="ln">405  </span></a>        <span class="s0"># If we disabled cert validation, just say: cool.</span>
+<a name="l406"><span class="ln">406  </span></a>        <span class="s2">if not </span><span class="s1">verify</span><span class="s2">:</span>
+<a name="l407"><span class="ln">407  </span></a>            <span class="s2">return</span>
+<a name="l408"><span class="ln">408  </span></a>
+<a name="l409"><span class="ln">409  </span></a>        <span class="s1">successes </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l410"><span class="ln">410  </span></a>            <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kSecTrustResultUnspecified</span><span class="s3">,</span>
+<a name="l411"><span class="ln">411  </span></a>            <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kSecTrustResultProceed</span><span class="s3">,</span>
+<a name="l412"><span class="ln">412  </span></a>        <span class="s3">)</span>
+<a name="l413"><span class="ln">413  </span></a>        <span class="s2">try:</span>
+<a name="l414"><span class="ln">414  </span></a>            <span class="s1">trust_result </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_evaluate_trust</span><span class="s3">(</span><span class="s1">trust_bundle</span><span class="s3">)</span>
+<a name="l415"><span class="ln">415  </span></a>            <span class="s2">if </span><span class="s1">trust_result </span><span class="s2">in </span><span class="s1">successes</span><span class="s2">:</span>
+<a name="l416"><span class="ln">416  </span></a>                <span class="s2">return</span>
+<a name="l417"><span class="ln">417  </span></a>            <span class="s1">reason </span><span class="s2">= </span><span class="s4">&quot;error code: %d&quot; </span><span class="s2">% </span><span class="s3">(</span><span class="s1">trust_result</span><span class="s3">,)</span>
+<a name="l418"><span class="ln">418  </span></a>        <span class="s2">except </span><span class="s1">Exception </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l419"><span class="ln">419  </span></a>            <span class="s0"># Do not trust on error</span>
+<a name="l420"><span class="ln">420  </span></a>            <span class="s1">reason </span><span class="s2">= </span><span class="s4">&quot;exception: %r&quot; </span><span class="s2">% </span><span class="s3">(</span><span class="s1">e</span><span class="s3">,)</span>
+<a name="l421"><span class="ln">421  </span></a>
+<a name="l422"><span class="ln">422  </span></a>        <span class="s0"># SecureTransport does not send an alert nor shuts down the connection.</span>
+<a name="l423"><span class="ln">423  </span></a>        <span class="s1">rec </span><span class="s2">= </span><span class="s1">_build_tls_unknown_ca_alert</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">version</span><span class="s3">())</span>
+<a name="l424"><span class="ln">424  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">sendall</span><span class="s3">(</span><span class="s1">rec</span><span class="s3">)</span>
+<a name="l425"><span class="ln">425  </span></a>        <span class="s0"># close the connection immediately</span>
+<a name="l426"><span class="ln">426  </span></a>        <span class="s0"># l_onoff = 1, activate linger</span>
+<a name="l427"><span class="ln">427  </span></a>        <span class="s0"># l_linger = 0, linger for 0 seoncds</span>
+<a name="l428"><span class="ln">428  </span></a>        <span class="s1">opts </span><span class="s2">= </span><span class="s1">struct</span><span class="s3">.</span><span class="s1">pack</span><span class="s3">(</span><span class="s4">&quot;ii&quot;</span><span class="s3">, </span><span class="s5">1</span><span class="s3">, </span><span class="s5">0</span><span class="s3">)</span>
+<a name="l429"><span class="ln">429  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">setsockopt</span><span class="s3">(</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">SOL_SOCKET</span><span class="s3">, </span><span class="s1">socket</span><span class="s3">.</span><span class="s1">SO_LINGER</span><span class="s3">, </span><span class="s1">opts</span><span class="s3">)</span>
+<a name="l430"><span class="ln">430  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">close</span><span class="s3">()</span>
+<a name="l431"><span class="ln">431  </span></a>        <span class="s2">raise </span><span class="s1">ssl</span><span class="s3">.</span><span class="s1">SSLError</span><span class="s3">(</span><span class="s4">&quot;certificate verify failed, %s&quot; </span><span class="s2">% </span><span class="s1">reason</span><span class="s3">)</span>
+<a name="l432"><span class="ln">432  </span></a>
+<a name="l433"><span class="ln">433  </span></a>    <span class="s2">def </span><span class="s1">_evaluate_trust</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">trust_bundle</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l434"><span class="ln">434  </span></a>        <span class="s0"># We want data in memory, so load it up.</span>
+<a name="l435"><span class="ln">435  </span></a>        <span class="s2">if </span><span class="s1">os</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">isfile</span><span class="s3">(</span><span class="s1">trust_bundle</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l436"><span class="ln">436  </span></a>            <span class="s2">with </span><span class="s1">open</span><span class="s3">(</span><span class="s1">trust_bundle</span><span class="s3">, </span><span class="s4">&quot;rb&quot;</span><span class="s3">) </span><span class="s2">as </span><span class="s1">f</span><span class="s2">:</span>
+<a name="l437"><span class="ln">437  </span></a>                <span class="s1">trust_bundle </span><span class="s2">= </span><span class="s1">f</span><span class="s3">.</span><span class="s1">read</span><span class="s3">()</span>
+<a name="l438"><span class="ln">438  </span></a>
+<a name="l439"><span class="ln">439  </span></a>        <span class="s1">cert_array </span><span class="s2">= None</span>
+<a name="l440"><span class="ln">440  </span></a>        <span class="s1">trust </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SecTrustRef</span><span class="s3">()</span>
+<a name="l441"><span class="ln">441  </span></a>
+<a name="l442"><span class="ln">442  </span></a>        <span class="s2">try:</span>
+<a name="l443"><span class="ln">443  </span></a>            <span class="s0"># Get a CFArray that contains the certs we want.</span>
+<a name="l444"><span class="ln">444  </span></a>            <span class="s1">cert_array </span><span class="s2">= </span><span class="s1">_cert_array_from_pem</span><span class="s3">(</span><span class="s1">trust_bundle</span><span class="s3">)</span>
+<a name="l445"><span class="ln">445  </span></a>
+<a name="l446"><span class="ln">446  </span></a>            <span class="s0"># Ok, now the hard part. We want to get the SecTrustRef that ST has</span>
+<a name="l447"><span class="ln">447  </span></a>            <span class="s0"># created for this connection, shove our CAs into it, tell ST to</span>
+<a name="l448"><span class="ln">448  </span></a>            <span class="s0"># ignore everything else it knows, and then ask if it can build a</span>
+<a name="l449"><span class="ln">449  </span></a>            <span class="s0"># chain. This is a buuuunch of code.</span>
+<a name="l450"><span class="ln">450  </span></a>            <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLCopyPeerTrust</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">byref</span><span class="s3">(</span><span class="s1">trust</span><span class="s3">))</span>
+<a name="l451"><span class="ln">451  </span></a>            <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l452"><span class="ln">452  </span></a>            <span class="s2">if not </span><span class="s1">trust</span><span class="s2">:</span>
+<a name="l453"><span class="ln">453  </span></a>                <span class="s2">raise </span><span class="s1">ssl</span><span class="s3">.</span><span class="s1">SSLError</span><span class="s3">(</span><span class="s4">&quot;Failed to copy trust reference&quot;</span><span class="s3">)</span>
+<a name="l454"><span class="ln">454  </span></a>
+<a name="l455"><span class="ln">455  </span></a>            <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SecTrustSetAnchorCertificates</span><span class="s3">(</span><span class="s1">trust</span><span class="s3">, </span><span class="s1">cert_array</span><span class="s3">)</span>
+<a name="l456"><span class="ln">456  </span></a>            <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l457"><span class="ln">457  </span></a>
+<a name="l458"><span class="ln">458  </span></a>            <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SecTrustSetAnchorCertificatesOnly</span><span class="s3">(</span><span class="s1">trust</span><span class="s3">, </span><span class="s2">True</span><span class="s3">)</span>
+<a name="l459"><span class="ln">459  </span></a>            <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l460"><span class="ln">460  </span></a>
+<a name="l461"><span class="ln">461  </span></a>            <span class="s1">trust_result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SecTrustResultType</span><span class="s3">()</span>
+<a name="l462"><span class="ln">462  </span></a>            <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SecTrustEvaluate</span><span class="s3">(</span><span class="s1">trust</span><span class="s3">, </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">byref</span><span class="s3">(</span><span class="s1">trust_result</span><span class="s3">))</span>
+<a name="l463"><span class="ln">463  </span></a>            <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l464"><span class="ln">464  </span></a>        <span class="s2">finally:</span>
+<a name="l465"><span class="ln">465  </span></a>            <span class="s2">if </span><span class="s1">trust</span><span class="s2">:</span>
+<a name="l466"><span class="ln">466  </span></a>                <span class="s1">CoreFoundation</span><span class="s3">.</span><span class="s1">CFRelease</span><span class="s3">(</span><span class="s1">trust</span><span class="s3">)</span>
+<a name="l467"><span class="ln">467  </span></a>
+<a name="l468"><span class="ln">468  </span></a>            <span class="s2">if </span><span class="s1">cert_array </span><span class="s2">is not None:</span>
+<a name="l469"><span class="ln">469  </span></a>                <span class="s1">CoreFoundation</span><span class="s3">.</span><span class="s1">CFRelease</span><span class="s3">(</span><span class="s1">cert_array</span><span class="s3">)</span>
+<a name="l470"><span class="ln">470  </span></a>
+<a name="l471"><span class="ln">471  </span></a>        <span class="s2">return </span><span class="s1">trust_result</span><span class="s3">.</span><span class="s1">value</span>
+<a name="l472"><span class="ln">472  </span></a>
+<a name="l473"><span class="ln">473  </span></a>    <span class="s2">def </span><span class="s1">handshake</span><span class="s3">(</span>
+<a name="l474"><span class="ln">474  </span></a>        <span class="s1">self</span><span class="s3">,</span>
+<a name="l475"><span class="ln">475  </span></a>        <span class="s1">server_hostname</span><span class="s3">,</span>
+<a name="l476"><span class="ln">476  </span></a>        <span class="s1">verify</span><span class="s3">,</span>
+<a name="l477"><span class="ln">477  </span></a>        <span class="s1">trust_bundle</span><span class="s3">,</span>
+<a name="l478"><span class="ln">478  </span></a>        <span class="s1">min_version</span><span class="s3">,</span>
+<a name="l479"><span class="ln">479  </span></a>        <span class="s1">max_version</span><span class="s3">,</span>
+<a name="l480"><span class="ln">480  </span></a>        <span class="s1">client_cert</span><span class="s3">,</span>
+<a name="l481"><span class="ln">481  </span></a>        <span class="s1">client_key</span><span class="s3">,</span>
+<a name="l482"><span class="ln">482  </span></a>        <span class="s1">client_key_passphrase</span><span class="s3">,</span>
+<a name="l483"><span class="ln">483  </span></a>        <span class="s1">alpn_protocols</span><span class="s3">,</span>
+<a name="l484"><span class="ln">484  </span></a>    <span class="s3">)</span><span class="s2">:</span>
+<a name="l485"><span class="ln">485  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l486"><span class="ln">486  </span></a>        Actually performs the TLS handshake. This is run automatically by 
+<a name="l487"><span class="ln">487  </span></a>        wrapped socket, and shouldn't be needed in user code. 
+<a name="l488"><span class="ln">488  </span></a>        &quot;&quot;&quot;</span>
+<a name="l489"><span class="ln">489  </span></a>        <span class="s0"># First, we do the initial bits of connection setup. We need to create</span>
+<a name="l490"><span class="ln">490  </span></a>        <span class="s0"># a context, set its I/O funcs, and set the connection reference.</span>
+<a name="l491"><span class="ln">491  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">context </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLCreateContext</span><span class="s3">(</span>
+<a name="l492"><span class="ln">492  </span></a>            <span class="s2">None</span><span class="s3">, </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kSSLClientSide</span><span class="s3">, </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kSSLStreamType</span>
+<a name="l493"><span class="ln">493  </span></a>        <span class="s3">)</span>
+<a name="l494"><span class="ln">494  </span></a>        <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLSetIOFuncs</span><span class="s3">(</span>
+<a name="l495"><span class="ln">495  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">_read_callback_pointer</span><span class="s3">, </span><span class="s1">_write_callback_pointer</span>
+<a name="l496"><span class="ln">496  </span></a>        <span class="s3">)</span>
+<a name="l497"><span class="ln">497  </span></a>        <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l498"><span class="ln">498  </span></a>
+<a name="l499"><span class="ln">499  </span></a>        <span class="s0"># Here we need to compute the handle to use. We do this by taking the</span>
+<a name="l500"><span class="ln">500  </span></a>        <span class="s0"># id of self modulo 2**31 - 1. If this is already in the dictionary, we</span>
+<a name="l501"><span class="ln">501  </span></a>        <span class="s0"># just keep incrementing by one until we find a free space.</span>
+<a name="l502"><span class="ln">502  </span></a>        <span class="s2">with </span><span class="s1">_connection_ref_lock</span><span class="s2">:</span>
+<a name="l503"><span class="ln">503  </span></a>            <span class="s1">handle </span><span class="s2">= </span><span class="s1">id</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s2">% </span><span class="s5">2147483647</span>
+<a name="l504"><span class="ln">504  </span></a>            <span class="s2">while </span><span class="s1">handle </span><span class="s2">in </span><span class="s1">_connection_refs</span><span class="s2">:</span>
+<a name="l505"><span class="ln">505  </span></a>                <span class="s1">handle </span><span class="s2">= </span><span class="s3">(</span><span class="s1">handle </span><span class="s2">+ </span><span class="s5">1</span><span class="s3">) </span><span class="s2">% </span><span class="s5">2147483647</span>
+<a name="l506"><span class="ln">506  </span></a>            <span class="s1">_connection_refs</span><span class="s3">[</span><span class="s1">handle</span><span class="s3">] </span><span class="s2">= </span><span class="s1">self</span>
+<a name="l507"><span class="ln">507  </span></a>
+<a name="l508"><span class="ln">508  </span></a>        <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLSetConnection</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">handle</span><span class="s3">)</span>
+<a name="l509"><span class="ln">509  </span></a>        <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l510"><span class="ln">510  </span></a>
+<a name="l511"><span class="ln">511  </span></a>        <span class="s0"># If we have a server hostname, we should set that too.</span>
+<a name="l512"><span class="ln">512  </span></a>        <span class="s2">if </span><span class="s1">server_hostname</span><span class="s2">:</span>
+<a name="l513"><span class="ln">513  </span></a>            <span class="s2">if not </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">server_hostname</span><span class="s3">, </span><span class="s1">bytes</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l514"><span class="ln">514  </span></a>                <span class="s1">server_hostname </span><span class="s2">= </span><span class="s1">server_hostname</span><span class="s3">.</span><span class="s1">encode</span><span class="s3">(</span><span class="s4">&quot;utf-8&quot;</span><span class="s3">)</span>
+<a name="l515"><span class="ln">515  </span></a>
+<a name="l516"><span class="ln">516  </span></a>            <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLSetPeerDomainName</span><span class="s3">(</span>
+<a name="l517"><span class="ln">517  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">server_hostname</span><span class="s3">, </span><span class="s1">len</span><span class="s3">(</span><span class="s1">server_hostname</span><span class="s3">)</span>
+<a name="l518"><span class="ln">518  </span></a>            <span class="s3">)</span>
+<a name="l519"><span class="ln">519  </span></a>            <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l520"><span class="ln">520  </span></a>
+<a name="l521"><span class="ln">521  </span></a>        <span class="s0"># Setup the ciphers.</span>
+<a name="l522"><span class="ln">522  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_set_ciphers</span><span class="s3">()</span>
+<a name="l523"><span class="ln">523  </span></a>
+<a name="l524"><span class="ln">524  </span></a>        <span class="s0"># Setup the ALPN protocols.</span>
+<a name="l525"><span class="ln">525  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_set_alpn_protocols</span><span class="s3">(</span><span class="s1">alpn_protocols</span><span class="s3">)</span>
+<a name="l526"><span class="ln">526  </span></a>
+<a name="l527"><span class="ln">527  </span></a>        <span class="s0"># Set the minimum and maximum TLS versions.</span>
+<a name="l528"><span class="ln">528  </span></a>        <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLSetProtocolVersionMin</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">min_version</span><span class="s3">)</span>
+<a name="l529"><span class="ln">529  </span></a>        <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l530"><span class="ln">530  </span></a>
+<a name="l531"><span class="ln">531  </span></a>        <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLSetProtocolVersionMax</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">max_version</span><span class="s3">)</span>
+<a name="l532"><span class="ln">532  </span></a>        <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l533"><span class="ln">533  </span></a>
+<a name="l534"><span class="ln">534  </span></a>        <span class="s0"># If there's a trust DB, we need to use it. We do that by telling</span>
+<a name="l535"><span class="ln">535  </span></a>        <span class="s0"># SecureTransport to break on server auth. We also do that if we don't</span>
+<a name="l536"><span class="ln">536  </span></a>        <span class="s0"># want to validate the certs at all: we just won't actually do any</span>
+<a name="l537"><span class="ln">537  </span></a>        <span class="s0"># authing in that case.</span>
+<a name="l538"><span class="ln">538  </span></a>        <span class="s2">if not </span><span class="s1">verify </span><span class="s2">or </span><span class="s1">trust_bundle </span><span class="s2">is not None:</span>
+<a name="l539"><span class="ln">539  </span></a>            <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLSetSessionOption</span><span class="s3">(</span>
+<a name="l540"><span class="ln">540  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kSSLSessionOptionBreakOnServerAuth</span><span class="s3">, </span><span class="s2">True</span>
+<a name="l541"><span class="ln">541  </span></a>            <span class="s3">)</span>
+<a name="l542"><span class="ln">542  </span></a>            <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l543"><span class="ln">543  </span></a>
+<a name="l544"><span class="ln">544  </span></a>        <span class="s0"># If there's a client cert, we need to use it.</span>
+<a name="l545"><span class="ln">545  </span></a>        <span class="s2">if </span><span class="s1">client_cert</span><span class="s2">:</span>
+<a name="l546"><span class="ln">546  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_keychain</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_keychain_dir </span><span class="s2">= </span><span class="s1">_temporary_keychain</span><span class="s3">()</span>
+<a name="l547"><span class="ln">547  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_client_cert_chain </span><span class="s2">= </span><span class="s1">_load_client_cert_chain</span><span class="s3">(</span>
+<a name="l548"><span class="ln">548  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">_keychain</span><span class="s3">, </span><span class="s1">client_cert</span><span class="s3">, </span><span class="s1">client_key</span>
+<a name="l549"><span class="ln">549  </span></a>            <span class="s3">)</span>
+<a name="l550"><span class="ln">550  </span></a>            <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLSetCertificate</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_client_cert_chain</span><span class="s3">)</span>
+<a name="l551"><span class="ln">551  </span></a>            <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l552"><span class="ln">552  </span></a>
+<a name="l553"><span class="ln">553  </span></a>        <span class="s2">while True:</span>
+<a name="l554"><span class="ln">554  </span></a>            <span class="s2">with </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_raise_on_error</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l555"><span class="ln">555  </span></a>                <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLHandshake</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">)</span>
+<a name="l556"><span class="ln">556  </span></a>
+<a name="l557"><span class="ln">557  </span></a>                <span class="s2">if </span><span class="s1">result </span><span class="s2">== </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLWouldBlock</span><span class="s2">:</span>
+<a name="l558"><span class="ln">558  </span></a>                    <span class="s2">raise </span><span class="s1">socket</span><span class="s3">.</span><span class="s1">timeout</span><span class="s3">(</span><span class="s4">&quot;handshake timed out&quot;</span><span class="s3">)</span>
+<a name="l559"><span class="ln">559  </span></a>                <span class="s2">elif </span><span class="s1">result </span><span class="s2">== </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLServerAuthCompleted</span><span class="s2">:</span>
+<a name="l560"><span class="ln">560  </span></a>                    <span class="s1">self</span><span class="s3">.</span><span class="s1">_custom_validate</span><span class="s3">(</span><span class="s1">verify</span><span class="s3">, </span><span class="s1">trust_bundle</span><span class="s3">)</span>
+<a name="l561"><span class="ln">561  </span></a>                    <span class="s2">continue</span>
+<a name="l562"><span class="ln">562  </span></a>                <span class="s2">else:</span>
+<a name="l563"><span class="ln">563  </span></a>                    <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l564"><span class="ln">564  </span></a>                    <span class="s2">break</span>
+<a name="l565"><span class="ln">565  </span></a>
+<a name="l566"><span class="ln">566  </span></a>    <span class="s2">def </span><span class="s1">fileno</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l567"><span class="ln">567  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">fileno</span><span class="s3">()</span>
+<a name="l568"><span class="ln">568  </span></a>
+<a name="l569"><span class="ln">569  </span></a>    <span class="s0"># Copy-pasted from Python 3.5 source code</span>
+<a name="l570"><span class="ln">570  </span></a>    <span class="s2">def </span><span class="s1">_decref_socketios</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l571"><span class="ln">571  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_makefile_refs </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l572"><span class="ln">572  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_makefile_refs </span><span class="s2">-= </span><span class="s5">1</span>
+<a name="l573"><span class="ln">573  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_closed</span><span class="s2">:</span>
+<a name="l574"><span class="ln">574  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">close</span><span class="s3">()</span>
+<a name="l575"><span class="ln">575  </span></a>
+<a name="l576"><span class="ln">576  </span></a>    <span class="s2">def </span><span class="s1">recv</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">bufsiz</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l577"><span class="ln">577  </span></a>        <span class="s1">buffer </span><span class="s2">= </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">create_string_buffer</span><span class="s3">(</span><span class="s1">bufsiz</span><span class="s3">)</span>
+<a name="l578"><span class="ln">578  </span></a>        <span class="s1">bytes_read </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">recv_into</span><span class="s3">(</span><span class="s1">buffer</span><span class="s3">, </span><span class="s1">bufsiz</span><span class="s3">)</span>
+<a name="l579"><span class="ln">579  </span></a>        <span class="s1">data </span><span class="s2">= </span><span class="s1">buffer</span><span class="s3">[</span><span class="s2">:</span><span class="s1">bytes_read</span><span class="s3">]</span>
+<a name="l580"><span class="ln">580  </span></a>        <span class="s2">return </span><span class="s1">data</span>
+<a name="l581"><span class="ln">581  </span></a>
+<a name="l582"><span class="ln">582  </span></a>    <span class="s2">def </span><span class="s1">recv_into</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">buffer</span><span class="s3">, </span><span class="s1">nbytes</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l583"><span class="ln">583  </span></a>        <span class="s0"># Read short on EOF.</span>
+<a name="l584"><span class="ln">584  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_closed</span><span class="s2">:</span>
+<a name="l585"><span class="ln">585  </span></a>            <span class="s2">return </span><span class="s5">0</span>
+<a name="l586"><span class="ln">586  </span></a>
+<a name="l587"><span class="ln">587  </span></a>        <span class="s2">if </span><span class="s1">nbytes </span><span class="s2">is None:</span>
+<a name="l588"><span class="ln">588  </span></a>            <span class="s1">nbytes </span><span class="s2">= </span><span class="s1">len</span><span class="s3">(</span><span class="s1">buffer</span><span class="s3">)</span>
+<a name="l589"><span class="ln">589  </span></a>
+<a name="l590"><span class="ln">590  </span></a>        <span class="s1">buffer </span><span class="s2">= </span><span class="s3">(</span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">c_char </span><span class="s2">* </span><span class="s1">nbytes</span><span class="s3">).</span><span class="s1">from_buffer</span><span class="s3">(</span><span class="s1">buffer</span><span class="s3">)</span>
+<a name="l591"><span class="ln">591  </span></a>        <span class="s1">processed_bytes </span><span class="s2">= </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">c_size_t</span><span class="s3">(</span><span class="s5">0</span><span class="s3">)</span>
+<a name="l592"><span class="ln">592  </span></a>
+<a name="l593"><span class="ln">593  </span></a>        <span class="s2">with </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_raise_on_error</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l594"><span class="ln">594  </span></a>            <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLRead</span><span class="s3">(</span>
+<a name="l595"><span class="ln">595  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">buffer</span><span class="s3">, </span><span class="s1">nbytes</span><span class="s3">, </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">byref</span><span class="s3">(</span><span class="s1">processed_bytes</span><span class="s3">)</span>
+<a name="l596"><span class="ln">596  </span></a>            <span class="s3">)</span>
+<a name="l597"><span class="ln">597  </span></a>
+<a name="l598"><span class="ln">598  </span></a>        <span class="s0"># There are some result codes that we want to treat as &quot;not always</span>
+<a name="l599"><span class="ln">599  </span></a>        <span class="s0"># errors&quot;. Specifically, those are errSSLWouldBlock,</span>
+<a name="l600"><span class="ln">600  </span></a>        <span class="s0"># errSSLClosedGraceful, and errSSLClosedNoNotify.</span>
+<a name="l601"><span class="ln">601  </span></a>        <span class="s2">if </span><span class="s1">result </span><span class="s2">== </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLWouldBlock</span><span class="s2">:</span>
+<a name="l602"><span class="ln">602  </span></a>            <span class="s0"># If we didn't process any bytes, then this was just a time out.</span>
+<a name="l603"><span class="ln">603  </span></a>            <span class="s0"># However, we can get errSSLWouldBlock in situations when we *did*</span>
+<a name="l604"><span class="ln">604  </span></a>            <span class="s0"># read some data, and in those cases we should just read &quot;short&quot;</span>
+<a name="l605"><span class="ln">605  </span></a>            <span class="s0"># and return.</span>
+<a name="l606"><span class="ln">606  </span></a>            <span class="s2">if </span><span class="s1">processed_bytes</span><span class="s3">.</span><span class="s1">value </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l607"><span class="ln">607  </span></a>                <span class="s0"># Timed out, no data read.</span>
+<a name="l608"><span class="ln">608  </span></a>                <span class="s2">raise </span><span class="s1">socket</span><span class="s3">.</span><span class="s1">timeout</span><span class="s3">(</span><span class="s4">&quot;recv timed out&quot;</span><span class="s3">)</span>
+<a name="l609"><span class="ln">609  </span></a>        <span class="s2">elif </span><span class="s1">result </span><span class="s2">in </span><span class="s3">(</span>
+<a name="l610"><span class="ln">610  </span></a>            <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLClosedGraceful</span><span class="s3">,</span>
+<a name="l611"><span class="ln">611  </span></a>            <span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLClosedNoNotify</span><span class="s3">,</span>
+<a name="l612"><span class="ln">612  </span></a>        <span class="s3">)</span><span class="s2">:</span>
+<a name="l613"><span class="ln">613  </span></a>            <span class="s0"># The remote peer has closed this connection. We should do so as</span>
+<a name="l614"><span class="ln">614  </span></a>            <span class="s0"># well. Note that we don't actually return here because in</span>
+<a name="l615"><span class="ln">615  </span></a>            <span class="s0"># principle this could actually be fired along with return data.</span>
+<a name="l616"><span class="ln">616  </span></a>            <span class="s0"># It's unlikely though.</span>
+<a name="l617"><span class="ln">617  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">close</span><span class="s3">()</span>
+<a name="l618"><span class="ln">618  </span></a>        <span class="s2">else:</span>
+<a name="l619"><span class="ln">619  </span></a>            <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l620"><span class="ln">620  </span></a>
+<a name="l621"><span class="ln">621  </span></a>        <span class="s0"># Ok, we read and probably succeeded. We should return whatever data</span>
+<a name="l622"><span class="ln">622  </span></a>        <span class="s0"># was actually read.</span>
+<a name="l623"><span class="ln">623  </span></a>        <span class="s2">return </span><span class="s1">processed_bytes</span><span class="s3">.</span><span class="s1">value</span>
+<a name="l624"><span class="ln">624  </span></a>
+<a name="l625"><span class="ln">625  </span></a>    <span class="s2">def </span><span class="s1">settimeout</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">timeout</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l626"><span class="ln">626  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_timeout </span><span class="s2">= </span><span class="s1">timeout</span>
+<a name="l627"><span class="ln">627  </span></a>
+<a name="l628"><span class="ln">628  </span></a>    <span class="s2">def </span><span class="s1">gettimeout</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l629"><span class="ln">629  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_timeout</span>
+<a name="l630"><span class="ln">630  </span></a>
+<a name="l631"><span class="ln">631  </span></a>    <span class="s2">def </span><span class="s1">send</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">data</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l632"><span class="ln">632  </span></a>        <span class="s1">processed_bytes </span><span class="s2">= </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">c_size_t</span><span class="s3">(</span><span class="s5">0</span><span class="s3">)</span>
+<a name="l633"><span class="ln">633  </span></a>
+<a name="l634"><span class="ln">634  </span></a>        <span class="s2">with </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_raise_on_error</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l635"><span class="ln">635  </span></a>            <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLWrite</span><span class="s3">(</span>
+<a name="l636"><span class="ln">636  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">data</span><span class="s3">, </span><span class="s1">len</span><span class="s3">(</span><span class="s1">data</span><span class="s3">), </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">byref</span><span class="s3">(</span><span class="s1">processed_bytes</span><span class="s3">)</span>
+<a name="l637"><span class="ln">637  </span></a>            <span class="s3">)</span>
+<a name="l638"><span class="ln">638  </span></a>
+<a name="l639"><span class="ln">639  </span></a>        <span class="s2">if </span><span class="s1">result </span><span class="s2">== </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">errSSLWouldBlock </span><span class="s2">and </span><span class="s1">processed_bytes</span><span class="s3">.</span><span class="s1">value </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l640"><span class="ln">640  </span></a>            <span class="s0"># Timed out</span>
+<a name="l641"><span class="ln">641  </span></a>            <span class="s2">raise </span><span class="s1">socket</span><span class="s3">.</span><span class="s1">timeout</span><span class="s3">(</span><span class="s4">&quot;send timed out&quot;</span><span class="s3">)</span>
+<a name="l642"><span class="ln">642  </span></a>        <span class="s2">else:</span>
+<a name="l643"><span class="ln">643  </span></a>            <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l644"><span class="ln">644  </span></a>
+<a name="l645"><span class="ln">645  </span></a>        <span class="s0"># We sent, and probably succeeded. Tell them how much we sent.</span>
+<a name="l646"><span class="ln">646  </span></a>        <span class="s2">return </span><span class="s1">processed_bytes</span><span class="s3">.</span><span class="s1">value</span>
+<a name="l647"><span class="ln">647  </span></a>
+<a name="l648"><span class="ln">648  </span></a>    <span class="s2">def </span><span class="s1">sendall</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">data</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l649"><span class="ln">649  </span></a>        <span class="s1">total_sent </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l650"><span class="ln">650  </span></a>        <span class="s2">while </span><span class="s1">total_sent </span><span class="s2">&lt; </span><span class="s1">len</span><span class="s3">(</span><span class="s1">data</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l651"><span class="ln">651  </span></a>            <span class="s1">sent </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">send</span><span class="s3">(</span><span class="s1">data</span><span class="s3">[</span><span class="s1">total_sent </span><span class="s2">: </span><span class="s1">total_sent </span><span class="s2">+ </span><span class="s1">SSL_WRITE_BLOCKSIZE</span><span class="s3">])</span>
+<a name="l652"><span class="ln">652  </span></a>            <span class="s1">total_sent </span><span class="s2">+= </span><span class="s1">sent</span>
+<a name="l653"><span class="ln">653  </span></a>
+<a name="l654"><span class="ln">654  </span></a>    <span class="s2">def </span><span class="s1">shutdown</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l655"><span class="ln">655  </span></a>        <span class="s2">with </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_raise_on_error</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l656"><span class="ln">656  </span></a>            <span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLClose</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">)</span>
+<a name="l657"><span class="ln">657  </span></a>
+<a name="l658"><span class="ln">658  </span></a>    <span class="s2">def </span><span class="s1">close</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l659"><span class="ln">659  </span></a>        <span class="s0"># TODO: should I do clean shutdown here? Do I have to?</span>
+<a name="l660"><span class="ln">660  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_makefile_refs </span><span class="s2">&lt; </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l661"><span class="ln">661  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_closed </span><span class="s2">= True</span>
+<a name="l662"><span class="ln">662  </span></a>            <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s2">:</span>
+<a name="l663"><span class="ln">663  </span></a>                <span class="s1">CoreFoundation</span><span class="s3">.</span><span class="s1">CFRelease</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">)</span>
+<a name="l664"><span class="ln">664  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">context </span><span class="s2">= None</span>
+<a name="l665"><span class="ln">665  </span></a>            <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_client_cert_chain</span><span class="s2">:</span>
+<a name="l666"><span class="ln">666  </span></a>                <span class="s1">CoreFoundation</span><span class="s3">.</span><span class="s1">CFRelease</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_client_cert_chain</span><span class="s3">)</span>
+<a name="l667"><span class="ln">667  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">_client_cert_chain </span><span class="s2">= None</span>
+<a name="l668"><span class="ln">668  </span></a>            <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_keychain</span><span class="s2">:</span>
+<a name="l669"><span class="ln">669  </span></a>                <span class="s1">Security</span><span class="s3">.</span><span class="s1">SecKeychainDelete</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_keychain</span><span class="s3">)</span>
+<a name="l670"><span class="ln">670  </span></a>                <span class="s1">CoreFoundation</span><span class="s3">.</span><span class="s1">CFRelease</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_keychain</span><span class="s3">)</span>
+<a name="l671"><span class="ln">671  </span></a>                <span class="s1">shutil</span><span class="s3">.</span><span class="s1">rmtree</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_keychain_dir</span><span class="s3">)</span>
+<a name="l672"><span class="ln">672  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">_keychain </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_keychain_dir </span><span class="s2">= None</span>
+<a name="l673"><span class="ln">673  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">close</span><span class="s3">()</span>
+<a name="l674"><span class="ln">674  </span></a>        <span class="s2">else:</span>
+<a name="l675"><span class="ln">675  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_makefile_refs </span><span class="s2">-= </span><span class="s5">1</span>
+<a name="l676"><span class="ln">676  </span></a>
+<a name="l677"><span class="ln">677  </span></a>    <span class="s2">def </span><span class="s1">getpeercert</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">binary_form</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l678"><span class="ln">678  </span></a>        <span class="s0"># Urgh, annoying.</span>
+<a name="l679"><span class="ln">679  </span></a>        <span class="s0">#</span>
+<a name="l680"><span class="ln">680  </span></a>        <span class="s0"># Here's how we do this:</span>
+<a name="l681"><span class="ln">681  </span></a>        <span class="s0">#</span>
+<a name="l682"><span class="ln">682  </span></a>        <span class="s0"># 1. Call SSLCopyPeerTrust to get hold of the trust object for this</span>
+<a name="l683"><span class="ln">683  </span></a>        <span class="s0">#    connection.</span>
+<a name="l684"><span class="ln">684  </span></a>        <span class="s0"># 2. Call SecTrustGetCertificateAtIndex for index 0 to get the leaf.</span>
+<a name="l685"><span class="ln">685  </span></a>        <span class="s0"># 3. To get the CN, call SecCertificateCopyCommonName and process that</span>
+<a name="l686"><span class="ln">686  </span></a>        <span class="s0">#    string so that it's of the appropriate type.</span>
+<a name="l687"><span class="ln">687  </span></a>        <span class="s0"># 4. To get the SAN, we need to do something a bit more complex:</span>
+<a name="l688"><span class="ln">688  </span></a>        <span class="s0">#    a. Call SecCertificateCopyValues to get the data, requesting</span>
+<a name="l689"><span class="ln">689  </span></a>        <span class="s0">#       kSecOIDSubjectAltName.</span>
+<a name="l690"><span class="ln">690  </span></a>        <span class="s0">#    b. Mess about with this dictionary to try to get the SANs out.</span>
+<a name="l691"><span class="ln">691  </span></a>        <span class="s0">#</span>
+<a name="l692"><span class="ln">692  </span></a>        <span class="s0"># This is gross. Really gross. It's going to be a few hundred LoC extra</span>
+<a name="l693"><span class="ln">693  </span></a>        <span class="s0"># just to repeat something that SecureTransport can *already do*. So my</span>
+<a name="l694"><span class="ln">694  </span></a>        <span class="s0"># operating assumption at this time is that what we want to do is</span>
+<a name="l695"><span class="ln">695  </span></a>        <span class="s0"># instead to just flag to urllib3 that it shouldn't do its own hostname</span>
+<a name="l696"><span class="ln">696  </span></a>        <span class="s0"># validation when using SecureTransport.</span>
+<a name="l697"><span class="ln">697  </span></a>        <span class="s2">if not </span><span class="s1">binary_form</span><span class="s2">:</span>
+<a name="l698"><span class="ln">698  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;SecureTransport only supports dumping binary certs&quot;</span><span class="s3">)</span>
+<a name="l699"><span class="ln">699  </span></a>        <span class="s1">trust </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SecTrustRef</span><span class="s3">()</span>
+<a name="l700"><span class="ln">700  </span></a>        <span class="s1">certdata </span><span class="s2">= None</span>
+<a name="l701"><span class="ln">701  </span></a>        <span class="s1">der_bytes </span><span class="s2">= None</span>
+<a name="l702"><span class="ln">702  </span></a>
+<a name="l703"><span class="ln">703  </span></a>        <span class="s2">try:</span>
+<a name="l704"><span class="ln">704  </span></a>            <span class="s0"># Grab the trust store.</span>
+<a name="l705"><span class="ln">705  </span></a>            <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLCopyPeerTrust</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">byref</span><span class="s3">(</span><span class="s1">trust</span><span class="s3">))</span>
+<a name="l706"><span class="ln">706  </span></a>            <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l707"><span class="ln">707  </span></a>            <span class="s2">if not </span><span class="s1">trust</span><span class="s2">:</span>
+<a name="l708"><span class="ln">708  </span></a>                <span class="s0"># Probably we haven't done the handshake yet. No biggie.</span>
+<a name="l709"><span class="ln">709  </span></a>                <span class="s2">return None</span>
+<a name="l710"><span class="ln">710  </span></a>
+<a name="l711"><span class="ln">711  </span></a>            <span class="s1">cert_count </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SecTrustGetCertificateCount</span><span class="s3">(</span><span class="s1">trust</span><span class="s3">)</span>
+<a name="l712"><span class="ln">712  </span></a>            <span class="s2">if not </span><span class="s1">cert_count</span><span class="s2">:</span>
+<a name="l713"><span class="ln">713  </span></a>                <span class="s0"># Also a case that might happen if we haven't handshaked.</span>
+<a name="l714"><span class="ln">714  </span></a>                <span class="s0"># Handshook? Handshaken?</span>
+<a name="l715"><span class="ln">715  </span></a>                <span class="s2">return None</span>
+<a name="l716"><span class="ln">716  </span></a>
+<a name="l717"><span class="ln">717  </span></a>            <span class="s1">leaf </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SecTrustGetCertificateAtIndex</span><span class="s3">(</span><span class="s1">trust</span><span class="s3">, </span><span class="s5">0</span><span class="s3">)</span>
+<a name="l718"><span class="ln">718  </span></a>            <span class="s2">assert </span><span class="s1">leaf</span>
+<a name="l719"><span class="ln">719  </span></a>
+<a name="l720"><span class="ln">720  </span></a>            <span class="s0"># Ok, now we want the DER bytes.</span>
+<a name="l721"><span class="ln">721  </span></a>            <span class="s1">certdata </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SecCertificateCopyData</span><span class="s3">(</span><span class="s1">leaf</span><span class="s3">)</span>
+<a name="l722"><span class="ln">722  </span></a>            <span class="s2">assert </span><span class="s1">certdata</span>
+<a name="l723"><span class="ln">723  </span></a>
+<a name="l724"><span class="ln">724  </span></a>            <span class="s1">data_length </span><span class="s2">= </span><span class="s1">CoreFoundation</span><span class="s3">.</span><span class="s1">CFDataGetLength</span><span class="s3">(</span><span class="s1">certdata</span><span class="s3">)</span>
+<a name="l725"><span class="ln">725  </span></a>            <span class="s1">data_buffer </span><span class="s2">= </span><span class="s1">CoreFoundation</span><span class="s3">.</span><span class="s1">CFDataGetBytePtr</span><span class="s3">(</span><span class="s1">certdata</span><span class="s3">)</span>
+<a name="l726"><span class="ln">726  </span></a>            <span class="s1">der_bytes </span><span class="s2">= </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">string_at</span><span class="s3">(</span><span class="s1">data_buffer</span><span class="s3">, </span><span class="s1">data_length</span><span class="s3">)</span>
+<a name="l727"><span class="ln">727  </span></a>        <span class="s2">finally:</span>
+<a name="l728"><span class="ln">728  </span></a>            <span class="s2">if </span><span class="s1">certdata</span><span class="s2">:</span>
+<a name="l729"><span class="ln">729  </span></a>                <span class="s1">CoreFoundation</span><span class="s3">.</span><span class="s1">CFRelease</span><span class="s3">(</span><span class="s1">certdata</span><span class="s3">)</span>
+<a name="l730"><span class="ln">730  </span></a>            <span class="s2">if </span><span class="s1">trust</span><span class="s2">:</span>
+<a name="l731"><span class="ln">731  </span></a>                <span class="s1">CoreFoundation</span><span class="s3">.</span><span class="s1">CFRelease</span><span class="s3">(</span><span class="s1">trust</span><span class="s3">)</span>
+<a name="l732"><span class="ln">732  </span></a>
+<a name="l733"><span class="ln">733  </span></a>        <span class="s2">return </span><span class="s1">der_bytes</span>
+<a name="l734"><span class="ln">734  </span></a>
+<a name="l735"><span class="ln">735  </span></a>    <span class="s2">def </span><span class="s1">version</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l736"><span class="ln">736  </span></a>        <span class="s1">protocol </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLProtocol</span><span class="s3">()</span>
+<a name="l737"><span class="ln">737  </span></a>        <span class="s1">result </span><span class="s2">= </span><span class="s1">Security</span><span class="s3">.</span><span class="s1">SSLGetNegotiatedProtocolVersion</span><span class="s3">(</span>
+<a name="l738"><span class="ln">738  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">context</span><span class="s3">, </span><span class="s1">ctypes</span><span class="s3">.</span><span class="s1">byref</span><span class="s3">(</span><span class="s1">protocol</span><span class="s3">)</span>
+<a name="l739"><span class="ln">739  </span></a>        <span class="s3">)</span>
+<a name="l740"><span class="ln">740  </span></a>        <span class="s1">_assert_no_error</span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+<a name="l741"><span class="ln">741  </span></a>        <span class="s2">if </span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">value </span><span class="s2">== </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol13</span><span class="s2">:</span>
+<a name="l742"><span class="ln">742  </span></a>            <span class="s2">raise </span><span class="s1">ssl</span><span class="s3">.</span><span class="s1">SSLError</span><span class="s3">(</span><span class="s4">&quot;SecureTransport does not support TLS 1.3&quot;</span><span class="s3">)</span>
+<a name="l743"><span class="ln">743  </span></a>        <span class="s2">elif </span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">value </span><span class="s2">== </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol12</span><span class="s2">:</span>
+<a name="l744"><span class="ln">744  </span></a>            <span class="s2">return </span><span class="s4">&quot;TLSv1.2&quot;</span>
+<a name="l745"><span class="ln">745  </span></a>        <span class="s2">elif </span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">value </span><span class="s2">== </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol11</span><span class="s2">:</span>
+<a name="l746"><span class="ln">746  </span></a>            <span class="s2">return </span><span class="s4">&quot;TLSv1.1&quot;</span>
+<a name="l747"><span class="ln">747  </span></a>        <span class="s2">elif </span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">value </span><span class="s2">== </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kTLSProtocol1</span><span class="s2">:</span>
+<a name="l748"><span class="ln">748  </span></a>            <span class="s2">return </span><span class="s4">&quot;TLSv1&quot;</span>
+<a name="l749"><span class="ln">749  </span></a>        <span class="s2">elif </span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">value </span><span class="s2">== </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kSSLProtocol3</span><span class="s2">:</span>
+<a name="l750"><span class="ln">750  </span></a>            <span class="s2">return </span><span class="s4">&quot;SSLv3&quot;</span>
+<a name="l751"><span class="ln">751  </span></a>        <span class="s2">elif </span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">value </span><span class="s2">== </span><span class="s1">SecurityConst</span><span class="s3">.</span><span class="s1">kSSLProtocol2</span><span class="s2">:</span>
+<a name="l752"><span class="ln">752  </span></a>            <span class="s2">return </span><span class="s4">&quot;SSLv2&quot;</span>
+<a name="l753"><span class="ln">753  </span></a>        <span class="s2">else:</span>
+<a name="l754"><span class="ln">754  </span></a>            <span class="s2">raise </span><span class="s1">ssl</span><span class="s3">.</span><span class="s1">SSLError</span><span class="s3">(</span><span class="s4">&quot;Unknown TLS version: %r&quot; </span><span class="s2">% </span><span class="s1">protocol</span><span class="s3">)</span>
+<a name="l755"><span class="ln">755  </span></a>
+<a name="l756"><span class="ln">756  </span></a>    <span class="s2">def </span><span class="s1">_reuse</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l757"><span class="ln">757  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_makefile_refs </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l758"><span class="ln">758  </span></a>
+<a name="l759"><span class="ln">759  </span></a>    <span class="s2">def </span><span class="s1">_drop</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l760"><span class="ln">760  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_makefile_refs </span><span class="s2">&lt; </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l761"><span class="ln">761  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">close</span><span class="s3">()</span>
+<a name="l762"><span class="ln">762  </span></a>        <span class="s2">else:</span>
+<a name="l763"><span class="ln">763  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_makefile_refs </span><span class="s2">-= </span><span class="s5">1</span>
+<a name="l764"><span class="ln">764  </span></a>
+<a name="l765"><span class="ln">765  </span></a>
+<a name="l766"><span class="ln">766  </span></a><span class="s2">if </span><span class="s1">_fileobject</span><span class="s2">:  </span><span class="s0"># Platform-specific: Python 2</span>
+<a name="l767"><span class="ln">767  </span></a>
+<a name="l768"><span class="ln">768  </span></a>    <span class="s2">def </span><span class="s1">makefile</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">mode</span><span class="s3">, </span><span class="s1">bufsize</span><span class="s2">=-</span><span class="s5">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l769"><span class="ln">769  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_makefile_refs </span><span class="s2">+= </span><span class="s5">1</span>
+<a name="l770"><span class="ln">770  </span></a>        <span class="s2">return </span><span class="s1">_fileobject</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">mode</span><span class="s3">, </span><span class="s1">bufsize</span><span class="s3">, </span><span class="s1">close</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l771"><span class="ln">771  </span></a>
+<a name="l772"><span class="ln">772  </span></a><span class="s2">else:  </span><span class="s0"># Platform-specific: Python 3</span>
+<a name="l773"><span class="ln">773  </span></a>
+<a name="l774"><span class="ln">774  </span></a>    <span class="s2">def </span><span class="s1">makefile</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">mode</span><span class="s2">=</span><span class="s4">&quot;r&quot;</span><span class="s3">, </span><span class="s1">buffering</span><span class="s2">=None</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l775"><span class="ln">775  </span></a>        <span class="s0"># We disable buffering with SecureTransport because it conflicts with</span>
+<a name="l776"><span class="ln">776  </span></a>        <span class="s0"># the buffering that ST does internally (see issue #1153 for more).</span>
+<a name="l777"><span class="ln">777  </span></a>        <span class="s1">buffering </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l778"><span class="ln">778  </span></a>        <span class="s2">return </span><span class="s1">backport_makefile</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">mode</span><span class="s3">, </span><span class="s1">buffering</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l779"><span class="ln">779  </span></a>
+<a name="l780"><span class="ln">780  </span></a>
+<a name="l781"><span class="ln">781  </span></a><span class="s1">WrappedSocket</span><span class="s3">.</span><span class="s1">makefile </span><span class="s2">= </span><span class="s1">makefile</span>
+<a name="l782"><span class="ln">782  </span></a>
+<a name="l783"><span class="ln">783  </span></a>
+<a name="l784"><span class="ln">784  </span></a><span class="s2">class </span><span class="s1">SecureTransportContext</span><span class="s3">(</span><span class="s1">object</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l785"><span class="ln">785  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l786"><span class="ln">786  </span></a>    I am a wrapper class for the SecureTransport library, to translate the 
+<a name="l787"><span class="ln">787  </span></a>    interface of the standard library ``SSLContext`` object to calls into 
+<a name="l788"><span class="ln">788  </span></a>    SecureTransport. 
+<a name="l789"><span class="ln">789  </span></a>    &quot;&quot;&quot;</span>
+<a name="l790"><span class="ln">790  </span></a>
+<a name="l791"><span class="ln">791  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">protocol</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l792"><span class="ln">792  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_min_version</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_max_version </span><span class="s2">= </span><span class="s1">_protocol_to_min_max</span><span class="s3">[</span><span class="s1">protocol</span><span class="s3">]</span>
+<a name="l793"><span class="ln">793  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_options </span><span class="s2">= </span><span class="s5">0</span>
+<a name="l794"><span class="ln">794  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_verify </span><span class="s2">= False</span>
+<a name="l795"><span class="ln">795  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_trust_bundle </span><span class="s2">= None</span>
+<a name="l796"><span class="ln">796  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_client_cert </span><span class="s2">= None</span>
+<a name="l797"><span class="ln">797  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_client_key </span><span class="s2">= None</span>
+<a name="l798"><span class="ln">798  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_client_key_passphrase </span><span class="s2">= None</span>
+<a name="l799"><span class="ln">799  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_alpn_protocols </span><span class="s2">= None</span>
+<a name="l800"><span class="ln">800  </span></a>
+<a name="l801"><span class="ln">801  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l802"><span class="ln">802  </span></a>    <span class="s2">def </span><span class="s1">check_hostname</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l803"><span class="ln">803  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l804"><span class="ln">804  </span></a>        SecureTransport cannot have its hostname checking disabled. For more, 
+<a name="l805"><span class="ln">805  </span></a>        see the comment on getpeercert() in this file. 
+<a name="l806"><span class="ln">806  </span></a>        &quot;&quot;&quot;</span>
+<a name="l807"><span class="ln">807  </span></a>        <span class="s2">return True</span>
+<a name="l808"><span class="ln">808  </span></a>
+<a name="l809"><span class="ln">809  </span></a>    <span class="s2">@</span><span class="s1">check_hostname</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l810"><span class="ln">810  </span></a>    <span class="s2">def </span><span class="s1">check_hostname</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">value</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l811"><span class="ln">811  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l812"><span class="ln">812  </span></a>        SecureTransport cannot have its hostname checking disabled. For more, 
+<a name="l813"><span class="ln">813  </span></a>        see the comment on getpeercert() in this file. 
+<a name="l814"><span class="ln">814  </span></a>        &quot;&quot;&quot;</span>
+<a name="l815"><span class="ln">815  </span></a>        <span class="s2">pass</span>
+<a name="l816"><span class="ln">816  </span></a>
+<a name="l817"><span class="ln">817  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l818"><span class="ln">818  </span></a>    <span class="s2">def </span><span class="s1">options</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l819"><span class="ln">819  </span></a>        <span class="s0"># TODO: Well, crap.</span>
+<a name="l820"><span class="ln">820  </span></a>        <span class="s0">#</span>
+<a name="l821"><span class="ln">821  </span></a>        <span class="s0"># So this is the bit of the code that is the most likely to cause us</span>
+<a name="l822"><span class="ln">822  </span></a>        <span class="s0"># trouble. Essentially we need to enumerate all of the SSL options that</span>
+<a name="l823"><span class="ln">823  </span></a>        <span class="s0"># users might want to use and try to see if we can sensibly translate</span>
+<a name="l824"><span class="ln">824  </span></a>        <span class="s0"># them, or whether we should just ignore them.</span>
+<a name="l825"><span class="ln">825  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_options</span>
+<a name="l826"><span class="ln">826  </span></a>
+<a name="l827"><span class="ln">827  </span></a>    <span class="s2">@</span><span class="s1">options</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l828"><span class="ln">828  </span></a>    <span class="s2">def </span><span class="s1">options</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">value</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l829"><span class="ln">829  </span></a>        <span class="s0"># TODO: Update in line with above.</span>
+<a name="l830"><span class="ln">830  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_options </span><span class="s2">= </span><span class="s1">value</span>
+<a name="l831"><span class="ln">831  </span></a>
+<a name="l832"><span class="ln">832  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l833"><span class="ln">833  </span></a>    <span class="s2">def </span><span class="s1">verify_mode</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l834"><span class="ln">834  </span></a>        <span class="s2">return </span><span class="s1">ssl</span><span class="s3">.</span><span class="s1">CERT_REQUIRED </span><span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_verify </span><span class="s2">else </span><span class="s1">ssl</span><span class="s3">.</span><span class="s1">CERT_NONE</span>
+<a name="l835"><span class="ln">835  </span></a>
+<a name="l836"><span class="ln">836  </span></a>    <span class="s2">@</span><span class="s1">verify_mode</span><span class="s3">.</span><span class="s1">setter</span>
+<a name="l837"><span class="ln">837  </span></a>    <span class="s2">def </span><span class="s1">verify_mode</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">value</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l838"><span class="ln">838  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_verify </span><span class="s2">= True if </span><span class="s1">value </span><span class="s2">== </span><span class="s1">ssl</span><span class="s3">.</span><span class="s1">CERT_REQUIRED </span><span class="s2">else False</span>
+<a name="l839"><span class="ln">839  </span></a>
+<a name="l840"><span class="ln">840  </span></a>    <span class="s2">def </span><span class="s1">set_default_verify_paths</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l841"><span class="ln">841  </span></a>        <span class="s0"># So, this has to do something a bit weird. Specifically, what it does</span>
+<a name="l842"><span class="ln">842  </span></a>        <span class="s0"># is nothing.</span>
+<a name="l843"><span class="ln">843  </span></a>        <span class="s0">#</span>
+<a name="l844"><span class="ln">844  </span></a>        <span class="s0"># This means that, if we had previously had load_verify_locations</span>
+<a name="l845"><span class="ln">845  </span></a>        <span class="s0"># called, this does not undo that. We need to do that because it turns</span>
+<a name="l846"><span class="ln">846  </span></a>        <span class="s0"># out that the rest of the urllib3 code will attempt to load the</span>
+<a name="l847"><span class="ln">847  </span></a>        <span class="s0"># default verify paths if it hasn't been told about any paths, even if</span>
+<a name="l848"><span class="ln">848  </span></a>        <span class="s0"># the context itself was sometime earlier. We resolve that by just</span>
+<a name="l849"><span class="ln">849  </span></a>        <span class="s0"># ignoring it.</span>
+<a name="l850"><span class="ln">850  </span></a>        <span class="s2">pass</span>
+<a name="l851"><span class="ln">851  </span></a>
+<a name="l852"><span class="ln">852  </span></a>    <span class="s2">def </span><span class="s1">load_default_certs</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l853"><span class="ln">853  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">set_default_verify_paths</span><span class="s3">()</span>
+<a name="l854"><span class="ln">854  </span></a>
+<a name="l855"><span class="ln">855  </span></a>    <span class="s2">def </span><span class="s1">set_ciphers</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">ciphers</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l856"><span class="ln">856  </span></a>        <span class="s0"># For now, we just require the default cipher string.</span>
+<a name="l857"><span class="ln">857  </span></a>        <span class="s2">if </span><span class="s1">ciphers </span><span class="s2">!= </span><span class="s1">util</span><span class="s3">.</span><span class="s1">ssl_</span><span class="s3">.</span><span class="s1">DEFAULT_CIPHERS</span><span class="s2">:</span>
+<a name="l858"><span class="ln">858  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;SecureTransport doesn't support custom cipher strings&quot;</span><span class="s3">)</span>
+<a name="l859"><span class="ln">859  </span></a>
+<a name="l860"><span class="ln">860  </span></a>    <span class="s2">def </span><span class="s1">load_verify_locations</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">cafile</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">capath</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">cadata</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l861"><span class="ln">861  </span></a>        <span class="s0"># OK, we only really support cadata and cafile.</span>
+<a name="l862"><span class="ln">862  </span></a>        <span class="s2">if </span><span class="s1">capath </span><span class="s2">is not None:</span>
+<a name="l863"><span class="ln">863  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;SecureTransport does not support cert directories&quot;</span><span class="s3">)</span>
+<a name="l864"><span class="ln">864  </span></a>
+<a name="l865"><span class="ln">865  </span></a>        <span class="s0"># Raise if cafile does not exist.</span>
+<a name="l866"><span class="ln">866  </span></a>        <span class="s2">if </span><span class="s1">cafile </span><span class="s2">is not None:</span>
+<a name="l867"><span class="ln">867  </span></a>            <span class="s2">with </span><span class="s1">open</span><span class="s3">(</span><span class="s1">cafile</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l868"><span class="ln">868  </span></a>                <span class="s2">pass</span>
+<a name="l869"><span class="ln">869  </span></a>
+<a name="l870"><span class="ln">870  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_trust_bundle </span><span class="s2">= </span><span class="s1">cafile </span><span class="s2">or </span><span class="s1">cadata</span>
+<a name="l871"><span class="ln">871  </span></a>
+<a name="l872"><span class="ln">872  </span></a>    <span class="s2">def </span><span class="s1">load_cert_chain</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">certfile</span><span class="s3">, </span><span class="s1">keyfile</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">password</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l873"><span class="ln">873  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_client_cert </span><span class="s2">= </span><span class="s1">certfile</span>
+<a name="l874"><span class="ln">874  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_client_key </span><span class="s2">= </span><span class="s1">keyfile</span>
+<a name="l875"><span class="ln">875  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_client_cert_passphrase </span><span class="s2">= </span><span class="s1">password</span>
+<a name="l876"><span class="ln">876  </span></a>
+<a name="l877"><span class="ln">877  </span></a>    <span class="s2">def </span><span class="s1">set_alpn_protocols</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">protocols</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l878"><span class="ln">878  </span></a>        <span class="s0">&quot;&quot;&quot; 
+<a name="l879"><span class="ln">879  </span></a>        Sets the ALPN protocols that will later be set on the context. 
+<a name="l880"><span class="ln">880  </span></a> 
+<a name="l881"><span class="ln">881  </span></a>        Raises a NotImplementedError if ALPN is not supported. 
+<a name="l882"><span class="ln">882  </span></a>        &quot;&quot;&quot;</span>
+<a name="l883"><span class="ln">883  </span></a>        <span class="s2">if not </span><span class="s1">hasattr</span><span class="s3">(</span><span class="s1">Security</span><span class="s3">, </span><span class="s4">&quot;SSLSetALPNProtocols&quot;</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l884"><span class="ln">884  </span></a>            <span class="s2">raise </span><span class="s1">NotImplementedError</span><span class="s3">(</span>
+<a name="l885"><span class="ln">885  </span></a>                <span class="s4">&quot;SecureTransport supports ALPN only in macOS 10.12+&quot;</span>
+<a name="l886"><span class="ln">886  </span></a>            <span class="s3">)</span>
+<a name="l887"><span class="ln">887  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_alpn_protocols </span><span class="s2">= </span><span class="s3">[</span><span class="s1">six</span><span class="s3">.</span><span class="s1">ensure_binary</span><span class="s3">(</span><span class="s1">p</span><span class="s3">) </span><span class="s2">for </span><span class="s1">p </span><span class="s2">in </span><span class="s1">protocols</span><span class="s3">]</span>
+<a name="l888"><span class="ln">888  </span></a>
+<a name="l889"><span class="ln">889  </span></a>    <span class="s2">def </span><span class="s1">wrap_socket</span><span class="s3">(</span>
+<a name="l890"><span class="ln">890  </span></a>        <span class="s1">self</span><span class="s3">,</span>
+<a name="l891"><span class="ln">891  </span></a>        <span class="s1">sock</span><span class="s3">,</span>
+<a name="l892"><span class="ln">892  </span></a>        <span class="s1">server_side</span><span class="s2">=False</span><span class="s3">,</span>
+<a name="l893"><span class="ln">893  </span></a>        <span class="s1">do_handshake_on_connect</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l894"><span class="ln">894  </span></a>        <span class="s1">suppress_ragged_eofs</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l895"><span class="ln">895  </span></a>        <span class="s1">server_hostname</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l896"><span class="ln">896  </span></a>    <span class="s3">)</span><span class="s2">:</span>
+<a name="l897"><span class="ln">897  </span></a>        <span class="s0"># So, what do we do here? Firstly, we assert some properties. This is a</span>
+<a name="l898"><span class="ln">898  </span></a>        <span class="s0"># stripped down shim, so there is some functionality we don't support.</span>
+<a name="l899"><span class="ln">899  </span></a>        <span class="s0"># See PEP 543 for the real deal.</span>
+<a name="l900"><span class="ln">900  </span></a>        <span class="s2">assert not </span><span class="s1">server_side</span>
+<a name="l901"><span class="ln">901  </span></a>        <span class="s2">assert </span><span class="s1">do_handshake_on_connect</span>
+<a name="l902"><span class="ln">902  </span></a>        <span class="s2">assert </span><span class="s1">suppress_ragged_eofs</span>
+<a name="l903"><span class="ln">903  </span></a>
+<a name="l904"><span class="ln">904  </span></a>        <span class="s0"># Ok, we're good to go. Now we want to create the wrapped socket object</span>
+<a name="l905"><span class="ln">905  </span></a>        <span class="s0"># and store it in the appropriate place.</span>
+<a name="l906"><span class="ln">906  </span></a>        <span class="s1">wrapped_socket </span><span class="s2">= </span><span class="s1">WrappedSocket</span><span class="s3">(</span><span class="s1">sock</span><span class="s3">)</span>
+<a name="l907"><span class="ln">907  </span></a>
+<a name="l908"><span class="ln">908  </span></a>        <span class="s0"># Now we can handshake</span>
+<a name="l909"><span class="ln">909  </span></a>        <span class="s1">wrapped_socket</span><span class="s3">.</span><span class="s1">handshake</span><span class="s3">(</span>
+<a name="l910"><span class="ln">910  </span></a>            <span class="s1">server_hostname</span><span class="s3">,</span>
+<a name="l911"><span class="ln">911  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_verify</span><span class="s3">,</span>
+<a name="l912"><span class="ln">912  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_trust_bundle</span><span class="s3">,</span>
+<a name="l913"><span class="ln">913  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_min_version</span><span class="s3">,</span>
+<a name="l914"><span class="ln">914  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_max_version</span><span class="s3">,</span>
+<a name="l915"><span class="ln">915  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_client_cert</span><span class="s3">,</span>
+<a name="l916"><span class="ln">916  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_client_key</span><span class="s3">,</span>
+<a name="l917"><span class="ln">917  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_client_key_passphrase</span><span class="s3">,</span>
+<a name="l918"><span class="ln">918  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_alpn_protocols</span><span class="s3">,</span>
+<a name="l919"><span class="ln">919  </span></a>        <span class="s3">)</span>
+<a name="l920"><span class="ln">920  </span></a>        <span class="s2">return </span><span class="s1">wrapped_socket</span>
+<a name="l921"><span class="ln">921  </span></a></pre>
+</body>
+</html>

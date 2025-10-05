@@ -1,0 +1,58 @@
+<html>
+<head>
+<title>annotate.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+annotate.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: allow-untyped-defs</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">fx</span><span class="s3">.</span><span class="s1">proxy </span><span class="s2">import </span><span class="s1">Proxy</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">_compatibility </span><span class="s2">import </span><span class="s1">compatibility</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">@</span><span class="s1">compatibility</span><span class="s3">(</span><span class="s1">is_backward_compatible</span><span class="s2">=False</span><span class="s3">)</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s2">def </span><span class="s1">annotate</span><span class="s3">(</span><span class="s1">val</span><span class="s3">, </span><span class="s1">type</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l9"><span class="ln">9    </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l10"><span class="ln">10   </span></a>    Annotates a Proxy object with a given type. 
+<a name="l11"><span class="ln">11   </span></a> 
+<a name="l12"><span class="ln">12   </span></a>    This function annotates a val with a given type if a type of the val is a torch.fx.Proxy object 
+<a name="l13"><span class="ln">13   </span></a>    Args: 
+<a name="l14"><span class="ln">14   </span></a>        val (object): An object to be annotated if its type is torch.fx.Proxy. 
+<a name="l15"><span class="ln">15   </span></a>        type (object): A type to be assigned to a given proxy object as val. 
+<a name="l16"><span class="ln">16   </span></a>    Returns: 
+<a name="l17"><span class="ln">17   </span></a>        The given val. 
+<a name="l18"><span class="ln">18   </span></a>    Raises: 
+<a name="l19"><span class="ln">19   </span></a>        RuntimeError: If a val already has a type in its node. 
+<a name="l20"><span class="ln">20   </span></a>    &quot;&quot;&quot;</span>
+<a name="l21"><span class="ln">21   </span></a>    <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">val</span><span class="s3">, </span><span class="s1">Proxy</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l22"><span class="ln">22   </span></a>        <span class="s2">if </span><span class="s1">val</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">type</span><span class="s2">:</span>
+<a name="l23"><span class="ln">23   </span></a>            <span class="s2">raise </span><span class="s1">RuntimeError</span><span class="s3">(</span>
+<a name="l24"><span class="ln">24   </span></a>                <span class="s4">f&quot;Tried to annotate a value that already had a type on it!&quot;</span>
+<a name="l25"><span class="ln">25   </span></a>                <span class="s4">f&quot; Existing type is {</span><span class="s1">val</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">type</span><span class="s4">} &quot;</span>
+<a name="l26"><span class="ln">26   </span></a>                <span class="s4">f&quot;and new type is {</span><span class="s1">type</span><span class="s4">}. &quot;</span>
+<a name="l27"><span class="ln">27   </span></a>                <span class="s4">f&quot;This could happen if you tried to annotate a function parameter &quot;</span>
+<a name="l28"><span class="ln">28   </span></a>                <span class="s4">f&quot;value (in which case you should use the type slot &quot;</span>
+<a name="l29"><span class="ln">29   </span></a>                <span class="s4">f&quot;on the function signature) or you called &quot;</span>
+<a name="l30"><span class="ln">30   </span></a>                <span class="s4">f&quot;annotate on the same value twice&quot;</span>
+<a name="l31"><span class="ln">31   </span></a>            <span class="s3">)</span>
+<a name="l32"><span class="ln">32   </span></a>        <span class="s2">else:</span>
+<a name="l33"><span class="ln">33   </span></a>            <span class="s1">val</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">type </span><span class="s2">= </span><span class="s1">type</span>
+<a name="l34"><span class="ln">34   </span></a>        <span class="s2">return </span><span class="s1">val</span>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s2">else:</span>
+<a name="l36"><span class="ln">36   </span></a>        <span class="s2">return </span><span class="s1">val</span>
+<a name="l37"><span class="ln">37   </span></a></pre>
+</body>
+</html>

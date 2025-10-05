@@ -1,0 +1,279 @@
+<html>
+<head>
+<title>commutator.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+commutator.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot;The commutator: [A,B] = A*B - B*A.&quot;&quot;&quot;</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">add </span><span class="s2">import </span><span class="s1">Add</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">expr </span><span class="s2">import </span><span class="s1">Expr</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">kind </span><span class="s2">import </span><span class="s1">KindDispatcher</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">mul </span><span class="s2">import </span><span class="s1">Mul</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">power </span><span class="s2">import </span><span class="s1">Pow</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">singleton </span><span class="s2">import </span><span class="s1">S</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">printing</span><span class="s3">.</span><span class="s1">pretty</span><span class="s3">.</span><span class="s1">stringpict </span><span class="s2">import </span><span class="s1">prettyForm</span>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">physics</span><span class="s3">.</span><span class="s1">quantum</span><span class="s3">.</span><span class="s1">dagger </span><span class="s2">import </span><span class="s1">Dagger</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">physics</span><span class="s3">.</span><span class="s1">quantum</span><span class="s3">.</span><span class="s1">kind </span><span class="s2">import </span><span class="s1">_OperatorKind</span><span class="s3">, </span><span class="s1">OperatorKind</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s4">'Commutator'</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s3">]</span>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s0">#-----------------------------------------------------------------------------</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s0"># Commutator</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s0">#-----------------------------------------------------------------------------</span>
+<a name="l22"><span class="ln">22   </span></a>
+<a name="l23"><span class="ln">23   </span></a>
+<a name="l24"><span class="ln">24   </span></a><span class="s2">class </span><span class="s1">Commutator</span><span class="s3">(</span><span class="s1">Expr</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s0">&quot;&quot;&quot;The standard commutator, in an unevaluated state. 
+<a name="l26"><span class="ln">26   </span></a> 
+<a name="l27"><span class="ln">27   </span></a>    Explanation 
+<a name="l28"><span class="ln">28   </span></a>    =========== 
+<a name="l29"><span class="ln">29   </span></a> 
+<a name="l30"><span class="ln">30   </span></a>    Evaluating a commutator is defined [1]_ as: ``[A, B] = A*B - B*A``. This 
+<a name="l31"><span class="ln">31   </span></a>    class returns the commutator in an unevaluated form. To evaluate the 
+<a name="l32"><span class="ln">32   </span></a>    commutator, use the ``.doit()`` method. 
+<a name="l33"><span class="ln">33   </span></a> 
+<a name="l34"><span class="ln">34   </span></a>    Canonical ordering of a commutator is ``[A, B]`` for ``A &lt; B``. The 
+<a name="l35"><span class="ln">35   </span></a>    arguments of the commutator are put into canonical order using ``__cmp__``. 
+<a name="l36"><span class="ln">36   </span></a>    If ``B &lt; A``, then ``[B, A]`` is returned as ``-[A, B]``. 
+<a name="l37"><span class="ln">37   </span></a> 
+<a name="l38"><span class="ln">38   </span></a>    Parameters 
+<a name="l39"><span class="ln">39   </span></a>    ========== 
+<a name="l40"><span class="ln">40   </span></a> 
+<a name="l41"><span class="ln">41   </span></a>    A : Expr 
+<a name="l42"><span class="ln">42   </span></a>        The first argument of the commutator [A,B]. 
+<a name="l43"><span class="ln">43   </span></a>    B : Expr 
+<a name="l44"><span class="ln">44   </span></a>        The second argument of the commutator [A,B]. 
+<a name="l45"><span class="ln">45   </span></a> 
+<a name="l46"><span class="ln">46   </span></a>    Examples 
+<a name="l47"><span class="ln">47   </span></a>    ======== 
+<a name="l48"><span class="ln">48   </span></a> 
+<a name="l49"><span class="ln">49   </span></a>    &gt;&gt;&gt; from sympy.physics.quantum import Commutator, Dagger, Operator 
+<a name="l50"><span class="ln">50   </span></a>    &gt;&gt;&gt; from sympy.abc import x, y 
+<a name="l51"><span class="ln">51   </span></a>    &gt;&gt;&gt; A = Operator('A') 
+<a name="l52"><span class="ln">52   </span></a>    &gt;&gt;&gt; B = Operator('B') 
+<a name="l53"><span class="ln">53   </span></a>    &gt;&gt;&gt; C = Operator('C') 
+<a name="l54"><span class="ln">54   </span></a> 
+<a name="l55"><span class="ln">55   </span></a>    Create a commutator and use ``.doit()`` to evaluate it: 
+<a name="l56"><span class="ln">56   </span></a> 
+<a name="l57"><span class="ln">57   </span></a>    &gt;&gt;&gt; comm = Commutator(A, B) 
+<a name="l58"><span class="ln">58   </span></a>    &gt;&gt;&gt; comm 
+<a name="l59"><span class="ln">59   </span></a>    [A,B] 
+<a name="l60"><span class="ln">60   </span></a>    &gt;&gt;&gt; comm.doit() 
+<a name="l61"><span class="ln">61   </span></a>    A*B - B*A 
+<a name="l62"><span class="ln">62   </span></a> 
+<a name="l63"><span class="ln">63   </span></a>    The commutator orders it arguments in canonical order: 
+<a name="l64"><span class="ln">64   </span></a> 
+<a name="l65"><span class="ln">65   </span></a>    &gt;&gt;&gt; comm = Commutator(B, A); comm 
+<a name="l66"><span class="ln">66   </span></a>    -[A,B] 
+<a name="l67"><span class="ln">67   </span></a> 
+<a name="l68"><span class="ln">68   </span></a>    Commutative constants are factored out: 
+<a name="l69"><span class="ln">69   </span></a> 
+<a name="l70"><span class="ln">70   </span></a>    &gt;&gt;&gt; Commutator(3*x*A, x*y*B) 
+<a name="l71"><span class="ln">71   </span></a>    3*x**2*y*[A,B] 
+<a name="l72"><span class="ln">72   </span></a> 
+<a name="l73"><span class="ln">73   </span></a>    Using ``.expand(commutator=True)``, the standard commutator expansion rules 
+<a name="l74"><span class="ln">74   </span></a>    can be applied: 
+<a name="l75"><span class="ln">75   </span></a> 
+<a name="l76"><span class="ln">76   </span></a>    &gt;&gt;&gt; Commutator(A+B, C).expand(commutator=True) 
+<a name="l77"><span class="ln">77   </span></a>    [A,C] + [B,C] 
+<a name="l78"><span class="ln">78   </span></a>    &gt;&gt;&gt; Commutator(A, B+C).expand(commutator=True) 
+<a name="l79"><span class="ln">79   </span></a>    [A,B] + [A,C] 
+<a name="l80"><span class="ln">80   </span></a>    &gt;&gt;&gt; Commutator(A*B, C).expand(commutator=True) 
+<a name="l81"><span class="ln">81   </span></a>    [A,C]*B + A*[B,C] 
+<a name="l82"><span class="ln">82   </span></a>    &gt;&gt;&gt; Commutator(A, B*C).expand(commutator=True) 
+<a name="l83"><span class="ln">83   </span></a>    [A,B]*C + B*[A,C] 
+<a name="l84"><span class="ln">84   </span></a> 
+<a name="l85"><span class="ln">85   </span></a>    Adjoint operations applied to the commutator are properly applied to the 
+<a name="l86"><span class="ln">86   </span></a>    arguments: 
+<a name="l87"><span class="ln">87   </span></a> 
+<a name="l88"><span class="ln">88   </span></a>    &gt;&gt;&gt; Dagger(Commutator(A, B)) 
+<a name="l89"><span class="ln">89   </span></a>    -[Dagger(A),Dagger(B)] 
+<a name="l90"><span class="ln">90   </span></a> 
+<a name="l91"><span class="ln">91   </span></a>    References 
+<a name="l92"><span class="ln">92   </span></a>    ========== 
+<a name="l93"><span class="ln">93   </span></a> 
+<a name="l94"><span class="ln">94   </span></a>    .. [1] https://en.wikipedia.org/wiki/Commutator 
+<a name="l95"><span class="ln">95   </span></a>    &quot;&quot;&quot;</span>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s1">is_commutative </span><span class="s2">= False</span>
+<a name="l97"><span class="ln">97   </span></a>
+<a name="l98"><span class="ln">98   </span></a>    <span class="s1">_kind_dispatcher </span><span class="s2">= </span><span class="s1">KindDispatcher</span><span class="s3">(</span><span class="s4">&quot;Commutator_kind_dispatcher&quot;</span><span class="s3">, </span><span class="s1">commutative</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l99"><span class="ln">99   </span></a>
+<a name="l100"><span class="ln">100  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l101"><span class="ln">101  </span></a>    <span class="s2">def </span><span class="s1">kind</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l102"><span class="ln">102  </span></a>        <span class="s1">arg_kinds </span><span class="s2">= </span><span class="s3">(</span><span class="s1">a</span><span class="s3">.</span><span class="s1">kind </span><span class="s2">for </span><span class="s1">a </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">)</span>
+<a name="l103"><span class="ln">103  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_kind_dispatcher</span><span class="s3">(</span><span class="s2">*</span><span class="s1">arg_kinds</span><span class="s3">)</span>
+<a name="l104"><span class="ln">104  </span></a>
+<a name="l105"><span class="ln">105  </span></a>    <span class="s2">def </span><span class="s1">__new__</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s1">A</span><span class="s3">, </span><span class="s1">B</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l106"><span class="ln">106  </span></a>        <span class="s1">r </span><span class="s2">= </span><span class="s1">cls</span><span class="s3">.</span><span class="s1">eval</span><span class="s3">(</span><span class="s1">A</span><span class="s3">, </span><span class="s1">B</span><span class="s3">)</span>
+<a name="l107"><span class="ln">107  </span></a>        <span class="s2">if </span><span class="s1">r </span><span class="s2">is not None:</span>
+<a name="l108"><span class="ln">108  </span></a>            <span class="s2">return </span><span class="s1">r</span>
+<a name="l109"><span class="ln">109  </span></a>        <span class="s1">obj </span><span class="s2">= </span><span class="s1">Expr</span><span class="s3">.</span><span class="s1">__new__</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s1">A</span><span class="s3">, </span><span class="s1">B</span><span class="s3">)</span>
+<a name="l110"><span class="ln">110  </span></a>        <span class="s2">return </span><span class="s1">obj</span>
+<a name="l111"><span class="ln">111  </span></a>
+<a name="l112"><span class="ln">112  </span></a>    <span class="s2">@</span><span class="s1">classmethod</span>
+<a name="l113"><span class="ln">113  </span></a>    <span class="s2">def </span><span class="s1">eval</span><span class="s3">(</span><span class="s1">cls</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l114"><span class="ln">114  </span></a>        <span class="s2">if not </span><span class="s3">(</span><span class="s1">a </span><span class="s2">and </span><span class="s1">b</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l115"><span class="ln">115  </span></a>            <span class="s2">return </span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span>
+<a name="l116"><span class="ln">116  </span></a>        <span class="s2">if </span><span class="s1">a </span><span class="s2">== </span><span class="s1">b</span><span class="s2">:</span>
+<a name="l117"><span class="ln">117  </span></a>            <span class="s2">return </span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span>
+<a name="l118"><span class="ln">118  </span></a>        <span class="s2">if </span><span class="s1">a</span><span class="s3">.</span><span class="s1">is_commutative </span><span class="s2">or </span><span class="s1">b</span><span class="s3">.</span><span class="s1">is_commutative</span><span class="s2">:</span>
+<a name="l119"><span class="ln">119  </span></a>            <span class="s2">return </span><span class="s1">S</span><span class="s3">.</span><span class="s1">Zero</span>
+<a name="l120"><span class="ln">120  </span></a>
+<a name="l121"><span class="ln">121  </span></a>        <span class="s0"># [xA,yB]  -&gt;  xy*[A,B]</span>
+<a name="l122"><span class="ln">122  </span></a>        <span class="s1">ca</span><span class="s3">, </span><span class="s1">nca </span><span class="s2">= </span><span class="s1">a</span><span class="s3">.</span><span class="s1">args_cnc</span><span class="s3">()</span>
+<a name="l123"><span class="ln">123  </span></a>        <span class="s1">cb</span><span class="s3">, </span><span class="s1">ncb </span><span class="s2">= </span><span class="s1">b</span><span class="s3">.</span><span class="s1">args_cnc</span><span class="s3">()</span>
+<a name="l124"><span class="ln">124  </span></a>        <span class="s1">c_part </span><span class="s2">= </span><span class="s1">ca </span><span class="s2">+ </span><span class="s1">cb</span>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s2">if </span><span class="s1">c_part</span><span class="s2">:</span>
+<a name="l126"><span class="ln">126  </span></a>            <span class="s2">return </span><span class="s1">Mul</span><span class="s3">(</span><span class="s1">Mul</span><span class="s3">(</span><span class="s2">*</span><span class="s1">c_part</span><span class="s3">), </span><span class="s1">cls</span><span class="s3">(</span><span class="s1">Mul</span><span class="s3">.</span><span class="s1">_from_args</span><span class="s3">(</span><span class="s1">nca</span><span class="s3">), </span><span class="s1">Mul</span><span class="s3">.</span><span class="s1">_from_args</span><span class="s3">(</span><span class="s1">ncb</span><span class="s3">)))</span>
+<a name="l127"><span class="ln">127  </span></a>
+<a name="l128"><span class="ln">128  </span></a>        <span class="s0"># Canonical ordering of arguments</span>
+<a name="l129"><span class="ln">129  </span></a>        <span class="s0"># The Commutator [A, B] is in canonical form if A &lt; B.</span>
+<a name="l130"><span class="ln">130  </span></a>        <span class="s2">if </span><span class="s1">a</span><span class="s3">.</span><span class="s1">compare</span><span class="s3">(</span><span class="s1">b</span><span class="s3">) </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l131"><span class="ln">131  </span></a>            <span class="s2">return </span><span class="s1">S</span><span class="s3">.</span><span class="s1">NegativeOne</span><span class="s2">*</span><span class="s1">cls</span><span class="s3">(</span><span class="s1">b</span><span class="s3">, </span><span class="s1">a</span><span class="s3">)</span>
+<a name="l132"><span class="ln">132  </span></a>
+<a name="l133"><span class="ln">133  </span></a>    <span class="s2">def </span><span class="s1">_expand_pow</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">A</span><span class="s3">, </span><span class="s1">B</span><span class="s3">, </span><span class="s1">sign</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l134"><span class="ln">134  </span></a>        <span class="s1">exp </span><span class="s2">= </span><span class="s1">A</span><span class="s3">.</span><span class="s1">exp</span>
+<a name="l135"><span class="ln">135  </span></a>        <span class="s2">if not </span><span class="s1">exp</span><span class="s3">.</span><span class="s1">is_integer </span><span class="s2">or not </span><span class="s1">exp</span><span class="s3">.</span><span class="s1">is_constant</span><span class="s3">() </span><span class="s2">or </span><span class="s1">abs</span><span class="s3">(</span><span class="s1">exp</span><span class="s3">) </span><span class="s2">&lt;= </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l136"><span class="ln">136  </span></a>            <span class="s0"># nothing to do</span>
+<a name="l137"><span class="ln">137  </span></a>            <span class="s2">return </span><span class="s1">self</span>
+<a name="l138"><span class="ln">138  </span></a>        <span class="s1">base </span><span class="s2">= </span><span class="s1">A</span><span class="s3">.</span><span class="s1">base</span>
+<a name="l139"><span class="ln">139  </span></a>        <span class="s2">if </span><span class="s1">exp</span><span class="s3">.</span><span class="s1">is_negative</span><span class="s2">:</span>
+<a name="l140"><span class="ln">140  </span></a>            <span class="s1">base </span><span class="s2">= </span><span class="s1">A</span><span class="s3">.</span><span class="s1">base</span><span class="s2">**-</span><span class="s5">1</span>
+<a name="l141"><span class="ln">141  </span></a>            <span class="s1">exp </span><span class="s2">= -</span><span class="s1">exp</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s1">comm </span><span class="s2">= </span><span class="s1">Commutator</span><span class="s3">(</span><span class="s1">base</span><span class="s3">, </span><span class="s1">B</span><span class="s3">).</span><span class="s1">expand</span><span class="s3">(</span><span class="s1">commutator</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l143"><span class="ln">143  </span></a>
+<a name="l144"><span class="ln">144  </span></a>        <span class="s1">result </span><span class="s2">= </span><span class="s1">base</span><span class="s2">**</span><span class="s3">(</span><span class="s1">exp </span><span class="s2">- </span><span class="s5">1</span><span class="s3">) </span><span class="s2">* </span><span class="s1">comm</span>
+<a name="l145"><span class="ln">145  </span></a>        <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s5">1</span><span class="s3">, </span><span class="s1">exp</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l146"><span class="ln">146  </span></a>            <span class="s1">result </span><span class="s2">+= </span><span class="s1">base</span><span class="s2">**</span><span class="s3">(</span><span class="s1">exp </span><span class="s2">- </span><span class="s5">1 </span><span class="s2">- </span><span class="s1">i</span><span class="s3">) </span><span class="s2">* </span><span class="s1">comm </span><span class="s2">* </span><span class="s1">base</span><span class="s2">**</span><span class="s1">i</span>
+<a name="l147"><span class="ln">147  </span></a>        <span class="s2">return </span><span class="s1">sign</span><span class="s2">*</span><span class="s1">result</span><span class="s3">.</span><span class="s1">expand</span><span class="s3">()</span>
+<a name="l148"><span class="ln">148  </span></a>
+<a name="l149"><span class="ln">149  </span></a>    <span class="s2">def </span><span class="s1">_eval_expand_commutator</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s2">**</span><span class="s1">hints</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s1">A </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l151"><span class="ln">151  </span></a>        <span class="s1">B </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">1</span><span class="s3">]</span>
+<a name="l152"><span class="ln">152  </span></a>
+<a name="l153"><span class="ln">153  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">A</span><span class="s3">, </span><span class="s1">Add</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l154"><span class="ln">154  </span></a>            <span class="s0"># [A + B, C]  -&gt;  [A, C] + [B, C]</span>
+<a name="l155"><span class="ln">155  </span></a>            <span class="s1">sargs </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l156"><span class="ln">156  </span></a>            <span class="s2">for </span><span class="s1">term </span><span class="s2">in </span><span class="s1">A</span><span class="s3">.</span><span class="s1">args</span><span class="s2">:</span>
+<a name="l157"><span class="ln">157  </span></a>                <span class="s1">comm </span><span class="s2">= </span><span class="s1">Commutator</span><span class="s3">(</span><span class="s1">term</span><span class="s3">, </span><span class="s1">B</span><span class="s3">)</span>
+<a name="l158"><span class="ln">158  </span></a>                <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">comm</span><span class="s3">, </span><span class="s1">Commutator</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l159"><span class="ln">159  </span></a>                    <span class="s1">comm </span><span class="s2">= </span><span class="s1">comm</span><span class="s3">.</span><span class="s1">_eval_expand_commutator</span><span class="s3">()</span>
+<a name="l160"><span class="ln">160  </span></a>                <span class="s1">sargs</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">comm</span><span class="s3">)</span>
+<a name="l161"><span class="ln">161  </span></a>            <span class="s2">return </span><span class="s1">Add</span><span class="s3">(</span><span class="s2">*</span><span class="s1">sargs</span><span class="s3">)</span>
+<a name="l162"><span class="ln">162  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">B</span><span class="s3">, </span><span class="s1">Add</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l163"><span class="ln">163  </span></a>            <span class="s0"># [A, B + C]  -&gt;  [A, B] + [A, C]</span>
+<a name="l164"><span class="ln">164  </span></a>            <span class="s1">sargs </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l165"><span class="ln">165  </span></a>            <span class="s2">for </span><span class="s1">term </span><span class="s2">in </span><span class="s1">B</span><span class="s3">.</span><span class="s1">args</span><span class="s2">:</span>
+<a name="l166"><span class="ln">166  </span></a>                <span class="s1">comm </span><span class="s2">= </span><span class="s1">Commutator</span><span class="s3">(</span><span class="s1">A</span><span class="s3">, </span><span class="s1">term</span><span class="s3">)</span>
+<a name="l167"><span class="ln">167  </span></a>                <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">comm</span><span class="s3">, </span><span class="s1">Commutator</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l168"><span class="ln">168  </span></a>                    <span class="s1">comm </span><span class="s2">= </span><span class="s1">comm</span><span class="s3">.</span><span class="s1">_eval_expand_commutator</span><span class="s3">()</span>
+<a name="l169"><span class="ln">169  </span></a>                <span class="s1">sargs</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">comm</span><span class="s3">)</span>
+<a name="l170"><span class="ln">170  </span></a>            <span class="s2">return </span><span class="s1">Add</span><span class="s3">(</span><span class="s2">*</span><span class="s1">sargs</span><span class="s3">)</span>
+<a name="l171"><span class="ln">171  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">A</span><span class="s3">, </span><span class="s1">Mul</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l172"><span class="ln">172  </span></a>            <span class="s0"># [A*B, C] -&gt; A*[B, C] + [A, C]*B</span>
+<a name="l173"><span class="ln">173  </span></a>            <span class="s1">a </span><span class="s2">= </span><span class="s1">A</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l174"><span class="ln">174  </span></a>            <span class="s1">b </span><span class="s2">= </span><span class="s1">Mul</span><span class="s3">(</span><span class="s2">*</span><span class="s1">A</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">])</span>
+<a name="l175"><span class="ln">175  </span></a>            <span class="s1">c </span><span class="s2">= </span><span class="s1">B</span>
+<a name="l176"><span class="ln">176  </span></a>            <span class="s1">comm1 </span><span class="s2">= </span><span class="s1">Commutator</span><span class="s3">(</span><span class="s1">b</span><span class="s3">, </span><span class="s1">c</span><span class="s3">)</span>
+<a name="l177"><span class="ln">177  </span></a>            <span class="s1">comm2 </span><span class="s2">= </span><span class="s1">Commutator</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">c</span><span class="s3">)</span>
+<a name="l178"><span class="ln">178  </span></a>            <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">comm1</span><span class="s3">, </span><span class="s1">Commutator</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l179"><span class="ln">179  </span></a>                <span class="s1">comm1 </span><span class="s2">= </span><span class="s1">comm1</span><span class="s3">.</span><span class="s1">_eval_expand_commutator</span><span class="s3">()</span>
+<a name="l180"><span class="ln">180  </span></a>            <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">comm2</span><span class="s3">, </span><span class="s1">Commutator</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l181"><span class="ln">181  </span></a>                <span class="s1">comm2 </span><span class="s2">= </span><span class="s1">comm2</span><span class="s3">.</span><span class="s1">_eval_expand_commutator</span><span class="s3">()</span>
+<a name="l182"><span class="ln">182  </span></a>            <span class="s1">first </span><span class="s2">= </span><span class="s1">Mul</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">comm1</span><span class="s3">)</span>
+<a name="l183"><span class="ln">183  </span></a>            <span class="s1">second </span><span class="s2">= </span><span class="s1">Mul</span><span class="s3">(</span><span class="s1">comm2</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span>
+<a name="l184"><span class="ln">184  </span></a>            <span class="s2">return </span><span class="s1">Add</span><span class="s3">(</span><span class="s1">first</span><span class="s3">, </span><span class="s1">second</span><span class="s3">)</span>
+<a name="l185"><span class="ln">185  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">B</span><span class="s3">, </span><span class="s1">Mul</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l186"><span class="ln">186  </span></a>            <span class="s0"># [A, B*C] -&gt; [A, B]*C + B*[A, C]</span>
+<a name="l187"><span class="ln">187  </span></a>            <span class="s1">a </span><span class="s2">= </span><span class="s1">A</span>
+<a name="l188"><span class="ln">188  </span></a>            <span class="s1">b </span><span class="s2">= </span><span class="s1">B</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l189"><span class="ln">189  </span></a>            <span class="s1">c </span><span class="s2">= </span><span class="s1">Mul</span><span class="s3">(</span><span class="s2">*</span><span class="s1">B</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">])</span>
+<a name="l190"><span class="ln">190  </span></a>            <span class="s1">comm1 </span><span class="s2">= </span><span class="s1">Commutator</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span>
+<a name="l191"><span class="ln">191  </span></a>            <span class="s1">comm2 </span><span class="s2">= </span><span class="s1">Commutator</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">c</span><span class="s3">)</span>
+<a name="l192"><span class="ln">192  </span></a>            <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">comm1</span><span class="s3">, </span><span class="s1">Commutator</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l193"><span class="ln">193  </span></a>                <span class="s1">comm1 </span><span class="s2">= </span><span class="s1">comm1</span><span class="s3">.</span><span class="s1">_eval_expand_commutator</span><span class="s3">()</span>
+<a name="l194"><span class="ln">194  </span></a>            <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">comm2</span><span class="s3">, </span><span class="s1">Commutator</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l195"><span class="ln">195  </span></a>                <span class="s1">comm2 </span><span class="s2">= </span><span class="s1">comm2</span><span class="s3">.</span><span class="s1">_eval_expand_commutator</span><span class="s3">()</span>
+<a name="l196"><span class="ln">196  </span></a>            <span class="s1">first </span><span class="s2">= </span><span class="s1">Mul</span><span class="s3">(</span><span class="s1">comm1</span><span class="s3">, </span><span class="s1">c</span><span class="s3">)</span>
+<a name="l197"><span class="ln">197  </span></a>            <span class="s1">second </span><span class="s2">= </span><span class="s1">Mul</span><span class="s3">(</span><span class="s1">b</span><span class="s3">, </span><span class="s1">comm2</span><span class="s3">)</span>
+<a name="l198"><span class="ln">198  </span></a>            <span class="s2">return </span><span class="s1">Add</span><span class="s3">(</span><span class="s1">first</span><span class="s3">, </span><span class="s1">second</span><span class="s3">)</span>
+<a name="l199"><span class="ln">199  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">A</span><span class="s3">, </span><span class="s1">Pow</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l200"><span class="ln">200  </span></a>            <span class="s0"># [A**n, C] -&gt; A**(n - 1)*[A, C] + A**(n - 2)*[A, C]*A + ... + [A, C]*A**(n-1)</span>
+<a name="l201"><span class="ln">201  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_expand_pow</span><span class="s3">(</span><span class="s1">A</span><span class="s3">, </span><span class="s1">B</span><span class="s3">, </span><span class="s5">1</span><span class="s3">)</span>
+<a name="l202"><span class="ln">202  </span></a>        <span class="s2">elif </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">B</span><span class="s3">, </span><span class="s1">Pow</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l203"><span class="ln">203  </span></a>            <span class="s0"># [A, C**n] -&gt; C**(n - 1)*[C, A] + C**(n - 2)*[C, A]*C + ... + [C, A]*C**(n-1)</span>
+<a name="l204"><span class="ln">204  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_expand_pow</span><span class="s3">(</span><span class="s1">B</span><span class="s3">, </span><span class="s1">A</span><span class="s3">, </span><span class="s2">-</span><span class="s5">1</span><span class="s3">)</span>
+<a name="l205"><span class="ln">205  </span></a>
+<a name="l206"><span class="ln">206  </span></a>        <span class="s0"># No changes, so return self</span>
+<a name="l207"><span class="ln">207  </span></a>        <span class="s2">return </span><span class="s1">self</span>
+<a name="l208"><span class="ln">208  </span></a>
+<a name="l209"><span class="ln">209  </span></a>    <span class="s2">def </span><span class="s1">doit</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s2">**</span><span class="s1">hints</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l210"><span class="ln">210  </span></a>        <span class="s0">&quot;&quot;&quot; Evaluate commutator &quot;&quot;&quot;</span>
+<a name="l211"><span class="ln">211  </span></a>        <span class="s0"># Keep the import of Operator here to avoid problems with</span>
+<a name="l212"><span class="ln">212  </span></a>        <span class="s0"># circular imports.</span>
+<a name="l213"><span class="ln">213  </span></a>        <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">physics</span><span class="s3">.</span><span class="s1">quantum</span><span class="s3">.</span><span class="s1">operator </span><span class="s2">import </span><span class="s1">Operator</span>
+<a name="l214"><span class="ln">214  </span></a>        <span class="s1">A </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l215"><span class="ln">215  </span></a>        <span class="s1">B </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">1</span><span class="s3">]</span>
+<a name="l216"><span class="ln">216  </span></a>        <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">A</span><span class="s3">, </span><span class="s1">Operator</span><span class="s3">) </span><span class="s2">and </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">B</span><span class="s3">, </span><span class="s1">Operator</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l217"><span class="ln">217  </span></a>            <span class="s2">try:</span>
+<a name="l218"><span class="ln">218  </span></a>                <span class="s1">comm </span><span class="s2">= </span><span class="s1">A</span><span class="s3">.</span><span class="s1">_eval_commutator</span><span class="s3">(</span><span class="s1">B</span><span class="s3">, </span><span class="s2">**</span><span class="s1">hints</span><span class="s3">)</span>
+<a name="l219"><span class="ln">219  </span></a>            <span class="s2">except </span><span class="s1">NotImplementedError</span><span class="s2">:</span>
+<a name="l220"><span class="ln">220  </span></a>                <span class="s2">try:</span>
+<a name="l221"><span class="ln">221  </span></a>                    <span class="s1">comm </span><span class="s2">= -</span><span class="s5">1</span><span class="s2">*</span><span class="s1">B</span><span class="s3">.</span><span class="s1">_eval_commutator</span><span class="s3">(</span><span class="s1">A</span><span class="s3">, </span><span class="s2">**</span><span class="s1">hints</span><span class="s3">)</span>
+<a name="l222"><span class="ln">222  </span></a>                <span class="s2">except </span><span class="s1">NotImplementedError</span><span class="s2">:</span>
+<a name="l223"><span class="ln">223  </span></a>                    <span class="s1">comm </span><span class="s2">= None</span>
+<a name="l224"><span class="ln">224  </span></a>            <span class="s2">if </span><span class="s1">comm </span><span class="s2">is not None:</span>
+<a name="l225"><span class="ln">225  </span></a>                <span class="s2">return </span><span class="s1">comm</span><span class="s3">.</span><span class="s1">doit</span><span class="s3">(</span><span class="s2">**</span><span class="s1">hints</span><span class="s3">)</span>
+<a name="l226"><span class="ln">226  </span></a>        <span class="s2">return </span><span class="s3">(</span><span class="s1">A</span><span class="s2">*</span><span class="s1">B </span><span class="s2">- </span><span class="s1">B</span><span class="s2">*</span><span class="s1">A</span><span class="s3">).</span><span class="s1">doit</span><span class="s3">(</span><span class="s2">**</span><span class="s1">hints</span><span class="s3">)</span>
+<a name="l227"><span class="ln">227  </span></a>
+<a name="l228"><span class="ln">228  </span></a>    <span class="s2">def </span><span class="s1">_eval_adjoint</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l229"><span class="ln">229  </span></a>        <span class="s2">return </span><span class="s1">Commutator</span><span class="s3">(</span><span class="s1">Dagger</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">1</span><span class="s3">]), </span><span class="s1">Dagger</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]))</span>
+<a name="l230"><span class="ln">230  </span></a>
+<a name="l231"><span class="ln">231  </span></a>    <span class="s2">def </span><span class="s1">_sympyrepr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">printer</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l232"><span class="ln">232  </span></a>        <span class="s2">return </span><span class="s4">&quot;%s(%s,%s)&quot; </span><span class="s2">% </span><span class="s3">(</span>
+<a name="l233"><span class="ln">233  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">.</span><span class="s1">__name__</span><span class="s3">, </span><span class="s1">printer</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span>
+<a name="l234"><span class="ln">234  </span></a>                <span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]), </span><span class="s1">printer</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">1</span><span class="s3">])</span>
+<a name="l235"><span class="ln">235  </span></a>        <span class="s3">)</span>
+<a name="l236"><span class="ln">236  </span></a>
+<a name="l237"><span class="ln">237  </span></a>    <span class="s2">def </span><span class="s1">_sympystr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">printer</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l238"><span class="ln">238  </span></a>        <span class="s2">return </span><span class="s4">&quot;[%s,%s]&quot; </span><span class="s2">% </span><span class="s3">(</span>
+<a name="l239"><span class="ln">239  </span></a>            <span class="s1">printer</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]), </span><span class="s1">printer</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">1</span><span class="s3">]))</span>
+<a name="l240"><span class="ln">240  </span></a>
+<a name="l241"><span class="ln">241  </span></a>    <span class="s2">def </span><span class="s1">_pretty</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">printer</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l242"><span class="ln">242  </span></a>        <span class="s1">pform </span><span class="s2">= </span><span class="s1">printer</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s2">*</span><span class="s1">args</span><span class="s3">)</span>
+<a name="l243"><span class="ln">243  </span></a>        <span class="s1">pform </span><span class="s2">= </span><span class="s1">prettyForm</span><span class="s3">(</span><span class="s2">*</span><span class="s1">pform</span><span class="s3">.</span><span class="s1">right</span><span class="s3">(</span><span class="s1">prettyForm</span><span class="s3">(</span><span class="s4">','</span><span class="s3">)))</span>
+<a name="l244"><span class="ln">244  </span></a>        <span class="s1">pform </span><span class="s2">= </span><span class="s1">prettyForm</span><span class="s3">(</span><span class="s2">*</span><span class="s1">pform</span><span class="s3">.</span><span class="s1">right</span><span class="s3">(</span><span class="s1">printer</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">[</span><span class="s5">1</span><span class="s3">], </span><span class="s2">*</span><span class="s1">args</span><span class="s3">)))</span>
+<a name="l245"><span class="ln">245  </span></a>        <span class="s1">pform </span><span class="s2">= </span><span class="s1">prettyForm</span><span class="s3">(</span><span class="s2">*</span><span class="s1">pform</span><span class="s3">.</span><span class="s1">parens</span><span class="s3">(</span><span class="s1">left</span><span class="s2">=</span><span class="s4">'['</span><span class="s3">, </span><span class="s1">right</span><span class="s2">=</span><span class="s4">']'</span><span class="s3">))</span>
+<a name="l246"><span class="ln">246  </span></a>        <span class="s2">return </span><span class="s1">pform</span>
+<a name="l247"><span class="ln">247  </span></a>
+<a name="l248"><span class="ln">248  </span></a>    <span class="s2">def </span><span class="s1">_latex</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">printer</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l249"><span class="ln">249  </span></a>        <span class="s2">return </span><span class="s4">&quot;\\left[%s,%s\\right]&quot; </span><span class="s2">% </span><span class="s1">tuple</span><span class="s3">([</span>
+<a name="l250"><span class="ln">250  </span></a>            <span class="s1">printer</span><span class="s3">.</span><span class="s1">_print</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">) </span><span class="s2">for </span><span class="s1">arg </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">args</span><span class="s3">])</span>
+<a name="l251"><span class="ln">251  </span></a>
+<a name="l252"><span class="ln">252  </span></a>
+<a name="l253"><span class="ln">253  </span></a><span class="s2">@</span><span class="s1">Commutator</span><span class="s3">.</span><span class="s1">_kind_dispatcher</span><span class="s3">.</span><span class="s1">register</span><span class="s3">(</span><span class="s1">_OperatorKind</span><span class="s3">, </span><span class="s1">_OperatorKind</span><span class="s3">)</span>
+<a name="l254"><span class="ln">254  </span></a><span class="s2">def </span><span class="s1">find_op_kind</span><span class="s3">(</span><span class="s1">e1</span><span class="s3">, </span><span class="s1">e2</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l255"><span class="ln">255  </span></a>    <span class="s0">&quot;&quot;&quot;Find the kind of an anticommutator of two OperatorKinds.&quot;&quot;&quot;</span>
+<a name="l256"><span class="ln">256  </span></a>    <span class="s2">return </span><span class="s1">OperatorKind</span>
+<a name="l257"><span class="ln">257  </span></a></pre>
+</body>
+</html>

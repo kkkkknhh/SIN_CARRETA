@@ -1,0 +1,253 @@
+<html>
+<head>
+<title>lgmres.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+lgmres.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># Copyright (C) 2009, Pauli Virtanen &lt;pav@iki.fi&gt;</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0"># Distributed under the same license as SciPy.</span>
+<a name="l3"><span class="ln">3    </span></a>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">import </span><span class="s1">numpy </span><span class="s2">as </span><span class="s1">np</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s2">from </span><span class="s1">numpy</span><span class="s3">.</span><span class="s1">linalg </span><span class="s2">import </span><span class="s1">LinAlgError</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s2">from </span><span class="s1">scipy</span><span class="s3">.</span><span class="s1">linalg </span><span class="s2">import </span><span class="s1">get_blas_funcs</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">iterative </span><span class="s2">import </span><span class="s1">_get_atol_rtol</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">utils </span><span class="s2">import </span><span class="s1">make_system</span>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">_gcrotmk </span><span class="s2">import </span><span class="s1">_fgmres</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'lgmres'</span><span class="s3">]</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">def </span><span class="s1">lgmres</span><span class="s3">(</span><span class="s1">A</span><span class="s3">, </span><span class="s1">b</span><span class="s3">, </span><span class="s1">x0</span><span class="s2">=None</span><span class="s3">, </span><span class="s2">*</span><span class="s3">, </span><span class="s1">rtol</span><span class="s2">=</span><span class="s5">1e-5</span><span class="s3">, </span><span class="s1">atol</span><span class="s2">=</span><span class="s5">0.</span><span class="s3">, </span><span class="s1">maxiter</span><span class="s2">=</span><span class="s5">1000</span><span class="s3">, </span><span class="s1">M</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">callback</span><span class="s2">=None</span><span class="s3">,</span>
+<a name="l16"><span class="ln">16   </span></a>           <span class="s1">inner_m</span><span class="s2">=</span><span class="s5">30</span><span class="s3">, </span><span class="s1">outer_k</span><span class="s2">=</span><span class="s5">3</span><span class="s3">, </span><span class="s1">outer_v</span><span class="s2">=None</span><span class="s3">, </span><span class="s1">store_outer_Av</span><span class="s2">=True</span><span class="s3">,</span>
+<a name="l17"><span class="ln">17   </span></a>           <span class="s1">prepend_outer_v</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l19"><span class="ln">19   </span></a>    Solve a matrix equation using the LGMRES algorithm. 
+<a name="l20"><span class="ln">20   </span></a> 
+<a name="l21"><span class="ln">21   </span></a>    The LGMRES algorithm [1]_ [2]_ is designed to avoid some problems 
+<a name="l22"><span class="ln">22   </span></a>    in the convergence in restarted GMRES, and often converges in fewer 
+<a name="l23"><span class="ln">23   </span></a>    iterations. 
+<a name="l24"><span class="ln">24   </span></a> 
+<a name="l25"><span class="ln">25   </span></a>    Parameters 
+<a name="l26"><span class="ln">26   </span></a>    ---------- 
+<a name="l27"><span class="ln">27   </span></a>    A : {sparse array, ndarray, LinearOperator} 
+<a name="l28"><span class="ln">28   </span></a>        The real or complex N-by-N matrix of the linear system. 
+<a name="l29"><span class="ln">29   </span></a>        Alternatively, ``A`` can be a linear operator which can 
+<a name="l30"><span class="ln">30   </span></a>        produce ``Ax`` using, e.g., 
+<a name="l31"><span class="ln">31   </span></a>        ``scipy.sparse.linalg.LinearOperator``. 
+<a name="l32"><span class="ln">32   </span></a>    b : ndarray 
+<a name="l33"><span class="ln">33   </span></a>        Right hand side of the linear system. Has shape (N,) or (N,1). 
+<a name="l34"><span class="ln">34   </span></a>    x0 : ndarray 
+<a name="l35"><span class="ln">35   </span></a>        Starting guess for the solution. 
+<a name="l36"><span class="ln">36   </span></a>    rtol, atol : float, optional 
+<a name="l37"><span class="ln">37   </span></a>        Parameters for the convergence test. For convergence, 
+<a name="l38"><span class="ln">38   </span></a>        ``norm(b - A @ x) &lt;= max(rtol*norm(b), atol)`` should be satisfied. 
+<a name="l39"><span class="ln">39   </span></a>        The default is ``rtol=1e-5``, the default for ``atol`` is ``0.0``. 
+<a name="l40"><span class="ln">40   </span></a>    maxiter : int, optional 
+<a name="l41"><span class="ln">41   </span></a>        Maximum number of iterations.  Iteration will stop after maxiter 
+<a name="l42"><span class="ln">42   </span></a>        steps even if the specified tolerance has not been achieved. 
+<a name="l43"><span class="ln">43   </span></a>    M : {sparse array, ndarray, LinearOperator}, optional 
+<a name="l44"><span class="ln">44   </span></a>        Preconditioner for A.  The preconditioner should approximate the 
+<a name="l45"><span class="ln">45   </span></a>        inverse of A.  Effective preconditioning dramatically improves the 
+<a name="l46"><span class="ln">46   </span></a>        rate of convergence, which implies that fewer iterations are needed 
+<a name="l47"><span class="ln">47   </span></a>        to reach a given error tolerance. 
+<a name="l48"><span class="ln">48   </span></a>    callback : function, optional 
+<a name="l49"><span class="ln">49   </span></a>        User-supplied function to call after each iteration.  It is called 
+<a name="l50"><span class="ln">50   </span></a>        as callback(xk), where xk is the current solution vector. 
+<a name="l51"><span class="ln">51   </span></a>    inner_m : int, optional 
+<a name="l52"><span class="ln">52   </span></a>        Number of inner GMRES iterations per each outer iteration. 
+<a name="l53"><span class="ln">53   </span></a>    outer_k : int, optional 
+<a name="l54"><span class="ln">54   </span></a>        Number of vectors to carry between inner GMRES iterations. 
+<a name="l55"><span class="ln">55   </span></a>        According to [1]_, good values are in the range of 1...3. 
+<a name="l56"><span class="ln">56   </span></a>        However, note that if you want to use the additional vectors to 
+<a name="l57"><span class="ln">57   </span></a>        accelerate solving multiple similar problems, larger values may 
+<a name="l58"><span class="ln">58   </span></a>        be beneficial. 
+<a name="l59"><span class="ln">59   </span></a>    outer_v : list of tuples, optional 
+<a name="l60"><span class="ln">60   </span></a>        List containing tuples ``(v, Av)`` of vectors and corresponding 
+<a name="l61"><span class="ln">61   </span></a>        matrix-vector products, used to augment the Krylov subspace, and 
+<a name="l62"><span class="ln">62   </span></a>        carried between inner GMRES iterations. The element ``Av`` can 
+<a name="l63"><span class="ln">63   </span></a>        be `None` if the matrix-vector product should be re-evaluated. 
+<a name="l64"><span class="ln">64   </span></a>        This parameter is modified in-place by `lgmres`, and can be used 
+<a name="l65"><span class="ln">65   </span></a>        to pass &quot;guess&quot; vectors in and out of the algorithm when solving 
+<a name="l66"><span class="ln">66   </span></a>        similar problems. 
+<a name="l67"><span class="ln">67   </span></a>    store_outer_Av : bool, optional 
+<a name="l68"><span class="ln">68   </span></a>        Whether LGMRES should store also A@v in addition to vectors `v` 
+<a name="l69"><span class="ln">69   </span></a>        in the `outer_v` list. Default is True. 
+<a name="l70"><span class="ln">70   </span></a>    prepend_outer_v : bool, optional 
+<a name="l71"><span class="ln">71   </span></a>        Whether to put outer_v augmentation vectors before Krylov iterates. 
+<a name="l72"><span class="ln">72   </span></a>        In standard LGMRES, prepend_outer_v=False. 
+<a name="l73"><span class="ln">73   </span></a> 
+<a name="l74"><span class="ln">74   </span></a>    Returns 
+<a name="l75"><span class="ln">75   </span></a>    ------- 
+<a name="l76"><span class="ln">76   </span></a>    x : ndarray 
+<a name="l77"><span class="ln">77   </span></a>        The converged solution. 
+<a name="l78"><span class="ln">78   </span></a>    info : int 
+<a name="l79"><span class="ln">79   </span></a>        Provides convergence information: 
+<a name="l80"><span class="ln">80   </span></a> 
+<a name="l81"><span class="ln">81   </span></a>            - 0  : successful exit 
+<a name="l82"><span class="ln">82   </span></a>            - &gt;0 : convergence to tolerance not achieved, number of iterations 
+<a name="l83"><span class="ln">83   </span></a>            - &lt;0 : illegal input or breakdown 
+<a name="l84"><span class="ln">84   </span></a> 
+<a name="l85"><span class="ln">85   </span></a>    Notes 
+<a name="l86"><span class="ln">86   </span></a>    ----- 
+<a name="l87"><span class="ln">87   </span></a>    The LGMRES algorithm [1]_ [2]_ is designed to avoid the 
+<a name="l88"><span class="ln">88   </span></a>    slowing of convergence in restarted GMRES, due to alternating 
+<a name="l89"><span class="ln">89   </span></a>    residual vectors. Typically, it often outperforms GMRES(m) of 
+<a name="l90"><span class="ln">90   </span></a>    comparable memory requirements by some measure, or at least is not 
+<a name="l91"><span class="ln">91   </span></a>    much worse. 
+<a name="l92"><span class="ln">92   </span></a> 
+<a name="l93"><span class="ln">93   </span></a>    Another advantage in this algorithm is that you can supply it with 
+<a name="l94"><span class="ln">94   </span></a>    'guess' vectors in the `outer_v` argument that augment the Krylov 
+<a name="l95"><span class="ln">95   </span></a>    subspace. If the solution lies close to the span of these vectors, 
+<a name="l96"><span class="ln">96   </span></a>    the algorithm converges faster. This can be useful if several very 
+<a name="l97"><span class="ln">97   </span></a>    similar matrices need to be inverted one after another, such as in 
+<a name="l98"><span class="ln">98   </span></a>    Newton-Krylov iteration where the Jacobian matrix often changes 
+<a name="l99"><span class="ln">99   </span></a>    little in the nonlinear steps. 
+<a name="l100"><span class="ln">100  </span></a> 
+<a name="l101"><span class="ln">101  </span></a>    References 
+<a name="l102"><span class="ln">102  </span></a>    ---------- 
+<a name="l103"><span class="ln">103  </span></a>    .. [1] A.H. Baker and E.R. Jessup and T. Manteuffel, &quot;A Technique for 
+<a name="l104"><span class="ln">104  </span></a>             Accelerating the Convergence of Restarted GMRES&quot;, SIAM J. Matrix 
+<a name="l105"><span class="ln">105  </span></a>             Anal. Appl. 26, 962 (2005). 
+<a name="l106"><span class="ln">106  </span></a>    .. [2] A.H. Baker, &quot;On Improving the Performance of the Linear Solver 
+<a name="l107"><span class="ln">107  </span></a>             restarted GMRES&quot;, PhD thesis, University of Colorado (2003). 
+<a name="l108"><span class="ln">108  </span></a> 
+<a name="l109"><span class="ln">109  </span></a>    Examples 
+<a name="l110"><span class="ln">110  </span></a>    -------- 
+<a name="l111"><span class="ln">111  </span></a>    &gt;&gt;&gt; import numpy as np 
+<a name="l112"><span class="ln">112  </span></a>    &gt;&gt;&gt; from scipy.sparse import csc_array 
+<a name="l113"><span class="ln">113  </span></a>    &gt;&gt;&gt; from scipy.sparse.linalg import lgmres 
+<a name="l114"><span class="ln">114  </span></a>    &gt;&gt;&gt; A = csc_array([[3, 2, 0], [1, -1, 0], [0, 5, 1]], dtype=float) 
+<a name="l115"><span class="ln">115  </span></a>    &gt;&gt;&gt; b = np.array([2, 4, -1], dtype=float) 
+<a name="l116"><span class="ln">116  </span></a>    &gt;&gt;&gt; x, exitCode = lgmres(A, b, atol=1e-5) 
+<a name="l117"><span class="ln">117  </span></a>    &gt;&gt;&gt; print(exitCode)            # 0 indicates successful convergence 
+<a name="l118"><span class="ln">118  </span></a>    0 
+<a name="l119"><span class="ln">119  </span></a>    &gt;&gt;&gt; np.allclose(A.dot(x), b) 
+<a name="l120"><span class="ln">120  </span></a>    True 
+<a name="l121"><span class="ln">121  </span></a>    &quot;&quot;&quot;</span>
+<a name="l122"><span class="ln">122  </span></a>    <span class="s1">A</span><span class="s3">,</span><span class="s1">M</span><span class="s3">,</span><span class="s1">x</span><span class="s3">,</span><span class="s1">b</span><span class="s3">,</span><span class="s1">postprocess </span><span class="s2">= </span><span class="s1">make_system</span><span class="s3">(</span><span class="s1">A</span><span class="s3">,</span><span class="s1">M</span><span class="s3">,</span><span class="s1">x0</span><span class="s3">,</span><span class="s1">b</span><span class="s3">)</span>
+<a name="l123"><span class="ln">123  </span></a>
+<a name="l124"><span class="ln">124  </span></a>    <span class="s2">if not </span><span class="s1">np</span><span class="s3">.</span><span class="s1">isfinite</span><span class="s3">(</span><span class="s1">b</span><span class="s3">).</span><span class="s1">all</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l125"><span class="ln">125  </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">&quot;RHS must contain only finite numbers&quot;</span><span class="s3">)</span>
+<a name="l126"><span class="ln">126  </span></a>
+<a name="l127"><span class="ln">127  </span></a>    <span class="s1">matvec </span><span class="s2">= </span><span class="s1">A</span><span class="s3">.</span><span class="s1">matvec</span>
+<a name="l128"><span class="ln">128  </span></a>    <span class="s1">psolve </span><span class="s2">= </span><span class="s1">M</span><span class="s3">.</span><span class="s1">matvec</span>
+<a name="l129"><span class="ln">129  </span></a>
+<a name="l130"><span class="ln">130  </span></a>    <span class="s2">if </span><span class="s1">outer_v </span><span class="s2">is None:</span>
+<a name="l131"><span class="ln">131  </span></a>        <span class="s1">outer_v </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l132"><span class="ln">132  </span></a>
+<a name="l133"><span class="ln">133  </span></a>    <span class="s1">axpy</span><span class="s3">, </span><span class="s1">dot</span><span class="s3">, </span><span class="s1">scal </span><span class="s2">= None</span><span class="s3">, </span><span class="s2">None</span><span class="s3">, </span><span class="s2">None</span>
+<a name="l134"><span class="ln">134  </span></a>    <span class="s1">nrm2 </span><span class="s2">= </span><span class="s1">get_blas_funcs</span><span class="s3">(</span><span class="s4">'nrm2'</span><span class="s3">, [</span><span class="s1">b</span><span class="s3">])</span>
+<a name="l135"><span class="ln">135  </span></a>
+<a name="l136"><span class="ln">136  </span></a>    <span class="s1">b_norm </span><span class="s2">= </span><span class="s1">nrm2</span><span class="s3">(</span><span class="s1">b</span><span class="s3">)</span>
+<a name="l137"><span class="ln">137  </span></a>
+<a name="l138"><span class="ln">138  </span></a>    <span class="s0"># we call this to get the right atol/rtol and raise errors as necessary</span>
+<a name="l139"><span class="ln">139  </span></a>    <span class="s1">atol</span><span class="s3">, </span><span class="s1">rtol </span><span class="s2">= </span><span class="s1">_get_atol_rtol</span><span class="s3">(</span><span class="s4">'lgmres'</span><span class="s3">, </span><span class="s1">b_norm</span><span class="s3">, </span><span class="s1">atol</span><span class="s3">, </span><span class="s1">rtol</span><span class="s3">)</span>
+<a name="l140"><span class="ln">140  </span></a>
+<a name="l141"><span class="ln">141  </span></a>    <span class="s2">if </span><span class="s1">b_norm </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l142"><span class="ln">142  </span></a>        <span class="s1">x </span><span class="s2">= </span><span class="s1">b</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s2">return </span><span class="s3">(</span><span class="s1">postprocess</span><span class="s3">(</span><span class="s1">x</span><span class="s3">), </span><span class="s5">0</span><span class="s3">)</span>
+<a name="l144"><span class="ln">144  </span></a>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s1">ptol_max_factor </span><span class="s2">= </span><span class="s5">1.0</span>
+<a name="l146"><span class="ln">146  </span></a>
+<a name="l147"><span class="ln">147  </span></a>    <span class="s2">for </span><span class="s1">k_outer </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">maxiter</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l148"><span class="ln">148  </span></a>        <span class="s1">r_outer </span><span class="s2">= </span><span class="s1">matvec</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">- </span><span class="s1">b</span>
+<a name="l149"><span class="ln">149  </span></a>
+<a name="l150"><span class="ln">150  </span></a>        <span class="s0"># -- callback</span>
+<a name="l151"><span class="ln">151  </span></a>        <span class="s2">if </span><span class="s1">callback </span><span class="s2">is not None:</span>
+<a name="l152"><span class="ln">152  </span></a>            <span class="s1">callback</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span>
+<a name="l153"><span class="ln">153  </span></a>
+<a name="l154"><span class="ln">154  </span></a>        <span class="s0"># -- determine input type routines</span>
+<a name="l155"><span class="ln">155  </span></a>        <span class="s2">if </span><span class="s1">axpy </span><span class="s2">is None:</span>
+<a name="l156"><span class="ln">156  </span></a>            <span class="s2">if </span><span class="s1">np</span><span class="s3">.</span><span class="s1">iscomplexobj</span><span class="s3">(</span><span class="s1">r_outer</span><span class="s3">) </span><span class="s2">and not </span><span class="s1">np</span><span class="s3">.</span><span class="s1">iscomplexobj</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l157"><span class="ln">157  </span></a>                <span class="s1">x </span><span class="s2">= </span><span class="s1">x</span><span class="s3">.</span><span class="s1">astype</span><span class="s3">(</span><span class="s1">r_outer</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">)</span>
+<a name="l158"><span class="ln">158  </span></a>            <span class="s1">axpy</span><span class="s3">, </span><span class="s1">dot</span><span class="s3">, </span><span class="s1">scal</span><span class="s3">, </span><span class="s1">nrm2 </span><span class="s2">= </span><span class="s1">get_blas_funcs</span><span class="s3">([</span><span class="s4">'axpy'</span><span class="s3">, </span><span class="s4">'dot'</span><span class="s3">, </span><span class="s4">'scal'</span><span class="s3">, </span><span class="s4">'nrm2'</span><span class="s3">],</span>
+<a name="l159"><span class="ln">159  </span></a>                                                   <span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">r_outer</span><span class="s3">))</span>
+<a name="l160"><span class="ln">160  </span></a>
+<a name="l161"><span class="ln">161  </span></a>        <span class="s0"># -- check stopping condition</span>
+<a name="l162"><span class="ln">162  </span></a>        <span class="s1">r_norm </span><span class="s2">= </span><span class="s1">nrm2</span><span class="s3">(</span><span class="s1">r_outer</span><span class="s3">)</span>
+<a name="l163"><span class="ln">163  </span></a>        <span class="s2">if </span><span class="s1">r_norm </span><span class="s2">&lt;= </span><span class="s1">max</span><span class="s3">(</span><span class="s1">atol</span><span class="s3">, </span><span class="s1">rtol </span><span class="s2">* </span><span class="s1">b_norm</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l164"><span class="ln">164  </span></a>            <span class="s2">break</span>
+<a name="l165"><span class="ln">165  </span></a>
+<a name="l166"><span class="ln">166  </span></a>        <span class="s0"># -- inner LGMRES iteration</span>
+<a name="l167"><span class="ln">167  </span></a>        <span class="s1">v0 </span><span class="s2">= -</span><span class="s1">psolve</span><span class="s3">(</span><span class="s1">r_outer</span><span class="s3">)</span>
+<a name="l168"><span class="ln">168  </span></a>        <span class="s1">inner_res_0 </span><span class="s2">= </span><span class="s1">nrm2</span><span class="s3">(</span><span class="s1">v0</span><span class="s3">)</span>
+<a name="l169"><span class="ln">169  </span></a>
+<a name="l170"><span class="ln">170  </span></a>        <span class="s2">if </span><span class="s1">inner_res_0 </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l171"><span class="ln">171  </span></a>            <span class="s1">rnorm </span><span class="s2">= </span><span class="s1">nrm2</span><span class="s3">(</span><span class="s1">r_outer</span><span class="s3">)</span>
+<a name="l172"><span class="ln">172  </span></a>            <span class="s2">raise </span><span class="s1">RuntimeError</span><span class="s3">(</span><span class="s4">&quot;Preconditioner returned a zero vector; &quot;</span>
+<a name="l173"><span class="ln">173  </span></a>                               <span class="s4">f&quot;|v| ~ {</span><span class="s1">rnorm</span><span class="s4">:.1g}, |M v| = 0&quot;</span><span class="s3">)</span>
+<a name="l174"><span class="ln">174  </span></a>
+<a name="l175"><span class="ln">175  </span></a>        <span class="s1">v0 </span><span class="s2">= </span><span class="s1">scal</span><span class="s3">(</span><span class="s5">1.0</span><span class="s2">/</span><span class="s1">inner_res_0</span><span class="s3">, </span><span class="s1">v0</span><span class="s3">)</span>
+<a name="l176"><span class="ln">176  </span></a>
+<a name="l177"><span class="ln">177  </span></a>        <span class="s1">ptol </span><span class="s2">= </span><span class="s1">min</span><span class="s3">(</span><span class="s1">ptol_max_factor</span><span class="s3">, </span><span class="s1">max</span><span class="s3">(</span><span class="s1">atol</span><span class="s3">, </span><span class="s1">rtol</span><span class="s2">*</span><span class="s1">b_norm</span><span class="s3">)</span><span class="s2">/</span><span class="s1">r_norm</span><span class="s3">)</span>
+<a name="l178"><span class="ln">178  </span></a>
+<a name="l179"><span class="ln">179  </span></a>        <span class="s2">try:</span>
+<a name="l180"><span class="ln">180  </span></a>            <span class="s1">Q</span><span class="s3">, </span><span class="s1">R</span><span class="s3">, </span><span class="s1">B</span><span class="s3">, </span><span class="s1">vs</span><span class="s3">, </span><span class="s1">zs</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">pres </span><span class="s2">= </span><span class="s1">_fgmres</span><span class="s3">(</span><span class="s1">matvec</span><span class="s3">,</span>
+<a name="l181"><span class="ln">181  </span></a>                                               <span class="s1">v0</span><span class="s3">,</span>
+<a name="l182"><span class="ln">182  </span></a>                                               <span class="s1">inner_m</span><span class="s3">,</span>
+<a name="l183"><span class="ln">183  </span></a>                                               <span class="s1">lpsolve</span><span class="s2">=</span><span class="s1">psolve</span><span class="s3">,</span>
+<a name="l184"><span class="ln">184  </span></a>                                               <span class="s1">atol</span><span class="s2">=</span><span class="s1">ptol</span><span class="s3">,</span>
+<a name="l185"><span class="ln">185  </span></a>                                               <span class="s1">outer_v</span><span class="s2">=</span><span class="s1">outer_v</span><span class="s3">,</span>
+<a name="l186"><span class="ln">186  </span></a>                                               <span class="s1">prepend_outer_v</span><span class="s2">=</span><span class="s1">prepend_outer_v</span><span class="s3">)</span>
+<a name="l187"><span class="ln">187  </span></a>            <span class="s1">y </span><span class="s2">*= </span><span class="s1">inner_res_0</span>
+<a name="l188"><span class="ln">188  </span></a>            <span class="s2">if not </span><span class="s1">np</span><span class="s3">.</span><span class="s1">isfinite</span><span class="s3">(</span><span class="s1">y</span><span class="s3">).</span><span class="s1">all</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l189"><span class="ln">189  </span></a>                <span class="s0"># Overflow etc. in computation. There's no way to</span>
+<a name="l190"><span class="ln">190  </span></a>                <span class="s0"># recover from this, so we have to bail out.</span>
+<a name="l191"><span class="ln">191  </span></a>                <span class="s2">raise </span><span class="s1">LinAlgError</span><span class="s3">()</span>
+<a name="l192"><span class="ln">192  </span></a>        <span class="s2">except </span><span class="s1">LinAlgError</span><span class="s2">:</span>
+<a name="l193"><span class="ln">193  </span></a>            <span class="s0"># Floating point over/underflow, non-finite result from</span>
+<a name="l194"><span class="ln">194  </span></a>            <span class="s0"># matmul etc. -- report failure.</span>
+<a name="l195"><span class="ln">195  </span></a>            <span class="s2">return </span><span class="s1">postprocess</span><span class="s3">(</span><span class="s1">x</span><span class="s3">), </span><span class="s1">k_outer </span><span class="s2">+ </span><span class="s5">1</span>
+<a name="l196"><span class="ln">196  </span></a>
+<a name="l197"><span class="ln">197  </span></a>        <span class="s0"># Inner loop tolerance control</span>
+<a name="l198"><span class="ln">198  </span></a>        <span class="s2">if </span><span class="s1">pres </span><span class="s2">&gt; </span><span class="s1">ptol</span><span class="s2">:</span>
+<a name="l199"><span class="ln">199  </span></a>            <span class="s1">ptol_max_factor </span><span class="s2">= </span><span class="s1">min</span><span class="s3">(</span><span class="s5">1.0</span><span class="s3">, </span><span class="s5">1.5 </span><span class="s2">* </span><span class="s1">ptol_max_factor</span><span class="s3">)</span>
+<a name="l200"><span class="ln">200  </span></a>        <span class="s2">else:</span>
+<a name="l201"><span class="ln">201  </span></a>            <span class="s1">ptol_max_factor </span><span class="s2">= </span><span class="s1">max</span><span class="s3">(</span><span class="s5">1e-16</span><span class="s3">, </span><span class="s5">0.25 </span><span class="s2">* </span><span class="s1">ptol_max_factor</span><span class="s3">)</span>
+<a name="l202"><span class="ln">202  </span></a>
+<a name="l203"><span class="ln">203  </span></a>        <span class="s0"># -- GMRES terminated: eval solution</span>
+<a name="l204"><span class="ln">204  </span></a>        <span class="s1">dx </span><span class="s2">= </span><span class="s1">zs</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span><span class="s2">*</span><span class="s1">y</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l205"><span class="ln">205  </span></a>        <span class="s2">for </span><span class="s1">w</span><span class="s3">, </span><span class="s1">yc </span><span class="s2">in </span><span class="s1">zip</span><span class="s3">(</span><span class="s1">zs</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">], </span><span class="s1">y</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">])</span><span class="s2">:</span>
+<a name="l206"><span class="ln">206  </span></a>            <span class="s1">dx </span><span class="s2">= </span><span class="s1">axpy</span><span class="s3">(</span><span class="s1">w</span><span class="s3">, </span><span class="s1">dx</span><span class="s3">, </span><span class="s1">dx</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">yc</span><span class="s3">)  </span><span class="s0"># dx += w*yc</span>
+<a name="l207"><span class="ln">207  </span></a>
+<a name="l208"><span class="ln">208  </span></a>        <span class="s0"># -- Store LGMRES augmentation vectors</span>
+<a name="l209"><span class="ln">209  </span></a>        <span class="s1">nx </span><span class="s2">= </span><span class="s1">nrm2</span><span class="s3">(</span><span class="s1">dx</span><span class="s3">)</span>
+<a name="l210"><span class="ln">210  </span></a>        <span class="s2">if </span><span class="s1">nx </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l211"><span class="ln">211  </span></a>            <span class="s2">if </span><span class="s1">store_outer_Av</span><span class="s2">:</span>
+<a name="l212"><span class="ln">212  </span></a>                <span class="s1">q </span><span class="s2">= </span><span class="s1">Q</span><span class="s3">.</span><span class="s1">dot</span><span class="s3">(</span><span class="s1">R</span><span class="s3">.</span><span class="s1">dot</span><span class="s3">(</span><span class="s1">y</span><span class="s3">))</span>
+<a name="l213"><span class="ln">213  </span></a>                <span class="s1">ax </span><span class="s2">= </span><span class="s1">vs</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span><span class="s2">*</span><span class="s1">q</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l214"><span class="ln">214  </span></a>                <span class="s2">for </span><span class="s1">v</span><span class="s3">, </span><span class="s1">qc </span><span class="s2">in </span><span class="s1">zip</span><span class="s3">(</span><span class="s1">vs</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">], </span><span class="s1">q</span><span class="s3">[</span><span class="s5">1</span><span class="s2">:</span><span class="s3">])</span><span class="s2">:</span>
+<a name="l215"><span class="ln">215  </span></a>                    <span class="s1">ax </span><span class="s2">= </span><span class="s1">axpy</span><span class="s3">(</span><span class="s1">v</span><span class="s3">, </span><span class="s1">ax</span><span class="s3">, </span><span class="s1">ax</span><span class="s3">.</span><span class="s1">shape</span><span class="s3">[</span><span class="s5">0</span><span class="s3">], </span><span class="s1">qc</span><span class="s3">)</span>
+<a name="l216"><span class="ln">216  </span></a>                <span class="s1">outer_v</span><span class="s3">.</span><span class="s1">append</span><span class="s3">((</span><span class="s1">dx</span><span class="s2">/</span><span class="s1">nx</span><span class="s3">, </span><span class="s1">ax</span><span class="s2">/</span><span class="s1">nx</span><span class="s3">))</span>
+<a name="l217"><span class="ln">217  </span></a>            <span class="s2">else:</span>
+<a name="l218"><span class="ln">218  </span></a>                <span class="s1">outer_v</span><span class="s3">.</span><span class="s1">append</span><span class="s3">((</span><span class="s1">dx</span><span class="s2">/</span><span class="s1">nx</span><span class="s3">, </span><span class="s2">None</span><span class="s3">))</span>
+<a name="l219"><span class="ln">219  </span></a>
+<a name="l220"><span class="ln">220  </span></a>        <span class="s0"># -- Retain only a finite number of augmentation vectors</span>
+<a name="l221"><span class="ln">221  </span></a>        <span class="s2">while </span><span class="s1">len</span><span class="s3">(</span><span class="s1">outer_v</span><span class="s3">) </span><span class="s2">&gt; </span><span class="s1">outer_k</span><span class="s2">:</span>
+<a name="l222"><span class="ln">222  </span></a>            <span class="s2">del </span><span class="s1">outer_v</span><span class="s3">[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l223"><span class="ln">223  </span></a>
+<a name="l224"><span class="ln">224  </span></a>        <span class="s0"># -- Apply step</span>
+<a name="l225"><span class="ln">225  </span></a>        <span class="s1">x </span><span class="s2">+= </span><span class="s1">dx</span>
+<a name="l226"><span class="ln">226  </span></a>    <span class="s2">else:</span>
+<a name="l227"><span class="ln">227  </span></a>        <span class="s0"># didn't converge ...</span>
+<a name="l228"><span class="ln">228  </span></a>        <span class="s2">return </span><span class="s1">postprocess</span><span class="s3">(</span><span class="s1">x</span><span class="s3">), </span><span class="s1">maxiter</span>
+<a name="l229"><span class="ln">229  </span></a>
+<a name="l230"><span class="ln">230  </span></a>    <span class="s2">return </span><span class="s1">postprocess</span><span class="s3">(</span><span class="s1">x</span><span class="s3">), </span><span class="s5">0</span>
+<a name="l231"><span class="ln">231  </span></a></pre>
+</body>
+</html>

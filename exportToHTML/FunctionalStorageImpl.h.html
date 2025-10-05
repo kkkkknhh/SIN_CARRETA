@@ -1,0 +1,230 @@
+<html>
+<head>
+<title>FunctionalStorageImpl.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #000080; font-weight: bold;}
+.s2 { color: #660e7a; font-weight: bold;}
+.s3 { color: #969896; font-style: italic;}
+.s4 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+FunctionalStorageImpl.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/Tensor.h&gt;</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s1">#include </span><span class="s0">&lt;utility&gt;</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">namespace </span><span class="s0">at::functionalization {</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s3">// See Note [Functionalization Pass In Core]</span>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s3">// ViewMeta is a class used by the functionalization pass to navigate between</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s3">// a base tensor and a view tensor.</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s3">// For example, if I call `b = a.view1(...)`</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s3">// the functionalization pass will generate and store a ViewMeta on b that looks</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s3">// like:</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s3">//</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s3">// ViewMeta(</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s3">//   [&lt;captures&gt;](const Tensor&amp; base, int64_t mutated_view_idx) {</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s3">//     return base.view1(...);</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s3">//   },</span>
+<a name="l21"><span class="ln">21   </span></a><span class="s3">//   [&lt;captures&gt;](const at::Tensor&amp; base, const at::Tensor&amp; mutated_view,</span>
+<a name="l22"><span class="ln">22   </span></a><span class="s3">//   int64_t mutated_view_idx) -&gt; at::Tensor {</span>
+<a name="l23"><span class="ln">23   </span></a><span class="s3">//     return at::functionalization::impl::view1_inverse(base, mutated_view,</span>
+<a name="l24"><span class="ln">24   </span></a><span class="s3">//     ...);</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s3">//   }</span>
+<a name="l26"><span class="ln">26   </span></a><span class="s3">//</span>
+<a name="l27"><span class="ln">27   </span></a><span class="s3">// The forward_fn lambda describes how to replay view1 on a tensor.</span>
+<a name="l28"><span class="ln">28   </span></a><span class="s3">//</span>
+<a name="l29"><span class="ln">29   </span></a><span class="s3">// The reverse_fn lambda describes how, given a tensor that is already a view,</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s3">// how to get the corresponding base tensor. See Note [Functionalization Pass:</span>
+<a name="l31"><span class="ln">31   </span></a><span class="s3">// View Inverses] for details.</span>
+<a name="l32"><span class="ln">32   </span></a><span class="s1">struct </span><span class="s0">ViewMeta {</span>
+<a name="l33"><span class="ln">33   </span></a>  <span class="s0">ViewMeta(</span>
+<a name="l34"><span class="ln">34   </span></a>      <span class="s0">std::function&lt;Tensor(</span><span class="s1">const </span><span class="s0">Tensor&amp;, int64_t)&gt; forward,</span>
+<a name="l35"><span class="ln">35   </span></a>      <span class="s0">std::function&lt;Tensor(</span><span class="s1">const </span><span class="s0">Tensor&amp;, </span><span class="s1">const </span><span class="s0">Tensor&amp;, int64_t)&gt; reverse,</span>
+<a name="l36"><span class="ln">36   </span></a>      <span class="s1">bool </span><span class="s0">has_symbolic_inputs,</span>
+<a name="l37"><span class="ln">37   </span></a>      <span class="s1">bool </span><span class="s0">is_multi_output = </span><span class="s1">false</span><span class="s0">,</span>
+<a name="l38"><span class="ln">38   </span></a>      <span class="s1">bool </span><span class="s0">is_as_strided = </span><span class="s1">false</span><span class="s0">,</span>
+<a name="l39"><span class="ln">39   </span></a>      <span class="s0">int64_t out_idx = </span><span class="s4">0</span><span class="s0">)</span>
+<a name="l40"><span class="ln">40   </span></a>      <span class="s0">: forward_fn(std::move(forward)),</span>
+<a name="l41"><span class="ln">41   </span></a>        <span class="s0">reverse_fn(std::move(reverse)),</span>
+<a name="l42"><span class="ln">42   </span></a>        <span class="s0">out_index(out_idx),</span>
+<a name="l43"><span class="ln">43   </span></a>        <span class="s0">is_multi_output(is_multi_output),</span>
+<a name="l44"><span class="ln">44   </span></a>        <span class="s0">is_as_strided(is_as_strided),</span>
+<a name="l45"><span class="ln">45   </span></a>        <span class="s0">has_symbolic_inputs(has_symbolic_inputs) {}</span>
+<a name="l46"><span class="ln">46   </span></a>
+<a name="l47"><span class="ln">47   </span></a>  <span class="s0">std::function&lt;Tensor(</span><span class="s1">const </span><span class="s0">Tensor&amp;, int64_t)&gt; forward_fn;</span>
+<a name="l48"><span class="ln">48   </span></a>  <span class="s0">std::function&lt;Tensor(</span><span class="s1">const </span><span class="s0">Tensor&amp;, </span><span class="s1">const </span><span class="s0">Tensor&amp;, int64_t)&gt; reverse_fn;</span>
+<a name="l49"><span class="ln">49   </span></a>  <span class="s3">// See Note [out_idx in ViewMeta]</span>
+<a name="l50"><span class="ln">50   </span></a>  <span class="s0">int64_t out_index;</span>
+<a name="l51"><span class="ln">51   </span></a>
+<a name="l52"><span class="ln">52   </span></a>  <span class="s3">// Tells us if this is a multi-output view</span>
+<a name="l53"><span class="ln">53   </span></a>  <span class="s1">bool </span><span class="s0">is_multi_output;</span>
+<a name="l54"><span class="ln">54   </span></a>
+<a name="l55"><span class="ln">55   </span></a>  <span class="s1">bool </span><span class="s0">is_as_strided;</span>
+<a name="l56"><span class="ln">56   </span></a>
+<a name="l57"><span class="ln">57   </span></a>  <span class="s3">// Tells us if this view operation has any symbolic inputs</span>
+<a name="l58"><span class="ln">58   </span></a>  <span class="s1">bool </span><span class="s0">has_symbolic_inputs;</span>
+<a name="l59"><span class="ln">59   </span></a>
+<a name="l60"><span class="ln">60   </span></a>  <span class="s3">// Returns a copy of the current ViewMeta, if out_idx matches the current</span>
+<a name="l61"><span class="ln">61   </span></a>  <span class="s3">// out_index. Otherwise, returns a new ViewMeta with the same forward/reverse</span>
+<a name="l62"><span class="ln">62   </span></a>  <span class="s3">// functions, but a new out index.</span>
+<a name="l63"><span class="ln">63   </span></a>  <span class="s0">ViewMeta to_out_idx(int64_t out_idx);</span>
+<a name="l64"><span class="ln">64   </span></a><span class="s0">};</span>
+<a name="l65"><span class="ln">65   </span></a>
+<a name="l66"><span class="ln">66   </span></a><span class="s3">// FunctionalStorageImpl is a subclass of StorageImpl used by the</span>
+<a name="l67"><span class="ln">67   </span></a><span class="s3">// functionalization pass. It has no underlying data (similar to meta storage).</span>
+<a name="l68"><span class="ln">68   </span></a><span class="s3">// It also knows how to reflect mutations to tensors in the absence of a valid</span>
+<a name="l69"><span class="ln">69   </span></a><span class="s3">// data pointer.</span>
+<a name="l70"><span class="ln">70   </span></a><span class="s3">//</span>
+<a name="l71"><span class="ln">71   </span></a><span class="s3">// A storage represents the state shared by (potentially multiple) views of the</span>
+<a name="l72"><span class="ln">72   </span></a><span class="s3">// same tensor. For example, in the following code:</span>
+<a name="l73"><span class="ln">73   </span></a><span class="s3">//</span>
+<a name="l74"><span class="ln">74   </span></a><span class="s3">// b = a.view1(...)</span>
+<a name="l75"><span class="ln">75   </span></a><span class="s3">// c = b.view2(...)</span>
+<a name="l76"><span class="ln">76   </span></a><span class="s3">// b.add_(1)</span>
+<a name="l77"><span class="ln">77   </span></a><span class="s3">// --&gt; storage.add_update(b, {view1_meta})</span>
+<a name="l78"><span class="ln">78   </span></a><span class="s3">//</span>
+<a name="l79"><span class="ln">79   </span></a><span class="s3">// The call to add_(1) will result in a call to alias.add_update(b,</span>
+<a name="l80"><span class="ln">80   </span></a><span class="s3">// {view1_meta}), queueing up the mutation from b onto the alias. Later, suppose</span>
+<a name="l81"><span class="ln">81   </span></a><span class="s3">// c is used in an expression (e.g. you try to print c, or pass it to an</span>
+<a name="l82"><span class="ln">82   </span></a><span class="s3">// operator). Doing so will involve &quot;syncing&quot; c. First we apply any pending</span>
+<a name="l83"><span class="ln">83   </span></a><span class="s3">// updates to the alias, and then we regenerate c by replaying its views off of</span>
+<a name="l84"><span class="ln">84   </span></a><span class="s3">// the updated alias. E.g:</span>
+<a name="l85"><span class="ln">85   </span></a><span class="s3">//</span>
+<a name="l86"><span class="ln">86   </span></a><span class="s3">// print(str(c))</span>
+<a name="l87"><span class="ln">87   </span></a><span class="s3">// --&gt; c.sync_()</span>
+<a name="l88"><span class="ln">88   </span></a><span class="s3">//     --&gt; alias.apply_updates() // after this, the alias will be updated to</span>
+<a name="l89"><span class="ln">89   </span></a><span class="s3">//     reflect the mutation to b</span>
+<a name="l90"><span class="ln">90   </span></a><span class="s1">struct </span><span class="s0">TORCH_API FunctionalStorageImpl : </span><span class="s2">public </span><span class="s0">c10::StorageImpl {</span>
+<a name="l91"><span class="ln">91   </span></a> <span class="s2">public</span><span class="s0">:</span>
+<a name="l92"><span class="ln">92   </span></a>  <span class="s1">struct </span><span class="s0">Update {</span>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s3">// NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)</span>
+<a name="l94"><span class="ln">94   </span></a>    <span class="s1">const </span><span class="s0">at::Tensor new_val;</span>
+<a name="l95"><span class="ln">95   </span></a>    <span class="s3">// NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)</span>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s1">const </span><span class="s0">std::vector&lt;ViewMeta&gt; view_metas;</span>
+<a name="l97"><span class="ln">97   </span></a>  <span class="s0">};</span>
+<a name="l98"><span class="ln">98   </span></a>
+<a name="l99"><span class="ln">99   </span></a>  <span class="s2">explicit </span><span class="s0">FunctionalStorageImpl(</span><span class="s1">const </span><span class="s0">Tensor&amp; value);</span>
+<a name="l100"><span class="ln">100  </span></a>
+<a name="l101"><span class="ln">101  </span></a>  <span class="s1">void </span><span class="s0">add_update(</span>
+<a name="l102"><span class="ln">102  </span></a>      <span class="s1">const </span><span class="s0">Tensor&amp; updated_val,</span>
+<a name="l103"><span class="ln">103  </span></a>      <span class="s1">const </span><span class="s0">std::vector&lt;ViewMeta&gt;&amp; view_metas);</span>
+<a name="l104"><span class="ln">104  </span></a>  <span class="s1">bool </span><span class="s0">apply_updates();</span>
+<a name="l105"><span class="ln">105  </span></a>  <span class="s1">const </span><span class="s0">Tensor&amp; base() {</span>
+<a name="l106"><span class="ln">106  </span></a>    <span class="s1">return </span><span class="s0">base_;</span>
+<a name="l107"><span class="ln">107  </span></a>  <span class="s0">}</span>
+<a name="l108"><span class="ln">108  </span></a>  <span class="s0">size_t generation() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l109"><span class="ln">109  </span></a>    <span class="s1">return </span><span class="s0">generation_;</span>
+<a name="l110"><span class="ln">110  </span></a>  <span class="s0">}</span>
+<a name="l111"><span class="ln">111  </span></a>  <span class="s1">void </span><span class="s0">freeze() {</span>
+<a name="l112"><span class="ln">112  </span></a>    <span class="s0">frozen_ = </span><span class="s2">true</span><span class="s0">;</span>
+<a name="l113"><span class="ln">113  </span></a>  <span class="s0">}</span>
+<a name="l114"><span class="ln">114  </span></a>
+<a name="l115"><span class="ln">115  </span></a>  <span class="s0">c10::SymInt get_storage_size(</span><span class="s1">bool </span><span class="s0">before) {</span>
+<a name="l116"><span class="ln">116  </span></a>    <span class="s1">if </span><span class="s0">(before) {</span>
+<a name="l117"><span class="ln">117  </span></a>      <span class="s1">return </span><span class="s0">original_storage_size_;</span>
+<a name="l118"><span class="ln">118  </span></a>    <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+<a name="l119"><span class="ln">119  </span></a>      <span class="s1">return </span><span class="s0">curr_storage_size_;</span>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s0">}</span>
+<a name="l121"><span class="ln">121  </span></a>  <span class="s0">}</span>
+<a name="l122"><span class="ln">122  </span></a>
+<a name="l123"><span class="ln">123  </span></a>  <span class="s0">~FunctionalStorageImpl() override = </span><span class="s1">default</span><span class="s0">;</span>
+<a name="l124"><span class="ln">124  </span></a>
+<a name="l125"><span class="ln">125  </span></a>  <span class="s1">void </span><span class="s0">mark_mutation() {</span>
+<a name="l126"><span class="ln">126  </span></a>    <span class="s0">mutation_counter_++;</span>
+<a name="l127"><span class="ln">127  </span></a>  <span class="s0">}</span>
+<a name="l128"><span class="ln">128  </span></a>  <span class="s1">void </span><span class="s0">mark_mutation_during_no_grad_or_inference_mode() {</span>
+<a name="l129"><span class="ln">129  </span></a>    <span class="s0">mutation_counter_during_no_grad_or_inference_mode_++;</span>
+<a name="l130"><span class="ln">130  </span></a>  <span class="s0">}</span>
+<a name="l131"><span class="ln">131  </span></a>  <span class="s1">void </span><span class="s0">mark_mutation_hidden_from_autograd() {</span>
+<a name="l132"><span class="ln">132  </span></a>    <span class="s0">mutation_counter_hidden_from_autograd_++;</span>
+<a name="l133"><span class="ln">133  </span></a>  <span class="s0">}</span>
+<a name="l134"><span class="ln">134  </span></a>
+<a name="l135"><span class="ln">135  </span></a>  <span class="s1">bool </span><span class="s0">are_all_mutations_under_no_grad_or_inference_mode() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l136"><span class="ln">136  </span></a>    <span class="s1">auto </span><span class="s0">non_autograd_mutations =</span>
+<a name="l137"><span class="ln">137  </span></a>        <span class="s0">mutation_counter_during_no_grad_or_inference_mode_ +</span>
+<a name="l138"><span class="ln">138  </span></a>        <span class="s0">mutation_counter_hidden_from_autograd_;</span>
+<a name="l139"><span class="ln">139  </span></a>    <span class="s3">// The &lt;= is because both counters will technically be incremented, if we</span>
+<a name="l140"><span class="ln">140  </span></a>    <span class="s3">// perform e.g. a triton kernel mutation under no_grad</span>
+<a name="l141"><span class="ln">141  </span></a>    <span class="s1">return </span><span class="s0">mutation_counter_ &lt;= non_autograd_mutations;</span>
+<a name="l142"><span class="ln">142  </span></a>  <span class="s0">}</span>
+<a name="l143"><span class="ln">143  </span></a>
+<a name="l144"><span class="ln">144  </span></a>  <span class="s1">bool </span><span class="s0">are_all_mutations_hidden_from_autograd() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l145"><span class="ln">145  </span></a>    <span class="s3">// mutations under no_grad / inference_mode are technically not hidden from</span>
+<a name="l146"><span class="ln">146  </span></a>    <span class="s3">// autograd - they change the version counter</span>
+<a name="l147"><span class="ln">147  </span></a>    <span class="s1">return </span><span class="s0">mutation_counter_ &lt;= mutation_counter_hidden_from_autograd_;</span>
+<a name="l148"><span class="ln">148  </span></a>  <span class="s0">}</span>
+<a name="l149"><span class="ln">149  </span></a>
+<a name="l150"><span class="ln">150  </span></a>  <span class="s1">void </span><span class="s0">mark_inductor_storage_resize(c10::SymInt new_size) {</span>
+<a name="l151"><span class="ln">151  </span></a>    <span class="s0">inductor_storage_resized_ = </span><span class="s2">true</span><span class="s0">;</span>
+<a name="l152"><span class="ln">152  </span></a>    <span class="s0">curr_storage_size_ = std::move(new_size);</span>
+<a name="l153"><span class="ln">153  </span></a>  <span class="s0">}</span>
+<a name="l154"><span class="ln">154  </span></a>
+<a name="l155"><span class="ln">155  </span></a>  <span class="s1">bool </span><span class="s0">was_inductor_storage_resized() {</span>
+<a name="l156"><span class="ln">156  </span></a>    <span class="s1">return </span><span class="s0">inductor_storage_resized_;</span>
+<a name="l157"><span class="ln">157  </span></a>  <span class="s0">}</span>
+<a name="l158"><span class="ln">158  </span></a>
+<a name="l159"><span class="ln">159  </span></a> <span class="s2">private</span><span class="s0">:</span>
+<a name="l160"><span class="ln">160  </span></a>  <span class="s3">// NB: base_ should always point to a tensor BELOW the current</span>
+<a name="l161"><span class="ln">161  </span></a>  <span class="s3">// functionalization layer. This is mainly to avoid reference cycles. e.g.</span>
+<a name="l162"><span class="ln">162  </span></a>  <span class="s3">// given `b = a.view(...)` Both a.storage_ and b.storage_ are a</span>
+<a name="l163"><span class="ln">163  </span></a>  <span class="s3">// FunctionStorageImpl containing an Walualias, with contains a Tensor</span>
+<a name="l164"><span class="ln">164  </span></a>  <span class="s3">// `base_`. In this case (where a and b are FunctionalTensorWrapper's), base_</span>
+<a name="l165"><span class="ln">165  </span></a>  <span class="s3">// should point not to a, but to a's unwrapped value, a.value_` See Note</span>
+<a name="l166"><span class="ln">166  </span></a>  <span class="s3">// [Functionalization: Walualias Removal] for a diagram that shows this</span>
+<a name="l167"><span class="ln">167  </span></a>  <span class="s3">// visually.</span>
+<a name="l168"><span class="ln">168  </span></a>  <span class="s0">at::Tensor base_;</span>
+<a name="l169"><span class="ln">169  </span></a>  <span class="s0">std::vector&lt;Update&gt; updates_;</span>
+<a name="l170"><span class="ln">170  </span></a>  <span class="s3">// generation_ gets incremented every time a mutation is queued onto the</span>
+<a name="l171"><span class="ln">171  </span></a>  <span class="s3">// alias. It is used to determine if a given tensor is &quot;up to date&quot;, or if it</span>
+<a name="l172"><span class="ln">172  </span></a>  <span class="s3">// needs to be regenerated from the alias.</span>
+<a name="l173"><span class="ln">173  </span></a>  <span class="s0">size_t generation_ = </span><span class="s4">0</span><span class="s0">;</span>
+<a name="l174"><span class="ln">174  </span></a>  <span class="s3">// If frozen, no more mutations are allowed on this storage.  Once frozen, a</span>
+<a name="l175"><span class="ln">175  </span></a>  <span class="s3">// storage cannot be unfrozen.</span>
+<a name="l176"><span class="ln">176  </span></a>  <span class="s1">bool </span><span class="s0">frozen_ = </span><span class="s1">false</span><span class="s0">;</span>
+<a name="l177"><span class="ln">177  </span></a>
+<a name="l178"><span class="ln">178  </span></a>  <span class="s3">// These mutation counters are bumped on the storage</span>
+<a name="l179"><span class="ln">179  </span></a>  <span class="s3">// whenever a FunctionalTensorWrapper experiences a mutation.</span>
+<a name="l180"><span class="ln">180  </span></a>  <span class="s3">// When the mutation is under no_grad, or comes from a triton kernel, we also</span>
+<a name="l181"><span class="ln">181  </span></a>  <span class="s3">// bump the corresponding during_no_grad or hidden_from_autograd counters. Why</span>
+<a name="l182"><span class="ln">182  </span></a>  <span class="s3">// do we need to detect these two situations separately from &quot;normal&quot; input</span>
+<a name="l183"><span class="ln">183  </span></a>  <span class="s3">// mutations? (1) &quot;normal&quot; input mutations can mutate autograd metadata like</span>
+<a name="l184"><span class="ln">184  </span></a>  <span class="s3">// .grad_fn,</span>
+<a name="l185"><span class="ln">185  </span></a>  <span class="s3">//     in which case they need to be replayed outside of the compiled graph</span>
+<a name="l186"><span class="ln">186  </span></a>  <span class="s3">// (2) &quot;no_grad&quot; input mutations are generally safe to keep in the graph (and</span>
+<a name="l187"><span class="ln">187  </span></a>  <span class="s3">// compile),</span>
+<a name="l188"><span class="ln">188  </span></a>  <span class="s3">//     but they bump the tensor's VC, so we need to mark_dirty() on the inputs</span>
+<a name="l189"><span class="ln">189  </span></a>  <span class="s3">//     in torch.compile</span>
+<a name="l190"><span class="ln">190  </span></a>  <span class="s3">// (3) mutations that are fully hidden from autograd (e.g. from a triton</span>
+<a name="l191"><span class="ln">191  </span></a>  <span class="s3">// kernel)</span>
+<a name="l192"><span class="ln">192  </span></a>  <span class="s3">//     do not mutate any autograd state, and be fully kept in the graph</span>
+<a name="l193"><span class="ln">193  </span></a>  <span class="s3">// When we detect that an input was mutated, we need to be able to tell if:</span>
+<a name="l194"><span class="ln">194  </span></a>  <span class="s3">// (1) all of the mutations were from triton kernels</span>
+<a name="l195"><span class="ln">195  </span></a>  <span class="s3">// (2) all of the mutations were under no_grad</span>
+<a name="l196"><span class="ln">196  </span></a>  <span class="s0">uint64_t mutation_counter_during_no_grad_or_inference_mode_ = </span><span class="s4">0</span><span class="s0">;</span>
+<a name="l197"><span class="ln">197  </span></a>  <span class="s0">uint64_t mutation_counter_ = </span><span class="s4">0</span><span class="s0">;</span>
+<a name="l198"><span class="ln">198  </span></a>  <span class="s0">uint64_t mutation_counter_hidden_from_autograd_ = </span><span class="s4">0</span><span class="s0">;</span>
+<a name="l199"><span class="ln">199  </span></a>
+<a name="l200"><span class="ln">200  </span></a>  <span class="s3">// Used to tell if:</span>
+<a name="l201"><span class="ln">201  </span></a>  <span class="s3">// (1) There were any storage resizes on a graph input</span>
+<a name="l202"><span class="ln">202  </span></a>  <span class="s3">// (2) The original/curr storage size tell us if these resizes result in a nop</span>
+<a name="l203"><span class="ln">203  </span></a>  <span class="s1">bool </span><span class="s0">inductor_storage_resized_ = </span><span class="s1">false</span><span class="s0">;</span>
+<a name="l204"><span class="ln">204  </span></a>  <span class="s0">c10::SymInt original_storage_size_;</span>
+<a name="l205"><span class="ln">205  </span></a>  <span class="s0">c10::SymInt curr_storage_size_;</span>
+<a name="l206"><span class="ln">206  </span></a><span class="s0">};</span>
+<a name="l207"><span class="ln">207  </span></a>
+<a name="l208"><span class="ln">208  </span></a><span class="s0">} </span><span class="s3">// namespace at::functionalization</span>
+<a name="l209"><span class="ln">209  </span></a></pre>
+</body>
+</html>

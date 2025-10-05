@@ -1,0 +1,137 @@
+<html>
+<head>
+<title>_async.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_async.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0"># mypy: allow-untyped-defs</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0">&quot;&quot;&quot;Async API. 
+<a name="l3"><span class="ln">3    </span></a> 
+<a name="l4"><span class="ln">4    </span></a>This module contains the API for parallelism in TorchScript, notably: 
+<a name="l5"><span class="ln">5    </span></a>    * torch.jit.fork 
+<a name="l6"><span class="ln">6    </span></a>    * torch.jit.wait 
+<a name="l7"><span class="ln">7    </span></a> 
+<a name="l8"><span class="ln">8    </span></a>This is not intended to be imported directly; please use the exposed 
+<a name="l9"><span class="ln">9    </span></a>functionalities in `torch.jit`. 
+<a name="l10"><span class="ln">10   </span></a>&quot;&quot;&quot;</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">import </span><span class="s1">torch</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_jit_internal </span><span class="s2">import </span><span class="s1">Future</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">jit</span><span class="s3">.</span><span class="s1">_builtins </span><span class="s2">import </span><span class="s1">_register_builtin</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">from </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">utils </span><span class="s2">import </span><span class="s1">set_module</span>
+<a name="l16"><span class="ln">16   </span></a>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a><span class="s1">set_module</span><span class="s3">(</span><span class="s1">Future</span><span class="s3">, </span><span class="s4">&quot;torch.jit&quot;</span><span class="s3">)</span>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a>
+<a name="l21"><span class="ln">21   </span></a><span class="s2">def </span><span class="s1">fork</span><span class="s3">(</span><span class="s1">func</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l23"><span class="ln">23   </span></a>    Create an asynchronous task executing `func` and a reference to the value of the result of this execution. 
+<a name="l24"><span class="ln">24   </span></a> 
+<a name="l25"><span class="ln">25   </span></a>    `fork` will return immediately, so the return value of `func` may not have been computed yet. To force completion 
+<a name="l26"><span class="ln">26   </span></a>    of the task and access the return value invoke `torch.jit.wait` on the Future. `fork` invoked 
+<a name="l27"><span class="ln">27   </span></a>    with a `func` which returns `T` is typed as `torch.jit.Future[T]`. `fork` calls can be arbitrarily 
+<a name="l28"><span class="ln">28   </span></a>    nested, and may be invoked with positional and keyword arguments. 
+<a name="l29"><span class="ln">29   </span></a>    Asynchronous execution will only occur when run in TorchScript. If run in pure python, 
+<a name="l30"><span class="ln">30   </span></a>    `fork` will not execute in parallel. `fork` will also not execute in parallel when invoked 
+<a name="l31"><span class="ln">31   </span></a>    while tracing, however the `fork` and `wait` calls will be captured in the exported IR Graph. 
+<a name="l32"><span class="ln">32   </span></a> 
+<a name="l33"><span class="ln">33   </span></a>    .. warning:: 
+<a name="l34"><span class="ln">34   </span></a>        `fork` tasks will execute non-deterministically. We recommend only spawning 
+<a name="l35"><span class="ln">35   </span></a>        parallel fork tasks for pure functions that do not modify their inputs, 
+<a name="l36"><span class="ln">36   </span></a>        module attributes, or global state. 
+<a name="l37"><span class="ln">37   </span></a> 
+<a name="l38"><span class="ln">38   </span></a>    Args: 
+<a name="l39"><span class="ln">39   </span></a>        func (callable or torch.nn.Module):  A Python function or `torch.nn.Module` 
+<a name="l40"><span class="ln">40   </span></a>            that will be invoked. If executed in TorchScript, it will execute asynchronously, 
+<a name="l41"><span class="ln">41   </span></a>            otherwise it will not. Traced invocations of fork will be captured in the IR. 
+<a name="l42"><span class="ln">42   </span></a>        ``*args``, ``**kwargs``: arguments to invoke `func` with. 
+<a name="l43"><span class="ln">43   </span></a>    Returns: 
+<a name="l44"><span class="ln">44   </span></a>        `torch.jit.Future[T]`: a reference to the execution of `func`. The value `T` 
+<a name="l45"><span class="ln">45   </span></a>        can only be accessed by forcing completion of `func` through `torch.jit.wait`. 
+<a name="l46"><span class="ln">46   </span></a> 
+<a name="l47"><span class="ln">47   </span></a>    Example (fork a free function): 
+<a name="l48"><span class="ln">48   </span></a> 
+<a name="l49"><span class="ln">49   </span></a>    .. code-block:: python 
+<a name="l50"><span class="ln">50   </span></a> 
+<a name="l51"><span class="ln">51   </span></a>        import torch 
+<a name="l52"><span class="ln">52   </span></a>        from torch import Tensor 
+<a name="l53"><span class="ln">53   </span></a> 
+<a name="l54"><span class="ln">54   </span></a> 
+<a name="l55"><span class="ln">55   </span></a>        def foo(a: Tensor, b: int) -&gt; Tensor: 
+<a name="l56"><span class="ln">56   </span></a>            return a + b 
+<a name="l57"><span class="ln">57   </span></a> 
+<a name="l58"><span class="ln">58   </span></a> 
+<a name="l59"><span class="ln">59   </span></a>        def bar(a): 
+<a name="l60"><span class="ln">60   </span></a>            fut: torch.jit.Future[Tensor] = torch.jit.fork(foo, a, b=2) 
+<a name="l61"><span class="ln">61   </span></a>            return torch.jit.wait(fut) 
+<a name="l62"><span class="ln">62   </span></a> 
+<a name="l63"><span class="ln">63   </span></a> 
+<a name="l64"><span class="ln">64   </span></a>        script_bar = torch.jit.script(bar) 
+<a name="l65"><span class="ln">65   </span></a>        input = torch.tensor(2) 
+<a name="l66"><span class="ln">66   </span></a>        # only the scripted version executes asynchronously 
+<a name="l67"><span class="ln">67   </span></a>        assert script_bar(input) == bar(input) 
+<a name="l68"><span class="ln">68   </span></a>        # trace is not run asynchronously, but fork is captured in IR 
+<a name="l69"><span class="ln">69   </span></a>        graph = torch.jit.trace(bar, (input,)).graph 
+<a name="l70"><span class="ln">70   </span></a>        assert &quot;fork&quot; in str(graph) 
+<a name="l71"><span class="ln">71   </span></a> 
+<a name="l72"><span class="ln">72   </span></a>    Example (fork a module method): 
+<a name="l73"><span class="ln">73   </span></a> 
+<a name="l74"><span class="ln">74   </span></a>    .. code-block:: python 
+<a name="l75"><span class="ln">75   </span></a> 
+<a name="l76"><span class="ln">76   </span></a>        import torch 
+<a name="l77"><span class="ln">77   </span></a>        from torch import Tensor 
+<a name="l78"><span class="ln">78   </span></a> 
+<a name="l79"><span class="ln">79   </span></a> 
+<a name="l80"><span class="ln">80   </span></a>        class AddMod(torch.nn.Module): 
+<a name="l81"><span class="ln">81   </span></a>            def forward(self, a: Tensor, b: int): 
+<a name="l82"><span class="ln">82   </span></a>                return a + b 
+<a name="l83"><span class="ln">83   </span></a> 
+<a name="l84"><span class="ln">84   </span></a> 
+<a name="l85"><span class="ln">85   </span></a>        class Mod(torch.nn.Module): 
+<a name="l86"><span class="ln">86   </span></a>            def __init__(self) -&gt; None: 
+<a name="l87"><span class="ln">87   </span></a>                super(self).__init__() 
+<a name="l88"><span class="ln">88   </span></a>                self.mod = AddMod() 
+<a name="l89"><span class="ln">89   </span></a> 
+<a name="l90"><span class="ln">90   </span></a>            def forward(self, input): 
+<a name="l91"><span class="ln">91   </span></a>                fut = torch.jit.fork(self.mod, a, b=2) 
+<a name="l92"><span class="ln">92   </span></a>                return torch.jit.wait(fut) 
+<a name="l93"><span class="ln">93   </span></a> 
+<a name="l94"><span class="ln">94   </span></a> 
+<a name="l95"><span class="ln">95   </span></a>        input = torch.tensor(2) 
+<a name="l96"><span class="ln">96   </span></a>        mod = Mod() 
+<a name="l97"><span class="ln">97   </span></a>        assert mod(input) == torch.jit.script(mod).forward(input) 
+<a name="l98"><span class="ln">98   </span></a>    &quot;&quot;&quot;</span>
+<a name="l99"><span class="ln">99   </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">fork</span><span class="s3">(</span><span class="s1">func</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l100"><span class="ln">100  </span></a>
+<a name="l101"><span class="ln">101  </span></a>
+<a name="l102"><span class="ln">102  </span></a><span class="s2">def </span><span class="s1">wait</span><span class="s3">(</span><span class="s1">future</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l103"><span class="ln">103  </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l104"><span class="ln">104  </span></a>    Force completion of a `torch.jit.Future[T]` asynchronous task, returning the result of the task. 
+<a name="l105"><span class="ln">105  </span></a> 
+<a name="l106"><span class="ln">106  </span></a>    See :func:`~fork` for docs and examples. 
+<a name="l107"><span class="ln">107  </span></a>    Args: 
+<a name="l108"><span class="ln">108  </span></a>        future (torch.jit.Future[T]): an asynchronous task reference, created through `torch.jit.fork` 
+<a name="l109"><span class="ln">109  </span></a>    Returns: 
+<a name="l110"><span class="ln">110  </span></a>        `T`: the return value of the completed task 
+<a name="l111"><span class="ln">111  </span></a>    &quot;&quot;&quot;</span>
+<a name="l112"><span class="ln">112  </span></a>    <span class="s2">return </span><span class="s1">torch</span><span class="s3">.</span><span class="s1">_C</span><span class="s3">.</span><span class="s1">wait</span><span class="s3">(</span><span class="s1">future</span><span class="s3">)</span>
+<a name="l113"><span class="ln">113  </span></a>
+<a name="l114"><span class="ln">114  </span></a>
+<a name="l115"><span class="ln">115  </span></a><span class="s1">_register_builtin</span><span class="s3">(</span><span class="s1">wait</span><span class="s3">, </span><span class="s4">&quot;aten::wait&quot;</span><span class="s3">)</span>
+<a name="l116"><span class="ln">116  </span></a></pre>
+</body>
+</html>

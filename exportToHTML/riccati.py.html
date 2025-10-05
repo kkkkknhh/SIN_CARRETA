@@ -1,0 +1,916 @@
+<html>
+<head>
+<title>riccati.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #0086b3;}
+.s5 { color: #183691;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+riccati.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">r&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>This module contains :py:meth:`~sympy.solvers.ode.riccati.solve_riccati`, 
+<a name="l3"><span class="ln">3    </span></a>a function which gives all rational particular solutions to first order 
+<a name="l4"><span class="ln">4    </span></a>Riccati ODEs. A general first order Riccati ODE is given by - 
+<a name="l5"><span class="ln">5    </span></a> 
+<a name="l6"><span class="ln">6    </span></a>.. math:: y' = b_0(x) + b_1(x)w + b_2(x)w^2 
+<a name="l7"><span class="ln">7    </span></a> 
+<a name="l8"><span class="ln">8    </span></a>where `b_0, b_1` and `b_2` can be arbitrary rational functions of `x` 
+<a name="l9"><span class="ln">9    </span></a>with `b_2 \ne 0`. When `b_2 = 0`, the equation is not a Riccati ODE 
+<a name="l10"><span class="ln">10   </span></a>anymore and becomes a Linear ODE. Similarly, when `b_0 = 0`, the equation 
+<a name="l11"><span class="ln">11   </span></a>is a Bernoulli ODE. The algorithm presented below can find rational 
+<a name="l12"><span class="ln">12   </span></a>solution(s) to all ODEs with `b_2 \ne 0` that have a rational solution, 
+<a name="l13"><span class="ln">13   </span></a>or prove that no rational solution exists for the equation. 
+<a name="l14"><span class="ln">14   </span></a> 
+<a name="l15"><span class="ln">15   </span></a>Background 
+<a name="l16"><span class="ln">16   </span></a>========== 
+<a name="l17"><span class="ln">17   </span></a> 
+<a name="l18"><span class="ln">18   </span></a>A Riccati equation can be transformed to its normal form 
+<a name="l19"><span class="ln">19   </span></a> 
+<a name="l20"><span class="ln">20   </span></a>.. math:: y' + y^2 = a(x) 
+<a name="l21"><span class="ln">21   </span></a> 
+<a name="l22"><span class="ln">22   </span></a>using the transformation 
+<a name="l23"><span class="ln">23   </span></a> 
+<a name="l24"><span class="ln">24   </span></a>.. math:: y = -b_2(x) - \frac{b'_2(x)}{2 b_2(x)} - \frac{b_1(x)}{2} 
+<a name="l25"><span class="ln">25   </span></a> 
+<a name="l26"><span class="ln">26   </span></a>where `a(x)` is given by 
+<a name="l27"><span class="ln">27   </span></a> 
+<a name="l28"><span class="ln">28   </span></a>.. math:: a(x) = \frac{1}{4}\left(\frac{b_2'}{b_2} + b_1\right)^2 - \frac{1}{2}\left(\frac{b_2'}{b_2} + b_1\right)' - b_0 b_2 
+<a name="l29"><span class="ln">29   </span></a> 
+<a name="l30"><span class="ln">30   </span></a>Thus, we can develop an algorithm to solve for the Riccati equation 
+<a name="l31"><span class="ln">31   </span></a>in its normal form, which would in turn give us the solution for 
+<a name="l32"><span class="ln">32   </span></a>the original Riccati equation. 
+<a name="l33"><span class="ln">33   </span></a> 
+<a name="l34"><span class="ln">34   </span></a>Algorithm 
+<a name="l35"><span class="ln">35   </span></a>========= 
+<a name="l36"><span class="ln">36   </span></a> 
+<a name="l37"><span class="ln">37   </span></a>The algorithm implemented here is presented in the Ph.D thesis 
+<a name="l38"><span class="ln">38   </span></a>&quot;Rational and Algebraic Solutions of First-Order Algebraic ODEs&quot; 
+<a name="l39"><span class="ln">39   </span></a>by N. Thieu Vo. The entire thesis can be found here - 
+<a name="l40"><span class="ln">40   </span></a>https://www3.risc.jku.at/publications/download/risc_5387/PhDThesisThieu.pdf 
+<a name="l41"><span class="ln">41   </span></a> 
+<a name="l42"><span class="ln">42   </span></a>We have only implemented the Rational Riccati solver (Algorithm 11, 
+<a name="l43"><span class="ln">43   </span></a>Pg 78-82 in Thesis). Before we proceed towards the implementation 
+<a name="l44"><span class="ln">44   </span></a>of the algorithm, a few definitions to understand are - 
+<a name="l45"><span class="ln">45   </span></a> 
+<a name="l46"><span class="ln">46   </span></a>1. Valuation of a Rational Function at `\infty`: 
+<a name="l47"><span class="ln">47   </span></a>    The valuation of a rational function `p(x)` at `\infty` is equal 
+<a name="l48"><span class="ln">48   </span></a>    to the difference between the degree of the denominator and the 
+<a name="l49"><span class="ln">49   </span></a>    numerator of `p(x)`. 
+<a name="l50"><span class="ln">50   </span></a> 
+<a name="l51"><span class="ln">51   </span></a>    NOTE: A general definition of valuation of a rational function 
+<a name="l52"><span class="ln">52   </span></a>    at any value of `x` can be found in Pg 63 of the thesis, but 
+<a name="l53"><span class="ln">53   </span></a>    is not of any interest for this algorithm. 
+<a name="l54"><span class="ln">54   </span></a> 
+<a name="l55"><span class="ln">55   </span></a>2. Zeros and Poles of a Rational Function: 
+<a name="l56"><span class="ln">56   </span></a>    Let `a(x) = \frac{S(x)}{T(x)}, T \ne 0` be a rational function 
+<a name="l57"><span class="ln">57   </span></a>    of `x`. Then - 
+<a name="l58"><span class="ln">58   </span></a> 
+<a name="l59"><span class="ln">59   </span></a>    a. The Zeros of `a(x)` are the roots of `S(x)`. 
+<a name="l60"><span class="ln">60   </span></a>    b. The Poles of `a(x)` are the roots of `T(x)`. However, `\infty` 
+<a name="l61"><span class="ln">61   </span></a>    can also be a pole of a(x). We say that `a(x)` has a pole at 
+<a name="l62"><span class="ln">62   </span></a>    `\infty` if `a(\frac{1}{x})` has a pole at 0. 
+<a name="l63"><span class="ln">63   </span></a> 
+<a name="l64"><span class="ln">64   </span></a>Every pole is associated with an order that is equal to the multiplicity 
+<a name="l65"><span class="ln">65   </span></a>of its appearance as a root of `T(x)`. A pole is called a simple pole if 
+<a name="l66"><span class="ln">66   </span></a>it has an order 1. Similarly, a pole is called a multiple pole if it has 
+<a name="l67"><span class="ln">67   </span></a>an order `\ge` 2. 
+<a name="l68"><span class="ln">68   </span></a> 
+<a name="l69"><span class="ln">69   </span></a>Necessary Conditions 
+<a name="l70"><span class="ln">70   </span></a>==================== 
+<a name="l71"><span class="ln">71   </span></a> 
+<a name="l72"><span class="ln">72   </span></a>For a Riccati equation in its normal form, 
+<a name="l73"><span class="ln">73   </span></a> 
+<a name="l74"><span class="ln">74   </span></a>.. math:: y' + y^2 = a(x) 
+<a name="l75"><span class="ln">75   </span></a> 
+<a name="l76"><span class="ln">76   </span></a>we can define 
+<a name="l77"><span class="ln">77   </span></a> 
+<a name="l78"><span class="ln">78   </span></a>a. A pole is called a movable pole if it is a pole of `y(x)` and is not 
+<a name="l79"><span class="ln">79   </span></a>a pole of `a(x)`. 
+<a name="l80"><span class="ln">80   </span></a>b. Similarly, a pole is called a non-movable pole if it is a pole of both 
+<a name="l81"><span class="ln">81   </span></a>`y(x)` and `a(x)`. 
+<a name="l82"><span class="ln">82   </span></a> 
+<a name="l83"><span class="ln">83   </span></a>Then, the algorithm states that a rational solution exists only if - 
+<a name="l84"><span class="ln">84   </span></a> 
+<a name="l85"><span class="ln">85   </span></a>a. Every pole of `a(x)` must be either a simple pole or a multiple pole 
+<a name="l86"><span class="ln">86   </span></a>of even order. 
+<a name="l87"><span class="ln">87   </span></a>b. The valuation of `a(x)` at `\infty` must be even or be `\ge` 2. 
+<a name="l88"><span class="ln">88   </span></a> 
+<a name="l89"><span class="ln">89   </span></a>This algorithm finds all possible rational solutions for the Riccati ODE. 
+<a name="l90"><span class="ln">90   </span></a>If no rational solutions are found, it means that no rational solutions 
+<a name="l91"><span class="ln">91   </span></a>exist. 
+<a name="l92"><span class="ln">92   </span></a> 
+<a name="l93"><span class="ln">93   </span></a>The algorithm works for Riccati ODEs where the coefficients are rational 
+<a name="l94"><span class="ln">94   </span></a>functions in the independent variable `x` with rational number coefficients 
+<a name="l95"><span class="ln">95   </span></a>i.e. in `Q(x)`. The coefficients in the rational function cannot be floats, 
+<a name="l96"><span class="ln">96   </span></a>irrational numbers, symbols or any other kind of expression. The reasons 
+<a name="l97"><span class="ln">97   </span></a>for this are - 
+<a name="l98"><span class="ln">98   </span></a> 
+<a name="l99"><span class="ln">99   </span></a>1. When using symbols, different symbols could take the same value and this 
+<a name="l100"><span class="ln">100  </span></a>would affect the multiplicity of poles if symbols are present here. 
+<a name="l101"><span class="ln">101  </span></a> 
+<a name="l102"><span class="ln">102  </span></a>2. An integer degree bound is required to calculate a polynomial solution 
+<a name="l103"><span class="ln">103  </span></a>to an auxiliary differential equation, which in turn gives the particular 
+<a name="l104"><span class="ln">104  </span></a>solution for the original ODE. If symbols/floats/irrational numbers are 
+<a name="l105"><span class="ln">105  </span></a>present, we cannot determine if the expression for the degree bound is an 
+<a name="l106"><span class="ln">106  </span></a>integer or not. 
+<a name="l107"><span class="ln">107  </span></a> 
+<a name="l108"><span class="ln">108  </span></a>Solution 
+<a name="l109"><span class="ln">109  </span></a>======== 
+<a name="l110"><span class="ln">110  </span></a> 
+<a name="l111"><span class="ln">111  </span></a>With these definitions, we can state a general form for the solution of 
+<a name="l112"><span class="ln">112  </span></a>the equation. `y(x)` must have the form - 
+<a name="l113"><span class="ln">113  </span></a> 
+<a name="l114"><span class="ln">114  </span></a>.. math:: y(x) = \sum_{i=1}^{n} \sum_{j=1}^{r_i} \frac{c_{ij}}{(x - x_i)^j} + \sum_{i=1}^{m} \frac{1}{x - \chi_i} + \sum_{i=0}^{N} d_i x^i 
+<a name="l115"><span class="ln">115  </span></a> 
+<a name="l116"><span class="ln">116  </span></a>where `x_1, x_2, \dots, x_n` are non-movable poles of `a(x)`, 
+<a name="l117"><span class="ln">117  </span></a>`\chi_1, \chi_2, \dots, \chi_m` are movable poles of `a(x)`, and the values 
+<a name="l118"><span class="ln">118  </span></a>of `N, n, r_1, r_2, \dots, r_n` can be determined from `a(x)`. The 
+<a name="l119"><span class="ln">119  </span></a>coefficient vectors `(d_0, d_1, \dots, d_N)` and `(c_{i1}, c_{i2}, \dots, c_{i r_i})` 
+<a name="l120"><span class="ln">120  </span></a>can be determined from `a(x)`. We will have 2 choices each of these vectors 
+<a name="l121"><span class="ln">121  </span></a>and part of the procedure is figuring out which of the 2 should be used 
+<a name="l122"><span class="ln">122  </span></a>to get the solution correctly. 
+<a name="l123"><span class="ln">123  </span></a> 
+<a name="l124"><span class="ln">124  </span></a>Implementation 
+<a name="l125"><span class="ln">125  </span></a>============== 
+<a name="l126"><span class="ln">126  </span></a> 
+<a name="l127"><span class="ln">127  </span></a>In this implementation, we use ``Poly`` to represent a rational function 
+<a name="l128"><span class="ln">128  </span></a>rather than using ``Expr`` since ``Poly`` is much faster. Since we cannot 
+<a name="l129"><span class="ln">129  </span></a>represent rational functions directly using ``Poly``, we instead represent 
+<a name="l130"><span class="ln">130  </span></a>a rational function with 2 ``Poly`` objects - one for its numerator and 
+<a name="l131"><span class="ln">131  </span></a>the other for its denominator. 
+<a name="l132"><span class="ln">132  </span></a> 
+<a name="l133"><span class="ln">133  </span></a>The code is written to match the steps given in the thesis (Pg 82) 
+<a name="l134"><span class="ln">134  </span></a> 
+<a name="l135"><span class="ln">135  </span></a>Step 0 : Match the equation - 
+<a name="l136"><span class="ln">136  </span></a>Find `b_0, b_1` and `b_2`. If `b_2 = 0` or no such functions exist, raise 
+<a name="l137"><span class="ln">137  </span></a>an error 
+<a name="l138"><span class="ln">138  </span></a> 
+<a name="l139"><span class="ln">139  </span></a>Step 1 : Transform the equation to its normal form as explained in the 
+<a name="l140"><span class="ln">140  </span></a>theory section. 
+<a name="l141"><span class="ln">141  </span></a> 
+<a name="l142"><span class="ln">142  </span></a>Step 2 : Initialize an empty set of solutions, ``sol``. 
+<a name="l143"><span class="ln">143  </span></a> 
+<a name="l144"><span class="ln">144  </span></a>Step 3 : If `a(x) = 0`, append `\frac{1}/{(x - C1)}` to ``sol``. 
+<a name="l145"><span class="ln">145  </span></a> 
+<a name="l146"><span class="ln">146  </span></a>Step 4 : If `a(x)` is a rational non-zero number, append `\pm \sqrt{a}` 
+<a name="l147"><span class="ln">147  </span></a>to ``sol``. 
+<a name="l148"><span class="ln">148  </span></a> 
+<a name="l149"><span class="ln">149  </span></a>Step 5 : Find the poles and their multiplicities of `a(x)`. Let 
+<a name="l150"><span class="ln">150  </span></a>the number of poles be `n`. Also find the valuation of `a(x)` at 
+<a name="l151"><span class="ln">151  </span></a>`\infty` using ``val_at_inf``. 
+<a name="l152"><span class="ln">152  </span></a> 
+<a name="l153"><span class="ln">153  </span></a>NOTE: Although the algorithm considers `\infty` as a pole, it is 
+<a name="l154"><span class="ln">154  </span></a>not mentioned if it a part of the set of finite poles. `\infty` 
+<a name="l155"><span class="ln">155  </span></a>is NOT a part of the set of finite poles. If a pole exists at 
+<a name="l156"><span class="ln">156  </span></a>`\infty`, we use its multiplicity to find the laurent series of 
+<a name="l157"><span class="ln">157  </span></a>`a(x)` about `\infty`. 
+<a name="l158"><span class="ln">158  </span></a> 
+<a name="l159"><span class="ln">159  </span></a>Step 6 : Find `n` c-vectors (one for each pole) and 1 d-vector using 
+<a name="l160"><span class="ln">160  </span></a>``construct_c`` and ``construct_d``. Now, determine all the ``2**(n + 1)`` 
+<a name="l161"><span class="ln">161  </span></a>combinations of choosing between 2 choices for each of the `n` c-vectors 
+<a name="l162"><span class="ln">162  </span></a>and 1 d-vector. 
+<a name="l163"><span class="ln">163  </span></a> 
+<a name="l164"><span class="ln">164  </span></a>NOTE: The equation for `d_{-1}` in Case 4 (Pg 80) has a printinig 
+<a name="l165"><span class="ln">165  </span></a>mistake. The term `- d_N` must be replaced with `-N d_N`. The same 
+<a name="l166"><span class="ln">166  </span></a>has been explained in the code as well. 
+<a name="l167"><span class="ln">167  </span></a> 
+<a name="l168"><span class="ln">168  </span></a>For each of these above combinations, do 
+<a name="l169"><span class="ln">169  </span></a> 
+<a name="l170"><span class="ln">170  </span></a>Step 8 : Compute `m` in ``compute_m_ybar``. `m` is the degree bound of 
+<a name="l171"><span class="ln">171  </span></a>the polynomial solution we must find for the auxiliary equation. 
+<a name="l172"><span class="ln">172  </span></a> 
+<a name="l173"><span class="ln">173  </span></a>Step 9 : In ``compute_m_ybar``, compute ybar as well where ``ybar`` is 
+<a name="l174"><span class="ln">174  </span></a>one part of y(x) - 
+<a name="l175"><span class="ln">175  </span></a> 
+<a name="l176"><span class="ln">176  </span></a>.. math:: \overline{y}(x) = \sum_{i=1}^{n} \sum_{j=1}^{r_i} \frac{c_{ij}}{(x - x_i)^j} + \sum_{i=0}^{N} d_i x^i 
+<a name="l177"><span class="ln">177  </span></a> 
+<a name="l178"><span class="ln">178  </span></a>Step 10 : If `m` is a non-negative integer - 
+<a name="l179"><span class="ln">179  </span></a> 
+<a name="l180"><span class="ln">180  </span></a>Step 11: Find a polynomial solution of degree `m` for the auxiliary equation. 
+<a name="l181"><span class="ln">181  </span></a> 
+<a name="l182"><span class="ln">182  </span></a>There are 2 cases possible - 
+<a name="l183"><span class="ln">183  </span></a> 
+<a name="l184"><span class="ln">184  </span></a>    a. `m` is a non-negative integer: We can solve for the coefficients 
+<a name="l185"><span class="ln">185  </span></a>    in `p(x)` using Undetermined Coefficients. 
+<a name="l186"><span class="ln">186  </span></a> 
+<a name="l187"><span class="ln">187  </span></a>    b. `m` is not a non-negative integer: In this case, we cannot find 
+<a name="l188"><span class="ln">188  </span></a>    a polynomial solution to the auxiliary equation, and hence, we ignore 
+<a name="l189"><span class="ln">189  </span></a>    this value of `m`. 
+<a name="l190"><span class="ln">190  </span></a> 
+<a name="l191"><span class="ln">191  </span></a>Step 12 : For each `p(x)` that exists, append `ybar + \frac{p'(x)}{p(x)}` 
+<a name="l192"><span class="ln">192  </span></a>to ``sol``. 
+<a name="l193"><span class="ln">193  </span></a> 
+<a name="l194"><span class="ln">194  </span></a>Step 13 : For each solution in ``sol``, apply an inverse transformation, 
+<a name="l195"><span class="ln">195  </span></a>so that the solutions of the original equation are found using the 
+<a name="l196"><span class="ln">196  </span></a>solutions of the equation in its normal form. 
+<a name="l197"><span class="ln">197  </span></a>&quot;&quot;&quot;</span>
+<a name="l198"><span class="ln">198  </span></a>
+<a name="l199"><span class="ln">199  </span></a>
+<a name="l200"><span class="ln">200  </span></a><span class="s2">from </span><span class="s1">itertools </span><span class="s2">import </span><span class="s1">product</span>
+<a name="l201"><span class="ln">201  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core </span><span class="s2">import </span><span class="s1">S</span>
+<a name="l202"><span class="ln">202  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">add </span><span class="s2">import </span><span class="s1">Add</span>
+<a name="l203"><span class="ln">203  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">numbers </span><span class="s2">import </span><span class="s1">oo</span><span class="s3">, </span><span class="s1">Float</span>
+<a name="l204"><span class="ln">204  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">function </span><span class="s2">import </span><span class="s1">count_ops</span>
+<a name="l205"><span class="ln">205  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">relational </span><span class="s2">import </span><span class="s1">Eq</span>
+<a name="l206"><span class="ln">206  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">symbol </span><span class="s2">import </span><span class="s1">symbols</span><span class="s3">, </span><span class="s1">Symbol</span><span class="s3">, </span><span class="s1">Dummy</span>
+<a name="l207"><span class="ln">207  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">functions </span><span class="s2">import </span><span class="s1">sqrt</span><span class="s3">, </span><span class="s1">exp</span>
+<a name="l208"><span class="ln">208  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">functions</span><span class="s3">.</span><span class="s1">elementary</span><span class="s3">.</span><span class="s1">complexes </span><span class="s2">import </span><span class="s1">sign</span>
+<a name="l209"><span class="ln">209  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">integrals</span><span class="s3">.</span><span class="s1">integrals </span><span class="s2">import </span><span class="s1">Integral</span>
+<a name="l210"><span class="ln">210  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">domains </span><span class="s2">import </span><span class="s1">ZZ</span>
+<a name="l211"><span class="ln">211  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">polytools </span><span class="s2">import </span><span class="s1">Poly</span>
+<a name="l212"><span class="ln">212  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">polyroots </span><span class="s2">import </span><span class="s1">roots</span>
+<a name="l213"><span class="ln">213  </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">solvers</span><span class="s3">.</span><span class="s1">solveset </span><span class="s2">import </span><span class="s1">linsolve</span>
+<a name="l214"><span class="ln">214  </span></a>
+<a name="l215"><span class="ln">215  </span></a>
+<a name="l216"><span class="ln">216  </span></a><span class="s2">def </span><span class="s1">riccati_normal</span><span class="s3">(</span><span class="s1">w</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">b1</span><span class="s3">, </span><span class="s1">b2</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l217"><span class="ln">217  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l218"><span class="ln">218  </span></a>    Given a solution `w(x)` to the equation 
+<a name="l219"><span class="ln">219  </span></a> 
+<a name="l220"><span class="ln">220  </span></a>    .. math:: w'(x) = b_0(x) + b_1(x)*w(x) + b_2(x)*w(x)^2 
+<a name="l221"><span class="ln">221  </span></a> 
+<a name="l222"><span class="ln">222  </span></a>    and rational function coefficients `b_1(x)` and 
+<a name="l223"><span class="ln">223  </span></a>    `b_2(x)`, this function transforms the solution to 
+<a name="l224"><span class="ln">224  </span></a>    give a solution `y(x)` for its corresponding normal 
+<a name="l225"><span class="ln">225  </span></a>    Riccati ODE 
+<a name="l226"><span class="ln">226  </span></a> 
+<a name="l227"><span class="ln">227  </span></a>    .. math:: y'(x) + y(x)^2 = a(x) 
+<a name="l228"><span class="ln">228  </span></a> 
+<a name="l229"><span class="ln">229  </span></a>    using the transformation 
+<a name="l230"><span class="ln">230  </span></a> 
+<a name="l231"><span class="ln">231  </span></a>    .. math:: y(x) = -b_2(x)*w(x) - b'_2(x)/(2*b_2(x)) - b_1(x)/2 
+<a name="l232"><span class="ln">232  </span></a>    &quot;&quot;&quot;</span>
+<a name="l233"><span class="ln">233  </span></a>    <span class="s2">return -</span><span class="s1">b2</span><span class="s2">*</span><span class="s1">w </span><span class="s2">- </span><span class="s1">b2</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">b2</span><span class="s3">) </span><span class="s2">- </span><span class="s1">b1</span><span class="s2">/</span><span class="s4">2</span>
+<a name="l234"><span class="ln">234  </span></a>
+<a name="l235"><span class="ln">235  </span></a>
+<a name="l236"><span class="ln">236  </span></a><span class="s2">def </span><span class="s1">riccati_inverse_normal</span><span class="s3">(</span><span class="s1">y</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">b1</span><span class="s3">, </span><span class="s1">b2</span><span class="s3">, </span><span class="s1">bp</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l237"><span class="ln">237  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l238"><span class="ln">238  </span></a>    Inverse transforming the solution to the normal 
+<a name="l239"><span class="ln">239  </span></a>    Riccati ODE to get the solution to the Riccati ODE. 
+<a name="l240"><span class="ln">240  </span></a>    &quot;&quot;&quot;</span>
+<a name="l241"><span class="ln">241  </span></a>    <span class="s0"># bp is the expression which is independent of the solution</span>
+<a name="l242"><span class="ln">242  </span></a>    <span class="s0"># and hence, it need not be computed again</span>
+<a name="l243"><span class="ln">243  </span></a>    <span class="s2">if </span><span class="s1">bp </span><span class="s2">is None:</span>
+<a name="l244"><span class="ln">244  </span></a>        <span class="s1">bp </span><span class="s2">= -</span><span class="s1">b2</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">b2</span><span class="s2">**</span><span class="s4">2</span><span class="s3">) </span><span class="s2">- </span><span class="s1">b1</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">b2</span><span class="s3">)</span>
+<a name="l245"><span class="ln">245  </span></a>    <span class="s0"># w(x) = -y(x)/b2(x) - b2'(x)/(2*b2(x)^2) - b1(x)/(2*b2(x))</span>
+<a name="l246"><span class="ln">246  </span></a>    <span class="s2">return -</span><span class="s1">y</span><span class="s2">/</span><span class="s1">b2 </span><span class="s2">+ </span><span class="s1">bp</span>
+<a name="l247"><span class="ln">247  </span></a>
+<a name="l248"><span class="ln">248  </span></a>
+<a name="l249"><span class="ln">249  </span></a><span class="s2">def </span><span class="s1">riccati_reduced</span><span class="s3">(</span><span class="s1">eq</span><span class="s3">, </span><span class="s1">f</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l250"><span class="ln">250  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l251"><span class="ln">251  </span></a>    Convert a Riccati ODE into its corresponding 
+<a name="l252"><span class="ln">252  </span></a>    normal Riccati ODE. 
+<a name="l253"><span class="ln">253  </span></a>    &quot;&quot;&quot;</span>
+<a name="l254"><span class="ln">254  </span></a>    <span class="s1">match</span><span class="s3">, </span><span class="s1">funcs </span><span class="s2">= </span><span class="s1">match_riccati</span><span class="s3">(</span><span class="s1">eq</span><span class="s3">, </span><span class="s1">f</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span>
+<a name="l255"><span class="ln">255  </span></a>    <span class="s0"># If equation is not a Riccati ODE, exit</span>
+<a name="l256"><span class="ln">256  </span></a>    <span class="s2">if not </span><span class="s1">match</span><span class="s2">:</span>
+<a name="l257"><span class="ln">257  </span></a>        <span class="s2">return False</span>
+<a name="l258"><span class="ln">258  </span></a>    <span class="s0"># Using the rational functions, find the expression for a(x)</span>
+<a name="l259"><span class="ln">259  </span></a>    <span class="s1">b0</span><span class="s3">, </span><span class="s1">b1</span><span class="s3">, </span><span class="s1">b2 </span><span class="s2">= </span><span class="s1">funcs</span>
+<a name="l260"><span class="ln">260  </span></a>    <span class="s1">a </span><span class="s2">= -</span><span class="s1">b0</span><span class="s2">*</span><span class="s1">b2 </span><span class="s2">+ </span><span class="s1">b1</span><span class="s2">**</span><span class="s4">2</span><span class="s2">/</span><span class="s4">4 </span><span class="s2">- </span><span class="s1">b1</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">/</span><span class="s4">2 </span><span class="s2">+ </span><span class="s4">3</span><span class="s2">*</span><span class="s1">b2</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">**</span><span class="s4">2</span><span class="s2">/</span><span class="s3">(</span><span class="s4">4</span><span class="s2">*</span><span class="s1">b2</span><span class="s2">**</span><span class="s4">2</span><span class="s3">) </span><span class="s2">+ </span><span class="s1">b1</span><span class="s2">*</span><span class="s1">b2</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">b2</span><span class="s3">) </span><span class="s2">- </span><span class="s1">\</span>
+<a name="l261"><span class="ln">261  </span></a>        <span class="s1">b2</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s4">2</span><span class="s3">)</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">b2</span><span class="s3">)</span>
+<a name="l262"><span class="ln">262  </span></a>    <span class="s0"># Normal form of Riccati ODE is f'(x) + f(x)^2 = a(x)</span>
+<a name="l263"><span class="ln">263  </span></a>    <span class="s2">return </span><span class="s1">f</span><span class="s3">(</span><span class="s1">x</span><span class="s3">).</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">+ </span><span class="s1">f</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">**</span><span class="s4">2 </span><span class="s2">- </span><span class="s1">a</span>
+<a name="l264"><span class="ln">264  </span></a>
+<a name="l265"><span class="ln">265  </span></a><span class="s2">def </span><span class="s1">linsolve_dict</span><span class="s3">(</span><span class="s1">eq</span><span class="s3">, </span><span class="s1">syms</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l266"><span class="ln">266  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l267"><span class="ln">267  </span></a>    Get the output of linsolve as a dict 
+<a name="l268"><span class="ln">268  </span></a>    &quot;&quot;&quot;</span>
+<a name="l269"><span class="ln">269  </span></a>    <span class="s0"># Convert tuple type return value of linsolve</span>
+<a name="l270"><span class="ln">270  </span></a>    <span class="s0"># to a dictionary for ease of use</span>
+<a name="l271"><span class="ln">271  </span></a>    <span class="s1">sol </span><span class="s2">= </span><span class="s1">linsolve</span><span class="s3">(</span><span class="s1">eq</span><span class="s3">, </span><span class="s1">syms</span><span class="s3">)</span>
+<a name="l272"><span class="ln">272  </span></a>    <span class="s2">if not </span><span class="s1">sol</span><span class="s2">:</span>
+<a name="l273"><span class="ln">273  </span></a>        <span class="s2">return </span><span class="s3">{}</span>
+<a name="l274"><span class="ln">274  </span></a>    <span class="s2">return </span><span class="s1">dict</span><span class="s3">(</span><span class="s1">zip</span><span class="s3">(</span><span class="s1">syms</span><span class="s3">, </span><span class="s1">list</span><span class="s3">(</span><span class="s1">sol</span><span class="s3">)[</span><span class="s4">0</span><span class="s3">]))</span>
+<a name="l275"><span class="ln">275  </span></a>
+<a name="l276"><span class="ln">276  </span></a>
+<a name="l277"><span class="ln">277  </span></a><span class="s2">def </span><span class="s1">match_riccati</span><span class="s3">(</span><span class="s1">eq</span><span class="s3">, </span><span class="s1">f</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l278"><span class="ln">278  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l279"><span class="ln">279  </span></a>    A function that matches and returns the coefficients 
+<a name="l280"><span class="ln">280  </span></a>    if an equation is a Riccati ODE 
+<a name="l281"><span class="ln">281  </span></a> 
+<a name="l282"><span class="ln">282  </span></a>    Parameters 
+<a name="l283"><span class="ln">283  </span></a>    ========== 
+<a name="l284"><span class="ln">284  </span></a> 
+<a name="l285"><span class="ln">285  </span></a>    eq: Equation to be matched 
+<a name="l286"><span class="ln">286  </span></a>    f: Dependent variable 
+<a name="l287"><span class="ln">287  </span></a>    x: Independent variable 
+<a name="l288"><span class="ln">288  </span></a> 
+<a name="l289"><span class="ln">289  </span></a>    Returns 
+<a name="l290"><span class="ln">290  </span></a>    ======= 
+<a name="l291"><span class="ln">291  </span></a> 
+<a name="l292"><span class="ln">292  </span></a>    match: True if equation is a Riccati ODE, False otherwise 
+<a name="l293"><span class="ln">293  </span></a>    funcs: [b0, b1, b2] if match is True, [] otherwise. Here, 
+<a name="l294"><span class="ln">294  </span></a>    b0, b1 and b2 are rational functions which match the equation. 
+<a name="l295"><span class="ln">295  </span></a>    &quot;&quot;&quot;</span>
+<a name="l296"><span class="ln">296  </span></a>    <span class="s0"># Group terms based on f(x)</span>
+<a name="l297"><span class="ln">297  </span></a>    <span class="s2">if </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">eq</span><span class="s3">, </span><span class="s1">Eq</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l298"><span class="ln">298  </span></a>        <span class="s1">eq </span><span class="s2">= </span><span class="s1">eq</span><span class="s3">.</span><span class="s1">lhs </span><span class="s2">- </span><span class="s1">eq</span><span class="s3">.</span><span class="s1">rhs</span>
+<a name="l299"><span class="ln">299  </span></a>    <span class="s1">eq </span><span class="s2">= </span><span class="s1">eq</span><span class="s3">.</span><span class="s1">expand</span><span class="s3">().</span><span class="s1">collect</span><span class="s3">(</span><span class="s1">f</span><span class="s3">(</span><span class="s1">x</span><span class="s3">))</span>
+<a name="l300"><span class="ln">300  </span></a>    <span class="s1">cf </span><span class="s2">= </span><span class="s1">eq</span><span class="s3">.</span><span class="s1">coeff</span><span class="s3">(</span><span class="s1">f</span><span class="s3">(</span><span class="s1">x</span><span class="s3">).</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">))</span>
+<a name="l301"><span class="ln">301  </span></a>
+<a name="l302"><span class="ln">302  </span></a>    <span class="s0"># There must be an f(x).diff(x) term.</span>
+<a name="l303"><span class="ln">303  </span></a>    <span class="s0"># eq must be an Add object since we are using the expanded</span>
+<a name="l304"><span class="ln">304  </span></a>    <span class="s0"># equation and it must have atleast 2 terms (b2 != 0)</span>
+<a name="l305"><span class="ln">305  </span></a>    <span class="s2">if </span><span class="s1">cf </span><span class="s2">!= </span><span class="s4">0 </span><span class="s2">and </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">eq</span><span class="s3">, </span><span class="s1">Add</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l306"><span class="ln">306  </span></a>
+<a name="l307"><span class="ln">307  </span></a>        <span class="s0"># Divide all coefficients by the coefficient of f(x).diff(x)</span>
+<a name="l308"><span class="ln">308  </span></a>        <span class="s0"># and add the terms again to get the same equation</span>
+<a name="l309"><span class="ln">309  </span></a>        <span class="s1">eq </span><span class="s2">= </span><span class="s1">Add</span><span class="s3">(</span><span class="s2">*</span><span class="s3">((</span><span class="s1">x</span><span class="s2">/</span><span class="s1">cf</span><span class="s3">).</span><span class="s1">cancel</span><span class="s3">() </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">eq</span><span class="s3">.</span><span class="s1">args</span><span class="s3">)).</span><span class="s1">collect</span><span class="s3">(</span><span class="s1">f</span><span class="s3">(</span><span class="s1">x</span><span class="s3">))</span>
+<a name="l310"><span class="ln">310  </span></a>
+<a name="l311"><span class="ln">311  </span></a>        <span class="s0"># Match the equation with the pattern</span>
+<a name="l312"><span class="ln">312  </span></a>        <span class="s1">b1 </span><span class="s2">= -</span><span class="s1">eq</span><span class="s3">.</span><span class="s1">coeff</span><span class="s3">(</span><span class="s1">f</span><span class="s3">(</span><span class="s1">x</span><span class="s3">))</span>
+<a name="l313"><span class="ln">313  </span></a>        <span class="s1">b2 </span><span class="s2">= -</span><span class="s1">eq</span><span class="s3">.</span><span class="s1">coeff</span><span class="s3">(</span><span class="s1">f</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">**</span><span class="s4">2</span><span class="s3">)</span>
+<a name="l314"><span class="ln">314  </span></a>        <span class="s1">b0 </span><span class="s2">= </span><span class="s3">(</span><span class="s1">f</span><span class="s3">(</span><span class="s1">x</span><span class="s3">).</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">- </span><span class="s1">b1</span><span class="s2">*</span><span class="s1">f</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">- </span><span class="s1">b2</span><span class="s2">*</span><span class="s1">f</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">**</span><span class="s4">2 </span><span class="s2">- </span><span class="s1">eq</span><span class="s3">).</span><span class="s1">expand</span><span class="s3">()</span>
+<a name="l315"><span class="ln">315  </span></a>        <span class="s1">funcs </span><span class="s2">= </span><span class="s3">[</span><span class="s1">b0</span><span class="s3">, </span><span class="s1">b1</span><span class="s3">, </span><span class="s1">b2</span><span class="s3">]</span>
+<a name="l316"><span class="ln">316  </span></a>
+<a name="l317"><span class="ln">317  </span></a>        <span class="s0"># Check if coefficients are not symbols and floats</span>
+<a name="l318"><span class="ln">318  </span></a>        <span class="s2">if </span><span class="s1">any</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">x</span><span class="s3">.</span><span class="s1">atoms</span><span class="s3">(</span><span class="s1">Symbol</span><span class="s3">)) </span><span class="s2">&gt; </span><span class="s4">1 </span><span class="s2">or </span><span class="s1">len</span><span class="s3">(</span><span class="s1">x</span><span class="s3">.</span><span class="s1">atoms</span><span class="s3">(</span><span class="s1">Float</span><span class="s3">)) </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">funcs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l319"><span class="ln">319  </span></a>            <span class="s2">return False</span><span class="s3">, []</span>
+<a name="l320"><span class="ln">320  </span></a>
+<a name="l321"><span class="ln">321  </span></a>        <span class="s0"># If b_0(x) contains f(x), it is not a Riccati ODE</span>
+<a name="l322"><span class="ln">322  </span></a>        <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">b0</span><span class="s3">.</span><span class="s1">atoms</span><span class="s3">(</span><span class="s1">f</span><span class="s3">)) </span><span class="s2">or not </span><span class="s1">all</span><span class="s3">((</span><span class="s1">b2 </span><span class="s2">!= </span><span class="s4">0</span><span class="s3">, </span><span class="s1">b0</span><span class="s3">.</span><span class="s1">is_rational_function</span><span class="s3">(</span><span class="s1">x</span><span class="s3">),</span>
+<a name="l323"><span class="ln">323  </span></a>            <span class="s1">b1</span><span class="s3">.</span><span class="s1">is_rational_function</span><span class="s3">(</span><span class="s1">x</span><span class="s3">), </span><span class="s1">b2</span><span class="s3">.</span><span class="s1">is_rational_function</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)))</span><span class="s2">:</span>
+<a name="l324"><span class="ln">324  </span></a>            <span class="s2">return False</span><span class="s3">, []</span>
+<a name="l325"><span class="ln">325  </span></a>        <span class="s2">return True</span><span class="s3">, </span><span class="s1">funcs</span>
+<a name="l326"><span class="ln">326  </span></a>    <span class="s2">return False</span><span class="s3">, []</span>
+<a name="l327"><span class="ln">327  </span></a>
+<a name="l328"><span class="ln">328  </span></a>
+<a name="l329"><span class="ln">329  </span></a><span class="s2">def </span><span class="s1">val_at_inf</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l330"><span class="ln">330  </span></a>    <span class="s0"># Valuation of a rational function at oo = deg(denom) - deg(numer)</span>
+<a name="l331"><span class="ln">331  </span></a>    <span class="s2">return </span><span class="s1">den</span><span class="s3">.</span><span class="s1">degree</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">- </span><span class="s1">num</span><span class="s3">.</span><span class="s1">degree</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span>
+<a name="l332"><span class="ln">332  </span></a>
+<a name="l333"><span class="ln">333  </span></a>
+<a name="l334"><span class="ln">334  </span></a><span class="s2">def </span><span class="s1">check_necessary_conds</span><span class="s3">(</span><span class="s1">val_inf</span><span class="s3">, </span><span class="s1">muls</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l335"><span class="ln">335  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l336"><span class="ln">336  </span></a>    The necessary conditions for a rational solution 
+<a name="l337"><span class="ln">337  </span></a>    to exist are as follows - 
+<a name="l338"><span class="ln">338  </span></a> 
+<a name="l339"><span class="ln">339  </span></a>    i) Every pole of a(x) must be either a simple pole 
+<a name="l340"><span class="ln">340  </span></a>    or a multiple pole of even order. 
+<a name="l341"><span class="ln">341  </span></a> 
+<a name="l342"><span class="ln">342  </span></a>    ii) The valuation of a(x) at infinity must be even 
+<a name="l343"><span class="ln">343  </span></a>    or be greater than or equal to 2. 
+<a name="l344"><span class="ln">344  </span></a> 
+<a name="l345"><span class="ln">345  </span></a>    Here, a simple pole is a pole with multiplicity 1 
+<a name="l346"><span class="ln">346  </span></a>    and a multiple pole is a pole with multiplicity 
+<a name="l347"><span class="ln">347  </span></a>    greater than 1. 
+<a name="l348"><span class="ln">348  </span></a>    &quot;&quot;&quot;</span>
+<a name="l349"><span class="ln">349  </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">val_inf </span><span class="s2">&gt;= </span><span class="s4">2 </span><span class="s2">or </span><span class="s3">(</span><span class="s1">val_inf </span><span class="s2">&lt;= </span><span class="s4">0 </span><span class="s2">and </span><span class="s1">val_inf</span><span class="s2">%</span><span class="s4">2 </span><span class="s2">== </span><span class="s4">0</span><span class="s3">)) </span><span class="s2">and </span><span class="s1">\</span>
+<a name="l350"><span class="ln">350  </span></a>        <span class="s1">all</span><span class="s3">(</span><span class="s1">mul </span><span class="s2">== </span><span class="s4">1 </span><span class="s2">or </span><span class="s3">(</span><span class="s1">mul</span><span class="s2">%</span><span class="s4">2 </span><span class="s2">== </span><span class="s4">0 </span><span class="s2">and </span><span class="s1">mul </span><span class="s2">&gt;= </span><span class="s4">2</span><span class="s3">) </span><span class="s2">for </span><span class="s1">mul </span><span class="s2">in </span><span class="s1">muls</span><span class="s3">)</span>
+<a name="l351"><span class="ln">351  </span></a>
+<a name="l352"><span class="ln">352  </span></a>
+<a name="l353"><span class="ln">353  </span></a><span class="s2">def </span><span class="s1">inverse_transform_poly</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l354"><span class="ln">354  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l355"><span class="ln">355  </span></a>    A function to make the substitution 
+<a name="l356"><span class="ln">356  </span></a>    x -&gt; 1/x in a rational function that 
+<a name="l357"><span class="ln">357  </span></a>    is represented using Poly objects for 
+<a name="l358"><span class="ln">358  </span></a>    numerator and denominator. 
+<a name="l359"><span class="ln">359  </span></a>    &quot;&quot;&quot;</span>
+<a name="l360"><span class="ln">360  </span></a>    <span class="s0"># Declare for reuse</span>
+<a name="l361"><span class="ln">361  </span></a>    <span class="s1">one </span><span class="s2">= </span><span class="s1">Poly</span><span class="s3">(</span><span class="s4">1</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span>
+<a name="l362"><span class="ln">362  </span></a>    <span class="s1">xpoly </span><span class="s2">= </span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span>
+<a name="l363"><span class="ln">363  </span></a>
+<a name="l364"><span class="ln">364  </span></a>    <span class="s0"># Check if degree of numerator is same as denominator</span>
+<a name="l365"><span class="ln">365  </span></a>    <span class="s1">pwr </span><span class="s2">= </span><span class="s1">val_at_inf</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span>
+<a name="l366"><span class="ln">366  </span></a>    <span class="s2">if </span><span class="s1">pwr </span><span class="s2">&gt;= </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l367"><span class="ln">367  </span></a>        <span class="s0"># Denominator has greater degree. Substituting x with</span>
+<a name="l368"><span class="ln">368  </span></a>        <span class="s0"># 1/x would make the extra power go to the numerator</span>
+<a name="l369"><span class="ln">369  </span></a>        <span class="s2">if </span><span class="s1">num</span><span class="s3">.</span><span class="s1">expr </span><span class="s2">!= </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l370"><span class="ln">370  </span></a>            <span class="s1">num </span><span class="s2">= </span><span class="s1">num</span><span class="s3">.</span><span class="s1">transform</span><span class="s3">(</span><span class="s1">one</span><span class="s3">, </span><span class="s1">xpoly</span><span class="s3">) </span><span class="s2">* </span><span class="s1">x</span><span class="s2">**</span><span class="s1">pwr</span>
+<a name="l371"><span class="ln">371  </span></a>            <span class="s1">den </span><span class="s2">= </span><span class="s1">den</span><span class="s3">.</span><span class="s1">transform</span><span class="s3">(</span><span class="s1">one</span><span class="s3">, </span><span class="s1">xpoly</span><span class="s3">)</span>
+<a name="l372"><span class="ln">372  </span></a>    <span class="s2">else:</span>
+<a name="l373"><span class="ln">373  </span></a>        <span class="s0"># Numerator has greater degree. Substituting x with</span>
+<a name="l374"><span class="ln">374  </span></a>        <span class="s0"># 1/x would make the extra power go to the denominator</span>
+<a name="l375"><span class="ln">375  </span></a>        <span class="s1">num </span><span class="s2">= </span><span class="s1">num</span><span class="s3">.</span><span class="s1">transform</span><span class="s3">(</span><span class="s1">one</span><span class="s3">, </span><span class="s1">xpoly</span><span class="s3">)</span>
+<a name="l376"><span class="ln">376  </span></a>        <span class="s1">den </span><span class="s2">= </span><span class="s1">den</span><span class="s3">.</span><span class="s1">transform</span><span class="s3">(</span><span class="s1">one</span><span class="s3">, </span><span class="s1">xpoly</span><span class="s3">) </span><span class="s2">* </span><span class="s1">x</span><span class="s2">**</span><span class="s3">(</span><span class="s2">-</span><span class="s1">pwr</span><span class="s3">)</span>
+<a name="l377"><span class="ln">377  </span></a>    <span class="s2">return </span><span class="s1">num</span><span class="s3">.</span><span class="s1">cancel</span><span class="s3">(</span><span class="s1">den</span><span class="s3">, </span><span class="s1">include</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l378"><span class="ln">378  </span></a>
+<a name="l379"><span class="ln">379  </span></a>
+<a name="l380"><span class="ln">380  </span></a><span class="s2">def </span><span class="s1">limit_at_inf</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l381"><span class="ln">381  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l382"><span class="ln">382  </span></a>    Find the limit of a rational function 
+<a name="l383"><span class="ln">383  </span></a>    at oo 
+<a name="l384"><span class="ln">384  </span></a>    &quot;&quot;&quot;</span>
+<a name="l385"><span class="ln">385  </span></a>    <span class="s0"># pwr = degree(num) - degree(den)</span>
+<a name="l386"><span class="ln">386  </span></a>    <span class="s1">pwr </span><span class="s2">= -</span><span class="s1">val_at_inf</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span>
+<a name="l387"><span class="ln">387  </span></a>    <span class="s0"># Numerator has a greater degree than denominator</span>
+<a name="l388"><span class="ln">388  </span></a>    <span class="s0"># Limit at infinity would depend on the sign of the</span>
+<a name="l389"><span class="ln">389  </span></a>    <span class="s0"># leading coefficients of numerator and denominator</span>
+<a name="l390"><span class="ln">390  </span></a>    <span class="s2">if </span><span class="s1">pwr </span><span class="s2">&gt; </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l391"><span class="ln">391  </span></a>        <span class="s2">return </span><span class="s1">oo</span><span class="s2">*</span><span class="s1">sign</span><span class="s3">(</span><span class="s1">num</span><span class="s3">.</span><span class="s1">LC</span><span class="s3">()</span><span class="s2">/</span><span class="s1">den</span><span class="s3">.</span><span class="s1">LC</span><span class="s3">())</span>
+<a name="l392"><span class="ln">392  </span></a>    <span class="s0"># Degree of numerator is equal to that of denominator</span>
+<a name="l393"><span class="ln">393  </span></a>    <span class="s0"># Limit at infinity is just the ratio of leading coeffs</span>
+<a name="l394"><span class="ln">394  </span></a>    <span class="s2">elif </span><span class="s1">pwr </span><span class="s2">== </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l395"><span class="ln">395  </span></a>        <span class="s2">return </span><span class="s1">num</span><span class="s3">.</span><span class="s1">LC</span><span class="s3">()</span><span class="s2">/</span><span class="s1">den</span><span class="s3">.</span><span class="s1">LC</span><span class="s3">()</span>
+<a name="l396"><span class="ln">396  </span></a>    <span class="s0"># Degree of numerator is less than that of denominator</span>
+<a name="l397"><span class="ln">397  </span></a>    <span class="s0"># Limit at infinity is just 0</span>
+<a name="l398"><span class="ln">398  </span></a>    <span class="s2">else:</span>
+<a name="l399"><span class="ln">399  </span></a>        <span class="s2">return </span><span class="s4">0</span>
+<a name="l400"><span class="ln">400  </span></a>
+<a name="l401"><span class="ln">401  </span></a>
+<a name="l402"><span class="ln">402  </span></a><span class="s2">def </span><span class="s1">construct_c_case_1</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">pole</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l403"><span class="ln">403  </span></a>    <span class="s0"># Find the coefficient of 1/(x - pole)**2 in the</span>
+<a name="l404"><span class="ln">404  </span></a>    <span class="s0"># Laurent series expansion of a(x) about pole.</span>
+<a name="l405"><span class="ln">405  </span></a>    <span class="s1">num1</span><span class="s3">, </span><span class="s1">den1 </span><span class="s2">= </span><span class="s3">(</span><span class="s1">num</span><span class="s2">*</span><span class="s1">Poly</span><span class="s3">((</span><span class="s1">x </span><span class="s2">- </span><span class="s1">pole</span><span class="s3">)</span><span class="s2">**</span><span class="s4">2</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">extension</span><span class="s2">=True</span><span class="s3">)).</span><span class="s1">cancel</span><span class="s3">(</span><span class="s1">den</span><span class="s3">, </span><span class="s1">include</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l406"><span class="ln">406  </span></a>    <span class="s1">r </span><span class="s2">= </span><span class="s3">(</span><span class="s1">num1</span><span class="s3">.</span><span class="s1">subs</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">pole</span><span class="s3">))</span><span class="s2">/</span><span class="s3">(</span><span class="s1">den1</span><span class="s3">.</span><span class="s1">subs</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">pole</span><span class="s3">))</span>
+<a name="l407"><span class="ln">407  </span></a>
+<a name="l408"><span class="ln">408  </span></a>    <span class="s0"># If multiplicity is 2, the coefficient to be added</span>
+<a name="l409"><span class="ln">409  </span></a>    <span class="s0"># in the c-vector is c = (1 +- sqrt(1 + 4*r))/2</span>
+<a name="l410"><span class="ln">410  </span></a>    <span class="s2">if </span><span class="s1">r </span><span class="s2">!= -</span><span class="s1">S</span><span class="s3">(</span><span class="s4">1</span><span class="s3">)</span><span class="s2">/</span><span class="s4">4</span><span class="s2">:</span>
+<a name="l411"><span class="ln">411  </span></a>        <span class="s2">return </span><span class="s3">[[(</span><span class="s4">1 </span><span class="s2">+ </span><span class="s1">sqrt</span><span class="s3">(</span><span class="s4">1 </span><span class="s2">+ </span><span class="s4">4</span><span class="s2">*</span><span class="s1">r</span><span class="s3">))</span><span class="s2">/</span><span class="s4">2</span><span class="s3">], [(</span><span class="s4">1 </span><span class="s2">- </span><span class="s1">sqrt</span><span class="s3">(</span><span class="s4">1 </span><span class="s2">+ </span><span class="s4">4</span><span class="s2">*</span><span class="s1">r</span><span class="s3">))</span><span class="s2">/</span><span class="s4">2</span><span class="s3">]]</span>
+<a name="l412"><span class="ln">412  </span></a>    <span class="s2">return </span><span class="s3">[[</span><span class="s1">S</span><span class="s3">.</span><span class="s1">Half</span><span class="s3">]]</span>
+<a name="l413"><span class="ln">413  </span></a>
+<a name="l414"><span class="ln">414  </span></a>
+<a name="l415"><span class="ln">415  </span></a><span class="s2">def </span><span class="s1">construct_c_case_2</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">pole</span><span class="s3">, </span><span class="s1">mul</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l416"><span class="ln">416  </span></a>    <span class="s0"># Generate the coefficients using the recurrence</span>
+<a name="l417"><span class="ln">417  </span></a>    <span class="s0"># relation mentioned in (5.14) in the thesis (Pg 80)</span>
+<a name="l418"><span class="ln">418  </span></a>
+<a name="l419"><span class="ln">419  </span></a>    <span class="s0"># r_i = mul/2</span>
+<a name="l420"><span class="ln">420  </span></a>    <span class="s1">ri </span><span class="s2">= </span><span class="s1">mul</span><span class="s2">//</span><span class="s4">2</span>
+<a name="l421"><span class="ln">421  </span></a>
+<a name="l422"><span class="ln">422  </span></a>    <span class="s0"># Find the Laurent series coefficients about the pole</span>
+<a name="l423"><span class="ln">423  </span></a>    <span class="s1">ser </span><span class="s2">= </span><span class="s1">rational_laurent_series</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">pole</span><span class="s3">, </span><span class="s1">mul</span><span class="s3">, </span><span class="s4">6</span><span class="s3">)</span>
+<a name="l424"><span class="ln">424  </span></a>
+<a name="l425"><span class="ln">425  </span></a>    <span class="s0"># Start with an empty memo to store the coefficients</span>
+<a name="l426"><span class="ln">426  </span></a>    <span class="s0"># This is for the plus case</span>
+<a name="l427"><span class="ln">427  </span></a>    <span class="s1">cplus </span><span class="s2">= </span><span class="s3">[</span><span class="s4">0 </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">ri</span><span class="s3">)]</span>
+<a name="l428"><span class="ln">428  </span></a>
+<a name="l429"><span class="ln">429  </span></a>    <span class="s0"># Base Case</span>
+<a name="l430"><span class="ln">430  </span></a>    <span class="s1">cplus</span><span class="s3">[</span><span class="s1">ri</span><span class="s2">-</span><span class="s4">1</span><span class="s3">] </span><span class="s2">= </span><span class="s1">sqrt</span><span class="s3">(</span><span class="s1">ser</span><span class="s3">[</span><span class="s4">2</span><span class="s2">*</span><span class="s1">ri</span><span class="s3">])</span>
+<a name="l431"><span class="ln">431  </span></a>
+<a name="l432"><span class="ln">432  </span></a>    <span class="s0"># Iterate backwards to find all coefficients</span>
+<a name="l433"><span class="ln">433  </span></a>    <span class="s1">s </span><span class="s2">= </span><span class="s1">ri </span><span class="s2">- </span><span class="s4">1</span>
+<a name="l434"><span class="ln">434  </span></a>    <span class="s1">sm </span><span class="s2">= </span><span class="s4">0</span>
+<a name="l435"><span class="ln">435  </span></a>    <span class="s2">for </span><span class="s1">s </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">ri</span><span class="s2">-</span><span class="s4">1</span><span class="s3">, </span><span class="s4">0</span><span class="s3">, </span><span class="s2">-</span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l436"><span class="ln">436  </span></a>        <span class="s1">sm </span><span class="s2">= </span><span class="s4">0</span>
+<a name="l437"><span class="ln">437  </span></a>        <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">s</span><span class="s2">+</span><span class="s4">1</span><span class="s3">, </span><span class="s1">ri</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l438"><span class="ln">438  </span></a>            <span class="s1">sm </span><span class="s2">+= </span><span class="s1">cplus</span><span class="s3">[</span><span class="s1">j</span><span class="s2">-</span><span class="s4">1</span><span class="s3">]</span><span class="s2">*</span><span class="s1">cplus</span><span class="s3">[</span><span class="s1">ri</span><span class="s2">+</span><span class="s1">s</span><span class="s2">-</span><span class="s1">j</span><span class="s2">-</span><span class="s4">1</span><span class="s3">]</span>
+<a name="l439"><span class="ln">439  </span></a>        <span class="s2">if </span><span class="s1">s</span><span class="s2">!= </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l440"><span class="ln">440  </span></a>            <span class="s1">cplus</span><span class="s3">[</span><span class="s1">s</span><span class="s2">-</span><span class="s4">1</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span><span class="s1">ser</span><span class="s3">[</span><span class="s1">ri</span><span class="s2">+</span><span class="s1">s</span><span class="s3">] </span><span class="s2">- </span><span class="s1">sm</span><span class="s3">)</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">cplus</span><span class="s3">[</span><span class="s1">ri</span><span class="s2">-</span><span class="s4">1</span><span class="s3">])</span>
+<a name="l441"><span class="ln">441  </span></a>
+<a name="l442"><span class="ln">442  </span></a>    <span class="s0"># Memo for the minus case</span>
+<a name="l443"><span class="ln">443  </span></a>    <span class="s1">cminus </span><span class="s2">= </span><span class="s3">[</span><span class="s2">-</span><span class="s1">x </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">cplus</span><span class="s3">]</span>
+<a name="l444"><span class="ln">444  </span></a>
+<a name="l445"><span class="ln">445  </span></a>    <span class="s0"># Find the 0th coefficient in the recurrence</span>
+<a name="l446"><span class="ln">446  </span></a>    <span class="s1">cplus</span><span class="s3">[</span><span class="s4">0</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span><span class="s1">ser</span><span class="s3">[</span><span class="s1">ri</span><span class="s2">+</span><span class="s1">s</span><span class="s3">] </span><span class="s2">- </span><span class="s1">sm </span><span class="s2">- </span><span class="s1">ri</span><span class="s2">*</span><span class="s1">cplus</span><span class="s3">[</span><span class="s1">ri</span><span class="s2">-</span><span class="s4">1</span><span class="s3">])</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">cplus</span><span class="s3">[</span><span class="s1">ri</span><span class="s2">-</span><span class="s4">1</span><span class="s3">])</span>
+<a name="l447"><span class="ln">447  </span></a>    <span class="s1">cminus</span><span class="s3">[</span><span class="s4">0</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span><span class="s1">ser</span><span class="s3">[</span><span class="s1">ri</span><span class="s2">+</span><span class="s1">s</span><span class="s3">] </span><span class="s2">- </span><span class="s1">sm  </span><span class="s2">- </span><span class="s1">ri</span><span class="s2">*</span><span class="s1">cminus</span><span class="s3">[</span><span class="s1">ri</span><span class="s2">-</span><span class="s4">1</span><span class="s3">])</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">cminus</span><span class="s3">[</span><span class="s1">ri</span><span class="s2">-</span><span class="s4">1</span><span class="s3">])</span>
+<a name="l448"><span class="ln">448  </span></a>
+<a name="l449"><span class="ln">449  </span></a>    <span class="s0"># Add both the plus and minus cases' coefficients</span>
+<a name="l450"><span class="ln">450  </span></a>    <span class="s2">if </span><span class="s1">cplus </span><span class="s2">!= </span><span class="s1">cminus</span><span class="s2">:</span>
+<a name="l451"><span class="ln">451  </span></a>        <span class="s2">return </span><span class="s3">[</span><span class="s1">cplus</span><span class="s3">, </span><span class="s1">cminus</span><span class="s3">]</span>
+<a name="l452"><span class="ln">452  </span></a>    <span class="s2">return </span><span class="s1">cplus</span>
+<a name="l453"><span class="ln">453  </span></a>
+<a name="l454"><span class="ln">454  </span></a>
+<a name="l455"><span class="ln">455  </span></a><span class="s2">def </span><span class="s1">construct_c_case_3</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l456"><span class="ln">456  </span></a>    <span class="s0"># If multiplicity is 1, the coefficient to be added</span>
+<a name="l457"><span class="ln">457  </span></a>    <span class="s0"># in the c-vector is 1 (no choice)</span>
+<a name="l458"><span class="ln">458  </span></a>    <span class="s2">return </span><span class="s3">[[</span><span class="s4">1</span><span class="s3">]]</span>
+<a name="l459"><span class="ln">459  </span></a>
+<a name="l460"><span class="ln">460  </span></a>
+<a name="l461"><span class="ln">461  </span></a><span class="s2">def </span><span class="s1">construct_c</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">poles</span><span class="s3">, </span><span class="s1">muls</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l462"><span class="ln">462  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l463"><span class="ln">463  </span></a>    Helper function to calculate the coefficients 
+<a name="l464"><span class="ln">464  </span></a>    in the c-vector for each pole. 
+<a name="l465"><span class="ln">465  </span></a>    &quot;&quot;&quot;</span>
+<a name="l466"><span class="ln">466  </span></a>    <span class="s1">c </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l467"><span class="ln">467  </span></a>    <span class="s2">for </span><span class="s1">pole</span><span class="s3">, </span><span class="s1">mul </span><span class="s2">in </span><span class="s1">zip</span><span class="s3">(</span><span class="s1">poles</span><span class="s3">, </span><span class="s1">muls</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l468"><span class="ln">468  </span></a>        <span class="s1">c</span><span class="s3">.</span><span class="s1">append</span><span class="s3">([])</span>
+<a name="l469"><span class="ln">469  </span></a>
+<a name="l470"><span class="ln">470  </span></a>        <span class="s0"># Case 3</span>
+<a name="l471"><span class="ln">471  </span></a>        <span class="s2">if </span><span class="s1">mul </span><span class="s2">== </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l472"><span class="ln">472  </span></a>            <span class="s0"># Add the coefficients from Case 3</span>
+<a name="l473"><span class="ln">473  </span></a>            <span class="s1">c</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">].</span><span class="s1">extend</span><span class="s3">(</span><span class="s1">construct_c_case_3</span><span class="s3">())</span>
+<a name="l474"><span class="ln">474  </span></a>
+<a name="l475"><span class="ln">475  </span></a>        <span class="s0"># Case 1</span>
+<a name="l476"><span class="ln">476  </span></a>        <span class="s2">elif </span><span class="s1">mul </span><span class="s2">== </span><span class="s4">2</span><span class="s2">:</span>
+<a name="l477"><span class="ln">477  </span></a>            <span class="s0"># Add the coefficients from Case 1</span>
+<a name="l478"><span class="ln">478  </span></a>            <span class="s1">c</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">].</span><span class="s1">extend</span><span class="s3">(</span><span class="s1">construct_c_case_1</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">pole</span><span class="s3">))</span>
+<a name="l479"><span class="ln">479  </span></a>
+<a name="l480"><span class="ln">480  </span></a>        <span class="s0"># Case 2</span>
+<a name="l481"><span class="ln">481  </span></a>        <span class="s2">else:</span>
+<a name="l482"><span class="ln">482  </span></a>            <span class="s0"># Add the coefficients from Case 2</span>
+<a name="l483"><span class="ln">483  </span></a>            <span class="s1">c</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">].</span><span class="s1">extend</span><span class="s3">(</span><span class="s1">construct_c_case_2</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">pole</span><span class="s3">, </span><span class="s1">mul</span><span class="s3">))</span>
+<a name="l484"><span class="ln">484  </span></a>
+<a name="l485"><span class="ln">485  </span></a>    <span class="s2">return </span><span class="s1">c</span>
+<a name="l486"><span class="ln">486  </span></a>
+<a name="l487"><span class="ln">487  </span></a>
+<a name="l488"><span class="ln">488  </span></a><span class="s2">def </span><span class="s1">construct_d_case_4</span><span class="s3">(</span><span class="s1">ser</span><span class="s3">, </span><span class="s1">N</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l489"><span class="ln">489  </span></a>    <span class="s0"># Initialize an empty vector</span>
+<a name="l490"><span class="ln">490  </span></a>    <span class="s1">dplus </span><span class="s2">= </span><span class="s3">[</span><span class="s4">0 </span><span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">N</span><span class="s2">+</span><span class="s4">2</span><span class="s3">)]</span>
+<a name="l491"><span class="ln">491  </span></a>    <span class="s0"># d_N = sqrt(a_{2*N})</span>
+<a name="l492"><span class="ln">492  </span></a>    <span class="s1">dplus</span><span class="s3">[</span><span class="s1">N</span><span class="s3">] </span><span class="s2">= </span><span class="s1">sqrt</span><span class="s3">(</span><span class="s1">ser</span><span class="s3">[</span><span class="s4">2</span><span class="s2">*</span><span class="s1">N</span><span class="s3">])</span>
+<a name="l493"><span class="ln">493  </span></a>
+<a name="l494"><span class="ln">494  </span></a>    <span class="s0"># Use the recurrence relations to find</span>
+<a name="l495"><span class="ln">495  </span></a>    <span class="s0"># the value of d_s</span>
+<a name="l496"><span class="ln">496  </span></a>    <span class="s2">for </span><span class="s1">s </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">N</span><span class="s2">-</span><span class="s4">1</span><span class="s3">, </span><span class="s2">-</span><span class="s4">2</span><span class="s3">, </span><span class="s2">-</span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l497"><span class="ln">497  </span></a>        <span class="s1">sm </span><span class="s2">= </span><span class="s4">0</span>
+<a name="l498"><span class="ln">498  </span></a>        <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">s</span><span class="s2">+</span><span class="s4">1</span><span class="s3">, </span><span class="s1">N</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l499"><span class="ln">499  </span></a>            <span class="s1">sm </span><span class="s2">+= </span><span class="s1">dplus</span><span class="s3">[</span><span class="s1">j</span><span class="s3">]</span><span class="s2">*</span><span class="s1">dplus</span><span class="s3">[</span><span class="s1">N</span><span class="s2">+</span><span class="s1">s</span><span class="s2">-</span><span class="s1">j</span><span class="s3">]</span>
+<a name="l500"><span class="ln">500  </span></a>        <span class="s2">if </span><span class="s1">s </span><span class="s2">!= -</span><span class="s4">1</span><span class="s2">:</span>
+<a name="l501"><span class="ln">501  </span></a>            <span class="s1">dplus</span><span class="s3">[</span><span class="s1">s</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span><span class="s1">ser</span><span class="s3">[</span><span class="s1">N</span><span class="s2">+</span><span class="s1">s</span><span class="s3">] </span><span class="s2">- </span><span class="s1">sm</span><span class="s3">)</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">dplus</span><span class="s3">[</span><span class="s1">N</span><span class="s3">])</span>
+<a name="l502"><span class="ln">502  </span></a>
+<a name="l503"><span class="ln">503  </span></a>    <span class="s0"># Coefficients for the case of d_N = -sqrt(a_{2*N})</span>
+<a name="l504"><span class="ln">504  </span></a>    <span class="s1">dminus </span><span class="s2">= </span><span class="s3">[</span><span class="s2">-</span><span class="s1">x </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">dplus</span><span class="s3">]</span>
+<a name="l505"><span class="ln">505  </span></a>
+<a name="l506"><span class="ln">506  </span></a>    <span class="s0"># The third equation in Eq 5.15 of the thesis is WRONG!</span>
+<a name="l507"><span class="ln">507  </span></a>    <span class="s0"># d_N must be replaced with N*d_N in that equation.</span>
+<a name="l508"><span class="ln">508  </span></a>    <span class="s1">dplus</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span><span class="s1">ser</span><span class="s3">[</span><span class="s1">N</span><span class="s2">+</span><span class="s1">s</span><span class="s3">] </span><span class="s2">- </span><span class="s1">N</span><span class="s2">*</span><span class="s1">dplus</span><span class="s3">[</span><span class="s1">N</span><span class="s3">] </span><span class="s2">- </span><span class="s1">sm</span><span class="s3">)</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">dplus</span><span class="s3">[</span><span class="s1">N</span><span class="s3">])</span>
+<a name="l509"><span class="ln">509  </span></a>    <span class="s1">dminus</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">] </span><span class="s2">= </span><span class="s3">(</span><span class="s1">ser</span><span class="s3">[</span><span class="s1">N</span><span class="s2">+</span><span class="s1">s</span><span class="s3">] </span><span class="s2">- </span><span class="s1">N</span><span class="s2">*</span><span class="s1">dminus</span><span class="s3">[</span><span class="s1">N</span><span class="s3">] </span><span class="s2">- </span><span class="s1">sm</span><span class="s3">)</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">dminus</span><span class="s3">[</span><span class="s1">N</span><span class="s3">])</span>
+<a name="l510"><span class="ln">510  </span></a>
+<a name="l511"><span class="ln">511  </span></a>    <span class="s2">if </span><span class="s1">dplus </span><span class="s2">!= </span><span class="s1">dminus</span><span class="s2">:</span>
+<a name="l512"><span class="ln">512  </span></a>        <span class="s2">return </span><span class="s3">[</span><span class="s1">dplus</span><span class="s3">, </span><span class="s1">dminus</span><span class="s3">]</span>
+<a name="l513"><span class="ln">513  </span></a>    <span class="s2">return </span><span class="s1">dplus</span>
+<a name="l514"><span class="ln">514  </span></a>
+<a name="l515"><span class="ln">515  </span></a>
+<a name="l516"><span class="ln">516  </span></a><span class="s2">def </span><span class="s1">construct_d_case_5</span><span class="s3">(</span><span class="s1">ser</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l517"><span class="ln">517  </span></a>    <span class="s0"># List to store coefficients for plus case</span>
+<a name="l518"><span class="ln">518  </span></a>    <span class="s1">dplus </span><span class="s2">= </span><span class="s3">[</span><span class="s4">0</span><span class="s3">, </span><span class="s4">0</span><span class="s3">]</span>
+<a name="l519"><span class="ln">519  </span></a>
+<a name="l520"><span class="ln">520  </span></a>    <span class="s0"># d_0  = sqrt(a_0)</span>
+<a name="l521"><span class="ln">521  </span></a>    <span class="s1">dplus</span><span class="s3">[</span><span class="s4">0</span><span class="s3">] </span><span class="s2">= </span><span class="s1">sqrt</span><span class="s3">(</span><span class="s1">ser</span><span class="s3">[</span><span class="s4">0</span><span class="s3">])</span>
+<a name="l522"><span class="ln">522  </span></a>
+<a name="l523"><span class="ln">523  </span></a>    <span class="s0"># d_(-1) = a_(-1)/(2*d_0)</span>
+<a name="l524"><span class="ln">524  </span></a>    <span class="s1">dplus</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">] </span><span class="s2">= </span><span class="s1">ser</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">]</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">dplus</span><span class="s3">[</span><span class="s4">0</span><span class="s3">])</span>
+<a name="l525"><span class="ln">525  </span></a>
+<a name="l526"><span class="ln">526  </span></a>    <span class="s0"># Coefficients for the minus case are just the negative</span>
+<a name="l527"><span class="ln">527  </span></a>    <span class="s0"># of the coefficients for the positive case.</span>
+<a name="l528"><span class="ln">528  </span></a>    <span class="s1">dminus </span><span class="s2">= </span><span class="s3">[</span><span class="s2">-</span><span class="s1">x </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">dplus</span><span class="s3">]</span>
+<a name="l529"><span class="ln">529  </span></a>
+<a name="l530"><span class="ln">530  </span></a>    <span class="s2">if </span><span class="s1">dplus </span><span class="s2">!= </span><span class="s1">dminus</span><span class="s2">:</span>
+<a name="l531"><span class="ln">531  </span></a>        <span class="s2">return </span><span class="s3">[</span><span class="s1">dplus</span><span class="s3">, </span><span class="s1">dminus</span><span class="s3">]</span>
+<a name="l532"><span class="ln">532  </span></a>    <span class="s2">return </span><span class="s1">dplus</span>
+<a name="l533"><span class="ln">533  </span></a>
+<a name="l534"><span class="ln">534  </span></a>
+<a name="l535"><span class="ln">535  </span></a><span class="s2">def </span><span class="s1">construct_d_case_6</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l536"><span class="ln">536  </span></a>    <span class="s0"># s_oo = lim x-&gt;0 1/x**2 * a(1/x) which is equivalent to</span>
+<a name="l537"><span class="ln">537  </span></a>    <span class="s0"># s_oo = lim x-&gt;oo x**2 * a(x)</span>
+<a name="l538"><span class="ln">538  </span></a>    <span class="s1">s_inf </span><span class="s2">= </span><span class="s1">limit_at_inf</span><span class="s3">(</span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">x</span><span class="s2">**</span><span class="s4">2</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span><span class="s2">*</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span>
+<a name="l539"><span class="ln">539  </span></a>
+<a name="l540"><span class="ln">540  </span></a>    <span class="s0"># d_(-1) = (1 +- sqrt(1 + 4*s_oo))/2</span>
+<a name="l541"><span class="ln">541  </span></a>    <span class="s2">if </span><span class="s1">s_inf </span><span class="s2">!= -</span><span class="s1">S</span><span class="s3">(</span><span class="s4">1</span><span class="s3">)</span><span class="s2">/</span><span class="s4">4</span><span class="s2">:</span>
+<a name="l542"><span class="ln">542  </span></a>        <span class="s2">return </span><span class="s3">[[(</span><span class="s4">1 </span><span class="s2">+ </span><span class="s1">sqrt</span><span class="s3">(</span><span class="s4">1 </span><span class="s2">+ </span><span class="s4">4</span><span class="s2">*</span><span class="s1">s_inf</span><span class="s3">))</span><span class="s2">/</span><span class="s4">2</span><span class="s3">], [(</span><span class="s4">1 </span><span class="s2">- </span><span class="s1">sqrt</span><span class="s3">(</span><span class="s4">1 </span><span class="s2">+ </span><span class="s4">4</span><span class="s2">*</span><span class="s1">s_inf</span><span class="s3">))</span><span class="s2">/</span><span class="s4">2</span><span class="s3">]]</span>
+<a name="l543"><span class="ln">543  </span></a>    <span class="s2">return </span><span class="s3">[[</span><span class="s1">S</span><span class="s3">.</span><span class="s1">Half</span><span class="s3">]]</span>
+<a name="l544"><span class="ln">544  </span></a>
+<a name="l545"><span class="ln">545  </span></a>
+<a name="l546"><span class="ln">546  </span></a><span class="s2">def </span><span class="s1">construct_d</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">val_inf</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l547"><span class="ln">547  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l548"><span class="ln">548  </span></a>    Helper function to calculate the coefficients 
+<a name="l549"><span class="ln">549  </span></a>    in the d-vector based on the valuation of the 
+<a name="l550"><span class="ln">550  </span></a>    function at oo. 
+<a name="l551"><span class="ln">551  </span></a>    &quot;&quot;&quot;</span>
+<a name="l552"><span class="ln">552  </span></a>    <span class="s1">N </span><span class="s2">= -</span><span class="s1">val_inf</span><span class="s2">//</span><span class="s4">2</span>
+<a name="l553"><span class="ln">553  </span></a>    <span class="s0"># Multiplicity of oo as a pole</span>
+<a name="l554"><span class="ln">554  </span></a>    <span class="s1">mul </span><span class="s2">= -</span><span class="s1">val_inf </span><span class="s2">if </span><span class="s1">val_inf </span><span class="s2">&lt; </span><span class="s4">0 </span><span class="s2">else </span><span class="s4">0</span>
+<a name="l555"><span class="ln">555  </span></a>    <span class="s1">ser </span><span class="s2">= </span><span class="s1">rational_laurent_series</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">oo</span><span class="s3">, </span><span class="s1">mul</span><span class="s3">, </span><span class="s4">1</span><span class="s3">)</span>
+<a name="l556"><span class="ln">556  </span></a>
+<a name="l557"><span class="ln">557  </span></a>    <span class="s0"># Case 4</span>
+<a name="l558"><span class="ln">558  </span></a>    <span class="s2">if </span><span class="s1">val_inf </span><span class="s2">&lt; </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l559"><span class="ln">559  </span></a>        <span class="s1">d </span><span class="s2">= </span><span class="s1">construct_d_case_4</span><span class="s3">(</span><span class="s1">ser</span><span class="s3">, </span><span class="s1">N</span><span class="s3">)</span>
+<a name="l560"><span class="ln">560  </span></a>
+<a name="l561"><span class="ln">561  </span></a>    <span class="s0"># Case 5</span>
+<a name="l562"><span class="ln">562  </span></a>    <span class="s2">elif </span><span class="s1">val_inf </span><span class="s2">== </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l563"><span class="ln">563  </span></a>        <span class="s1">d </span><span class="s2">= </span><span class="s1">construct_d_case_5</span><span class="s3">(</span><span class="s1">ser</span><span class="s3">)</span>
+<a name="l564"><span class="ln">564  </span></a>
+<a name="l565"><span class="ln">565  </span></a>    <span class="s0"># Case 6</span>
+<a name="l566"><span class="ln">566  </span></a>    <span class="s2">else:</span>
+<a name="l567"><span class="ln">567  </span></a>        <span class="s1">d </span><span class="s2">= </span><span class="s1">construct_d_case_6</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span>
+<a name="l568"><span class="ln">568  </span></a>
+<a name="l569"><span class="ln">569  </span></a>    <span class="s2">return </span><span class="s1">d</span>
+<a name="l570"><span class="ln">570  </span></a>
+<a name="l571"><span class="ln">571  </span></a>
+<a name="l572"><span class="ln">572  </span></a><span class="s2">def </span><span class="s1">rational_laurent_series</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">r</span><span class="s3">, </span><span class="s1">m</span><span class="s3">, </span><span class="s1">n</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l573"><span class="ln">573  </span></a>    <span class="s0">r&quot;&quot;&quot; 
+<a name="l574"><span class="ln">574  </span></a>    The function computes the Laurent series coefficients 
+<a name="l575"><span class="ln">575  </span></a>    of a rational function. 
+<a name="l576"><span class="ln">576  </span></a> 
+<a name="l577"><span class="ln">577  </span></a>    Parameters 
+<a name="l578"><span class="ln">578  </span></a>    ========== 
+<a name="l579"><span class="ln">579  </span></a> 
+<a name="l580"><span class="ln">580  </span></a>    num: A Poly object that is the numerator of `f(x)`. 
+<a name="l581"><span class="ln">581  </span></a>    den: A Poly object that is the denominator of `f(x)`. 
+<a name="l582"><span class="ln">582  </span></a>    x: The variable of expansion of the series. 
+<a name="l583"><span class="ln">583  </span></a>    r: The point of expansion of the series. 
+<a name="l584"><span class="ln">584  </span></a>    m: Multiplicity of r if r is a pole of `f(x)`. Should 
+<a name="l585"><span class="ln">585  </span></a>    be zero otherwise. 
+<a name="l586"><span class="ln">586  </span></a>    n: Order of the term upto which the series is expanded. 
+<a name="l587"><span class="ln">587  </span></a> 
+<a name="l588"><span class="ln">588  </span></a>    Returns 
+<a name="l589"><span class="ln">589  </span></a>    ======= 
+<a name="l590"><span class="ln">590  </span></a> 
+<a name="l591"><span class="ln">591  </span></a>    series: A dictionary that has power of the term as key 
+<a name="l592"><span class="ln">592  </span></a>    and coefficient of that term as value. 
+<a name="l593"><span class="ln">593  </span></a> 
+<a name="l594"><span class="ln">594  </span></a>    Below is a basic outline of how the Laurent series of a 
+<a name="l595"><span class="ln">595  </span></a>    rational function `f(x)` about `x_0` is being calculated - 
+<a name="l596"><span class="ln">596  </span></a> 
+<a name="l597"><span class="ln">597  </span></a>    1. Substitute `x + x_0` in place of `x`. If `x_0` 
+<a name="l598"><span class="ln">598  </span></a>    is a pole of `f(x)`, multiply the expression by `x^m` 
+<a name="l599"><span class="ln">599  </span></a>    where `m` is the multiplicity of `x_0`. Denote the 
+<a name="l600"><span class="ln">600  </span></a>    the resulting expression as g(x). We do this substitution 
+<a name="l601"><span class="ln">601  </span></a>    so that we can now find the Laurent series of g(x) about 
+<a name="l602"><span class="ln">602  </span></a>    `x = 0`. 
+<a name="l603"><span class="ln">603  </span></a> 
+<a name="l604"><span class="ln">604  </span></a>    2. We can then assume that the Laurent series of `g(x)` 
+<a name="l605"><span class="ln">605  </span></a>    takes the following form - 
+<a name="l606"><span class="ln">606  </span></a> 
+<a name="l607"><span class="ln">607  </span></a>    .. math:: g(x) = \frac{num(x)}{den(x)} = \sum_{m = 0}^{\infty} a_m x^m 
+<a name="l608"><span class="ln">608  </span></a> 
+<a name="l609"><span class="ln">609  </span></a>    where `a_m` denotes the Laurent series coefficients. 
+<a name="l610"><span class="ln">610  </span></a> 
+<a name="l611"><span class="ln">611  </span></a>    3. Multiply the denominator to the RHS of the equation 
+<a name="l612"><span class="ln">612  </span></a>    and form a recurrence relation for the coefficients `a_m`. 
+<a name="l613"><span class="ln">613  </span></a>    &quot;&quot;&quot;</span>
+<a name="l614"><span class="ln">614  </span></a>    <span class="s1">one </span><span class="s2">= </span><span class="s1">Poly</span><span class="s3">(</span><span class="s4">1</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">extension</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l615"><span class="ln">615  </span></a>
+<a name="l616"><span class="ln">616  </span></a>    <span class="s2">if </span><span class="s1">r </span><span class="s2">== </span><span class="s1">oo</span><span class="s2">:</span>
+<a name="l617"><span class="ln">617  </span></a>        <span class="s0"># Series at x = oo is equal to first transforming</span>
+<a name="l618"><span class="ln">618  </span></a>        <span class="s0"># the function from x -&gt; 1/x and finding the</span>
+<a name="l619"><span class="ln">619  </span></a>        <span class="s0"># series at x = 0</span>
+<a name="l620"><span class="ln">620  </span></a>        <span class="s1">num</span><span class="s3">, </span><span class="s1">den </span><span class="s2">= </span><span class="s1">inverse_transform_poly</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span>
+<a name="l621"><span class="ln">621  </span></a>        <span class="s1">r </span><span class="s2">= </span><span class="s1">S</span><span class="s3">(</span><span class="s4">0</span><span class="s3">)</span>
+<a name="l622"><span class="ln">622  </span></a>
+<a name="l623"><span class="ln">623  </span></a>    <span class="s2">if </span><span class="s1">r</span><span class="s2">:</span>
+<a name="l624"><span class="ln">624  </span></a>        <span class="s0"># For an expansion about a non-zero point, a</span>
+<a name="l625"><span class="ln">625  </span></a>        <span class="s0"># transformation from x -&gt; x + r must be made</span>
+<a name="l626"><span class="ln">626  </span></a>        <span class="s1">num </span><span class="s2">= </span><span class="s1">num</span><span class="s3">.</span><span class="s1">transform</span><span class="s3">(</span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">x </span><span class="s2">+ </span><span class="s1">r</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">extension</span><span class="s2">=True</span><span class="s3">), </span><span class="s1">one</span><span class="s3">)</span>
+<a name="l627"><span class="ln">627  </span></a>        <span class="s1">den </span><span class="s2">= </span><span class="s1">den</span><span class="s3">.</span><span class="s1">transform</span><span class="s3">(</span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">x </span><span class="s2">+ </span><span class="s1">r</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">extension</span><span class="s2">=True</span><span class="s3">), </span><span class="s1">one</span><span class="s3">)</span>
+<a name="l628"><span class="ln">628  </span></a>
+<a name="l629"><span class="ln">629  </span></a>    <span class="s0"># Remove the pole from the denominator if the series</span>
+<a name="l630"><span class="ln">630  </span></a>    <span class="s0"># expansion is about one of the poles</span>
+<a name="l631"><span class="ln">631  </span></a>    <span class="s1">num</span><span class="s3">, </span><span class="s1">den </span><span class="s2">= </span><span class="s3">(</span><span class="s1">num</span><span class="s2">*</span><span class="s1">x</span><span class="s2">**</span><span class="s1">m</span><span class="s3">).</span><span class="s1">cancel</span><span class="s3">(</span><span class="s1">den</span><span class="s3">, </span><span class="s1">include</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l632"><span class="ln">632  </span></a>
+<a name="l633"><span class="ln">633  </span></a>    <span class="s0"># Equate coefficients for the first terms (base case)</span>
+<a name="l634"><span class="ln">634  </span></a>    <span class="s1">maxdegree </span><span class="s2">= </span><span class="s4">1 </span><span class="s2">+ </span><span class="s1">max</span><span class="s3">(</span><span class="s1">num</span><span class="s3">.</span><span class="s1">degree</span><span class="s3">(), </span><span class="s1">den</span><span class="s3">.</span><span class="s1">degree</span><span class="s3">())</span>
+<a name="l635"><span class="ln">635  </span></a>    <span class="s1">syms </span><span class="s2">= </span><span class="s1">symbols</span><span class="s3">(</span><span class="s5">f'a:{</span><span class="s1">maxdegree</span><span class="s5">}'</span><span class="s3">, </span><span class="s1">cls</span><span class="s2">=</span><span class="s1">Dummy</span><span class="s3">)</span>
+<a name="l636"><span class="ln">636  </span></a>    <span class="s1">diff </span><span class="s2">= </span><span class="s1">num </span><span class="s2">- </span><span class="s1">den </span><span class="s2">* </span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">syms</span><span class="s3">[</span><span class="s2">::-</span><span class="s4">1</span><span class="s3">], </span><span class="s1">x</span><span class="s3">)</span>
+<a name="l637"><span class="ln">637  </span></a>    <span class="s1">coeff_diffs </span><span class="s2">= </span><span class="s1">diff</span><span class="s3">.</span><span class="s1">all_coeffs</span><span class="s3">()[</span><span class="s2">::-</span><span class="s4">1</span><span class="s3">][</span><span class="s2">:</span><span class="s1">maxdegree</span><span class="s3">]</span>
+<a name="l638"><span class="ln">638  </span></a>    <span class="s3">(</span><span class="s1">coeffs</span><span class="s3">, ) </span><span class="s2">= </span><span class="s1">linsolve</span><span class="s3">(</span><span class="s1">coeff_diffs</span><span class="s3">, </span><span class="s1">syms</span><span class="s3">)</span>
+<a name="l639"><span class="ln">639  </span></a>
+<a name="l640"><span class="ln">640  </span></a>    <span class="s0"># Use the recursion relation for the rest</span>
+<a name="l641"><span class="ln">641  </span></a>    <span class="s1">recursion </span><span class="s2">= </span><span class="s1">den</span><span class="s3">.</span><span class="s1">all_coeffs</span><span class="s3">()[</span><span class="s2">::-</span><span class="s4">1</span><span class="s3">]</span>
+<a name="l642"><span class="ln">642  </span></a>    <span class="s1">div</span><span class="s3">, </span><span class="s1">rec_rhs </span><span class="s2">= </span><span class="s1">recursion</span><span class="s3">[</span><span class="s4">0</span><span class="s3">], </span><span class="s1">recursion</span><span class="s3">[</span><span class="s4">1</span><span class="s2">:</span><span class="s3">]</span>
+<a name="l643"><span class="ln">643  </span></a>    <span class="s1">series </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">coeffs</span><span class="s3">)</span>
+<a name="l644"><span class="ln">644  </span></a>    <span class="s2">while </span><span class="s1">len</span><span class="s3">(</span><span class="s1">series</span><span class="s3">) </span><span class="s2">&lt; </span><span class="s1">n</span><span class="s2">:</span>
+<a name="l645"><span class="ln">645  </span></a>        <span class="s1">next_coeff </span><span class="s2">= </span><span class="s1">Add</span><span class="s3">(</span><span class="s2">*</span><span class="s3">(</span><span class="s1">c</span><span class="s2">*</span><span class="s1">series</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s2">-</span><span class="s1">n</span><span class="s3">] </span><span class="s2">for </span><span class="s1">n</span><span class="s3">, </span><span class="s1">c </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">rec_rhs</span><span class="s3">))) </span><span class="s2">/ </span><span class="s1">div</span>
+<a name="l646"><span class="ln">646  </span></a>        <span class="s1">series</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s2">-</span><span class="s1">next_coeff</span><span class="s3">)</span>
+<a name="l647"><span class="ln">647  </span></a>    <span class="s1">series </span><span class="s2">= </span><span class="s3">{</span><span class="s1">m </span><span class="s2">- </span><span class="s1">i</span><span class="s2">: </span><span class="s1">val </span><span class="s2">for </span><span class="s1">i</span><span class="s3">, </span><span class="s1">val </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">series</span><span class="s3">)}</span>
+<a name="l648"><span class="ln">648  </span></a>    <span class="s2">return </span><span class="s1">series</span>
+<a name="l649"><span class="ln">649  </span></a>
+<a name="l650"><span class="ln">650  </span></a><span class="s2">def </span><span class="s1">compute_m_ybar</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">poles</span><span class="s3">, </span><span class="s1">choice</span><span class="s3">, </span><span class="s1">N</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l651"><span class="ln">651  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l652"><span class="ln">652  </span></a>    Helper function to calculate - 
+<a name="l653"><span class="ln">653  </span></a> 
+<a name="l654"><span class="ln">654  </span></a>    1. m - The degree bound for the polynomial 
+<a name="l655"><span class="ln">655  </span></a>    solution that must be found for the auxiliary 
+<a name="l656"><span class="ln">656  </span></a>    differential equation. 
+<a name="l657"><span class="ln">657  </span></a> 
+<a name="l658"><span class="ln">658  </span></a>    2. ybar - Part of the solution which can be 
+<a name="l659"><span class="ln">659  </span></a>    computed using the poles, c and d vectors. 
+<a name="l660"><span class="ln">660  </span></a>    &quot;&quot;&quot;</span>
+<a name="l661"><span class="ln">661  </span></a>    <span class="s1">ybar </span><span class="s2">= </span><span class="s4">0</span>
+<a name="l662"><span class="ln">662  </span></a>    <span class="s1">m </span><span class="s2">= </span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">choice</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">][</span><span class="s2">-</span><span class="s4">1</span><span class="s3">], </span><span class="s1">x</span><span class="s3">, </span><span class="s1">extension</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l663"><span class="ln">663  </span></a>
+<a name="l664"><span class="ln">664  </span></a>    <span class="s0"># Calculate the first (nested) summation for ybar</span>
+<a name="l665"><span class="ln">665  </span></a>    <span class="s0"># as given in Step 9 of the Thesis (Pg 82)</span>
+<a name="l666"><span class="ln">666  </span></a>    <span class="s1">dybar </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l667"><span class="ln">667  </span></a>    <span class="s2">for </span><span class="s1">i</span><span class="s3">, </span><span class="s1">polei </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">poles</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l668"><span class="ln">668  </span></a>        <span class="s2">for </span><span class="s1">j</span><span class="s3">, </span><span class="s1">cij </span><span class="s2">in </span><span class="s1">enumerate</span><span class="s3">(</span><span class="s1">choice</span><span class="s3">[</span><span class="s1">i</span><span class="s3">])</span><span class="s2">:</span>
+<a name="l669"><span class="ln">669  </span></a>            <span class="s1">dybar</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">cij</span><span class="s2">/</span><span class="s3">(</span><span class="s1">x </span><span class="s2">- </span><span class="s1">polei</span><span class="s3">)</span><span class="s2">**</span><span class="s3">(</span><span class="s1">j </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">))</span>
+<a name="l670"><span class="ln">670  </span></a>        <span class="s1">m </span><span class="s2">-=</span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">choice</span><span class="s3">[</span><span class="s1">i</span><span class="s3">][</span><span class="s4">0</span><span class="s3">], </span><span class="s1">x</span><span class="s3">, </span><span class="s1">extension</span><span class="s2">=True</span><span class="s3">)  </span><span class="s0"># can't accumulate Poly and use with Add</span>
+<a name="l671"><span class="ln">671  </span></a>    <span class="s1">ybar </span><span class="s2">+= </span><span class="s1">Add</span><span class="s3">(</span><span class="s2">*</span><span class="s1">dybar</span><span class="s3">)</span>
+<a name="l672"><span class="ln">672  </span></a>
+<a name="l673"><span class="ln">673  </span></a>    <span class="s0"># Calculate the second summation for ybar</span>
+<a name="l674"><span class="ln">674  </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">N</span><span class="s2">+</span><span class="s4">1</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l675"><span class="ln">675  </span></a>        <span class="s1">ybar </span><span class="s2">+= </span><span class="s1">choice</span><span class="s3">[</span><span class="s2">-</span><span class="s4">1</span><span class="s3">][</span><span class="s1">i</span><span class="s3">]</span><span class="s2">*</span><span class="s1">x</span><span class="s2">**</span><span class="s1">i</span>
+<a name="l676"><span class="ln">676  </span></a>    <span class="s2">return </span><span class="s3">(</span><span class="s1">m</span><span class="s3">.</span><span class="s1">expr</span><span class="s3">, </span><span class="s1">ybar</span><span class="s3">)</span>
+<a name="l677"><span class="ln">677  </span></a>
+<a name="l678"><span class="ln">678  </span></a>
+<a name="l679"><span class="ln">679  </span></a><span class="s2">def </span><span class="s1">solve_aux_eq</span><span class="s3">(</span><span class="s1">numa</span><span class="s3">, </span><span class="s1">dena</span><span class="s3">, </span><span class="s1">numy</span><span class="s3">, </span><span class="s1">deny</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">m</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l680"><span class="ln">680  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l681"><span class="ln">681  </span></a>    Helper function to find a polynomial solution 
+<a name="l682"><span class="ln">682  </span></a>    of degree m for the auxiliary differential 
+<a name="l683"><span class="ln">683  </span></a>    equation. 
+<a name="l684"><span class="ln">684  </span></a>    &quot;&quot;&quot;</span>
+<a name="l685"><span class="ln">685  </span></a>    <span class="s0"># Assume that the solution is of the type</span>
+<a name="l686"><span class="ln">686  </span></a>    <span class="s0"># p(x) = C_0 + C_1*x + ... + C_{m-1}*x**(m-1) + x**m</span>
+<a name="l687"><span class="ln">687  </span></a>    <span class="s1">psyms </span><span class="s2">= </span><span class="s1">symbols</span><span class="s3">(</span><span class="s5">f'C0:{</span><span class="s1">m</span><span class="s5">}'</span><span class="s3">, </span><span class="s1">cls</span><span class="s2">=</span><span class="s1">Dummy</span><span class="s3">)</span>
+<a name="l688"><span class="ln">688  </span></a>    <span class="s1">K </span><span class="s2">= </span><span class="s1">ZZ</span><span class="s3">[</span><span class="s1">psyms</span><span class="s3">]</span>
+<a name="l689"><span class="ln">689  </span></a>    <span class="s1">psol </span><span class="s2">= </span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">K</span><span class="s3">.</span><span class="s1">gens</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">domain</span><span class="s2">=</span><span class="s1">K</span><span class="s3">) </span><span class="s2">+ </span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">x</span><span class="s2">**</span><span class="s1">m</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">domain</span><span class="s2">=</span><span class="s1">K</span><span class="s3">)</span>
+<a name="l690"><span class="ln">690  </span></a>
+<a name="l691"><span class="ln">691  </span></a>    <span class="s0"># Eq (5.16) in Thesis - Pg 81</span>
+<a name="l692"><span class="ln">692  </span></a>    <span class="s1">auxeq </span><span class="s2">= </span><span class="s3">(</span><span class="s1">dena</span><span class="s2">*</span><span class="s3">(</span><span class="s1">numy</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">*</span><span class="s1">deny </span><span class="s2">- </span><span class="s1">numy</span><span class="s2">*</span><span class="s1">deny</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">+ </span><span class="s1">numy</span><span class="s2">**</span><span class="s4">2</span><span class="s3">) </span><span class="s2">- </span><span class="s1">numa</span><span class="s2">*</span><span class="s1">deny</span><span class="s2">**</span><span class="s4">2</span><span class="s3">)</span><span class="s2">*</span><span class="s1">psol</span>
+<a name="l693"><span class="ln">693  </span></a>    <span class="s2">if </span><span class="s1">m </span><span class="s2">&gt;= </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l694"><span class="ln">694  </span></a>        <span class="s1">px </span><span class="s2">= </span><span class="s1">psol</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span>
+<a name="l695"><span class="ln">695  </span></a>        <span class="s1">auxeq </span><span class="s2">+= </span><span class="s1">px</span><span class="s2">*</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">numy</span><span class="s2">*</span><span class="s1">deny</span><span class="s2">*</span><span class="s1">dena</span><span class="s3">)</span>
+<a name="l696"><span class="ln">696  </span></a>    <span class="s2">if </span><span class="s1">m </span><span class="s2">&gt;= </span><span class="s4">2</span><span class="s2">:</span>
+<a name="l697"><span class="ln">697  </span></a>        <span class="s1">auxeq </span><span class="s2">+= </span><span class="s1">px</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">*</span><span class="s3">(</span><span class="s1">deny</span><span class="s2">**</span><span class="s4">2</span><span class="s2">*</span><span class="s1">dena</span><span class="s3">)</span>
+<a name="l698"><span class="ln">698  </span></a>    <span class="s2">if </span><span class="s1">m </span><span class="s2">!= </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l699"><span class="ln">699  </span></a>        <span class="s0"># m is a non-zero integer. Find the constant terms using undetermined coefficients</span>
+<a name="l700"><span class="ln">700  </span></a>        <span class="s2">return </span><span class="s1">psol</span><span class="s3">, </span><span class="s1">linsolve_dict</span><span class="s3">(</span><span class="s1">auxeq</span><span class="s3">.</span><span class="s1">all_coeffs</span><span class="s3">(), </span><span class="s1">psyms</span><span class="s3">), </span><span class="s2">True</span>
+<a name="l701"><span class="ln">701  </span></a>    <span class="s2">else:</span>
+<a name="l702"><span class="ln">702  </span></a>        <span class="s0"># m == 0 . Check if 1 (x**0) is a solution to the auxiliary equation</span>
+<a name="l703"><span class="ln">703  </span></a>        <span class="s2">return </span><span class="s1">S</span><span class="s3">.</span><span class="s1">One</span><span class="s3">, </span><span class="s1">auxeq</span><span class="s3">, </span><span class="s1">auxeq </span><span class="s2">== </span><span class="s4">0</span>
+<a name="l704"><span class="ln">704  </span></a>
+<a name="l705"><span class="ln">705  </span></a>
+<a name="l706"><span class="ln">706  </span></a><span class="s2">def </span><span class="s1">remove_redundant_sols</span><span class="s3">(</span><span class="s1">sol1</span><span class="s3">, </span><span class="s1">sol2</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l707"><span class="ln">707  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l708"><span class="ln">708  </span></a>    Helper function to remove redundant 
+<a name="l709"><span class="ln">709  </span></a>    solutions to the differential equation. 
+<a name="l710"><span class="ln">710  </span></a>    &quot;&quot;&quot;</span>
+<a name="l711"><span class="ln">711  </span></a>    <span class="s0"># If y1 and y2 are redundant solutions, there is</span>
+<a name="l712"><span class="ln">712  </span></a>    <span class="s0"># some value of the arbitrary constant for which</span>
+<a name="l713"><span class="ln">713  </span></a>    <span class="s0"># they will be equal</span>
+<a name="l714"><span class="ln">714  </span></a>
+<a name="l715"><span class="ln">715  </span></a>    <span class="s1">syms1 </span><span class="s2">= </span><span class="s1">sol1</span><span class="s3">.</span><span class="s1">atoms</span><span class="s3">(</span><span class="s1">Symbol</span><span class="s3">, </span><span class="s1">Dummy</span><span class="s3">)</span>
+<a name="l716"><span class="ln">716  </span></a>    <span class="s1">syms2 </span><span class="s2">= </span><span class="s1">sol2</span><span class="s3">.</span><span class="s1">atoms</span><span class="s3">(</span><span class="s1">Symbol</span><span class="s3">, </span><span class="s1">Dummy</span><span class="s3">)</span>
+<a name="l717"><span class="ln">717  </span></a>    <span class="s1">num1</span><span class="s3">, </span><span class="s1">den1 </span><span class="s2">= </span><span class="s3">[</span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">e</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">extension</span><span class="s2">=True</span><span class="s3">) </span><span class="s2">for </span><span class="s1">e </span><span class="s2">in </span><span class="s1">sol1</span><span class="s3">.</span><span class="s1">together</span><span class="s3">().</span><span class="s1">as_numer_denom</span><span class="s3">()]</span>
+<a name="l718"><span class="ln">718  </span></a>    <span class="s1">num2</span><span class="s3">, </span><span class="s1">den2 </span><span class="s2">= </span><span class="s3">[</span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">e</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">extension</span><span class="s2">=True</span><span class="s3">) </span><span class="s2">for </span><span class="s1">e </span><span class="s2">in </span><span class="s1">sol2</span><span class="s3">.</span><span class="s1">together</span><span class="s3">().</span><span class="s1">as_numer_denom</span><span class="s3">()]</span>
+<a name="l719"><span class="ln">719  </span></a>    <span class="s0"># Cross multiply</span>
+<a name="l720"><span class="ln">720  </span></a>    <span class="s1">e </span><span class="s2">= </span><span class="s1">num1</span><span class="s2">*</span><span class="s1">den2 </span><span class="s2">- </span><span class="s1">den1</span><span class="s2">*</span><span class="s1">num2</span>
+<a name="l721"><span class="ln">721  </span></a>    <span class="s0"># Check if there are any constants</span>
+<a name="l722"><span class="ln">722  </span></a>    <span class="s1">syms </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">e</span><span class="s3">.</span><span class="s1">atoms</span><span class="s3">(</span><span class="s1">Symbol</span><span class="s3">, </span><span class="s1">Dummy</span><span class="s3">))</span>
+<a name="l723"><span class="ln">723  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">syms</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l724"><span class="ln">724  </span></a>        <span class="s0"># Find values of constants for which solutions are equal</span>
+<a name="l725"><span class="ln">725  </span></a>        <span class="s1">redn </span><span class="s2">= </span><span class="s1">linsolve</span><span class="s3">(</span><span class="s1">e</span><span class="s3">.</span><span class="s1">all_coeffs</span><span class="s3">(), </span><span class="s1">syms</span><span class="s3">)</span>
+<a name="l726"><span class="ln">726  </span></a>        <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">redn</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l727"><span class="ln">727  </span></a>            <span class="s0"># Return the general solution over a particular solution</span>
+<a name="l728"><span class="ln">728  </span></a>            <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">syms1</span><span class="s3">) </span><span class="s2">&gt; </span><span class="s1">len</span><span class="s3">(</span><span class="s1">syms2</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l729"><span class="ln">729  </span></a>                <span class="s2">return </span><span class="s1">sol2</span>
+<a name="l730"><span class="ln">730  </span></a>            <span class="s0"># If both have constants, return the lesser complex solution</span>
+<a name="l731"><span class="ln">731  </span></a>            <span class="s2">elif </span><span class="s1">len</span><span class="s3">(</span><span class="s1">syms1</span><span class="s3">) </span><span class="s2">== </span><span class="s1">len</span><span class="s3">(</span><span class="s1">syms2</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l732"><span class="ln">732  </span></a>                <span class="s2">return </span><span class="s1">sol1 </span><span class="s2">if </span><span class="s1">count_ops</span><span class="s3">(</span><span class="s1">syms1</span><span class="s3">) </span><span class="s2">&gt;= </span><span class="s1">count_ops</span><span class="s3">(</span><span class="s1">syms2</span><span class="s3">) </span><span class="s2">else </span><span class="s1">sol2</span>
+<a name="l733"><span class="ln">733  </span></a>            <span class="s2">else:</span>
+<a name="l734"><span class="ln">734  </span></a>                <span class="s2">return </span><span class="s1">sol1</span>
+<a name="l735"><span class="ln">735  </span></a>
+<a name="l736"><span class="ln">736  </span></a>
+<a name="l737"><span class="ln">737  </span></a><span class="s2">def </span><span class="s1">get_gen_sol_from_part_sol</span><span class="s3">(</span><span class="s1">part_sols</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l738"><span class="ln">738  </span></a>    <span class="s0">&quot;&quot;&quot;&quot; 
+<a name="l739"><span class="ln">739  </span></a>    Helper function which computes the general 
+<a name="l740"><span class="ln">740  </span></a>    solution for a Riccati ODE from its particular 
+<a name="l741"><span class="ln">741  </span></a>    solutions. 
+<a name="l742"><span class="ln">742  </span></a> 
+<a name="l743"><span class="ln">743  </span></a>    There are 3 cases to find the general solution 
+<a name="l744"><span class="ln">744  </span></a>    from the particular solutions for a Riccati ODE 
+<a name="l745"><span class="ln">745  </span></a>    depending on the number of particular solution(s) 
+<a name="l746"><span class="ln">746  </span></a>    we have - 1, 2 or 3. 
+<a name="l747"><span class="ln">747  </span></a> 
+<a name="l748"><span class="ln">748  </span></a>    For more information, see Section 6 of 
+<a name="l749"><span class="ln">749  </span></a>    &quot;Methods of Solution of the Riccati Differential Equation&quot; 
+<a name="l750"><span class="ln">750  </span></a>    by D. R. Haaheim and F. M. Stein 
+<a name="l751"><span class="ln">751  </span></a>    &quot;&quot;&quot;</span>
+<a name="l752"><span class="ln">752  </span></a>
+<a name="l753"><span class="ln">753  </span></a>    <span class="s0"># If no particular solutions are found, a general</span>
+<a name="l754"><span class="ln">754  </span></a>    <span class="s0"># solution cannot be found</span>
+<a name="l755"><span class="ln">755  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">part_sols</span><span class="s3">) </span><span class="s2">== </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l756"><span class="ln">756  </span></a>        <span class="s2">return </span><span class="s3">[]</span>
+<a name="l757"><span class="ln">757  </span></a>
+<a name="l758"><span class="ln">758  </span></a>    <span class="s0"># In case of a single particular solution, the general</span>
+<a name="l759"><span class="ln">759  </span></a>    <span class="s0"># solution can be found by using the substitution</span>
+<a name="l760"><span class="ln">760  </span></a>    <span class="s0"># y = y1 + 1/z and solving a Bernoulli ODE to find z.</span>
+<a name="l761"><span class="ln">761  </span></a>    <span class="s2">elif </span><span class="s1">len</span><span class="s3">(</span><span class="s1">part_sols</span><span class="s3">) </span><span class="s2">== </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l762"><span class="ln">762  </span></a>        <span class="s1">y1 </span><span class="s2">= </span><span class="s1">part_sols</span><span class="s3">[</span><span class="s4">0</span><span class="s3">]</span>
+<a name="l763"><span class="ln">763  </span></a>        <span class="s1">i </span><span class="s2">= </span><span class="s1">exp</span><span class="s3">(</span><span class="s1">Integral</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">y1</span><span class="s3">, </span><span class="s1">x</span><span class="s3">))</span>
+<a name="l764"><span class="ln">764  </span></a>        <span class="s1">z </span><span class="s2">= </span><span class="s1">i </span><span class="s2">* </span><span class="s1">Integral</span><span class="s3">(</span><span class="s1">a</span><span class="s2">/</span><span class="s1">i</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span>
+<a name="l765"><span class="ln">765  </span></a>        <span class="s1">z </span><span class="s2">= </span><span class="s1">z</span><span class="s3">.</span><span class="s1">doit</span><span class="s3">()</span>
+<a name="l766"><span class="ln">766  </span></a>        <span class="s2">if </span><span class="s1">a </span><span class="s2">== </span><span class="s4">0 </span><span class="s2">or </span><span class="s1">z </span><span class="s2">== </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l767"><span class="ln">767  </span></a>            <span class="s2">return </span><span class="s1">y1</span>
+<a name="l768"><span class="ln">768  </span></a>        <span class="s2">return </span><span class="s1">y1 </span><span class="s2">+ </span><span class="s4">1</span><span class="s2">/</span><span class="s1">z</span>
+<a name="l769"><span class="ln">769  </span></a>
+<a name="l770"><span class="ln">770  </span></a>    <span class="s0"># In case of 2 particular solutions, the general solution</span>
+<a name="l771"><span class="ln">771  </span></a>    <span class="s0"># can be found by solving a separable equation. This is</span>
+<a name="l772"><span class="ln">772  </span></a>    <span class="s0"># the most common case, i.e. most Riccati ODEs have 2</span>
+<a name="l773"><span class="ln">773  </span></a>    <span class="s0"># rational particular solutions.</span>
+<a name="l774"><span class="ln">774  </span></a>    <span class="s2">elif </span><span class="s1">len</span><span class="s3">(</span><span class="s1">part_sols</span><span class="s3">) </span><span class="s2">== </span><span class="s4">2</span><span class="s2">:</span>
+<a name="l775"><span class="ln">775  </span></a>        <span class="s1">y1</span><span class="s3">, </span><span class="s1">y2 </span><span class="s2">= </span><span class="s1">part_sols</span>
+<a name="l776"><span class="ln">776  </span></a>        <span class="s0"># One of them already has a constant</span>
+<a name="l777"><span class="ln">777  </span></a>        <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">y1</span><span class="s3">.</span><span class="s1">atoms</span><span class="s3">(</span><span class="s1">Dummy</span><span class="s3">)) </span><span class="s2">+ </span><span class="s1">len</span><span class="s3">(</span><span class="s1">y2</span><span class="s3">.</span><span class="s1">atoms</span><span class="s3">(</span><span class="s1">Dummy</span><span class="s3">)) </span><span class="s2">&gt; </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l778"><span class="ln">778  </span></a>            <span class="s1">u </span><span class="s2">= </span><span class="s1">exp</span><span class="s3">(</span><span class="s1">Integral</span><span class="s3">(</span><span class="s1">y2 </span><span class="s2">- </span><span class="s1">y1</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)).</span><span class="s1">doit</span><span class="s3">()</span>
+<a name="l779"><span class="ln">779  </span></a>        <span class="s0"># Introduce a constant</span>
+<a name="l780"><span class="ln">780  </span></a>        <span class="s2">else:</span>
+<a name="l781"><span class="ln">781  </span></a>            <span class="s1">C1 </span><span class="s2">= </span><span class="s1">Dummy</span><span class="s3">(</span><span class="s5">'C1'</span><span class="s3">)</span>
+<a name="l782"><span class="ln">782  </span></a>            <span class="s1">u </span><span class="s2">= </span><span class="s1">C1</span><span class="s2">*</span><span class="s1">exp</span><span class="s3">(</span><span class="s1">Integral</span><span class="s3">(</span><span class="s1">y2 </span><span class="s2">- </span><span class="s1">y1</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)).</span><span class="s1">doit</span><span class="s3">()</span>
+<a name="l783"><span class="ln">783  </span></a>        <span class="s2">if </span><span class="s1">u </span><span class="s2">== </span><span class="s4">1</span><span class="s2">:</span>
+<a name="l784"><span class="ln">784  </span></a>            <span class="s2">return </span><span class="s1">y2</span>
+<a name="l785"><span class="ln">785  </span></a>        <span class="s2">return </span><span class="s3">(</span><span class="s1">y2</span><span class="s2">*</span><span class="s1">u </span><span class="s2">- </span><span class="s1">y1</span><span class="s3">)</span><span class="s2">/</span><span class="s3">(</span><span class="s1">u </span><span class="s2">- </span><span class="s4">1</span><span class="s3">)</span>
+<a name="l786"><span class="ln">786  </span></a>
+<a name="l787"><span class="ln">787  </span></a>    <span class="s0"># In case of 3 particular solutions, a closed form</span>
+<a name="l788"><span class="ln">788  </span></a>    <span class="s0"># of the general solution can be obtained directly</span>
+<a name="l789"><span class="ln">789  </span></a>    <span class="s2">else:</span>
+<a name="l790"><span class="ln">790  </span></a>        <span class="s1">y1</span><span class="s3">, </span><span class="s1">y2</span><span class="s3">, </span><span class="s1">y3 </span><span class="s2">= </span><span class="s1">part_sols</span><span class="s3">[</span><span class="s2">:</span><span class="s4">3</span><span class="s3">]</span>
+<a name="l791"><span class="ln">791  </span></a>        <span class="s1">C1 </span><span class="s2">= </span><span class="s1">Dummy</span><span class="s3">(</span><span class="s5">'C1'</span><span class="s3">)</span>
+<a name="l792"><span class="ln">792  </span></a>        <span class="s2">return </span><span class="s3">(</span><span class="s1">C1 </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">)</span><span class="s2">*</span><span class="s1">y2</span><span class="s2">*</span><span class="s3">(</span><span class="s1">y1 </span><span class="s2">- </span><span class="s1">y3</span><span class="s3">)</span><span class="s2">/</span><span class="s3">(</span><span class="s1">C1</span><span class="s2">*</span><span class="s1">y1 </span><span class="s2">+ </span><span class="s1">y2 </span><span class="s2">- </span><span class="s3">(</span><span class="s1">C1 </span><span class="s2">+ </span><span class="s4">1</span><span class="s3">)</span><span class="s2">*</span><span class="s1">y3</span><span class="s3">)</span>
+<a name="l793"><span class="ln">793  </span></a>
+<a name="l794"><span class="ln">794  </span></a>
+<a name="l795"><span class="ln">795  </span></a><span class="s2">def </span><span class="s1">solve_riccati</span><span class="s3">(</span><span class="s1">fx</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">b0</span><span class="s3">, </span><span class="s1">b1</span><span class="s3">, </span><span class="s1">b2</span><span class="s3">, </span><span class="s1">gensol</span><span class="s2">=False</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l796"><span class="ln">796  </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l797"><span class="ln">797  </span></a>    The main function that gives particular/general 
+<a name="l798"><span class="ln">798  </span></a>    solutions to Riccati ODEs that have atleast 1 
+<a name="l799"><span class="ln">799  </span></a>    rational particular solution. 
+<a name="l800"><span class="ln">800  </span></a>    &quot;&quot;&quot;</span>
+<a name="l801"><span class="ln">801  </span></a>    <span class="s0"># Step 1 : Convert to Normal Form</span>
+<a name="l802"><span class="ln">802  </span></a>    <span class="s1">a </span><span class="s2">= -</span><span class="s1">b0</span><span class="s2">*</span><span class="s1">b2 </span><span class="s2">+ </span><span class="s1">b1</span><span class="s2">**</span><span class="s4">2</span><span class="s2">/</span><span class="s4">4 </span><span class="s2">- </span><span class="s1">b1</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">/</span><span class="s4">2 </span><span class="s2">+ </span><span class="s4">3</span><span class="s2">*</span><span class="s1">b2</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">**</span><span class="s4">2</span><span class="s2">/</span><span class="s3">(</span><span class="s4">4</span><span class="s2">*</span><span class="s1">b2</span><span class="s2">**</span><span class="s4">2</span><span class="s3">) </span><span class="s2">+ </span><span class="s1">b1</span><span class="s2">*</span><span class="s1">b2</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">b2</span><span class="s3">) </span><span class="s2">- </span><span class="s1">\</span>
+<a name="l803"><span class="ln">803  </span></a>        <span class="s1">b2</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s4">2</span><span class="s3">)</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">b2</span><span class="s3">)</span>
+<a name="l804"><span class="ln">804  </span></a>    <span class="s1">a_t </span><span class="s2">= </span><span class="s1">a</span><span class="s3">.</span><span class="s1">together</span><span class="s3">()</span>
+<a name="l805"><span class="ln">805  </span></a>    <span class="s1">num</span><span class="s3">, </span><span class="s1">den </span><span class="s2">= </span><span class="s3">[</span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">e</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">extension</span><span class="s2">=True</span><span class="s3">) </span><span class="s2">for </span><span class="s1">e </span><span class="s2">in </span><span class="s1">a_t</span><span class="s3">.</span><span class="s1">as_numer_denom</span><span class="s3">()]</span>
+<a name="l806"><span class="ln">806  </span></a>    <span class="s1">num</span><span class="s3">, </span><span class="s1">den </span><span class="s2">= </span><span class="s1">num</span><span class="s3">.</span><span class="s1">cancel</span><span class="s3">(</span><span class="s1">den</span><span class="s3">, </span><span class="s1">include</span><span class="s2">=True</span><span class="s3">)</span>
+<a name="l807"><span class="ln">807  </span></a>
+<a name="l808"><span class="ln">808  </span></a>    <span class="s0"># Step 2</span>
+<a name="l809"><span class="ln">809  </span></a>    <span class="s1">presol </span><span class="s2">= </span><span class="s3">[]</span>
+<a name="l810"><span class="ln">810  </span></a>
+<a name="l811"><span class="ln">811  </span></a>    <span class="s0"># Step 3 : a(x) is 0</span>
+<a name="l812"><span class="ln">812  </span></a>    <span class="s2">if </span><span class="s1">num </span><span class="s2">== </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l813"><span class="ln">813  </span></a>        <span class="s1">presol</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s4">1</span><span class="s2">/</span><span class="s3">(</span><span class="s1">x </span><span class="s2">+ </span><span class="s1">Dummy</span><span class="s3">(</span><span class="s5">'C1'</span><span class="s3">)))</span>
+<a name="l814"><span class="ln">814  </span></a>
+<a name="l815"><span class="ln">815  </span></a>    <span class="s0"># Step 4 : a(x) is a non-zero constant</span>
+<a name="l816"><span class="ln">816  </span></a>    <span class="s2">elif </span><span class="s1">x </span><span class="s2">not in </span><span class="s1">num</span><span class="s3">.</span><span class="s1">free_symbols</span><span class="s3">.</span><span class="s1">union</span><span class="s3">(</span><span class="s1">den</span><span class="s3">.</span><span class="s1">free_symbols</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l817"><span class="ln">817  </span></a>        <span class="s1">presol</span><span class="s3">.</span><span class="s1">extend</span><span class="s3">([</span><span class="s1">sqrt</span><span class="s3">(</span><span class="s1">a</span><span class="s3">), </span><span class="s2">-</span><span class="s1">sqrt</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)])</span>
+<a name="l818"><span class="ln">818  </span></a>
+<a name="l819"><span class="ln">819  </span></a>    <span class="s0"># Step 5 : Find poles and valuation at infinity</span>
+<a name="l820"><span class="ln">820  </span></a>    <span class="s1">poles </span><span class="s2">= </span><span class="s1">roots</span><span class="s3">(</span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span>
+<a name="l821"><span class="ln">821  </span></a>    <span class="s1">poles</span><span class="s3">, </span><span class="s1">muls </span><span class="s2">= </span><span class="s1">list</span><span class="s3">(</span><span class="s1">poles</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">()), </span><span class="s1">list</span><span class="s3">(</span><span class="s1">poles</span><span class="s3">.</span><span class="s1">values</span><span class="s3">())</span>
+<a name="l822"><span class="ln">822  </span></a>    <span class="s1">val_inf </span><span class="s2">= </span><span class="s1">val_at_inf</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)</span>
+<a name="l823"><span class="ln">823  </span></a>
+<a name="l824"><span class="ln">824  </span></a>    <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">poles</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l825"><span class="ln">825  </span></a>        <span class="s0"># Check necessary conditions (outlined in the module docstring)</span>
+<a name="l826"><span class="ln">826  </span></a>        <span class="s2">if not </span><span class="s1">check_necessary_conds</span><span class="s3">(</span><span class="s1">val_inf</span><span class="s3">, </span><span class="s1">muls</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l827"><span class="ln">827  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s5">&quot;Rational Solution doesn't exist&quot;</span><span class="s3">)</span>
+<a name="l828"><span class="ln">828  </span></a>
+<a name="l829"><span class="ln">829  </span></a>        <span class="s0"># Step 6</span>
+<a name="l830"><span class="ln">830  </span></a>        <span class="s0"># Construct c-vectors for each singular point</span>
+<a name="l831"><span class="ln">831  </span></a>        <span class="s1">c </span><span class="s2">= </span><span class="s1">construct_c</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">poles</span><span class="s3">, </span><span class="s1">muls</span><span class="s3">)</span>
+<a name="l832"><span class="ln">832  </span></a>
+<a name="l833"><span class="ln">833  </span></a>        <span class="s0"># Construct d vectors for each singular point</span>
+<a name="l834"><span class="ln">834  </span></a>        <span class="s1">d </span><span class="s2">= </span><span class="s1">construct_d</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">val_inf</span><span class="s3">)</span>
+<a name="l835"><span class="ln">835  </span></a>
+<a name="l836"><span class="ln">836  </span></a>        <span class="s0"># Step 7 : Iterate over all possible combinations and return solutions</span>
+<a name="l837"><span class="ln">837  </span></a>        <span class="s0"># For each possible combination, generate an array of 0's and 1's</span>
+<a name="l838"><span class="ln">838  </span></a>        <span class="s0"># where 0 means pick 1st choice and 1 means pick the second choice.</span>
+<a name="l839"><span class="ln">839  </span></a>
+<a name="l840"><span class="ln">840  </span></a>        <span class="s0"># NOTE: We could exit from the loop if we find 3 particular solutions,</span>
+<a name="l841"><span class="ln">841  </span></a>        <span class="s0"># but it is not implemented here as -</span>
+<a name="l842"><span class="ln">842  </span></a>        <span class="s0">#   a. Finding 3 particular solutions is very rare. Most of the time,</span>
+<a name="l843"><span class="ln">843  </span></a>        <span class="s0">#      only 2 particular solutions are found.</span>
+<a name="l844"><span class="ln">844  </span></a>        <span class="s0">#   b. In case we exit after finding 3 particular solutions, it might</span>
+<a name="l845"><span class="ln">845  </span></a>        <span class="s0">#      happen that 1 or 2 of them are redundant solutions. So, instead of</span>
+<a name="l846"><span class="ln">846  </span></a>        <span class="s0">#      spending some more time in computing the particular solutions,</span>
+<a name="l847"><span class="ln">847  </span></a>        <span class="s0">#      we will end up computing the general solution from a single</span>
+<a name="l848"><span class="ln">848  </span></a>        <span class="s0">#      particular solution which is usually slower than computing the</span>
+<a name="l849"><span class="ln">849  </span></a>        <span class="s0">#      general solution from 2 or 3 particular solutions.</span>
+<a name="l850"><span class="ln">850  </span></a>        <span class="s1">c</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">d</span><span class="s3">)</span>
+<a name="l851"><span class="ln">851  </span></a>        <span class="s1">choices </span><span class="s2">= </span><span class="s1">product</span><span class="s3">(</span><span class="s2">*</span><span class="s1">c</span><span class="s3">)</span>
+<a name="l852"><span class="ln">852  </span></a>        <span class="s2">for </span><span class="s1">choice </span><span class="s2">in </span><span class="s1">choices</span><span class="s2">:</span>
+<a name="l853"><span class="ln">853  </span></a>            <span class="s1">m</span><span class="s3">, </span><span class="s1">ybar </span><span class="s2">= </span><span class="s1">compute_m_ybar</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">poles</span><span class="s3">, </span><span class="s1">choice</span><span class="s3">, </span><span class="s2">-</span><span class="s1">val_inf</span><span class="s2">//</span><span class="s4">2</span><span class="s3">)</span>
+<a name="l854"><span class="ln">854  </span></a>            <span class="s1">numy</span><span class="s3">, </span><span class="s1">deny </span><span class="s2">= </span><span class="s3">[</span><span class="s1">Poly</span><span class="s3">(</span><span class="s1">e</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">extension</span><span class="s2">=True</span><span class="s3">) </span><span class="s2">for </span><span class="s1">e </span><span class="s2">in </span><span class="s1">ybar</span><span class="s3">.</span><span class="s1">together</span><span class="s3">().</span><span class="s1">as_numer_denom</span><span class="s3">()]</span>
+<a name="l855"><span class="ln">855  </span></a>            <span class="s0"># Step 10 : Check if a valid solution exists. If yes, also check</span>
+<a name="l856"><span class="ln">856  </span></a>            <span class="s0"># if m is a non-negative integer</span>
+<a name="l857"><span class="ln">857  </span></a>            <span class="s2">if </span><span class="s1">m</span><span class="s3">.</span><span class="s1">is_nonnegative </span><span class="s2">== True and </span><span class="s1">m</span><span class="s3">.</span><span class="s1">is_integer </span><span class="s2">== True:</span>
+<a name="l858"><span class="ln">858  </span></a>
+<a name="l859"><span class="ln">859  </span></a>                <span class="s0"># Step 11 : Find polynomial solutions of degree m for the auxiliary equation</span>
+<a name="l860"><span class="ln">860  </span></a>                <span class="s1">psol</span><span class="s3">, </span><span class="s1">coeffs</span><span class="s3">, </span><span class="s1">exists </span><span class="s2">= </span><span class="s1">solve_aux_eq</span><span class="s3">(</span><span class="s1">num</span><span class="s3">, </span><span class="s1">den</span><span class="s3">, </span><span class="s1">numy</span><span class="s3">, </span><span class="s1">deny</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">m</span><span class="s3">)</span>
+<a name="l861"><span class="ln">861  </span></a>
+<a name="l862"><span class="ln">862  </span></a>                <span class="s0"># Step 12 : If valid polynomial solution exists, append solution.</span>
+<a name="l863"><span class="ln">863  </span></a>                <span class="s2">if </span><span class="s1">exists</span><span class="s2">:</span>
+<a name="l864"><span class="ln">864  </span></a>                    <span class="s0"># m == 0 case</span>
+<a name="l865"><span class="ln">865  </span></a>                    <span class="s2">if </span><span class="s1">psol </span><span class="s2">== </span><span class="s4">1 </span><span class="s2">and </span><span class="s1">coeffs </span><span class="s2">== </span><span class="s4">0</span><span class="s2">:</span>
+<a name="l866"><span class="ln">866  </span></a>                        <span class="s0"># p(x) = 1, so p'(x)/p(x) term need not be added</span>
+<a name="l867"><span class="ln">867  </span></a>                        <span class="s1">presol</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">ybar</span><span class="s3">)</span>
+<a name="l868"><span class="ln">868  </span></a>                    <span class="s0"># m is a positive integer and there are valid coefficients</span>
+<a name="l869"><span class="ln">869  </span></a>                    <span class="s2">elif </span><span class="s1">len</span><span class="s3">(</span><span class="s1">coeffs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l870"><span class="ln">870  </span></a>                        <span class="s0"># Substitute the valid coefficients to get p(x)</span>
+<a name="l871"><span class="ln">871  </span></a>                        <span class="s1">psol </span><span class="s2">= </span><span class="s1">psol</span><span class="s3">.</span><span class="s1">xreplace</span><span class="s3">(</span><span class="s1">coeffs</span><span class="s3">)</span>
+<a name="l872"><span class="ln">872  </span></a>                        <span class="s0"># y(x) = ybar(x) + p'(x)/p(x)</span>
+<a name="l873"><span class="ln">873  </span></a>                        <span class="s1">presol</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">ybar </span><span class="s2">+ </span><span class="s1">psol</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">/</span><span class="s1">psol</span><span class="s3">)</span>
+<a name="l874"><span class="ln">874  </span></a>
+<a name="l875"><span class="ln">875  </span></a>    <span class="s0"># Remove redundant solutions from the list of existing solutions</span>
+<a name="l876"><span class="ln">876  </span></a>    <span class="s1">remove </span><span class="s2">= </span><span class="s1">set</span><span class="s3">()</span>
+<a name="l877"><span class="ln">877  </span></a>    <span class="s2">for </span><span class="s1">i </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">len</span><span class="s3">(</span><span class="s1">presol</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l878"><span class="ln">878  </span></a>        <span class="s2">for </span><span class="s1">j </span><span class="s2">in </span><span class="s1">range</span><span class="s3">(</span><span class="s1">i</span><span class="s2">+</span><span class="s4">1</span><span class="s3">, </span><span class="s1">len</span><span class="s3">(</span><span class="s1">presol</span><span class="s3">))</span><span class="s2">:</span>
+<a name="l879"><span class="ln">879  </span></a>            <span class="s1">rem </span><span class="s2">= </span><span class="s1">remove_redundant_sols</span><span class="s3">(</span><span class="s1">presol</span><span class="s3">[</span><span class="s1">i</span><span class="s3">], </span><span class="s1">presol</span><span class="s3">[</span><span class="s1">j</span><span class="s3">], </span><span class="s1">x</span><span class="s3">)</span>
+<a name="l880"><span class="ln">880  </span></a>            <span class="s2">if </span><span class="s1">rem </span><span class="s2">is not None:</span>
+<a name="l881"><span class="ln">881  </span></a>                <span class="s1">remove</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">rem</span><span class="s3">)</span>
+<a name="l882"><span class="ln">882  </span></a>    <span class="s1">sols </span><span class="s2">= </span><span class="s3">[</span><span class="s1">x </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s1">presol </span><span class="s2">if </span><span class="s1">x </span><span class="s2">not in </span><span class="s1">remove</span><span class="s3">]</span>
+<a name="l883"><span class="ln">883  </span></a>
+<a name="l884"><span class="ln">884  </span></a>    <span class="s0"># Step 15 : Inverse transform the solutions of the equation in normal form</span>
+<a name="l885"><span class="ln">885  </span></a>    <span class="s1">bp </span><span class="s2">= -</span><span class="s1">b2</span><span class="s3">.</span><span class="s1">diff</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">b2</span><span class="s2">**</span><span class="s4">2</span><span class="s3">) </span><span class="s2">- </span><span class="s1">b1</span><span class="s2">/</span><span class="s3">(</span><span class="s4">2</span><span class="s2">*</span><span class="s1">b2</span><span class="s3">)</span>
+<a name="l886"><span class="ln">886  </span></a>
+<a name="l887"><span class="ln">887  </span></a>    <span class="s0"># If general solution is required, compute it from the particular solutions</span>
+<a name="l888"><span class="ln">888  </span></a>    <span class="s2">if </span><span class="s1">gensol</span><span class="s2">:</span>
+<a name="l889"><span class="ln">889  </span></a>        <span class="s1">sols </span><span class="s2">= </span><span class="s3">[</span><span class="s1">get_gen_sol_from_part_sol</span><span class="s3">(</span><span class="s1">sols</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">x</span><span class="s3">)]</span>
+<a name="l890"><span class="ln">890  </span></a>
+<a name="l891"><span class="ln">891  </span></a>    <span class="s0"># Inverse transform the particular solutions</span>
+<a name="l892"><span class="ln">892  </span></a>    <span class="s1">presol </span><span class="s2">= </span><span class="s3">[</span><span class="s1">Eq</span><span class="s3">(</span><span class="s1">fx</span><span class="s3">, </span><span class="s1">riccati_inverse_normal</span><span class="s3">(</span><span class="s1">y</span><span class="s3">, </span><span class="s1">x</span><span class="s3">, </span><span class="s1">b1</span><span class="s3">, </span><span class="s1">b2</span><span class="s3">, </span><span class="s1">bp</span><span class="s3">).</span><span class="s1">cancel</span><span class="s3">(</span><span class="s1">extension</span><span class="s2">=True</span><span class="s3">)) </span><span class="s2">for </span><span class="s1">y </span><span class="s2">in </span><span class="s1">sols</span><span class="s3">]</span>
+<a name="l893"><span class="ln">893  </span></a>    <span class="s2">return </span><span class="s1">presol</span>
+<a name="l894"><span class="ln">894  </span></a></pre>
+</body>
+</html>

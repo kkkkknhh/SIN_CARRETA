@@ -1,0 +1,151 @@
+<html>
+<head>
+<title>WalImageFile.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.s6 { color: #8a822d;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+WalImageFile.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s0"># The Python Imaging Library.</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s0"># $Id$</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s0">#</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s0"># WAL file handling</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s0">#</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s0"># History:</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s0"># 2003-04-23 fl   created</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s0">#</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s0"># Copyright (c) 2003 by Fredrik Lundh.</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s0">#</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s0"># See the README file for information on usage and redistribution.</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s0">#</span>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l16"><span class="ln">16   </span></a>This reader is based on the specification available from: 
+<a name="l17"><span class="ln">17   </span></a>https://www.flipcode.com/archives/Quake_2_BSP_File_Format.shtml 
+<a name="l18"><span class="ln">18   </span></a>and has been tested with a few sample files found using google. 
+<a name="l19"><span class="ln">19   </span></a> 
+<a name="l20"><span class="ln">20   </span></a>.. note:: 
+<a name="l21"><span class="ln">21   </span></a>    This format cannot be automatically recognized, so the reader 
+<a name="l22"><span class="ln">22   </span></a>    is not registered for use with :py:func:`PIL.Image.open()`. 
+<a name="l23"><span class="ln">23   </span></a>    To open a WAL file, use the :py:func:`PIL.WalImageFile.open()` function instead. 
+<a name="l24"><span class="ln">24   </span></a>&quot;&quot;&quot;</span>
+<a name="l25"><span class="ln">25   </span></a><span class="s2">from </span><span class="s1">__future__ </span><span class="s2">import </span><span class="s1">annotations</span>
+<a name="l26"><span class="ln">26   </span></a>
+<a name="l27"><span class="ln">27   </span></a><span class="s2">from </span><span class="s1">typing </span><span class="s2">import </span><span class="s1">IO</span>
+<a name="l28"><span class="ln">28   </span></a>
+<a name="l29"><span class="ln">29   </span></a><span class="s2">from </span><span class="s3">. </span><span class="s2">import </span><span class="s1">Image</span><span class="s3">, </span><span class="s1">ImageFile</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">_binary </span><span class="s2">import </span><span class="s1">i32le </span><span class="s2">as </span><span class="s1">i32</span>
+<a name="l31"><span class="ln">31   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">_typing </span><span class="s2">import </span><span class="s1">StrOrBytesPath</span>
+<a name="l32"><span class="ln">32   </span></a>
+<a name="l33"><span class="ln">33   </span></a>
+<a name="l34"><span class="ln">34   </span></a><span class="s2">class </span><span class="s1">WalImageFile</span><span class="s3">(</span><span class="s1">ImageFile</span><span class="s3">.</span><span class="s1">ImageFile</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s1">format </span><span class="s2">= </span><span class="s4">&quot;WAL&quot;</span>
+<a name="l36"><span class="ln">36   </span></a>    <span class="s1">format_description </span><span class="s2">= </span><span class="s4">&quot;Quake2 Texture&quot;</span>
+<a name="l37"><span class="ln">37   </span></a>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s2">def </span><span class="s1">_open</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l39"><span class="ln">39   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_mode </span><span class="s2">= </span><span class="s4">&quot;P&quot;</span>
+<a name="l40"><span class="ln">40   </span></a>
+<a name="l41"><span class="ln">41   </span></a>        <span class="s0"># read header fields</span>
+<a name="l42"><span class="ln">42   </span></a>        <span class="s1">header </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">fp</span><span class="s3">.</span><span class="s1">read</span><span class="s3">(</span><span class="s5">32 </span><span class="s2">+ </span><span class="s5">24 </span><span class="s2">+ </span><span class="s5">32 </span><span class="s2">+ </span><span class="s5">12</span><span class="s3">)</span>
+<a name="l43"><span class="ln">43   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_size </span><span class="s2">= </span><span class="s1">i32</span><span class="s3">(</span><span class="s1">header</span><span class="s3">, </span><span class="s5">32</span><span class="s3">), </span><span class="s1">i32</span><span class="s3">(</span><span class="s1">header</span><span class="s3">, </span><span class="s5">36</span><span class="s3">)</span>
+<a name="l44"><span class="ln">44   </span></a>        <span class="s1">Image</span><span class="s3">.</span><span class="s1">_decompression_bomb_check</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">size</span><span class="s3">)</span>
+<a name="l45"><span class="ln">45   </span></a>
+<a name="l46"><span class="ln">46   </span></a>        <span class="s0"># load pixel data</span>
+<a name="l47"><span class="ln">47   </span></a>        <span class="s1">offset </span><span class="s2">= </span><span class="s1">i32</span><span class="s3">(</span><span class="s1">header</span><span class="s3">, </span><span class="s5">40</span><span class="s3">)</span>
+<a name="l48"><span class="ln">48   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">fp</span><span class="s3">.</span><span class="s1">seek</span><span class="s3">(</span><span class="s1">offset</span><span class="s3">)</span>
+<a name="l49"><span class="ln">49   </span></a>
+<a name="l50"><span class="ln">50   </span></a>        <span class="s0"># strings are null-terminated</span>
+<a name="l51"><span class="ln">51   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">info</span><span class="s3">[</span><span class="s4">&quot;name&quot;</span><span class="s3">] </span><span class="s2">= </span><span class="s1">header</span><span class="s3">[</span><span class="s2">:</span><span class="s5">32</span><span class="s3">].</span><span class="s1">split</span><span class="s3">(</span><span class="s6">b&quot;</span><span class="s4">\0</span><span class="s6">&quot;</span><span class="s3">, </span><span class="s5">1</span><span class="s3">)[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s1">next_name </span><span class="s2">= </span><span class="s1">header</span><span class="s3">[</span><span class="s5">56 </span><span class="s2">: </span><span class="s5">56 </span><span class="s2">+ </span><span class="s5">32</span><span class="s3">].</span><span class="s1">split</span><span class="s3">(</span><span class="s6">b&quot;</span><span class="s4">\0</span><span class="s6">&quot;</span><span class="s3">, </span><span class="s5">1</span><span class="s3">)[</span><span class="s5">0</span><span class="s3">]</span>
+<a name="l53"><span class="ln">53   </span></a>        <span class="s2">if </span><span class="s1">next_name</span><span class="s2">:</span>
+<a name="l54"><span class="ln">54   </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">info</span><span class="s3">[</span><span class="s4">&quot;next_name&quot;</span><span class="s3">] </span><span class="s2">= </span><span class="s1">next_name</span>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a>    <span class="s2">def </span><span class="s1">load</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; Image</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">PixelAccess </span><span class="s2">| None:</span>
+<a name="l57"><span class="ln">57   </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_im </span><span class="s2">is None:</span>
+<a name="l58"><span class="ln">58   </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">im </span><span class="s2">= </span><span class="s1">Image</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">new</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">mode</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">size</span><span class="s3">)</span>
+<a name="l59"><span class="ln">59   </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">frombytes</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">fp</span><span class="s3">.</span><span class="s1">read</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">size</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] </span><span class="s2">* </span><span class="s1">self</span><span class="s3">.</span><span class="s1">size</span><span class="s3">[</span><span class="s5">1</span><span class="s3">]))</span>
+<a name="l60"><span class="ln">60   </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">putpalette</span><span class="s3">(</span><span class="s1">quake2palette</span><span class="s3">)</span>
+<a name="l61"><span class="ln">61   </span></a>        <span class="s2">return </span><span class="s1">Image</span><span class="s3">.</span><span class="s1">Image</span><span class="s3">.</span><span class="s1">load</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span>
+<a name="l62"><span class="ln">62   </span></a>
+<a name="l63"><span class="ln">63   </span></a>
+<a name="l64"><span class="ln">64   </span></a><span class="s2">def </span><span class="s1">open</span><span class="s3">(</span><span class="s1">filename</span><span class="s2">: </span><span class="s1">StrOrBytesPath </span><span class="s2">| </span><span class="s1">IO</span><span class="s3">[</span><span class="s1">bytes</span><span class="s3">]) </span><span class="s1">-&gt; WalImageFile</span><span class="s2">:</span>
+<a name="l65"><span class="ln">65   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l66"><span class="ln">66   </span></a>    Load texture from a Quake2 WAL texture file. 
+<a name="l67"><span class="ln">67   </span></a> 
+<a name="l68"><span class="ln">68   </span></a>    By default, a Quake2 standard palette is attached to the texture. 
+<a name="l69"><span class="ln">69   </span></a>    To override the palette, use the :py:func:`PIL.Image.Image.putpalette()` method. 
+<a name="l70"><span class="ln">70   </span></a> 
+<a name="l71"><span class="ln">71   </span></a>    :param filename: WAL file name, or an opened file handle. 
+<a name="l72"><span class="ln">72   </span></a>    :returns: An image instance. 
+<a name="l73"><span class="ln">73   </span></a>    &quot;&quot;&quot;</span>
+<a name="l74"><span class="ln">74   </span></a>    <span class="s2">return </span><span class="s1">WalImageFile</span><span class="s3">(</span><span class="s1">filename</span><span class="s3">)</span>
+<a name="l75"><span class="ln">75   </span></a>
+<a name="l76"><span class="ln">76   </span></a>
+<a name="l77"><span class="ln">77   </span></a><span class="s1">quake2palette </span><span class="s2">= </span><span class="s3">(</span>
+<a name="l78"><span class="ln">78   </span></a>    <span class="s0"># default palette taken from piffo 0.93 by Hans Häggström</span>
+<a name="l79"><span class="ln">79   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x01\x01\x01\x0b\x0b\x0b\x12\x12\x12\x17\x17\x17\x1b\x1b\x1b\x1e</span><span class="s6">&quot;</span>
+<a name="l80"><span class="ln">80   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x1e\x1e\x22\x22\x22\x26\x26\x26\x29\x29\x29\x2c\x2c\x2c\x2f\x2f</span><span class="s6">&quot;</span>
+<a name="l81"><span class="ln">81   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x2f\x32\x32\x32\x35\x35\x35\x37\x37\x37\x3a\x3a\x3a\x3c\x3c\x3c</span><span class="s6">&quot;</span>
+<a name="l82"><span class="ln">82   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x24\x1e\x13\x22\x1c\x12\x20\x1b\x12\x1f\x1a\x10\x1d\x19\x10\x1b</span><span class="s6">&quot;</span>
+<a name="l83"><span class="ln">83   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x17\x0f\x1a\x16\x0f\x18\x14\x0d\x17\x13\x0d\x16\x12\x0d\x14\x10</span><span class="s6">&quot;</span>
+<a name="l84"><span class="ln">84   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x0b\x13\x0f\x0b\x10\x0d\x0a\x0f\x0b\x0a\x0d\x0b\x07\x0b\x0a\x07</span><span class="s6">&quot;</span>
+<a name="l85"><span class="ln">85   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x23\x23\x26\x22\x22\x25\x22\x20\x23\x21\x1f\x22\x20\x1e\x20\x1f</span><span class="s6">&quot;</span>
+<a name="l86"><span class="ln">86   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x1d\x1e\x1d\x1b\x1c\x1b\x1a\x1a\x1a\x19\x19\x18\x17\x17\x17\x16</span><span class="s6">&quot;</span>
+<a name="l87"><span class="ln">87   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x16\x14\x14\x14\x13\x13\x13\x10\x10\x10\x0f\x0f\x0f\x0d\x0d\x0d</span><span class="s6">&quot;</span>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x2d\x28\x20\x29\x24\x1c\x27\x22\x1a\x25\x1f\x17\x38\x2e\x1e\x31</span><span class="s6">&quot;</span>
+<a name="l89"><span class="ln">89   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x29\x1a\x2c\x25\x17\x26\x20\x14\x3c\x30\x14\x37\x2c\x13\x33\x28</span><span class="s6">&quot;</span>
+<a name="l90"><span class="ln">90   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x12\x2d\x24\x10\x28\x1f\x0f\x22\x1a\x0b\x1b\x14\x0a\x13\x0f\x07</span><span class="s6">&quot;</span>
+<a name="l91"><span class="ln">91   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x31\x1a\x16\x30\x17\x13\x2e\x16\x10\x2c\x14\x0d\x2a\x12\x0b\x27</span><span class="s6">&quot;</span>
+<a name="l92"><span class="ln">92   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x0f\x0a\x25\x0f\x07\x21\x0d\x01\x1e\x0b\x01\x1c\x0b\x01\x1a\x0b</span><span class="s6">&quot;</span>
+<a name="l93"><span class="ln">93   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x01\x18\x0a\x01\x16\x0a\x01\x13\x0a\x01\x10\x07\x01\x0d\x07\x01</span><span class="s6">&quot;</span>
+<a name="l94"><span class="ln">94   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x29\x23\x1e\x27\x21\x1c\x26\x20\x1b\x25\x1f\x1a\x23\x1d\x19\x21</span><span class="s6">&quot;</span>
+<a name="l95"><span class="ln">95   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x1c\x18\x20\x1b\x17\x1e\x19\x16\x1c\x18\x14\x1b\x17\x13\x19\x14</span><span class="s6">&quot;</span>
+<a name="l96"><span class="ln">96   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x10\x17\x13\x0f\x14\x10\x0d\x12\x0f\x0b\x0f\x0b\x0a\x0b\x0a\x07</span><span class="s6">&quot;</span>
+<a name="l97"><span class="ln">97   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x26\x1a\x0f\x23\x19\x0f\x20\x17\x0f\x1c\x16\x0f\x19\x13\x0d\x14</span><span class="s6">&quot;</span>
+<a name="l98"><span class="ln">98   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x10\x0b\x10\x0d\x0a\x0b\x0a\x07\x33\x22\x1f\x35\x29\x26\x37\x2f</span><span class="s6">&quot;</span>
+<a name="l99"><span class="ln">99   </span></a>    <span class="s6">b&quot;</span><span class="s4">\x2d\x39\x35\x34\x37\x39\x3a\x33\x37\x39\x30\x34\x36\x2b\x31\x34</span><span class="s6">&quot;</span>
+<a name="l100"><span class="ln">100  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x27\x2e\x31\x22\x2b\x2f\x1d\x28\x2c\x17\x25\x2a\x0f\x20\x26\x0d</span><span class="s6">&quot;</span>
+<a name="l101"><span class="ln">101  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x1e\x25\x0b\x1c\x22\x0a\x1b\x20\x07\x19\x1e\x07\x17\x1b\x07\x14</span><span class="s6">&quot;</span>
+<a name="l102"><span class="ln">102  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x18\x01\x12\x16\x01\x0f\x12\x01\x0b\x0d\x01\x07\x0a\x01\x01\x01</span><span class="s6">&quot;</span>
+<a name="l103"><span class="ln">103  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x2c\x21\x21\x2a\x1f\x1f\x29\x1d\x1d\x27\x1c\x1c\x26\x1a\x1a\x24</span><span class="s6">&quot;</span>
+<a name="l104"><span class="ln">104  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x18\x18\x22\x17\x17\x21\x16\x16\x1e\x13\x13\x1b\x12\x12\x18\x10</span><span class="s6">&quot;</span>
+<a name="l105"><span class="ln">105  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x10\x16\x0d\x0d\x12\x0b\x0b\x0d\x0a\x0a\x0a\x07\x07\x01\x01\x01</span><span class="s6">&quot;</span>
+<a name="l106"><span class="ln">106  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x2e\x30\x29\x2d\x2e\x27\x2b\x2c\x26\x2a\x2a\x24\x28\x29\x23\x27</span><span class="s6">&quot;</span>
+<a name="l107"><span class="ln">107  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x27\x21\x26\x26\x1f\x24\x24\x1d\x22\x22\x1c\x1f\x1f\x1a\x1c\x1c</span><span class="s6">&quot;</span>
+<a name="l108"><span class="ln">108  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x18\x19\x19\x16\x17\x17\x13\x13\x13\x10\x0f\x0f\x0d\x0b\x0b\x0a</span><span class="s6">&quot;</span>
+<a name="l109"><span class="ln">109  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x30\x1e\x1b\x2d\x1c\x19\x2c\x1a\x17\x2a\x19\x14\x28\x17\x13\x26</span><span class="s6">&quot;</span>
+<a name="l110"><span class="ln">110  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x16\x10\x24\x13\x0f\x21\x12\x0d\x1f\x10\x0b\x1c\x0f\x0a\x19\x0d</span><span class="s6">&quot;</span>
+<a name="l111"><span class="ln">111  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x0a\x16\x0b\x07\x12\x0a\x07\x0f\x07\x01\x0a\x01\x01\x01\x01\x01</span><span class="s6">&quot;</span>
+<a name="l112"><span class="ln">112  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x28\x29\x38\x26\x27\x36\x25\x26\x34\x24\x24\x31\x22\x22\x2f\x20</span><span class="s6">&quot;</span>
+<a name="l113"><span class="ln">113  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x21\x2d\x1e\x1f\x2a\x1d\x1d\x27\x1b\x1b\x25\x19\x19\x21\x17\x17</span><span class="s6">&quot;</span>
+<a name="l114"><span class="ln">114  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x1e\x14\x14\x1b\x13\x12\x17\x10\x0f\x13\x0d\x0b\x0f\x0a\x07\x07</span><span class="s6">&quot;</span>
+<a name="l115"><span class="ln">115  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x2f\x32\x29\x2d\x30\x26\x2b\x2e\x24\x29\x2c\x21\x27\x2a\x1e\x25</span><span class="s6">&quot;</span>
+<a name="l116"><span class="ln">116  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x28\x1c\x23\x26\x1a\x21\x25\x18\x1e\x22\x14\x1b\x1f\x10\x19\x1c</span><span class="s6">&quot;</span>
+<a name="l117"><span class="ln">117  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x0d\x17\x1a\x0a\x13\x17\x07\x10\x13\x01\x0d\x0f\x01\x0a\x0b\x01</span><span class="s6">&quot;</span>
+<a name="l118"><span class="ln">118  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x01\x3f\x01\x13\x3c\x0b\x1b\x39\x10\x20\x35\x14\x23\x31\x17\x23</span><span class="s6">&quot;</span>
+<a name="l119"><span class="ln">119  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x2d\x18\x23\x29\x18\x3f\x3f\x3f\x3f\x3f\x39\x3f\x3f\x31\x3f\x3f</span><span class="s6">&quot;</span>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x2a\x3f\x3f\x20\x3f\x3f\x14\x3f\x3c\x12\x3f\x39\x0f\x3f\x35\x0b</span><span class="s6">&quot;</span>
+<a name="l121"><span class="ln">121  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x3f\x32\x07\x3f\x2d\x01\x3d\x2a\x01\x3b\x26\x01\x39\x21\x01\x37</span><span class="s6">&quot;</span>
+<a name="l122"><span class="ln">122  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x1d\x01\x34\x1a\x01\x32\x16\x01\x2f\x12\x01\x2d\x0f\x01\x2a\x0b</span><span class="s6">&quot;</span>
+<a name="l123"><span class="ln">123  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x01\x27\x07\x01\x23\x01\x01\x1d\x01\x01\x17\x01\x01\x10\x01\x01</span><span class="s6">&quot;</span>
+<a name="l124"><span class="ln">124  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x3d\x01\x01\x19\x19\x3f\x3f\x01\x01\x01\x01\x3f\x16\x16\x13\x10</span><span class="s6">&quot;</span>
+<a name="l125"><span class="ln">125  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x10\x0f\x0d\x0d\x0b\x3c\x2e\x2a\x36\x27\x20\x30\x21\x18\x29\x1b</span><span class="s6">&quot;</span>
+<a name="l126"><span class="ln">126  </span></a>    <span class="s6">b&quot;</span><span class="s4">\x10\x3c\x39\x37\x37\x32\x2f\x31\x2c\x28\x2b\x26\x21\x30\x22\x20</span><span class="s6">&quot;</span>
+<a name="l127"><span class="ln">127  </span></a><span class="s3">)</span>
+<a name="l128"><span class="ln">128  </span></a></pre>
+</body>
+</html>

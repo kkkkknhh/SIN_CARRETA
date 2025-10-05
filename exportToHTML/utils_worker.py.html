@@ -1,0 +1,61 @@
+<html>
+<head>
+<title>utils_worker.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+utils_worker.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>IO/concurrency helpers for `tqdm.contrib`. 
+<a name="l3"><span class="ln">3    </span></a>&quot;&quot;&quot;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">from </span><span class="s1">collections </span><span class="s2">import </span><span class="s1">deque</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s2">from </span><span class="s1">concurrent</span><span class="s3">.</span><span class="s1">futures </span><span class="s2">import </span><span class="s1">ThreadPoolExecutor</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">from </span><span class="s3">..</span><span class="s1">auto </span><span class="s2">import </span><span class="s1">tqdm </span><span class="s2">as </span><span class="s1">tqdm_auto</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">__author__ </span><span class="s2">= </span><span class="s3">{</span><span class="s4">&quot;github.com/&quot;</span><span class="s2">: </span><span class="s3">[</span><span class="s4">&quot;casperdcl&quot;</span><span class="s3">]}</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s1">__all__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'MonoWorker'</span><span class="s3">]</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">class </span><span class="s1">MonoWorker</span><span class="s3">(</span><span class="s1">object</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l14"><span class="ln">14   </span></a>    <span class="s0">&quot;&quot;&quot; 
+<a name="l15"><span class="ln">15   </span></a>    Supports one running task and one waiting task. 
+<a name="l16"><span class="ln">16   </span></a>    The waiting task is the most recent submitted (others are discarded). 
+<a name="l17"><span class="ln">17   </span></a>    &quot;&quot;&quot;</span>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l19"><span class="ln">19   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">pool </span><span class="s2">= </span><span class="s1">ThreadPoolExecutor</span><span class="s3">(</span><span class="s1">max_workers</span><span class="s2">=</span><span class="s5">1</span><span class="s3">)</span>
+<a name="l20"><span class="ln">20   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">futures </span><span class="s2">= </span><span class="s1">deque</span><span class="s3">([], </span><span class="s5">2</span><span class="s3">)</span>
+<a name="l21"><span class="ln">21   </span></a>
+<a name="l22"><span class="ln">22   </span></a>    <span class="s2">def </span><span class="s1">submit</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">func</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l23"><span class="ln">23   </span></a>        <span class="s0">&quot;&quot;&quot;`func(*args, **kwargs)` may replace currently waiting task.&quot;&quot;&quot;</span>
+<a name="l24"><span class="ln">24   </span></a>        <span class="s1">futures </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">futures</span>
+<a name="l25"><span class="ln">25   </span></a>        <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">futures</span><span class="s3">) </span><span class="s2">== </span><span class="s1">futures</span><span class="s3">.</span><span class="s1">maxlen</span><span class="s2">:</span>
+<a name="l26"><span class="ln">26   </span></a>            <span class="s1">running </span><span class="s2">= </span><span class="s1">futures</span><span class="s3">.</span><span class="s1">popleft</span><span class="s3">()</span>
+<a name="l27"><span class="ln">27   </span></a>            <span class="s2">if not </span><span class="s1">running</span><span class="s3">.</span><span class="s1">done</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l28"><span class="ln">28   </span></a>                <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">futures</span><span class="s3">)</span><span class="s2">:  </span><span class="s0"># clear waiting</span>
+<a name="l29"><span class="ln">29   </span></a>                    <span class="s1">waiting </span><span class="s2">= </span><span class="s1">futures</span><span class="s3">.</span><span class="s1">pop</span><span class="s3">()</span>
+<a name="l30"><span class="ln">30   </span></a>                    <span class="s1">waiting</span><span class="s3">.</span><span class="s1">cancel</span><span class="s3">()</span>
+<a name="l31"><span class="ln">31   </span></a>                <span class="s1">futures</span><span class="s3">.</span><span class="s1">appendleft</span><span class="s3">(</span><span class="s1">running</span><span class="s3">)  </span><span class="s0"># re-insert running</span>
+<a name="l32"><span class="ln">32   </span></a>        <span class="s2">try:</span>
+<a name="l33"><span class="ln">33   </span></a>            <span class="s1">waiting </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">pool</span><span class="s3">.</span><span class="s1">submit</span><span class="s3">(</span><span class="s1">func</span><span class="s3">, </span><span class="s2">*</span><span class="s1">args</span><span class="s3">, </span><span class="s2">**</span><span class="s1">kwargs</span><span class="s3">)</span>
+<a name="l34"><span class="ln">34   </span></a>        <span class="s2">except </span><span class="s1">Exception </span><span class="s2">as </span><span class="s1">e</span><span class="s2">:</span>
+<a name="l35"><span class="ln">35   </span></a>            <span class="s1">tqdm_auto</span><span class="s3">.</span><span class="s1">write</span><span class="s3">(</span><span class="s1">str</span><span class="s3">(</span><span class="s1">e</span><span class="s3">))</span>
+<a name="l36"><span class="ln">36   </span></a>        <span class="s2">else:</span>
+<a name="l37"><span class="ln">37   </span></a>            <span class="s1">futures</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">waiting</span><span class="s3">)</span>
+<a name="l38"><span class="ln">38   </span></a>            <span class="s2">return </span><span class="s1">waiting</span>
+<a name="l39"><span class="ln">39   </span></a></pre>
+</body>
+</html>

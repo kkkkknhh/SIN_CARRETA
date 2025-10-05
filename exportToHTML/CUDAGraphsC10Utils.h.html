@@ -1,0 +1,105 @@
+<html>
+<head>
+<title>CUDAGraphsC10Utils.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #000080; font-weight: bold;}
+.s2 { color: #969896; font-style: italic;}
+.s3 { color: #660e7a; font-weight: bold;}
+.s4 { color: #0086b3;}
+.s5 { color: #183691; font-weight: bold;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+CUDAGraphsC10Utils.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/cuda/CUDAStream.h&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">#include </span><span class="s0">&lt;iostream&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s1">#include </span><span class="s0">&lt;utility&gt;</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">// CUDA Graphs utils used by c10 and aten.</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s2">// aten/cuda/CUDAGraphsUtils.cuh adds utils used by aten only.</span>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s3">namespace </span><span class="s0">c10::cuda {</span>
+<a name="l11"><span class="ln">11   </span></a>
+<a name="l12"><span class="ln">12   </span></a><span class="s3">using </span><span class="s0">CaptureId_t = </span><span class="s1">unsigned long long</span><span class="s0">;</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">// first is set if the instance is created by CUDAGraph::capture_begin.</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">// second is set if the instance is created by at::cuda::graph_pool_handle.</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s3">using </span><span class="s0">MempoolId_t = std::pair&lt;CaptureId_t, CaptureId_t&gt;;</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a><span class="s2">// RAII guard for &quot;cudaStreamCaptureMode&quot;, a thread-local value</span>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">// that controls the error-checking strictness of a capture.</span>
+<a name="l20"><span class="ln">20   </span></a><span class="s1">struct </span><span class="s0">C10_CUDA_API CUDAStreamCaptureModeGuard {</span>
+<a name="l21"><span class="ln">21   </span></a>  <span class="s0">CUDAStreamCaptureModeGuard(cudaStreamCaptureMode desired)</span>
+<a name="l22"><span class="ln">22   </span></a>      <span class="s0">: strictness_(desired) {</span>
+<a name="l23"><span class="ln">23   </span></a>    <span class="s0">C10_CUDA_CHECK(cudaThreadExchangeStreamCaptureMode(&amp;strictness_));</span>
+<a name="l24"><span class="ln">24   </span></a>  <span class="s0">}</span>
+<a name="l25"><span class="ln">25   </span></a>  <span class="s0">CUDAStreamCaptureModeGuard(</span><span class="s1">const </span><span class="s0">CUDAStreamCaptureModeGuard&amp;) = </span><span class="s1">delete</span><span class="s0">;</span>
+<a name="l26"><span class="ln">26   </span></a>  <span class="s0">CUDAStreamCaptureModeGuard(CUDAStreamCaptureModeGuard&amp;&amp;) = </span><span class="s1">delete</span><span class="s0">;</span>
+<a name="l27"><span class="ln">27   </span></a>  <span class="s0">CUDAStreamCaptureModeGuard&amp; </span><span class="s3">operator</span><span class="s0">=(</span><span class="s1">const </span><span class="s0">CUDAStreamCaptureModeGuard&amp;) =</span>
+<a name="l28"><span class="ln">28   </span></a>      <span class="s1">delete</span><span class="s0">;</span>
+<a name="l29"><span class="ln">29   </span></a>  <span class="s0">CUDAStreamCaptureModeGuard&amp; </span><span class="s3">operator</span><span class="s0">=(CUDAStreamCaptureModeGuard&amp;&amp;) = </span><span class="s1">delete</span><span class="s0">;</span>
+<a name="l30"><span class="ln">30   </span></a>  <span class="s0">~CUDAStreamCaptureModeGuard() {</span>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s0">C10_CUDA_CHECK_WARN(cudaThreadExchangeStreamCaptureMode(&amp;strictness_));</span>
+<a name="l32"><span class="ln">32   </span></a>  <span class="s0">}</span>
+<a name="l33"><span class="ln">33   </span></a>
+<a name="l34"><span class="ln">34   </span></a> <span class="s3">private</span><span class="s0">:</span>
+<a name="l35"><span class="ln">35   </span></a>  <span class="s0">cudaStreamCaptureMode strictness_;</span>
+<a name="l36"><span class="ln">36   </span></a><span class="s0">};</span>
+<a name="l37"><span class="ln">37   </span></a>
+<a name="l38"><span class="ln">38   </span></a><span class="s2">// Protects against enum cudaStreamCaptureStatus implementation changes.</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s2">// Some compilers seem not to like static_assert without the messages.</span>
+<a name="l40"><span class="ln">40   </span></a><span class="s0">static_assert(</span>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s1">int</span><span class="s0">(cudaStreamCaptureStatus::cudaStreamCaptureStatusNone) == </span><span class="s4">0</span><span class="s0">,</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s5">&quot;unexpected int(cudaStreamCaptureStatusNone) value&quot;</span><span class="s0">);</span>
+<a name="l43"><span class="ln">43   </span></a><span class="s0">static_assert(</span>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s1">int</span><span class="s0">(cudaStreamCaptureStatus::cudaStreamCaptureStatusActive) == </span><span class="s4">1</span><span class="s0">,</span>
+<a name="l45"><span class="ln">45   </span></a>    <span class="s5">&quot;unexpected int(cudaStreamCaptureStatusActive) value&quot;</span><span class="s0">);</span>
+<a name="l46"><span class="ln">46   </span></a><span class="s0">static_assert(</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s1">int</span><span class="s0">(cudaStreamCaptureStatus::cudaStreamCaptureStatusInvalidated) == </span><span class="s4">2</span><span class="s0">,</span>
+<a name="l48"><span class="ln">48   </span></a>    <span class="s5">&quot;unexpected int(cudaStreamCaptureStatusInvalidated) value&quot;</span><span class="s0">);</span>
+<a name="l49"><span class="ln">49   </span></a>
+<a name="l50"><span class="ln">50   </span></a><span class="s1">enum </span><span class="s3">class </span><span class="s0">CaptureStatus : </span><span class="s1">int </span><span class="s0">{</span>
+<a name="l51"><span class="ln">51   </span></a>  <span class="s0">None = </span><span class="s1">int</span><span class="s0">(cudaStreamCaptureStatus::cudaStreamCaptureStatusNone),</span>
+<a name="l52"><span class="ln">52   </span></a>  <span class="s0">Active = </span><span class="s1">int</span><span class="s0">(cudaStreamCaptureStatus::cudaStreamCaptureStatusActive),</span>
+<a name="l53"><span class="ln">53   </span></a>  <span class="s0">Invalidated = </span><span class="s1">int</span><span class="s0">(cudaStreamCaptureStatus::cudaStreamCaptureStatusInvalidated)</span>
+<a name="l54"><span class="ln">54   </span></a><span class="s0">};</span>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a><span class="s3">inline </span><span class="s0">std::ostream&amp; </span><span class="s3">operator</span><span class="s0">&lt;&lt;(std::ostream&amp; os, CaptureStatus status) {</span>
+<a name="l57"><span class="ln">57   </span></a>  <span class="s1">switch </span><span class="s0">(status) {</span>
+<a name="l58"><span class="ln">58   </span></a>    <span class="s1">case </span><span class="s0">CaptureStatus::None:</span>
+<a name="l59"><span class="ln">59   </span></a>      <span class="s0">os &lt;&lt; </span><span class="s5">&quot;cudaStreamCaptureStatusNone&quot;</span><span class="s0">;</span>
+<a name="l60"><span class="ln">60   </span></a>      <span class="s1">break</span><span class="s0">;</span>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s1">case </span><span class="s0">CaptureStatus::Active:</span>
+<a name="l62"><span class="ln">62   </span></a>      <span class="s0">os &lt;&lt; </span><span class="s5">&quot;cudaStreamCaptureStatusActive&quot;</span><span class="s0">;</span>
+<a name="l63"><span class="ln">63   </span></a>      <span class="s1">break</span><span class="s0">;</span>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s1">case </span><span class="s0">CaptureStatus::Invalidated:</span>
+<a name="l65"><span class="ln">65   </span></a>      <span class="s0">os &lt;&lt; </span><span class="s5">&quot;cudaStreamCaptureStatusInvalidated&quot;</span><span class="s0">;</span>
+<a name="l66"><span class="ln">66   </span></a>      <span class="s1">break</span><span class="s0">;</span>
+<a name="l67"><span class="ln">67   </span></a>    <span class="s1">default</span><span class="s0">:</span>
+<a name="l68"><span class="ln">68   </span></a>      <span class="s0">TORCH_INTERNAL_ASSERT(</span>
+<a name="l69"><span class="ln">69   </span></a>          <span class="s1">false</span><span class="s0">, </span><span class="s5">&quot;Unknown CUDA graph CaptureStatus&quot;</span><span class="s0">, </span><span class="s1">int</span><span class="s0">(status));</span>
+<a name="l70"><span class="ln">70   </span></a>  <span class="s0">}</span>
+<a name="l71"><span class="ln">71   </span></a>  <span class="s1">return </span><span class="s0">os;</span>
+<a name="l72"><span class="ln">72   </span></a><span class="s0">}</span>
+<a name="l73"><span class="ln">73   </span></a>
+<a name="l74"><span class="ln">74   </span></a><span class="s2">// Use this version where you're sure a CUDA context exists already.</span>
+<a name="l75"><span class="ln">75   </span></a><span class="s3">inline </span><span class="s0">CaptureStatus currentStreamCaptureStatusMayInitCtx() {</span>
+<a name="l76"><span class="ln">76   </span></a>  <span class="s0">cudaStreamCaptureStatus is_capturing{cudaStreamCaptureStatusNone};</span>
+<a name="l77"><span class="ln">77   </span></a>  <span class="s0">C10_CUDA_CHECK(</span>
+<a name="l78"><span class="ln">78   </span></a>      <span class="s0">cudaStreamIsCapturing(c10::cuda::getCurrentCUDAStream(), &amp;is_capturing));</span>
+<a name="l79"><span class="ln">79   </span></a>  <span class="s1">return </span><span class="s0">CaptureStatus(is_capturing);</span>
+<a name="l80"><span class="ln">80   </span></a><span class="s0">}</span>
+<a name="l81"><span class="ln">81   </span></a>
+<a name="l82"><span class="ln">82   </span></a><span class="s0">} </span><span class="s2">// namespace c10::cuda</span>
+<a name="l83"><span class="ln">83   </span></a></pre>
+</body>
+</html>

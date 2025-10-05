@@ -1,0 +1,106 @@
+<html>
+<head>
+<title>QuantizerBase.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #000080; font-weight: bold;}
+.s2 { color: #660e7a; font-weight: bold;}
+.s3 { color: #969896; font-style: italic;}
+.s4 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+QuantizerBase.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/ScalarType.h&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/QScheme.h&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/intrusive_ptr.h&gt;</span>
+<a name="l6"><span class="ln">6    </span></a>
+<a name="l7"><span class="ln">7    </span></a><span class="s2">namespace </span><span class="s0">at {</span>
+<a name="l8"><span class="ln">8    </span></a>
+<a name="l9"><span class="ln">9    </span></a><span class="s2">class </span><span class="s0">Tensor;</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s1">struct </span><span class="s0">QTensorImpl;</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s1">struct </span><span class="s0">Quantizer;</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">using </span><span class="s0">ConstQuantizerPtr = </span><span class="s1">const </span><span class="s0">c10::intrusive_ptr&lt;Quantizer&gt;&amp;;</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">using </span><span class="s0">QuantizerPtr = c10::intrusive_ptr&lt;Quantizer&gt;;</span>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s3">/** 
+<a name="l16"><span class="ln">16   </span></a> * Quantizer is the class for storing all the information 
+<a name="l17"><span class="ln">17   </span></a> * that's necessary to perform quantize and dequantize 
+<a name="l18"><span class="ln">18   </span></a> * operation. 
+<a name="l19"><span class="ln">19   </span></a> * 
+<a name="l20"><span class="ln">20   </span></a> * We might have different types of quantization schemes and this is 
+<a name="l21"><span class="ln">21   </span></a> * the base class for all quantizers. 
+<a name="l22"><span class="ln">22   </span></a> * 
+<a name="l23"><span class="ln">23   </span></a> * QTensorImpl will hold a pointer to Quantizer so that we can support 
+<a name="l24"><span class="ln">24   </span></a> * different quantization schemes on Tensor. 
+<a name="l25"><span class="ln">25   </span></a> * 
+<a name="l26"><span class="ln">26   </span></a> * For example, the most common quantization scheme, Affine Quantization, 
+<a name="l27"><span class="ln">27   </span></a> * requires scale and zero_point as parameters, we'll store scale and zero_point 
+<a name="l28"><span class="ln">28   </span></a> * inside the instance and we can use it to quantize a float Tensor or 
+<a name="l29"><span class="ln">29   </span></a> * dequantize a quantized Tensor. 
+<a name="l30"><span class="ln">30   </span></a> * 
+<a name="l31"><span class="ln">31   </span></a> * When you add new types of leaf Quantizer class, please also 
+<a name="l32"><span class="ln">32   </span></a> * make sure to add a corresponding QScheme enum since 
+<a name="l33"><span class="ln">33   </span></a> * they should have one to one mapping. 
+<a name="l34"><span class="ln">34   </span></a> * 
+<a name="l35"><span class="ln">35   </span></a> * Note about intrusive_ptr: 
+<a name="l36"><span class="ln">36   </span></a> * Quantized Tensor holds an intrusive_ptr to Quantizer, and multiple Tensor can 
+<a name="l37"><span class="ln">37   </span></a> * share the same Quantizer. Quantizer should be immutable. 
+<a name="l38"><span class="ln">38   </span></a> */</span>
+<a name="l39"><span class="ln">39   </span></a><span class="s1">struct </span><span class="s0">TORCH_API Quantizer : </span><span class="s2">public </span><span class="s0">c10::intrusive_ptr_target {</span>
+<a name="l40"><span class="ln">40   </span></a>  <span class="s3">// NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)</span>
+<a name="l41"><span class="ln">41   </span></a>  <span class="s1">const </span><span class="s0">ScalarType scalar_type_;</span>
+<a name="l42"><span class="ln">42   </span></a>  <span class="s2">explicit </span><span class="s0">Quantizer(ScalarType scalar_type) : scalar_type_(scalar_type) {}</span>
+<a name="l43"><span class="ln">43   </span></a>  <span class="s0">~Quantizer() override = </span><span class="s1">default</span><span class="s0">;</span>
+<a name="l44"><span class="ln">44   </span></a>
+<a name="l45"><span class="ln">45   </span></a>  <span class="s3">// Copied from torch/csrc/jit/ir/scope.h</span>
+<a name="l46"><span class="ln">46   </span></a>  <span class="s0">QuantizerPtr intrusive_from_this() {</span>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s0">c10::raw::intrusive_ptr::incref(</span><span class="s2">this</span><span class="s0">); </span><span class="s3">// we are creating a new pointer</span>
+<a name="l48"><span class="ln">48   </span></a>                                           <span class="s3">// from a raw `this` pointer</span>
+<a name="l49"><span class="ln">49   </span></a>                                           <span class="s3">// so we need to bump the refcount</span>
+<a name="l50"><span class="ln">50   </span></a>                                           <span class="s3">// to account for this ownership</span>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s1">return </span><span class="s0">c10::intrusive_ptr&lt;Quantizer&gt;::reclaim(</span><span class="s2">this</span><span class="s0">);</span>
+<a name="l52"><span class="ln">52   </span></a>  <span class="s0">}</span>
+<a name="l53"><span class="ln">53   </span></a>
+<a name="l54"><span class="ln">54   </span></a>  <span class="s3">/** 
+<a name="l55"><span class="ln">55   </span></a>   * Each concrete Quantizer type should have a unique QScheme type. 
+<a name="l56"><span class="ln">56   </span></a>   */</span>
+<a name="l57"><span class="ln">57   </span></a>  <span class="s2">virtual </span><span class="s0">QScheme qscheme() </span><span class="s1">const </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+<a name="l58"><span class="ln">58   </span></a>
+<a name="l59"><span class="ln">59   </span></a>  <span class="s0">ScalarType scalar_type() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s1">return </span><span class="s0">scalar_type_;</span>
+<a name="l61"><span class="ln">61   </span></a>  <span class="s0">}</span>
+<a name="l62"><span class="ln">62   </span></a>
+<a name="l63"><span class="ln">63   </span></a>  <span class="s3">/** 
+<a name="l64"><span class="ln">64   </span></a>   * quantize a float Tensor into a quantized Tensor. 
+<a name="l65"><span class="ln">65   </span></a>   */</span>
+<a name="l66"><span class="ln">66   </span></a>  <span class="s2">virtual </span><span class="s0">Tensor quantize(</span><span class="s1">const </span><span class="s0">Tensor&amp; t) = </span><span class="s4">0</span><span class="s0">;</span>
+<a name="l67"><span class="ln">67   </span></a>
+<a name="l68"><span class="ln">68   </span></a>  <span class="s3">/** 
+<a name="l69"><span class="ln">69   </span></a>   * dequantize a quantized Tensor into a float Tensor. 
+<a name="l70"><span class="ln">70   </span></a>   */</span>
+<a name="l71"><span class="ln">71   </span></a>  <span class="s2">virtual </span><span class="s0">Tensor dequantize(</span><span class="s1">const </span><span class="s0">Tensor&amp; t) = </span><span class="s4">0</span><span class="s0">;</span>
+<a name="l72"><span class="ln">72   </span></a>
+<a name="l73"><span class="ln">73   </span></a>  <span class="s3">/** 
+<a name="l74"><span class="ln">74   </span></a>   * dequantize a quantized Tensor into a float Tensor, out= variant 
+<a name="l75"><span class="ln">75   </span></a>   */</span>
+<a name="l76"><span class="ln">76   </span></a>  <span class="s2">virtual </span><span class="s0">Tensor&amp; dequantize_out(Tensor&amp; out, </span><span class="s1">const </span><span class="s0">Tensor&amp; t) = </span><span class="s4">0</span><span class="s0">;</span>
+<a name="l77"><span class="ln">77   </span></a>
+<a name="l78"><span class="ln">78   </span></a>  <span class="s3">/** 
+<a name="l79"><span class="ln">79   </span></a>   * Compare against `other` for equality. 
+<a name="l80"><span class="ln">80   </span></a>   */</span>
+<a name="l81"><span class="ln">81   </span></a>  <span class="s2">virtual </span><span class="s1">bool </span><span class="s0">equalTo(QuantizerPtr other) </span><span class="s1">const </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+<a name="l82"><span class="ln">82   </span></a><span class="s0">};</span>
+<a name="l83"><span class="ln">83   </span></a>
+<a name="l84"><span class="ln">84   </span></a><span class="s0">} </span><span class="s3">// namespace at</span>
+<a name="l85"><span class="ln">85   </span></a></pre>
+</body>
+</html>

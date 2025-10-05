@@ -1,0 +1,310 @@
+<html>
+<head>
+<title>NestedTensorImpl.h</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #333333;}
+.s1 { color: #000080; font-weight: bold;}
+.s2 { color: #660e7a; font-weight: bold;}
+.s3 { color: #969896; font-style: italic;}
+.s4 { color: #006666; font-weight: bold;}
+.s5 { color: #183691; font-weight: bold;}
+.s6 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+NestedTensorImpl.h</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#pragma once</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/MemoryOverlap.h&gt;</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s1">#include </span><span class="s0">&lt;ATen/Tensor.h&gt;</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/DispatchKey.h&gt;</span>
+<a name="l5"><span class="ln">5    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/DispatchKeySet.h&gt;</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/MemoryFormat.h&gt;</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/core/TensorImpl.h&gt;</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/ArrayRef.h&gt;</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/Exception.h&gt;</span>
+<a name="l10"><span class="ln">10   </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/Metaprogramming.h&gt;</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s1">#include </span><span class="s0">&lt;c10/util/irange.h&gt;</span>
+<a name="l12"><span class="ln">12   </span></a>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">namespace </span><span class="s0">at::native {</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s1">struct </span><span class="s0">NestedTensorImpl;</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">inline </span><span class="s1">bool </span><span class="s0">nested_tensor_impl_is_contiguous(</span><span class="s1">const </span><span class="s0">NestedTensorImpl* nt);</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s0">int64_t get_numel_from_nested_size_tensor(</span><span class="s1">const </span><span class="s0">at::Tensor&amp; tensor);</span>
+<a name="l17"><span class="ln">17   </span></a><span class="s0">at::Tensor construct_nested_strides(</span><span class="s1">const </span><span class="s0">at::Tensor&amp; nested_size);</span>
+<a name="l18"><span class="ln">18   </span></a><span class="s0">at::Tensor construct_offsets(</span><span class="s1">const </span><span class="s0">at::Tensor&amp; nested_size);</span>
+<a name="l19"><span class="ln">19   </span></a>
+<a name="l20"><span class="ln">20   </span></a><span class="s1">struct </span><span class="s0">TORCH_API NestedTensorImpl : </span><span class="s2">public </span><span class="s0">c10::TensorImpl {</span>
+<a name="l21"><span class="ln">21   </span></a>  <span class="s2">explicit </span><span class="s0">NestedTensorImpl(</span>
+<a name="l22"><span class="ln">22   </span></a>      <span class="s0">Storage storage,</span>
+<a name="l23"><span class="ln">23   </span></a>      <span class="s0">c10::DispatchKeySet key_set,</span>
+<a name="l24"><span class="ln">24   </span></a>      <span class="s1">const </span><span class="s0">caffe2::TypeMeta data_type,</span>
+<a name="l25"><span class="ln">25   </span></a>      <span class="s0">at::Tensor nested_sizes,</span>
+<a name="l26"><span class="ln">26   </span></a>      <span class="s0">at::Tensor nested_strides,</span>
+<a name="l27"><span class="ln">27   </span></a>      <span class="s0">at::Tensor storage_offsets);</span>
+<a name="l28"><span class="ln">28   </span></a>
+<a name="l29"><span class="ln">29   </span></a>  <span class="s2">explicit </span><span class="s0">NestedTensorImpl(</span>
+<a name="l30"><span class="ln">30   </span></a>      <span class="s1">const </span><span class="s0">at::Tensor&amp; buffer,</span>
+<a name="l31"><span class="ln">31   </span></a>      <span class="s0">at::Tensor nested_sizes,</span>
+<a name="l32"><span class="ln">32   </span></a>      <span class="s0">at::Tensor nested_strides,</span>
+<a name="l33"><span class="ln">33   </span></a>      <span class="s0">at::Tensor storage_offsets);</span>
+<a name="l34"><span class="ln">34   </span></a>  <span class="s3">// assume contiguous, `nested_strides` and `offsets`</span>
+<a name="l35"><span class="ln">35   </span></a>  <span class="s3">// can be infered from `nested_sizes`</span>
+<a name="l36"><span class="ln">36   </span></a>  <span class="s2">explicit </span><span class="s0">NestedTensorImpl(</span>
+<a name="l37"><span class="ln">37   </span></a>      <span class="s1">const </span><span class="s0">at::Tensor&amp; buffer,</span>
+<a name="l38"><span class="ln">38   </span></a>      <span class="s1">const </span><span class="s0">at::Tensor&amp; nested_sizes);</span>
+<a name="l39"><span class="ln">39   </span></a>
+<a name="l40"><span class="ln">40   </span></a>  <span class="s3">// This constructor is used creating view tensors from nested tensors</span>
+<a name="l41"><span class="ln">41   </span></a>  <span class="s2">explicit </span><span class="s0">NestedTensorImpl(</span>
+<a name="l42"><span class="ln">42   </span></a>      <span class="s0">c10::TensorImpl::ImplType impl_type,</span>
+<a name="l43"><span class="ln">43   </span></a>      <span class="s1">const </span><span class="s0">at::Tensor&amp; base_tensor,</span>
+<a name="l44"><span class="ln">44   </span></a>      <span class="s0">at::Tensor nested_sizes,</span>
+<a name="l45"><span class="ln">45   </span></a>      <span class="s0">at::Tensor nested_strides,</span>
+<a name="l46"><span class="ln">46   </span></a>      <span class="s0">at::Tensor storage_offsets);</span>
+<a name="l47"><span class="ln">47   </span></a>
+<a name="l48"><span class="ln">48   </span></a>  <span class="s3">// TODO: don't expose private implementation details like this; in</span>
+<a name="l49"><span class="ln">49   </span></a>  <span class="s3">// particular, resizing this tensor will mess up our dim() and</span>
+<a name="l50"><span class="ln">50   </span></a>  <span class="s3">// callers cannot fix it.</span>
+<a name="l51"><span class="ln">51   </span></a>  <span class="s1">const </span><span class="s0">Tensor&amp; get_nested_sizes() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l52"><span class="ln">52   </span></a>    <span class="s1">return </span><span class="s0">nested_sizes_;</span>
+<a name="l53"><span class="ln">53   </span></a>  <span class="s0">}</span>
+<a name="l54"><span class="ln">54   </span></a>  <span class="s3">// TODO: don't expose private implementation details like this</span>
+<a name="l55"><span class="ln">55   </span></a>  <span class="s1">const </span><span class="s0">Tensor&amp; get_nested_strides() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l56"><span class="ln">56   </span></a>    <span class="s1">return </span><span class="s0">nested_strides_;</span>
+<a name="l57"><span class="ln">57   </span></a>  <span class="s0">}</span>
+<a name="l58"><span class="ln">58   </span></a>  <span class="s1">const </span><span class="s0">Tensor&amp; get_storage_offsets() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l59"><span class="ln">59   </span></a>    <span class="s1">return </span><span class="s0">storage_offsets_;</span>
+<a name="l60"><span class="ln">60   </span></a>  <span class="s0">}</span>
+<a name="l61"><span class="ln">61   </span></a>  <span class="s3">// Returns nullopt if the ith dimension is irregular. The ith dimension</span>
+<a name="l62"><span class="ln">62   </span></a>  <span class="s3">// of a NestedTensor is regular if the unbound tensors match in</span>
+<a name="l63"><span class="ln">63   </span></a>  <span class="s3">// size at the (i-1)th dimension.</span>
+<a name="l64"><span class="ln">64   </span></a>  <span class="s0">std::optional&lt;int64_t&gt; opt_size(int64_t d) </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l65"><span class="ln">65   </span></a>
+<a name="l66"><span class="ln">66   </span></a>  <span class="s0">int64_t size(int64_t d) </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l67"><span class="ln">67   </span></a>    <span class="s0">std::optional&lt;int64_t&gt; optional_size = </span><span class="s2">this</span><span class="s4">-&gt;</span><span class="s0">opt_size(d);</span>
+<a name="l68"><span class="ln">68   </span></a>    <span class="s0">TORCH_CHECK(</span>
+<a name="l69"><span class="ln">69   </span></a>        <span class="s0">optional_size.has_value(),</span>
+<a name="l70"><span class="ln">70   </span></a>        <span class="s5">&quot;Given dimension &quot;</span><span class="s0">,</span>
+<a name="l71"><span class="ln">71   </span></a>        <span class="s0">d,</span>
+<a name="l72"><span class="ln">72   </span></a>        <span class="s5">&quot; is irregular and does not have a size.&quot;</span><span class="s0">);</span>
+<a name="l73"><span class="ln">73   </span></a>    <span class="s1">return </span><span class="s0">*optional_size;</span>
+<a name="l74"><span class="ln">74   </span></a>  <span class="s0">}</span>
+<a name="l75"><span class="ln">75   </span></a>  <span class="s3">/** 
+<a name="l76"><span class="ln">76   </span></a>   * Return a view of the nested tensor as a 1 dimensional contiguous tensor. 
+<a name="l77"><span class="ln">77   </span></a>   * 
+<a name="l78"><span class="ln">78   </span></a>   * The buffer tensor created by this function shares the same storage_impl as 
+<a name="l79"><span class="ln">79   </span></a>   * the original nested tensor, and therefore can be seen as a view. 
+<a name="l80"><span class="ln">80   </span></a>   * 
+<a name="l81"><span class="ln">81   </span></a>   * @return A newly constructed view tensor 
+<a name="l82"><span class="ln">82   </span></a>   */</span>
+<a name="l83"><span class="ln">83   </span></a>  <span class="s0">at::Tensor get_buffer() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l84"><span class="ln">84   </span></a>    <span class="s0">TORCH_CHECK(</span>
+<a name="l85"><span class="ln">85   </span></a>        <span class="s0">nested_tensor_impl_is_contiguous(</span><span class="s2">this</span><span class="s0">),</span>
+<a name="l86"><span class="ln">86   </span></a>        <span class="s5">&quot;NestedTensor must be contiguous to get buffer.&quot;</span><span class="s0">);</span>
+<a name="l87"><span class="ln">87   </span></a>    <span class="s1">return </span><span class="s0">get_unsafe_storage_as_tensor();</span>
+<a name="l88"><span class="ln">88   </span></a>  <span class="s0">}</span>
+<a name="l89"><span class="ln">89   </span></a>  <span class="s3">/** 
+<a name="l90"><span class="ln">90   </span></a>   * If possible use get_buffer() instead. This function returns the storage 
+<a name="l91"><span class="ln">91   </span></a>   * as a tensor directly, which is not safe to use in general. If using this 
+<a name="l92"><span class="ln">92   </span></a>   * function, The caller must ensure to account for nested_sizes, 
+<a name="l93"><span class="ln">93   </span></a>   * nested_strides and storage_offsets. 
+<a name="l94"><span class="ln">94   </span></a>   * 
+<a name="l95"><span class="ln">95   </span></a>   * @return A newly constructed view tensor 
+<a name="l96"><span class="ln">96   </span></a>   */</span>
+<a name="l97"><span class="ln">97   </span></a>  <span class="s0">at::Tensor get_unsafe_storage_as_tensor() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l98"><span class="ln">98   </span></a>    <span class="s1">auto </span><span class="s0">buffer_key_set_ = generate_buffer_key_set();</span>
+<a name="l99"><span class="ln">99   </span></a>    <span class="s1">const auto </span><span class="s0">buffer_size = get_buffer_size();</span>
+<a name="l100"><span class="ln">100  </span></a>    <span class="s1">auto </span><span class="s0">buffer_tensor_impl = c10::make_intrusive&lt;TensorImpl&gt;(</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s0">c10::TensorImpl::VIEW, Storage(storage_), buffer_key_set_, data_type_);</span>
+<a name="l102"><span class="ln">102  </span></a>    <span class="s0">buffer_tensor_impl</span><span class="s4">-&gt;</span><span class="s0">set_sizes_contiguous(</span>
+<a name="l103"><span class="ln">103  </span></a>        <span class="s0">c10::makeArrayRef(</span><span class="s2">static_cast</span><span class="s0">&lt;int64_t&gt;(buffer_size)));</span>
+<a name="l104"><span class="ln">104  </span></a>    <span class="s1">return </span><span class="s0">Tensor(buffer_tensor_impl);</span>
+<a name="l105"><span class="ln">105  </span></a>  <span class="s0">}</span>
+<a name="l106"><span class="ln">106  </span></a>
+<a name="l107"><span class="ln">107  </span></a>  <span class="s0">size_t get_buffer_size() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l108"><span class="ln">108  </span></a>    <span class="s1">return </span><span class="s0">storage_.nbytes() / data_type_.itemsize();</span>
+<a name="l109"><span class="ln">109  </span></a>  <span class="s0">}</span>
+<a name="l110"><span class="ln">110  </span></a>
+<a name="l111"><span class="ln">111  </span></a> <span class="s2">protected</span><span class="s0">:</span>
+<a name="l112"><span class="ln">112  </span></a>  <span class="s1">const char</span><span class="s0">* tensorimpl_type_name() </span><span class="s1">const </span><span class="s0">override;</span>
+<a name="l113"><span class="ln">113  </span></a>
+<a name="l114"><span class="ln">114  </span></a>  <span class="s3">// TODO: numel_custom and is_contiguous_custom can be profitably overridden</span>
+<a name="l115"><span class="ln">115  </span></a>  <span class="s3">// with real implementations</span>
+<a name="l116"><span class="ln">116  </span></a>  <span class="s0">int64_t numel_custom() </span><span class="s1">const </span><span class="s0">override;</span>
+<a name="l117"><span class="ln">117  </span></a>  <span class="s0">c10::SymInt sym_numel_custom() </span><span class="s1">const </span><span class="s0">override;</span>
+<a name="l118"><span class="ln">118  </span></a>  <span class="s1">bool </span><span class="s0">is_contiguous_custom(MemoryFormat) </span><span class="s1">const </span><span class="s0">override;</span>
+<a name="l119"><span class="ln">119  </span></a>  <span class="s0">int64_t size_custom(int64_t d) </span><span class="s1">const </span><span class="s0">override {</span>
+<a name="l120"><span class="ln">120  </span></a>    <span class="s1">return </span><span class="s2">this</span><span class="s4">-&gt;</span><span class="s0">size(d);</span>
+<a name="l121"><span class="ln">121  </span></a>  <span class="s0">}</span>
+<a name="l122"><span class="ln">122  </span></a>  <span class="s0">c10::SymInt sym_size_custom(int64_t d) </span><span class="s1">const </span><span class="s0">override {</span>
+<a name="l123"><span class="ln">123  </span></a>    <span class="s1">return </span><span class="s0">c10::SymInt{</span><span class="s2">this</span><span class="s4">-&gt;</span><span class="s0">size(d)};</span>
+<a name="l124"><span class="ln">124  </span></a>  <span class="s0">}</span>
+<a name="l125"><span class="ln">125  </span></a>  <span class="s0">IntArrayRef sizes_custom() </span><span class="s1">const </span><span class="s0">override;</span>
+<a name="l126"><span class="ln">126  </span></a>  <span class="s0">c10::SymIntArrayRef sym_sizes_custom() </span><span class="s1">const </span><span class="s0">override;</span>
+<a name="l127"><span class="ln">127  </span></a>  <span class="s0">IntArrayRef strides_custom() </span><span class="s1">const </span><span class="s0">override;</span>
+<a name="l128"><span class="ln">128  </span></a>  <span class="s0">c10::SymIntArrayRef sym_strides_custom() </span><span class="s1">const </span><span class="s0">override;</span>
+<a name="l129"><span class="ln">129  </span></a>
+<a name="l130"><span class="ln">130  </span></a>  <span class="s3">// this one is real</span>
+<a name="l131"><span class="ln">131  </span></a>  <span class="s0">int64_t dim_custom() </span><span class="s1">const </span><span class="s0">override;</span>
+<a name="l132"><span class="ln">132  </span></a>
+<a name="l133"><span class="ln">133  </span></a>  <span class="s0">c10::intrusive_ptr&lt;TensorImpl&gt; shallow_copy_and_detach(</span>
+<a name="l134"><span class="ln">134  </span></a>      <span class="s1">const </span><span class="s0">c10::VariableVersion&amp; version_counter,</span>
+<a name="l135"><span class="ln">135  </span></a>      <span class="s1">bool </span><span class="s0">allow_tensor_metadata_change) </span><span class="s1">const </span><span class="s0">override;</span>
+<a name="l136"><span class="ln">136  </span></a>
+<a name="l137"><span class="ln">137  </span></a>  <span class="s0">c10::intrusive_ptr&lt;TensorImpl&gt; shallow_copy_and_detach(</span>
+<a name="l138"><span class="ln">138  </span></a>      <span class="s0">c10::VariableVersion&amp;&amp; version_counter,</span>
+<a name="l139"><span class="ln">139  </span></a>      <span class="s1">bool </span><span class="s0">allow_tensor_metadata_change) </span><span class="s1">const </span><span class="s0">override;</span>
+<a name="l140"><span class="ln">140  </span></a>
+<a name="l141"><span class="ln">141  </span></a>  <span class="s1">void </span><span class="s0">shallow_copy_from(</span><span class="s1">const </span><span class="s0">c10::intrusive_ptr&lt;TensorImpl&gt;&amp; impl) override {</span>
+<a name="l142"><span class="ln">142  </span></a>    <span class="s0">copy_tensor_metadata(</span>
+<a name="l143"><span class="ln">143  </span></a>        <span class="s3">/*src_impl=*/</span><span class="s0">impl.get(),</span>
+<a name="l144"><span class="ln">144  </span></a>        <span class="s3">/*dest_impl=*/</span><span class="s2">this</span><span class="s0">,</span>
+<a name="l145"><span class="ln">145  </span></a>        <span class="s3">/*version_counter=*/</span><span class="s0">version_counter(),</span>
+<a name="l146"><span class="ln">146  </span></a>        <span class="s3">/*allow_tensor_metadata_change=*/</span><span class="s0">allow_tensor_metadata_change());</span>
+<a name="l147"><span class="ln">147  </span></a>  <span class="s0">}</span>
+<a name="l148"><span class="ln">148  </span></a>
+<a name="l149"><span class="ln">149  </span></a> <span class="s2">private</span><span class="s0">:</span>
+<a name="l150"><span class="ln">150  </span></a>  <span class="s3">// Must be called after any changes to our dim() to sync the state</span>
+<a name="l151"><span class="ln">151  </span></a>  <span class="s3">// to TensorImpl.</span>
+<a name="l152"><span class="ln">152  </span></a>  <span class="s1">void </span><span class="s0">refresh_dim();</span>
+<a name="l153"><span class="ln">153  </span></a>
+<a name="l154"><span class="ln">154  </span></a>  <span class="s3">// NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)</span>
+<a name="l155"><span class="ln">155  </span></a>  <span class="s1">const </span><span class="s0">at::Tensor nested_sizes_, nested_strides_;</span>
+<a name="l156"><span class="ln">156  </span></a>  <span class="s3">// The starting positions of the underlying tensors in contiguous buffer</span>
+<a name="l157"><span class="ln">157  </span></a>  <span class="s3">// i.e. the buffer memory offsets to get the underlying tensors</span>
+<a name="l158"><span class="ln">158  </span></a>  <span class="s3">// The reason to keep this metadata is that, without strong enough constraint</span>
+<a name="l159"><span class="ln">159  </span></a>  <span class="s3">// it cannot be derived from `nested_sizes_`</span>
+<a name="l160"><span class="ln">160  </span></a>  <span class="s3">// and `nested_strides_`:</span>
+<a name="l161"><span class="ln">161  </span></a>  <span class="s3">// 1. when buffer has blanks, e.g. [tensor1, blank, tensor2]</span>
+<a name="l162"><span class="ln">162  </span></a>  <span class="s3">//    this can happen e.g. after slicing a nested tensor</span>
+<a name="l163"><span class="ln">163  </span></a>  <span class="s3">// 2. when multiple tensors share a same memory</span>
+<a name="l164"><span class="ln">164  </span></a>  <span class="s3">// 3. when the nesting ordering is changed, e.g. [tensor1, tensor3, tensor2]</span>
+<a name="l165"><span class="ln">165  </span></a>  <span class="s3">// Some strong enough constraints are:</span>
+<a name="l166"><span class="ln">166  </span></a>  <span class="s3">// 1. every underlying tensor is contiguous in memory</span>
+<a name="l167"><span class="ln">167  </span></a>  <span class="s3">//    &amp;&amp; nesting in ascending order</span>
+<a name="l168"><span class="ln">168  </span></a>  <span class="s3">// NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)</span>
+<a name="l169"><span class="ln">169  </span></a>  <span class="s1">const </span><span class="s0">at::Tensor storage_offsets_;</span>
+<a name="l170"><span class="ln">170  </span></a>  <span class="s3">// NOTE: -1 here means the size is missing</span>
+<a name="l171"><span class="ln">171  </span></a>  <span class="s3">// Optional to allow it to be computed lazily from nested.</span>
+<a name="l172"><span class="ln">172  </span></a>  <span class="s3">// TODO: maybe we can remove this metadata since</span>
+<a name="l173"><span class="ln">173  </span></a>  <span class="s3">//       we can compute it from `nested_sizes_`</span>
+<a name="l174"><span class="ln">174  </span></a>  <span class="s2">mutable </span><span class="s0">std::optional&lt;std::vector&lt;int64_t&gt;&gt; opt_sizes_;</span>
+<a name="l175"><span class="ln">175  </span></a>
+<a name="l176"><span class="ln">176  </span></a>  <span class="s0">template &lt;</span><span class="s2">typename </span><span class="s0">VariableVersion&gt;</span>
+<a name="l177"><span class="ln">177  </span></a>  <span class="s0">c10::intrusive_ptr&lt;TensorImpl&gt; shallow_copy_and_detach_core(</span>
+<a name="l178"><span class="ln">178  </span></a>      <span class="s0">VariableVersion&amp;&amp; version_counter,</span>
+<a name="l179"><span class="ln">179  </span></a>      <span class="s1">bool </span><span class="s0">allow_tensor_metadata_change) </span><span class="s1">const</span><span class="s0">;</span>
+<a name="l180"><span class="ln">180  </span></a>
+<a name="l181"><span class="ln">181  </span></a>  <span class="s3">/** 
+<a name="l182"><span class="ln">182  </span></a>   * Generates a non-nested key_set from a nested tensor. 
+<a name="l183"><span class="ln">183  </span></a>   * 
+<a name="l184"><span class="ln">184  </span></a>   * For many nested tensor kernel implementations a buffer tensor 
+<a name="l185"><span class="ln">185  </span></a>   * is generated and redispatched to a non-nested kernel this function 
+<a name="l186"><span class="ln">186  </span></a>   * generates the key set used by that buffer tensor 
+<a name="l187"><span class="ln">187  </span></a>   * 
+<a name="l188"><span class="ln">188  </span></a>   * @return Appropriate key set for non-nested tensor 
+<a name="l189"><span class="ln">189  </span></a>   */</span>
+<a name="l190"><span class="ln">190  </span></a>  <span class="s2">inline </span><span class="s0">c10::DispatchKeySet generate_buffer_key_set() </span><span class="s1">const </span><span class="s0">{</span>
+<a name="l191"><span class="ln">191  </span></a>    <span class="s1">auto </span><span class="s0">buffer_key_set = </span><span class="s2">this</span><span class="s4">-&gt;</span><span class="s0">key_set();</span>
+<a name="l192"><span class="ln">192  </span></a>    <span class="s1">const bool </span><span class="s0">Autograd = buffer_key_set.has_any(c10::autograd_dispatch_keyset);</span>
+<a name="l193"><span class="ln">193  </span></a>    <span class="s3">// Remove nested tensor specific keys</span>
+<a name="l194"><span class="ln">194  </span></a>    <span class="s0">buffer_key_set = buffer_key_set -</span>
+<a name="l195"><span class="ln">195  </span></a>        <span class="s0">c10::DispatchKeySet{</span>
+<a name="l196"><span class="ln">196  </span></a>            <span class="s0">c10::DispatchKey::NestedTensor,</span>
+<a name="l197"><span class="ln">197  </span></a>            <span class="s0">c10::DispatchKey::AutogradNestedTensor};</span>
+<a name="l198"><span class="ln">198  </span></a>
+<a name="l199"><span class="ln">199  </span></a>    <span class="s3">// Add dense tensor specific keys</span>
+<a name="l200"><span class="ln">200  </span></a>    <span class="s0">buffer_key_set =</span>
+<a name="l201"><span class="ln">201  </span></a>        <span class="s0">buffer_key_set | c10::DispatchKeySet{c10::DispatchKey::Dense};</span>
+<a name="l202"><span class="ln">202  </span></a>    <span class="s0">buffer_key_set = Autograd</span>
+<a name="l203"><span class="ln">203  </span></a>        <span class="s0">? c10::DispatchKeySet{c10::DispatchKey::Autograd} | buffer_key_set</span>
+<a name="l204"><span class="ln">204  </span></a>        <span class="s0">: buffer_key_set;</span>
+<a name="l205"><span class="ln">205  </span></a>
+<a name="l206"><span class="ln">206  </span></a>    <span class="s1">return </span><span class="s0">buffer_key_set;</span>
+<a name="l207"><span class="ln">207  </span></a>  <span class="s0">}</span>
+<a name="l208"><span class="ln">208  </span></a><span class="s0">};</span>
+<a name="l209"><span class="ln">209  </span></a>
+<a name="l210"><span class="ln">210  </span></a><span class="s2">inline </span><span class="s0">NestedTensorImpl* get_nested_tensor_impl_or_null(</span>
+<a name="l211"><span class="ln">211  </span></a>    <span class="s1">const </span><span class="s0">at::Tensor&amp; tensor) {</span>
+<a name="l212"><span class="ln">212  </span></a>  <span class="s1">if </span><span class="s0">(tensor.is_nested()) {</span>
+<a name="l213"><span class="ln">213  </span></a>    <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;NestedTensorImpl*&gt;(tensor.unsafeGetTensorImpl());</span>
+<a name="l214"><span class="ln">214  </span></a>  <span class="s0">}</span>
+<a name="l215"><span class="ln">215  </span></a>  <span class="s1">return </span><span class="s0">nullptr;</span>
+<a name="l216"><span class="ln">216  </span></a><span class="s0">}</span>
+<a name="l217"><span class="ln">217  </span></a>
+<a name="l218"><span class="ln">218  </span></a><span class="s2">inline </span><span class="s0">NestedTensorImpl* get_nested_tensor_impl(</span><span class="s1">const </span><span class="s0">at::Tensor&amp; tensor) {</span>
+<a name="l219"><span class="ln">219  </span></a>  <span class="s0">TORCH_CHECK(</span>
+<a name="l220"><span class="ln">220  </span></a>      <span class="s0">tensor.is_nested(), </span><span class="s5">&quot;get_nested_tensor_impl requires a NestedTensor.&quot;</span><span class="s0">);</span>
+<a name="l221"><span class="ln">221  </span></a>  <span class="s1">return </span><span class="s2">static_cast</span><span class="s0">&lt;NestedTensorImpl*&gt;(tensor.unsafeGetTensorImpl());</span>
+<a name="l222"><span class="ln">222  </span></a><span class="s0">}</span>
+<a name="l223"><span class="ln">223  </span></a>
+<a name="l224"><span class="ln">224  </span></a><span class="s2">inline </span><span class="s1">bool </span><span class="s0">nested_tensor_impl_is_contiguous(</span><span class="s1">const </span><span class="s0">NestedTensorImpl* nt) {</span>
+<a name="l225"><span class="ln">225  </span></a>  <span class="s0">int64_t ntensors = nt</span><span class="s4">-&gt;</span><span class="s0">size(</span><span class="s6">0</span><span class="s0">);</span>
+<a name="l226"><span class="ln">226  </span></a>  <span class="s1">if </span><span class="s0">(ntensors == </span><span class="s6">0</span><span class="s0">) {</span>
+<a name="l227"><span class="ln">227  </span></a>    <span class="s1">return </span><span class="s2">true</span><span class="s0">;</span>
+<a name="l228"><span class="ln">228  </span></a>  <span class="s0">}</span>
+<a name="l229"><span class="ln">229  </span></a>  <span class="s1">const </span><span class="s0">Tensor &amp;sizemat = nt</span><span class="s4">-&gt;</span><span class="s0">get_nested_sizes(),</span>
+<a name="l230"><span class="ln">230  </span></a>               <span class="s0">&amp;stridemat = nt</span><span class="s4">-&gt;</span><span class="s0">get_nested_strides();</span>
+<a name="l231"><span class="ln">231  </span></a>  <span class="s1">const </span><span class="s0">int64_t* offsets_ptr =</span>
+<a name="l232"><span class="ln">232  </span></a>      <span class="s0">nt</span><span class="s4">-&gt;</span><span class="s0">get_storage_offsets().const_data_ptr&lt;int64_t&gt;();</span>
+<a name="l233"><span class="ln">233  </span></a>  <span class="s0">int64_t orig_dim = sizemat.size(</span><span class="s6">1</span><span class="s0">);</span>
+<a name="l234"><span class="ln">234  </span></a>  <span class="s3">// nesting scalars</span>
+<a name="l235"><span class="ln">235  </span></a>  <span class="s1">if </span><span class="s0">(orig_dim == </span><span class="s6">0</span><span class="s0">) {</span>
+<a name="l236"><span class="ln">236  </span></a>    <span class="s3">// each scalar must be contiguous</span>
+<a name="l237"><span class="ln">237  </span></a>    <span class="s3">// if there is blank memory between underlying scalars</span>
+<a name="l238"><span class="ln">238  </span></a>    <span class="s1">for </span><span class="s0">(int64_t i = </span><span class="s6">0</span><span class="s0">; i &lt; ntensors; i++) {</span>
+<a name="l239"><span class="ln">239  </span></a>      <span class="s1">if </span><span class="s0">(offsets_ptr[i] != i) {</span>
+<a name="l240"><span class="ln">240  </span></a>        <span class="s1">return false</span><span class="s0">;</span>
+<a name="l241"><span class="ln">241  </span></a>      <span class="s0">}</span>
+<a name="l242"><span class="ln">242  </span></a>    <span class="s0">}</span>
+<a name="l243"><span class="ln">243  </span></a>  <span class="s0">}</span>
+<a name="l244"><span class="ln">244  </span></a>  <span class="s3">// nesting tensors</span>
+<a name="l245"><span class="ln">245  </span></a>  <span class="s1">else </span><span class="s0">{</span>
+<a name="l246"><span class="ln">246  </span></a>    <span class="s3">// if any underlying tensor is non-contiguous</span>
+<a name="l247"><span class="ln">247  </span></a>    <span class="s1">const </span><span class="s0">int64_t *sizemat_ptr = sizemat.const_data_ptr&lt;int64_t&gt;(),</span>
+<a name="l248"><span class="ln">248  </span></a>                  <span class="s0">*stridemat_ptr = stridemat.const_data_ptr&lt;int64_t&gt;();</span>
+<a name="l249"><span class="ln">249  </span></a>    <span class="s1">for </span><span class="s0">(int64_t i = </span><span class="s6">0</span><span class="s0">; i &lt; ntensors; i++) {</span>
+<a name="l250"><span class="ln">250  </span></a>      <span class="s1">if </span><span class="s0">(stridemat_ptr[orig_dim - </span><span class="s6">1</span><span class="s0">] != </span><span class="s6">1</span><span class="s0">) {</span>
+<a name="l251"><span class="ln">251  </span></a>        <span class="s1">return false</span><span class="s0">;</span>
+<a name="l252"><span class="ln">252  </span></a>      <span class="s0">}</span>
+<a name="l253"><span class="ln">253  </span></a>      <span class="s0">int64_t product = sizemat_ptr[orig_dim - </span><span class="s6">1</span><span class="s0">];</span>
+<a name="l254"><span class="ln">254  </span></a>      <span class="s1">for </span><span class="s0">(int64_t j = orig_dim - </span><span class="s6">2</span><span class="s0">; j &gt;= </span><span class="s6">0</span><span class="s0">; j--) {</span>
+<a name="l255"><span class="ln">255  </span></a>        <span class="s1">if </span><span class="s0">(stridemat_ptr[j] != product) {</span>
+<a name="l256"><span class="ln">256  </span></a>          <span class="s1">return false</span><span class="s0">;</span>
+<a name="l257"><span class="ln">257  </span></a>        <span class="s0">}</span>
+<a name="l258"><span class="ln">258  </span></a>        <span class="s0">product *= sizemat_ptr[j];</span>
+<a name="l259"><span class="ln">259  </span></a>      <span class="s0">}</span>
+<a name="l260"><span class="ln">260  </span></a>      <span class="s0">sizemat_ptr += orig_dim;</span>
+<a name="l261"><span class="ln">261  </span></a>      <span class="s0">stridemat_ptr += orig_dim;</span>
+<a name="l262"><span class="ln">262  </span></a>    <span class="s0">}</span>
+<a name="l263"><span class="ln">263  </span></a>    <span class="s3">// if there is blank memory between underlying tensors</span>
+<a name="l264"><span class="ln">264  </span></a>    <span class="s1">if </span><span class="s0">(offsets_ptr[</span><span class="s6">0</span><span class="s0">] != </span><span class="s6">0</span><span class="s0">) {</span>
+<a name="l265"><span class="ln">265  </span></a>      <span class="s1">return false</span><span class="s0">;</span>
+<a name="l266"><span class="ln">266  </span></a>    <span class="s0">}</span>
+<a name="l267"><span class="ln">267  </span></a>    <span class="s0">sizemat_ptr = sizemat.const_data_ptr&lt;int64_t&gt;();</span>
+<a name="l268"><span class="ln">268  </span></a>    <span class="s0">stridemat_ptr = stridemat.const_data_ptr&lt;int64_t&gt;();</span>
+<a name="l269"><span class="ln">269  </span></a>    <span class="s1">for </span><span class="s0">(int64_t i = </span><span class="s6">1</span><span class="s0">; i &lt; ntensors; i++) {</span>
+<a name="l270"><span class="ln">270  </span></a>      <span class="s1">if </span><span class="s0">(offsets_ptr[i] !=</span>
+<a name="l271"><span class="ln">271  </span></a>          <span class="s0">offsets_ptr[i - </span><span class="s6">1</span><span class="s0">] + *sizemat_ptr * *stridemat_ptr) {</span>
+<a name="l272"><span class="ln">272  </span></a>        <span class="s1">return false</span><span class="s0">;</span>
+<a name="l273"><span class="ln">273  </span></a>      <span class="s0">}</span>
+<a name="l274"><span class="ln">274  </span></a>      <span class="s0">sizemat_ptr += orig_dim;</span>
+<a name="l275"><span class="ln">275  </span></a>      <span class="s0">stridemat_ptr += orig_dim;</span>
+<a name="l276"><span class="ln">276  </span></a>    <span class="s0">}</span>
+<a name="l277"><span class="ln">277  </span></a>  <span class="s0">}</span>
+<a name="l278"><span class="ln">278  </span></a>  <span class="s3">// everything is fine</span>
+<a name="l279"><span class="ln">279  </span></a>  <span class="s1">return </span><span class="s2">true</span><span class="s0">;</span>
+<a name="l280"><span class="ln">280  </span></a><span class="s0">}</span>
+<a name="l281"><span class="ln">281  </span></a>
+<a name="l282"><span class="ln">282  </span></a><span class="s2">inline </span><span class="s1">const </span><span class="s0">at::Tensor&amp; get_nested_sizes(</span><span class="s1">const </span><span class="s0">at::Tensor&amp; tensor) {</span>
+<a name="l283"><span class="ln">283  </span></a>  <span class="s1">return </span><span class="s0">get_nested_tensor_impl(tensor)</span><span class="s4">-&gt;</span><span class="s0">get_nested_sizes();</span>
+<a name="l284"><span class="ln">284  </span></a><span class="s0">}</span>
+<a name="l285"><span class="ln">285  </span></a>
+<a name="l286"><span class="ln">286  </span></a><span class="s0">} </span><span class="s3">// namespace at::native</span>
+<a name="l287"><span class="ln">287  </span></a></pre>
+</body>
+</html>

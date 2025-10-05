@@ -1,0 +1,81 @@
+<html>
+<head>
+<title>code_context.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+code_context.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot; 
+<a name="l2"><span class="ln">2    </span></a>This module provides thread-safe code context management for TorchDynamo using weak references. 
+<a name="l3"><span class="ln">3    </span></a> 
+<a name="l4"><span class="ln">4    </span></a>The CodeContextDict class maintains a mapping between Python code objects and their associated 
+<a name="l5"><span class="ln">5    </span></a>context data, using weak references to automatically clean up entries when code objects are 
+<a name="l6"><span class="ln">6    </span></a>garbage collected. This prevents memory leaks while allowing context data to be associated 
+<a name="l7"><span class="ln">7    </span></a>with code objects throughout their lifecycle. 
+<a name="l8"><span class="ln">8    </span></a> 
+<a name="l9"><span class="ln">9    </span></a>Key features: 
+<a name="l10"><span class="ln">10   </span></a>- Thread-safe context storage and retrieval 
+<a name="l11"><span class="ln">11   </span></a>- Automatic cleanup using weak references 
+<a name="l12"><span class="ln">12   </span></a>- Safe context management for Python code objects 
+<a name="l13"><span class="ln">13   </span></a>- Memory-leak prevention 
+<a name="l14"><span class="ln">14   </span></a> 
+<a name="l15"><span class="ln">15   </span></a>Example usage: 
+<a name="l16"><span class="ln">16   </span></a>    code_obj = compile('x = 1', '&lt;string&gt;', 'exec') 
+<a name="l17"><span class="ln">17   </span></a> 
+<a name="l18"><span class="ln">18   </span></a>    # Store context 
+<a name="l19"><span class="ln">19   </span></a>    context = code_context.get_context(code_obj) 
+<a name="l20"><span class="ln">20   </span></a>    context['metadata'] = {'optimized': True} 
+<a name="l21"><span class="ln">21   </span></a> 
+<a name="l22"><span class="ln">22   </span></a>    # Retrieve context 
+<a name="l23"><span class="ln">23   </span></a>    if code_context.has_context(code_obj): 
+<a name="l24"><span class="ln">24   </span></a>        ctx = code_context.get_context(code_obj) 
+<a name="l25"><span class="ln">25   </span></a>        # Use context data... 
+<a name="l26"><span class="ln">26   </span></a> 
+<a name="l27"><span class="ln">27   </span></a>    # Remove context 
+<a name="l28"><span class="ln">28   </span></a>    ctx = code_context.pop_context(code_obj) 
+<a name="l29"><span class="ln">29   </span></a>&quot;&quot;&quot;</span>
+<a name="l30"><span class="ln">30   </span></a>
+<a name="l31"><span class="ln">31   </span></a><span class="s2">import </span><span class="s1">types</span>
+<a name="l32"><span class="ln">32   </span></a><span class="s2">from </span><span class="s1">typing </span><span class="s2">import </span><span class="s1">Any</span>
+<a name="l33"><span class="ln">33   </span></a>
+<a name="l34"><span class="ln">34   </span></a><span class="s2">from </span><span class="s3">.</span><span class="s1">utils </span><span class="s2">import </span><span class="s1">ExactWeakKeyDictionary</span>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a>
+<a name="l37"><span class="ln">37   </span></a><span class="s2">class </span><span class="s1">CodeContextDict</span><span class="s2">:</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l39"><span class="ln">39   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">code_context</span><span class="s2">: </span><span class="s1">ExactWeakKeyDictionary </span><span class="s2">= </span><span class="s1">ExactWeakKeyDictionary</span><span class="s3">()</span>
+<a name="l40"><span class="ln">40   </span></a>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s2">def </span><span class="s1">has_context</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">code</span><span class="s2">: </span><span class="s1">types</span><span class="s3">.</span><span class="s1">CodeType</span><span class="s3">) </span><span class="s1">-&gt; bool</span><span class="s2">:</span>
+<a name="l42"><span class="ln">42   </span></a>        <span class="s2">return </span><span class="s1">code </span><span class="s2">in </span><span class="s1">self</span><span class="s3">.</span><span class="s1">code_context</span>
+<a name="l43"><span class="ln">43   </span></a>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s2">def </span><span class="s1">get_context</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">code</span><span class="s2">: </span><span class="s1">types</span><span class="s3">.</span><span class="s1">CodeType</span><span class="s3">) </span><span class="s1">-&gt; dict</span><span class="s3">[</span><span class="s1">str</span><span class="s3">, </span><span class="s1">Any</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l45"><span class="ln">45   </span></a>        <span class="s1">ctx </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">code_context</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">code</span><span class="s3">)</span>
+<a name="l46"><span class="ln">46   </span></a>        <span class="s2">if </span><span class="s1">ctx </span><span class="s2">is None:</span>
+<a name="l47"><span class="ln">47   </span></a>            <span class="s1">ctx </span><span class="s2">= </span><span class="s3">{}</span>
+<a name="l48"><span class="ln">48   </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">code_context</span><span class="s3">[</span><span class="s1">code</span><span class="s3">] </span><span class="s2">= </span><span class="s1">ctx</span>
+<a name="l49"><span class="ln">49   </span></a>        <span class="s2">return </span><span class="s1">ctx</span>
+<a name="l50"><span class="ln">50   </span></a>
+<a name="l51"><span class="ln">51   </span></a>    <span class="s2">def </span><span class="s1">pop_context</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">code</span><span class="s2">: </span><span class="s1">types</span><span class="s3">.</span><span class="s1">CodeType</span><span class="s3">) </span><span class="s1">-&gt; dict</span><span class="s3">[</span><span class="s1">str</span><span class="s3">, </span><span class="s1">Any</span><span class="s3">]</span><span class="s2">:</span>
+<a name="l52"><span class="ln">52   </span></a>        <span class="s1">ctx </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">get_context</span><span class="s3">(</span><span class="s1">code</span><span class="s3">)</span>
+<a name="l53"><span class="ln">53   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">code_context</span><span class="s3">.</span><span class="s1">_remove_id</span><span class="s3">(</span><span class="s1">id</span><span class="s3">(</span><span class="s1">code</span><span class="s3">))</span>
+<a name="l54"><span class="ln">54   </span></a>        <span class="s2">return </span><span class="s1">ctx</span>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a>    <span class="s2">def </span><span class="s1">clear</span><span class="s3">(</span><span class="s1">self</span><span class="s3">) </span><span class="s1">-&gt; </span><span class="s2">None:</span>
+<a name="l57"><span class="ln">57   </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">code_context</span><span class="s3">.</span><span class="s1">clear</span><span class="s3">()</span>
+<a name="l58"><span class="ln">58   </span></a>
+<a name="l59"><span class="ln">59   </span></a>
+<a name="l60"><span class="ln">60   </span></a><span class="s1">code_context</span><span class="s2">: </span><span class="s1">CodeContextDict </span><span class="s2">= </span><span class="s1">CodeContextDict</span><span class="s3">()</span>
+<a name="l61"><span class="ln">61   </span></a></pre>
+</body>
+</html>

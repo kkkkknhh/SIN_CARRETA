@@ -1,0 +1,391 @@
+<html>
+<head>
+<title>finitefield.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #969896;}
+.s1 { color: #333333;}
+.s2 { color: #a71d5d;}
+.s3 { color: #63a35c;}
+.s4 { color: #183691;}
+.s5 { color: #0086b3;}
+.ln { color: #333333; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+finitefield.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">&quot;&quot;&quot;Implementation of :class:`FiniteField` class. &quot;&quot;&quot;</span>
+<a name="l2"><span class="ln">2    </span></a>
+<a name="l3"><span class="ln">3    </span></a><span class="s2">import </span><span class="s1">operator</span>
+<a name="l4"><span class="ln">4    </span></a>
+<a name="l5"><span class="ln">5    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">external</span><span class="s3">.</span><span class="s1">gmpy </span><span class="s2">import </span><span class="s1">GROUND_TYPES</span>
+<a name="l6"><span class="ln">6    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities</span><span class="s3">.</span><span class="s1">decorator </span><span class="s2">import </span><span class="s1">doctest_depends_on</span>
+<a name="l7"><span class="ln">7    </span></a>
+<a name="l8"><span class="ln">8    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">core</span><span class="s3">.</span><span class="s1">numbers </span><span class="s2">import </span><span class="s1">int_valued</span>
+<a name="l9"><span class="ln">9    </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">domains</span><span class="s3">.</span><span class="s1">field </span><span class="s2">import </span><span class="s1">Field</span>
+<a name="l10"><span class="ln">10   </span></a>
+<a name="l11"><span class="ln">11   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">domains</span><span class="s3">.</span><span class="s1">modularinteger </span><span class="s2">import </span><span class="s1">ModularIntegerFactory</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">domains</span><span class="s3">.</span><span class="s1">simpledomain </span><span class="s2">import </span><span class="s1">SimpleDomain</span>
+<a name="l13"><span class="ln">13   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">galoistools </span><span class="s2">import </span><span class="s1">gf_zassenhaus</span><span class="s3">, </span><span class="s1">gf_irred_p_rabin</span>
+<a name="l14"><span class="ln">14   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">polyerrors </span><span class="s2">import </span><span class="s1">CoercionFailed</span>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">utilities </span><span class="s2">import </span><span class="s1">public</span>
+<a name="l16"><span class="ln">16   </span></a><span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">domains</span><span class="s3">.</span><span class="s1">groundtypes </span><span class="s2">import </span><span class="s1">SymPyInteger</span>
+<a name="l17"><span class="ln">17   </span></a>
+<a name="l18"><span class="ln">18   </span></a>
+<a name="l19"><span class="ln">19   </span></a><span class="s2">if </span><span class="s1">GROUND_TYPES </span><span class="s2">== </span><span class="s4">'flint'</span><span class="s2">:</span>
+<a name="l20"><span class="ln">20   </span></a>    <span class="s1">__doctest_skip__ </span><span class="s2">= </span><span class="s3">[</span><span class="s4">'FiniteField'</span><span class="s3">]</span>
+<a name="l21"><span class="ln">21   </span></a>
+<a name="l22"><span class="ln">22   </span></a>
+<a name="l23"><span class="ln">23   </span></a><span class="s2">if </span><span class="s1">GROUND_TYPES </span><span class="s2">== </span><span class="s4">'flint'</span><span class="s2">:</span>
+<a name="l24"><span class="ln">24   </span></a>    <span class="s2">import </span><span class="s1">flint</span>
+<a name="l25"><span class="ln">25   </span></a>    <span class="s0"># Don't use python-flint &lt; 0.5.0 because nmod was missing some features in</span>
+<a name="l26"><span class="ln">26   </span></a>    <span class="s0"># previous versions of python-flint and fmpz_mod was not yet added.</span>
+<a name="l27"><span class="ln">27   </span></a>    <span class="s1">_major</span><span class="s3">, </span><span class="s1">_minor</span><span class="s3">, </span><span class="s2">*</span><span class="s1">_ </span><span class="s2">= </span><span class="s1">flint</span><span class="s3">.</span><span class="s1">__version__</span><span class="s3">.</span><span class="s1">split</span><span class="s3">(</span><span class="s4">'.'</span><span class="s3">)</span>
+<a name="l28"><span class="ln">28   </span></a>    <span class="s2">if </span><span class="s3">(</span><span class="s1">int</span><span class="s3">(</span><span class="s1">_major</span><span class="s3">), </span><span class="s1">int</span><span class="s3">(</span><span class="s1">_minor</span><span class="s3">)) </span><span class="s2">&lt; </span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s5">5</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l29"><span class="ln">29   </span></a>        <span class="s1">flint </span><span class="s2">= None</span>
+<a name="l30"><span class="ln">30   </span></a><span class="s2">else:</span>
+<a name="l31"><span class="ln">31   </span></a>    <span class="s1">flint </span><span class="s2">= None</span>
+<a name="l32"><span class="ln">32   </span></a>
+<a name="l33"><span class="ln">33   </span></a>
+<a name="l34"><span class="ln">34   </span></a><span class="s2">def </span><span class="s1">_modular_int_factory_nmod</span><span class="s3">(</span><span class="s1">mod</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l35"><span class="ln">35   </span></a>    <span class="s0"># nmod only recognises int</span>
+<a name="l36"><span class="ln">36   </span></a>    <span class="s1">index </span><span class="s2">= </span><span class="s1">operator</span><span class="s3">.</span><span class="s1">index</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s1">mod </span><span class="s2">= </span><span class="s1">index</span><span class="s3">(</span><span class="s1">mod</span><span class="s3">)</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s1">nmod </span><span class="s2">= </span><span class="s1">flint</span><span class="s3">.</span><span class="s1">nmod</span>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s1">nmod_poly </span><span class="s2">= </span><span class="s1">flint</span><span class="s3">.</span><span class="s1">nmod_poly</span>
+<a name="l40"><span class="ln">40   </span></a>
+<a name="l41"><span class="ln">41   </span></a>    <span class="s0"># flint's nmod is only for moduli up to 2^64-1 (on a 64-bit machine)</span>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s2">try:</span>
+<a name="l43"><span class="ln">43   </span></a>        <span class="s1">nmod</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s1">mod</span><span class="s3">)</span>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s2">except </span><span class="s1">OverflowError</span><span class="s2">:</span>
+<a name="l45"><span class="ln">45   </span></a>        <span class="s2">return None</span><span class="s3">, </span><span class="s2">None</span>
+<a name="l46"><span class="ln">46   </span></a>
+<a name="l47"><span class="ln">47   </span></a>    <span class="s2">def </span><span class="s1">ctx</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l48"><span class="ln">48   </span></a>        <span class="s2">try:</span>
+<a name="l49"><span class="ln">49   </span></a>            <span class="s2">return </span><span class="s1">nmod</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">mod</span><span class="s3">)</span>
+<a name="l50"><span class="ln">50   </span></a>        <span class="s2">except </span><span class="s1">TypeError</span><span class="s2">:</span>
+<a name="l51"><span class="ln">51   </span></a>            <span class="s2">return </span><span class="s1">nmod</span><span class="s3">(</span><span class="s1">index</span><span class="s3">(</span><span class="s1">x</span><span class="s3">), </span><span class="s1">mod</span><span class="s3">)</span>
+<a name="l52"><span class="ln">52   </span></a>
+<a name="l53"><span class="ln">53   </span></a>    <span class="s2">def </span><span class="s1">poly_ctx</span><span class="s3">(</span><span class="s1">cs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l54"><span class="ln">54   </span></a>        <span class="s2">return </span><span class="s1">nmod_poly</span><span class="s3">(</span><span class="s1">cs</span><span class="s3">, </span><span class="s1">mod</span><span class="s3">)</span>
+<a name="l55"><span class="ln">55   </span></a>
+<a name="l56"><span class="ln">56   </span></a>    <span class="s2">return </span><span class="s1">ctx</span><span class="s3">, </span><span class="s1">poly_ctx</span>
+<a name="l57"><span class="ln">57   </span></a>
+<a name="l58"><span class="ln">58   </span></a>
+<a name="l59"><span class="ln">59   </span></a><span class="s2">def </span><span class="s1">_modular_int_factory_fmpz_mod</span><span class="s3">(</span><span class="s1">mod</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l60"><span class="ln">60   </span></a>    <span class="s1">index </span><span class="s2">= </span><span class="s1">operator</span><span class="s3">.</span><span class="s1">index</span>
+<a name="l61"><span class="ln">61   </span></a>    <span class="s1">fctx </span><span class="s2">= </span><span class="s1">flint</span><span class="s3">.</span><span class="s1">fmpz_mod_ctx</span><span class="s3">(</span><span class="s1">mod</span><span class="s3">)</span>
+<a name="l62"><span class="ln">62   </span></a>    <span class="s1">fctx_poly </span><span class="s2">= </span><span class="s1">flint</span><span class="s3">.</span><span class="s1">fmpz_mod_poly_ctx</span><span class="s3">(</span><span class="s1">mod</span><span class="s3">)</span>
+<a name="l63"><span class="ln">63   </span></a>    <span class="s1">fmpz_mod_poly </span><span class="s2">= </span><span class="s1">flint</span><span class="s3">.</span><span class="s1">fmpz_mod_poly</span>
+<a name="l64"><span class="ln">64   </span></a>
+<a name="l65"><span class="ln">65   </span></a>    <span class="s2">def </span><span class="s1">ctx</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l66"><span class="ln">66   </span></a>        <span class="s2">try:</span>
+<a name="l67"><span class="ln">67   </span></a>            <span class="s2">return </span><span class="s1">fctx</span><span class="s3">(</span><span class="s1">x</span><span class="s3">)</span>
+<a name="l68"><span class="ln">68   </span></a>        <span class="s2">except </span><span class="s1">TypeError</span><span class="s2">:</span>
+<a name="l69"><span class="ln">69   </span></a>            <span class="s0"># x might be Integer</span>
+<a name="l70"><span class="ln">70   </span></a>            <span class="s2">return </span><span class="s1">fctx</span><span class="s3">(</span><span class="s1">index</span><span class="s3">(</span><span class="s1">x</span><span class="s3">))</span>
+<a name="l71"><span class="ln">71   </span></a>
+<a name="l72"><span class="ln">72   </span></a>    <span class="s2">def </span><span class="s1">poly_ctx</span><span class="s3">(</span><span class="s1">cs</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l73"><span class="ln">73   </span></a>        <span class="s2">return </span><span class="s1">fmpz_mod_poly</span><span class="s3">(</span><span class="s1">cs</span><span class="s3">, </span><span class="s1">fctx_poly</span><span class="s3">)</span>
+<a name="l74"><span class="ln">74   </span></a>
+<a name="l75"><span class="ln">75   </span></a>    <span class="s2">return </span><span class="s1">ctx</span><span class="s3">, </span><span class="s1">poly_ctx</span>
+<a name="l76"><span class="ln">76   </span></a>
+<a name="l77"><span class="ln">77   </span></a>
+<a name="l78"><span class="ln">78   </span></a><span class="s2">def </span><span class="s1">_modular_int_factory</span><span class="s3">(</span><span class="s1">mod</span><span class="s3">, </span><span class="s1">dom</span><span class="s3">, </span><span class="s1">symmetric</span><span class="s3">, </span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l79"><span class="ln">79   </span></a>    <span class="s0"># Convert the modulus to ZZ</span>
+<a name="l80"><span class="ln">80   </span></a>    <span class="s2">try:</span>
+<a name="l81"><span class="ln">81   </span></a>        <span class="s1">mod </span><span class="s2">= </span><span class="s1">dom</span><span class="s3">.</span><span class="s1">convert</span><span class="s3">(</span><span class="s1">mod</span><span class="s3">)</span>
+<a name="l82"><span class="ln">82   </span></a>    <span class="s2">except </span><span class="s1">CoercionFailed</span><span class="s2">:</span>
+<a name="l83"><span class="ln">83   </span></a>        <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">'modulus must be an integer, got %s' </span><span class="s2">% </span><span class="s1">mod</span><span class="s3">)</span>
+<a name="l84"><span class="ln">84   </span></a>
+<a name="l85"><span class="ln">85   </span></a>    <span class="s1">ctx</span><span class="s3">, </span><span class="s1">poly_ctx</span><span class="s3">, </span><span class="s1">is_flint </span><span class="s2">= None</span><span class="s3">, </span><span class="s2">None</span><span class="s3">, </span><span class="s2">False</span>
+<a name="l86"><span class="ln">86   </span></a>
+<a name="l87"><span class="ln">87   </span></a>    <span class="s0"># Don't use flint if the modulus is not prime as it often crashes.</span>
+<a name="l88"><span class="ln">88   </span></a>    <span class="s2">if </span><span class="s1">flint </span><span class="s2">is not None and </span><span class="s1">mod</span><span class="s3">.</span><span class="s1">is_prime</span><span class="s3">()</span><span class="s2">:</span>
+<a name="l89"><span class="ln">89   </span></a>
+<a name="l90"><span class="ln">90   </span></a>        <span class="s1">is_flint </span><span class="s2">= True</span>
+<a name="l91"><span class="ln">91   </span></a>
+<a name="l92"><span class="ln">92   </span></a>        <span class="s0"># Try to use flint's nmod first</span>
+<a name="l93"><span class="ln">93   </span></a>        <span class="s1">ctx</span><span class="s3">, </span><span class="s1">poly_ctx </span><span class="s2">= </span><span class="s1">_modular_int_factory_nmod</span><span class="s3">(</span><span class="s1">mod</span><span class="s3">)</span>
+<a name="l94"><span class="ln">94   </span></a>
+<a name="l95"><span class="ln">95   </span></a>        <span class="s2">if </span><span class="s1">ctx </span><span class="s2">is None:</span>
+<a name="l96"><span class="ln">96   </span></a>            <span class="s0"># Use fmpz_mod for larger moduli</span>
+<a name="l97"><span class="ln">97   </span></a>            <span class="s1">ctx</span><span class="s3">, </span><span class="s1">poly_ctx </span><span class="s2">= </span><span class="s1">_modular_int_factory_fmpz_mod</span><span class="s3">(</span><span class="s1">mod</span><span class="s3">)</span>
+<a name="l98"><span class="ln">98   </span></a>
+<a name="l99"><span class="ln">99   </span></a>    <span class="s2">if </span><span class="s1">ctx </span><span class="s2">is None:</span>
+<a name="l100"><span class="ln">100  </span></a>        <span class="s0"># Use the Python implementation if flint is not available or the</span>
+<a name="l101"><span class="ln">101  </span></a>        <span class="s0"># modulus is not prime.</span>
+<a name="l102"><span class="ln">102  </span></a>        <span class="s1">ctx </span><span class="s2">= </span><span class="s1">ModularIntegerFactory</span><span class="s3">(</span><span class="s1">mod</span><span class="s3">, </span><span class="s1">dom</span><span class="s3">, </span><span class="s1">symmetric</span><span class="s3">, </span><span class="s1">self</span><span class="s3">)</span>
+<a name="l103"><span class="ln">103  </span></a>        <span class="s1">poly_ctx </span><span class="s2">= None  </span><span class="s0"># not used</span>
+<a name="l104"><span class="ln">104  </span></a>
+<a name="l105"><span class="ln">105  </span></a>    <span class="s2">return </span><span class="s1">ctx</span><span class="s3">, </span><span class="s1">poly_ctx</span><span class="s3">, </span><span class="s1">is_flint</span>
+<a name="l106"><span class="ln">106  </span></a>
+<a name="l107"><span class="ln">107  </span></a>
+<a name="l108"><span class="ln">108  </span></a><span class="s2">@</span><span class="s1">public</span>
+<a name="l109"><span class="ln">109  </span></a><span class="s2">@</span><span class="s1">doctest_depends_on</span><span class="s3">(</span><span class="s1">modules</span><span class="s2">=</span><span class="s3">[</span><span class="s4">'python'</span><span class="s3">, </span><span class="s4">'gmpy'</span><span class="s3">])</span>
+<a name="l110"><span class="ln">110  </span></a><span class="s2">class </span><span class="s1">FiniteField</span><span class="s3">(</span><span class="s1">Field</span><span class="s3">, </span><span class="s1">SimpleDomain</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l111"><span class="ln">111  </span></a>    <span class="s0">r&quot;&quot;&quot;Finite field of prime order :ref:`GF(p)` 
+<a name="l112"><span class="ln">112  </span></a> 
+<a name="l113"><span class="ln">113  </span></a>    A :ref:`GF(p)` domain represents a `finite field`_ `\mathbb{F}_p` of prime 
+<a name="l114"><span class="ln">114  </span></a>    order as :py:class:`~.Domain` in the domain system (see 
+<a name="l115"><span class="ln">115  </span></a>    :ref:`polys-domainsintro`). 
+<a name="l116"><span class="ln">116  </span></a> 
+<a name="l117"><span class="ln">117  </span></a>    A :py:class:`~.Poly` created from an expression with integer 
+<a name="l118"><span class="ln">118  </span></a>    coefficients will have the domain :ref:`ZZ`. However, if the ``modulus=p`` 
+<a name="l119"><span class="ln">119  </span></a>    option is given then the domain will be a finite field instead. 
+<a name="l120"><span class="ln">120  </span></a> 
+<a name="l121"><span class="ln">121  </span></a>    &gt;&gt;&gt; from sympy import Poly, Symbol 
+<a name="l122"><span class="ln">122  </span></a>    &gt;&gt;&gt; x = Symbol('x') 
+<a name="l123"><span class="ln">123  </span></a>    &gt;&gt;&gt; p = Poly(x**2 + 1) 
+<a name="l124"><span class="ln">124  </span></a>    &gt;&gt;&gt; p 
+<a name="l125"><span class="ln">125  </span></a>    Poly(x**2 + 1, x, domain='ZZ') 
+<a name="l126"><span class="ln">126  </span></a>    &gt;&gt;&gt; p.domain 
+<a name="l127"><span class="ln">127  </span></a>    ZZ 
+<a name="l128"><span class="ln">128  </span></a>    &gt;&gt;&gt; p2 = Poly(x**2 + 1, modulus=2) 
+<a name="l129"><span class="ln">129  </span></a>    &gt;&gt;&gt; p2 
+<a name="l130"><span class="ln">130  </span></a>    Poly(x**2 + 1, x, modulus=2) 
+<a name="l131"><span class="ln">131  </span></a>    &gt;&gt;&gt; p2.domain 
+<a name="l132"><span class="ln">132  </span></a>    GF(2) 
+<a name="l133"><span class="ln">133  </span></a> 
+<a name="l134"><span class="ln">134  </span></a>    It is possible to factorise a polynomial over :ref:`GF(p)` using the 
+<a name="l135"><span class="ln">135  </span></a>    modulus argument to :py:func:`~.factor` or by specifying the domain 
+<a name="l136"><span class="ln">136  </span></a>    explicitly. The domain can also be given as a string. 
+<a name="l137"><span class="ln">137  </span></a> 
+<a name="l138"><span class="ln">138  </span></a>    &gt;&gt;&gt; from sympy import factor, GF 
+<a name="l139"><span class="ln">139  </span></a>    &gt;&gt;&gt; factor(x**2 + 1) 
+<a name="l140"><span class="ln">140  </span></a>    x**2 + 1 
+<a name="l141"><span class="ln">141  </span></a>    &gt;&gt;&gt; factor(x**2 + 1, modulus=2) 
+<a name="l142"><span class="ln">142  </span></a>    (x + 1)**2 
+<a name="l143"><span class="ln">143  </span></a>    &gt;&gt;&gt; factor(x**2 + 1, domain=GF(2)) 
+<a name="l144"><span class="ln">144  </span></a>    (x + 1)**2 
+<a name="l145"><span class="ln">145  </span></a>    &gt;&gt;&gt; factor(x**2 + 1, domain='GF(2)') 
+<a name="l146"><span class="ln">146  </span></a>    (x + 1)**2 
+<a name="l147"><span class="ln">147  </span></a> 
+<a name="l148"><span class="ln">148  </span></a>    It is also possible to use :ref:`GF(p)` with the :py:func:`~.cancel` 
+<a name="l149"><span class="ln">149  </span></a>    and :py:func:`~.gcd` functions. 
+<a name="l150"><span class="ln">150  </span></a> 
+<a name="l151"><span class="ln">151  </span></a>    &gt;&gt;&gt; from sympy import cancel, gcd 
+<a name="l152"><span class="ln">152  </span></a>    &gt;&gt;&gt; cancel((x**2 + 1)/(x + 1)) 
+<a name="l153"><span class="ln">153  </span></a>    (x**2 + 1)/(x + 1) 
+<a name="l154"><span class="ln">154  </span></a>    &gt;&gt;&gt; cancel((x**2 + 1)/(x + 1), domain=GF(2)) 
+<a name="l155"><span class="ln">155  </span></a>    x + 1 
+<a name="l156"><span class="ln">156  </span></a>    &gt;&gt;&gt; gcd(x**2 + 1, x + 1) 
+<a name="l157"><span class="ln">157  </span></a>    1 
+<a name="l158"><span class="ln">158  </span></a>    &gt;&gt;&gt; gcd(x**2 + 1, x + 1, domain=GF(2)) 
+<a name="l159"><span class="ln">159  </span></a>    x + 1 
+<a name="l160"><span class="ln">160  </span></a> 
+<a name="l161"><span class="ln">161  </span></a>    When using the domain directly :ref:`GF(p)` can be used as a constructor 
+<a name="l162"><span class="ln">162  </span></a>    to create instances which then support the operations ``+,-,*,**,/`` 
+<a name="l163"><span class="ln">163  </span></a> 
+<a name="l164"><span class="ln">164  </span></a>    &gt;&gt;&gt; from sympy import GF 
+<a name="l165"><span class="ln">165  </span></a>    &gt;&gt;&gt; K = GF(5) 
+<a name="l166"><span class="ln">166  </span></a>    &gt;&gt;&gt; K 
+<a name="l167"><span class="ln">167  </span></a>    GF(5) 
+<a name="l168"><span class="ln">168  </span></a>    &gt;&gt;&gt; x = K(3) 
+<a name="l169"><span class="ln">169  </span></a>    &gt;&gt;&gt; y = K(2) 
+<a name="l170"><span class="ln">170  </span></a>    &gt;&gt;&gt; x 
+<a name="l171"><span class="ln">171  </span></a>    3 mod 5 
+<a name="l172"><span class="ln">172  </span></a>    &gt;&gt;&gt; y 
+<a name="l173"><span class="ln">173  </span></a>    2 mod 5 
+<a name="l174"><span class="ln">174  </span></a>    &gt;&gt;&gt; x * y 
+<a name="l175"><span class="ln">175  </span></a>    1 mod 5 
+<a name="l176"><span class="ln">176  </span></a>    &gt;&gt;&gt; x / y 
+<a name="l177"><span class="ln">177  </span></a>    4 mod 5 
+<a name="l178"><span class="ln">178  </span></a> 
+<a name="l179"><span class="ln">179  </span></a>    Notes 
+<a name="l180"><span class="ln">180  </span></a>    ===== 
+<a name="l181"><span class="ln">181  </span></a> 
+<a name="l182"><span class="ln">182  </span></a>    It is also possible to create a :ref:`GF(p)` domain of **non-prime** 
+<a name="l183"><span class="ln">183  </span></a>    order but the resulting ring is **not** a field: it is just the ring of 
+<a name="l184"><span class="ln">184  </span></a>    the integers modulo ``n``. 
+<a name="l185"><span class="ln">185  </span></a> 
+<a name="l186"><span class="ln">186  </span></a>    &gt;&gt;&gt; K = GF(9) 
+<a name="l187"><span class="ln">187  </span></a>    &gt;&gt;&gt; z = K(3) 
+<a name="l188"><span class="ln">188  </span></a>    &gt;&gt;&gt; z 
+<a name="l189"><span class="ln">189  </span></a>    3 mod 9 
+<a name="l190"><span class="ln">190  </span></a>    &gt;&gt;&gt; z**2 
+<a name="l191"><span class="ln">191  </span></a>    0 mod 9 
+<a name="l192"><span class="ln">192  </span></a> 
+<a name="l193"><span class="ln">193  </span></a>    It would be good to have a proper implementation of prime power fields 
+<a name="l194"><span class="ln">194  </span></a>    (``GF(p**n)``) but these are not yet implemented in SymPY. 
+<a name="l195"><span class="ln">195  </span></a> 
+<a name="l196"><span class="ln">196  </span></a>    .. _finite field: https://en.wikipedia.org/wiki/Finite_field 
+<a name="l197"><span class="ln">197  </span></a>    &quot;&quot;&quot;</span>
+<a name="l198"><span class="ln">198  </span></a>
+<a name="l199"><span class="ln">199  </span></a>    <span class="s1">rep </span><span class="s2">= </span><span class="s4">'FF'</span>
+<a name="l200"><span class="ln">200  </span></a>    <span class="s1">alias </span><span class="s2">= </span><span class="s4">'FF'</span>
+<a name="l201"><span class="ln">201  </span></a>
+<a name="l202"><span class="ln">202  </span></a>    <span class="s1">is_FiniteField </span><span class="s2">= </span><span class="s1">is_FF </span><span class="s2">= True</span>
+<a name="l203"><span class="ln">203  </span></a>    <span class="s1">is_Numerical </span><span class="s2">= True</span>
+<a name="l204"><span class="ln">204  </span></a>
+<a name="l205"><span class="ln">205  </span></a>    <span class="s1">has_assoc_Ring </span><span class="s2">= False</span>
+<a name="l206"><span class="ln">206  </span></a>    <span class="s1">has_assoc_Field </span><span class="s2">= True</span>
+<a name="l207"><span class="ln">207  </span></a>
+<a name="l208"><span class="ln">208  </span></a>    <span class="s1">dom </span><span class="s2">= None</span>
+<a name="l209"><span class="ln">209  </span></a>    <span class="s1">mod </span><span class="s2">= None</span>
+<a name="l210"><span class="ln">210  </span></a>
+<a name="l211"><span class="ln">211  </span></a>    <span class="s2">def </span><span class="s1">__init__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">mod</span><span class="s3">, </span><span class="s1">symmetric</span><span class="s2">=True</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l212"><span class="ln">212  </span></a>        <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">polys</span><span class="s3">.</span><span class="s1">domains </span><span class="s2">import </span><span class="s1">ZZ</span>
+<a name="l213"><span class="ln">213  </span></a>        <span class="s1">dom </span><span class="s2">= </span><span class="s1">ZZ</span>
+<a name="l214"><span class="ln">214  </span></a>
+<a name="l215"><span class="ln">215  </span></a>        <span class="s2">if </span><span class="s1">mod </span><span class="s2">&lt;= </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l216"><span class="ln">216  </span></a>            <span class="s2">raise </span><span class="s1">ValueError</span><span class="s3">(</span><span class="s4">'modulus must be a positive integer, got %s' </span><span class="s2">% </span><span class="s1">mod</span><span class="s3">)</span>
+<a name="l217"><span class="ln">217  </span></a>
+<a name="l218"><span class="ln">218  </span></a>        <span class="s1">ctx</span><span class="s3">, </span><span class="s1">poly_ctx</span><span class="s3">, </span><span class="s1">is_flint </span><span class="s2">= </span><span class="s1">_modular_int_factory</span><span class="s3">(</span><span class="s1">mod</span><span class="s3">, </span><span class="s1">dom</span><span class="s3">, </span><span class="s1">symmetric</span><span class="s3">, </span><span class="s1">self</span><span class="s3">)</span>
+<a name="l219"><span class="ln">219  </span></a>
+<a name="l220"><span class="ln">220  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">dtype </span><span class="s2">= </span><span class="s1">ctx</span>
+<a name="l221"><span class="ln">221  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_poly_ctx </span><span class="s2">= </span><span class="s1">poly_ctx</span>
+<a name="l222"><span class="ln">222  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_is_flint </span><span class="s2">= </span><span class="s1">is_flint</span>
+<a name="l223"><span class="ln">223  </span></a>
+<a name="l224"><span class="ln">224  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">zero </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s5">0</span><span class="s3">)</span>
+<a name="l225"><span class="ln">225  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">one </span><span class="s2">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s5">1</span><span class="s3">)</span>
+<a name="l226"><span class="ln">226  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">dom </span><span class="s2">= </span><span class="s1">dom</span>
+<a name="l227"><span class="ln">227  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">mod </span><span class="s2">= </span><span class="s1">mod</span>
+<a name="l228"><span class="ln">228  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">sym </span><span class="s2">= </span><span class="s1">symmetric</span>
+<a name="l229"><span class="ln">229  </span></a>        <span class="s1">self</span><span class="s3">.</span><span class="s1">_tp </span><span class="s2">= </span><span class="s1">type</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">zero</span><span class="s3">)</span>
+<a name="l230"><span class="ln">230  </span></a>
+<a name="l231"><span class="ln">231  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l232"><span class="ln">232  </span></a>    <span class="s2">def </span><span class="s1">tp</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l233"><span class="ln">233  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_tp</span>
+<a name="l234"><span class="ln">234  </span></a>
+<a name="l235"><span class="ln">235  </span></a>    <span class="s2">@</span><span class="s1">property</span>
+<a name="l236"><span class="ln">236  </span></a>    <span class="s2">def </span><span class="s1">is_Field</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l237"><span class="ln">237  </span></a>        <span class="s1">is_field </span><span class="s2">= </span><span class="s1">getattr</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s4">'_is_field'</span><span class="s3">, </span><span class="s2">None</span><span class="s3">)</span>
+<a name="l238"><span class="ln">238  </span></a>        <span class="s2">if </span><span class="s1">is_field </span><span class="s2">is None:</span>
+<a name="l239"><span class="ln">239  </span></a>            <span class="s2">from </span><span class="s1">sympy</span><span class="s3">.</span><span class="s1">ntheory</span><span class="s3">.</span><span class="s1">primetest </span><span class="s2">import </span><span class="s1">isprime</span>
+<a name="l240"><span class="ln">240  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">_is_field </span><span class="s2">= </span><span class="s1">is_field </span><span class="s2">= </span><span class="s1">isprime</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">mod</span><span class="s3">)</span>
+<a name="l241"><span class="ln">241  </span></a>        <span class="s2">return </span><span class="s1">is_field</span>
+<a name="l242"><span class="ln">242  </span></a>
+<a name="l243"><span class="ln">243  </span></a>    <span class="s2">def </span><span class="s1">__str__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l244"><span class="ln">244  </span></a>        <span class="s2">return </span><span class="s4">'GF(%s)' </span><span class="s2">% </span><span class="s1">self</span><span class="s3">.</span><span class="s1">mod</span>
+<a name="l245"><span class="ln">245  </span></a>
+<a name="l246"><span class="ln">246  </span></a>    <span class="s2">def </span><span class="s1">__hash__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l247"><span class="ln">247  </span></a>        <span class="s2">return </span><span class="s1">hash</span><span class="s3">((</span><span class="s1">self</span><span class="s3">.</span><span class="s1">__class__</span><span class="s3">.</span><span class="s1">__name__</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">mod</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">))</span>
+<a name="l248"><span class="ln">248  </span></a>
+<a name="l249"><span class="ln">249  </span></a>    <span class="s2">def </span><span class="s1">__eq__</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">other</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l250"><span class="ln">250  </span></a>        <span class="s0">&quot;&quot;&quot;Returns ``True`` if two domains are equivalent. &quot;&quot;&quot;</span>
+<a name="l251"><span class="ln">251  </span></a>        <span class="s2">return </span><span class="s1">isinstance</span><span class="s3">(</span><span class="s1">other</span><span class="s3">, </span><span class="s1">FiniteField</span><span class="s3">) </span><span class="s2">and </span><span class="s1">\</span>
+<a name="l252"><span class="ln">252  </span></a>            <span class="s1">self</span><span class="s3">.</span><span class="s1">mod </span><span class="s2">== </span><span class="s1">other</span><span class="s3">.</span><span class="s1">mod </span><span class="s2">and </span><span class="s1">self</span><span class="s3">.</span><span class="s1">dom </span><span class="s2">== </span><span class="s1">other</span><span class="s3">.</span><span class="s1">dom</span>
+<a name="l253"><span class="ln">253  </span></a>
+<a name="l254"><span class="ln">254  </span></a>    <span class="s2">def </span><span class="s1">characteristic</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l255"><span class="ln">255  </span></a>        <span class="s0">&quot;&quot;&quot;Return the characteristic of this domain. &quot;&quot;&quot;</span>
+<a name="l256"><span class="ln">256  </span></a>        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">mod</span>
+<a name="l257"><span class="ln">257  </span></a>
+<a name="l258"><span class="ln">258  </span></a>    <span class="s2">def </span><span class="s1">get_field</span><span class="s3">(</span><span class="s1">self</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l259"><span class="ln">259  </span></a>        <span class="s0">&quot;&quot;&quot;Returns a field associated with ``self``. &quot;&quot;&quot;</span>
+<a name="l260"><span class="ln">260  </span></a>        <span class="s2">return </span><span class="s1">self</span>
+<a name="l261"><span class="ln">261  </span></a>
+<a name="l262"><span class="ln">262  </span></a>    <span class="s2">def </span><span class="s1">to_sympy</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l263"><span class="ln">263  </span></a>        <span class="s0">&quot;&quot;&quot;Convert ``a`` to a SymPy object. &quot;&quot;&quot;</span>
+<a name="l264"><span class="ln">264  </span></a>        <span class="s2">return </span><span class="s1">SymPyInteger</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">to_int</span><span class="s3">(</span><span class="s1">a</span><span class="s3">))</span>
+<a name="l265"><span class="ln">265  </span></a>
+<a name="l266"><span class="ln">266  </span></a>    <span class="s2">def </span><span class="s1">from_sympy</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l267"><span class="ln">267  </span></a>        <span class="s0">&quot;&quot;&quot;Convert SymPy's Integer to SymPy's ``Integer``. &quot;&quot;&quot;</span>
+<a name="l268"><span class="ln">268  </span></a>        <span class="s2">if </span><span class="s1">a</span><span class="s3">.</span><span class="s1">is_Integer</span><span class="s2">:</span>
+<a name="l269"><span class="ln">269  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">int</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)))</span>
+<a name="l270"><span class="ln">270  </span></a>        <span class="s2">elif </span><span class="s1">int_valued</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l271"><span class="ln">271  </span></a>            <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">self</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">int</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)))</span>
+<a name="l272"><span class="ln">272  </span></a>        <span class="s2">else:</span>
+<a name="l273"><span class="ln">273  </span></a>            <span class="s2">raise </span><span class="s1">CoercionFailed</span><span class="s3">(</span><span class="s4">&quot;expected an integer, got %s&quot; </span><span class="s2">% </span><span class="s1">a</span><span class="s3">)</span>
+<a name="l274"><span class="ln">274  </span></a>
+<a name="l275"><span class="ln">275  </span></a>    <span class="s2">def </span><span class="s1">to_int</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l276"><span class="ln">276  </span></a>        <span class="s0">&quot;&quot;&quot;Convert ``val`` to a Python ``int`` object. &quot;&quot;&quot;</span>
+<a name="l277"><span class="ln">277  </span></a>        <span class="s1">aval </span><span class="s2">= </span><span class="s1">int</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)</span>
+<a name="l278"><span class="ln">278  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">sym </span><span class="s2">and </span><span class="s1">aval </span><span class="s2">&gt; </span><span class="s1">self</span><span class="s3">.</span><span class="s1">mod </span><span class="s2">// </span><span class="s5">2</span><span class="s2">:</span>
+<a name="l279"><span class="ln">279  </span></a>            <span class="s1">aval </span><span class="s2">-= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">mod</span>
+<a name="l280"><span class="ln">280  </span></a>        <span class="s2">return </span><span class="s1">aval</span>
+<a name="l281"><span class="ln">281  </span></a>
+<a name="l282"><span class="ln">282  </span></a>    <span class="s2">def </span><span class="s1">is_positive</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l283"><span class="ln">283  </span></a>        <span class="s0">&quot;&quot;&quot;Returns True if ``a`` is positive. &quot;&quot;&quot;</span>
+<a name="l284"><span class="ln">284  </span></a>        <span class="s2">return </span><span class="s1">bool</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)</span>
+<a name="l285"><span class="ln">285  </span></a>
+<a name="l286"><span class="ln">286  </span></a>    <span class="s2">def </span><span class="s1">is_nonnegative</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l287"><span class="ln">287  </span></a>        <span class="s0">&quot;&quot;&quot;Returns True if ``a`` is non-negative. &quot;&quot;&quot;</span>
+<a name="l288"><span class="ln">288  </span></a>        <span class="s2">return True</span>
+<a name="l289"><span class="ln">289  </span></a>
+<a name="l290"><span class="ln">290  </span></a>    <span class="s2">def </span><span class="s1">is_negative</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l291"><span class="ln">291  </span></a>        <span class="s0">&quot;&quot;&quot;Returns True if ``a`` is negative. &quot;&quot;&quot;</span>
+<a name="l292"><span class="ln">292  </span></a>        <span class="s2">return False</span>
+<a name="l293"><span class="ln">293  </span></a>
+<a name="l294"><span class="ln">294  </span></a>    <span class="s2">def </span><span class="s1">is_nonpositive</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l295"><span class="ln">295  </span></a>        <span class="s0">&quot;&quot;&quot;Returns True if ``a`` is non-positive. &quot;&quot;&quot;</span>
+<a name="l296"><span class="ln">296  </span></a>        <span class="s2">return not </span><span class="s1">a</span>
+<a name="l297"><span class="ln">297  </span></a>
+<a name="l298"><span class="ln">298  </span></a>    <span class="s2">def </span><span class="s1">from_FF</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">K0</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l299"><span class="ln">299  </span></a>        <span class="s0">&quot;&quot;&quot;Convert ``ModularInteger(int)`` to ``dtype``. &quot;&quot;&quot;</span>
+<a name="l300"><span class="ln">300  </span></a>        <span class="s2">return </span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">.</span><span class="s1">from_ZZ</span><span class="s3">(</span><span class="s1">int</span><span class="s3">(</span><span class="s1">a</span><span class="s3">), </span><span class="s1">K0</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">))</span>
+<a name="l301"><span class="ln">301  </span></a>
+<a name="l302"><span class="ln">302  </span></a>    <span class="s2">def </span><span class="s1">from_FF_python</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">K0</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l303"><span class="ln">303  </span></a>        <span class="s0">&quot;&quot;&quot;Convert ``ModularInteger(int)`` to ``dtype``. &quot;&quot;&quot;</span>
+<a name="l304"><span class="ln">304  </span></a>        <span class="s2">return </span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">.</span><span class="s1">from_ZZ_python</span><span class="s3">(</span><span class="s1">int</span><span class="s3">(</span><span class="s1">a</span><span class="s3">), </span><span class="s1">K0</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">))</span>
+<a name="l305"><span class="ln">305  </span></a>
+<a name="l306"><span class="ln">306  </span></a>    <span class="s2">def </span><span class="s1">from_ZZ</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">K0</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l307"><span class="ln">307  </span></a>        <span class="s0">&quot;&quot;&quot;Convert Python's ``int`` to ``dtype``. &quot;&quot;&quot;</span>
+<a name="l308"><span class="ln">308  </span></a>        <span class="s2">return </span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">.</span><span class="s1">from_ZZ_python</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">K0</span><span class="s3">))</span>
+<a name="l309"><span class="ln">309  </span></a>
+<a name="l310"><span class="ln">310  </span></a>    <span class="s2">def </span><span class="s1">from_ZZ_python</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">K0</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l311"><span class="ln">311  </span></a>        <span class="s0">&quot;&quot;&quot;Convert Python's ``int`` to ``dtype``. &quot;&quot;&quot;</span>
+<a name="l312"><span class="ln">312  </span></a>        <span class="s2">return </span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">.</span><span class="s1">from_ZZ_python</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">K0</span><span class="s3">))</span>
+<a name="l313"><span class="ln">313  </span></a>
+<a name="l314"><span class="ln">314  </span></a>    <span class="s2">def </span><span class="s1">from_QQ</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">K0</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l315"><span class="ln">315  </span></a>        <span class="s0">&quot;&quot;&quot;Convert Python's ``Fraction`` to ``dtype``. &quot;&quot;&quot;</span>
+<a name="l316"><span class="ln">316  </span></a>        <span class="s2">if </span><span class="s1">a</span><span class="s3">.</span><span class="s1">denominator </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l317"><span class="ln">317  </span></a>            <span class="s2">return </span><span class="s1">K1</span><span class="s3">.</span><span class="s1">from_ZZ_python</span><span class="s3">(</span><span class="s1">a</span><span class="s3">.</span><span class="s1">numerator</span><span class="s3">)</span>
+<a name="l318"><span class="ln">318  </span></a>
+<a name="l319"><span class="ln">319  </span></a>    <span class="s2">def </span><span class="s1">from_QQ_python</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">K0</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l320"><span class="ln">320  </span></a>        <span class="s0">&quot;&quot;&quot;Convert Python's ``Fraction`` to ``dtype``. &quot;&quot;&quot;</span>
+<a name="l321"><span class="ln">321  </span></a>        <span class="s2">if </span><span class="s1">a</span><span class="s3">.</span><span class="s1">denominator </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l322"><span class="ln">322  </span></a>            <span class="s2">return </span><span class="s1">K1</span><span class="s3">.</span><span class="s1">from_ZZ_python</span><span class="s3">(</span><span class="s1">a</span><span class="s3">.</span><span class="s1">numerator</span><span class="s3">)</span>
+<a name="l323"><span class="ln">323  </span></a>
+<a name="l324"><span class="ln">324  </span></a>    <span class="s2">def </span><span class="s1">from_FF_gmpy</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">K0</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l325"><span class="ln">325  </span></a>        <span class="s0">&quot;&quot;&quot;Convert ``ModularInteger(mpz)`` to ``dtype``. &quot;&quot;&quot;</span>
+<a name="l326"><span class="ln">326  </span></a>        <span class="s2">return </span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">.</span><span class="s1">from_ZZ_gmpy</span><span class="s3">(</span><span class="s1">a</span><span class="s3">.</span><span class="s1">val</span><span class="s3">, </span><span class="s1">K0</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">))</span>
+<a name="l327"><span class="ln">327  </span></a>
+<a name="l328"><span class="ln">328  </span></a>    <span class="s2">def </span><span class="s1">from_ZZ_gmpy</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">K0</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l329"><span class="ln">329  </span></a>        <span class="s0">&quot;&quot;&quot;Convert GMPY's ``mpz`` to ``dtype``. &quot;&quot;&quot;</span>
+<a name="l330"><span class="ln">330  </span></a>        <span class="s2">return </span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">.</span><span class="s1">from_ZZ_gmpy</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">K0</span><span class="s3">))</span>
+<a name="l331"><span class="ln">331  </span></a>
+<a name="l332"><span class="ln">332  </span></a>    <span class="s2">def </span><span class="s1">from_QQ_gmpy</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">K0</span><span class="s2">=None</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l333"><span class="ln">333  </span></a>        <span class="s0">&quot;&quot;&quot;Convert GMPY's ``mpq`` to ``dtype``. &quot;&quot;&quot;</span>
+<a name="l334"><span class="ln">334  </span></a>        <span class="s2">if </span><span class="s1">a</span><span class="s3">.</span><span class="s1">denominator </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l335"><span class="ln">335  </span></a>            <span class="s2">return </span><span class="s1">K1</span><span class="s3">.</span><span class="s1">from_ZZ_gmpy</span><span class="s3">(</span><span class="s1">a</span><span class="s3">.</span><span class="s1">numerator</span><span class="s3">)</span>
+<a name="l336"><span class="ln">336  </span></a>
+<a name="l337"><span class="ln">337  </span></a>    <span class="s2">def </span><span class="s1">from_RealField</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">, </span><span class="s1">a</span><span class="s3">, </span><span class="s1">K0</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l338"><span class="ln">338  </span></a>        <span class="s0">&quot;&quot;&quot;Convert mpmath's ``mpf`` to ``dtype``. &quot;&quot;&quot;</span>
+<a name="l339"><span class="ln">339  </span></a>        <span class="s1">p</span><span class="s3">, </span><span class="s1">q </span><span class="s2">= </span><span class="s1">K0</span><span class="s3">.</span><span class="s1">to_rational</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)</span>
+<a name="l340"><span class="ln">340  </span></a>
+<a name="l341"><span class="ln">341  </span></a>        <span class="s2">if </span><span class="s1">q </span><span class="s2">== </span><span class="s5">1</span><span class="s2">:</span>
+<a name="l342"><span class="ln">342  </span></a>            <span class="s2">return </span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">K1</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">p</span><span class="s3">))</span>
+<a name="l343"><span class="ln">343  </span></a>
+<a name="l344"><span class="ln">344  </span></a>    <span class="s2">def </span><span class="s1">is_square</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l345"><span class="ln">345  </span></a>        <span class="s0">&quot;&quot;&quot;Returns True if ``a`` is a quadratic residue modulo p. &quot;&quot;&quot;</span>
+<a name="l346"><span class="ln">346  </span></a>        <span class="s0"># a is not a square &lt;=&gt; x**2-a is irreducible</span>
+<a name="l347"><span class="ln">347  </span></a>        <span class="s1">poly </span><span class="s2">= </span><span class="s3">[</span><span class="s1">int</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">one</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">zero</span><span class="s3">, </span><span class="s2">-</span><span class="s1">a</span><span class="s3">]]</span>
+<a name="l348"><span class="ln">348  </span></a>        <span class="s2">return not </span><span class="s1">gf_irred_p_rabin</span><span class="s3">(</span><span class="s1">poly</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">mod</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">)</span>
+<a name="l349"><span class="ln">349  </span></a>
+<a name="l350"><span class="ln">350  </span></a>    <span class="s2">def </span><span class="s1">exsqrt</span><span class="s3">(</span><span class="s1">self</span><span class="s3">, </span><span class="s1">a</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l351"><span class="ln">351  </span></a>        <span class="s0">&quot;&quot;&quot;Square root modulo p of ``a`` if it is a quadratic residue. 
+<a name="l352"><span class="ln">352  </span></a> 
+<a name="l353"><span class="ln">353  </span></a>        Explanation 
+<a name="l354"><span class="ln">354  </span></a>        =========== 
+<a name="l355"><span class="ln">355  </span></a>        Always returns the square root that is no larger than ``p // 2``. 
+<a name="l356"><span class="ln">356  </span></a>        &quot;&quot;&quot;</span>
+<a name="l357"><span class="ln">357  </span></a>        <span class="s0"># x**2-a is not square-free if a=0 or the field is characteristic 2</span>
+<a name="l358"><span class="ln">358  </span></a>        <span class="s2">if </span><span class="s1">self</span><span class="s3">.</span><span class="s1">mod </span><span class="s2">== </span><span class="s5">2 </span><span class="s2">or </span><span class="s1">a </span><span class="s2">== </span><span class="s5">0</span><span class="s2">:</span>
+<a name="l359"><span class="ln">359  </span></a>            <span class="s2">return </span><span class="s1">a</span>
+<a name="l360"><span class="ln">360  </span></a>        <span class="s0"># Otherwise, use square-free factorization routine to factorize x**2-a</span>
+<a name="l361"><span class="ln">361  </span></a>        <span class="s1">poly </span><span class="s2">= </span><span class="s3">[</span><span class="s1">int</span><span class="s3">(</span><span class="s1">x</span><span class="s3">) </span><span class="s2">for </span><span class="s1">x </span><span class="s2">in </span><span class="s3">[</span><span class="s1">self</span><span class="s3">.</span><span class="s1">one</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">zero</span><span class="s3">, </span><span class="s2">-</span><span class="s1">a</span><span class="s3">]]</span>
+<a name="l362"><span class="ln">362  </span></a>        <span class="s2">for </span><span class="s1">factor </span><span class="s2">in </span><span class="s1">gf_zassenhaus</span><span class="s3">(</span><span class="s1">poly</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">mod</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">dom</span><span class="s3">)</span><span class="s2">:</span>
+<a name="l363"><span class="ln">363  </span></a>            <span class="s2">if </span><span class="s1">len</span><span class="s3">(</span><span class="s1">factor</span><span class="s3">) </span><span class="s2">== </span><span class="s5">2 </span><span class="s2">and </span><span class="s1">factor</span><span class="s3">[</span><span class="s5">1</span><span class="s3">] </span><span class="s2">&lt;= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">mod </span><span class="s2">// </span><span class="s5">2</span><span class="s2">:</span>
+<a name="l364"><span class="ln">364  </span></a>                <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">dtype</span><span class="s3">(</span><span class="s1">factor</span><span class="s3">[</span><span class="s5">1</span><span class="s3">])</span>
+<a name="l365"><span class="ln">365  </span></a>        <span class="s2">return None</span>
+<a name="l366"><span class="ln">366  </span></a>
+<a name="l367"><span class="ln">367  </span></a>
+<a name="l368"><span class="ln">368  </span></a><span class="s1">FF </span><span class="s2">= </span><span class="s1">GF </span><span class="s2">= </span><span class="s1">FiniteField</span>
+<a name="l369"><span class="ln">369  </span></a></pre>
+</body>
+</html>
