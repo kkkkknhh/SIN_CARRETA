@@ -1199,7 +1199,7 @@ class DimensionDecalogoAvanzada:
             raise ValueError(
                 "Prioridad estratégica debe estar entre 0.1 y 3.0")
 
-    def evaluar_coherencia_causal_avanzada(self) -> Dict[str, float]:
+    def evaluar_coherencia_causal_avanzada(self, evidence_registry=None) -> Dict[str, float]:
         """Evaluación avanzada de coherencia causal con múltiples métricas."""
         try:
             # Verificación de identificabilidad
@@ -1364,7 +1364,7 @@ class DimensionDecalogoAvanzada:
             return "BAJA"
         return "CRITICA"
 
-    def calcular_kpi_global_avanzado(self) -> Dict[str, float]:
+    def calcular_kpi_global_avanzado(self, evidence_registry=None) -> Dict[str, float]:
         """Cálculo avanzado de KPI global con múltiples dimensiones."""
         try:
             metricas_eslabones = [
@@ -1427,7 +1427,7 @@ class DimensionDecalogoAvanzada:
                 "score_implementabilidad": 0.6,
             }
 
-    def generar_matriz_riesgos_avanzada(self) -> Dict[str, Dict[str, Any]]:
+    def generar_matriz_riesgos_avanzada(self, evidence_registry=None) -> Dict[str, Dict[str, Any]]:
         """Generación de matriz de riesgos avanzada con análisis probabilístico."""
         matriz_riesgos = {}
 
