@@ -16,16 +16,14 @@ import os
 import json
 import random
 import numpy as np
-from typing import Dict, List, Any, Optional, Union, Tuple
+from typing import Dict, List, Any, Optional
 from functools import wraps
-from pathlib import Path
 
 # Import core processing components
 from plan_sanitizer import PlanSanitizer
 from plan_processor import PlanProcessor
 from document_segmenter import DocumentSegmenter
-from embedding_model import EmbeddingModel, create_embedding_model
-from document_embedding_mapper import DocumentEmbeddingMapper
+from embedding_model import IndustrialEmbeddingModel
 from spacy_loader import SpacyModelLoader, SafeSpacyProcessor
 
 # Import analysis components
@@ -35,13 +33,15 @@ from monetary_detector import MonetaryDetector
 from feasibility_scorer import FeasibilityScorer
 from teoria_cambio import TeoriaCambio
 from dag_validation import AdvancedDAGValidator
-from causal_pattern_detector import CausalPatternDetector
+from causal_pattern_detector import PDETCausalPatternDetector
 
 # Import unified system components
-from evidence_registry import EvidenceRegistry, CanonicalEvidence
-from data_flow_contract import CanonicalFlowValidator, DataType
-from system_validators import SystemHealthValidator
+from evidence_registry import EvidenceRegistry
+from data_flow_contract import CanonicalFlowValidator
 from miniminimoon_immutability import ImmutabilityContract
+
+# Import questionnaire engine for 300-question evaluation
+from questionnaire_engine import QuestionnaireEngine
 
 # Configure logging
 logging.basicConfig(
@@ -193,21 +193,15 @@ class MINIMINIMOONOrchestrator:
         try:
             # Core processing components
             logger.info("Initializing core processing components...")
-            self.sanitizer = PlanSanitizer(self.config.get("sanitization_rules", None))
+            self.sanitizer = PlanSanitizer()
             self.processor = PlanProcessor()
-            self.segmenter = DocumentSegmenter(
-                strategy=self.config.get("segmentation_strategy", "paragraph")
-            )
+            self.segmenter = DocumentSegmenter()
 
             # Embedding and NLP components
             logger.info("Initializing embedding and NLP components...")
-            self.embedding_model = create_embedding_model()
+            self.embedding_model = IndustrialEmbeddingModel()
             self.spacy_loader = SpacyModelLoader()
             self.spacy_processor = SafeSpacyProcessor(self.spacy_loader)
-            self.doc_mapper = DocumentEmbeddingMapper(
-                self.embedding_model,
-                cache_enabled=self.config.get("cache_embeddings", True)
-            )
 
             # Analysis components
             logger.info("Initializing analysis components...")
@@ -217,14 +211,19 @@ class MINIMINIMOONOrchestrator:
             self.feasibility_scorer = FeasibilityScorer(
                 enable_parallel=self.config.get("parallel_processing", True)
             )
-            self.causal_detector = CausalPatternDetector()
+            # Initialize causal detector with empty list if no PDET municipalities configured
+            pdet_municipalities = self.config.get("pdet_municipalities", [])
+            self.causal_detector = PDETCausalPatternDetector(pdet_municipalities)
             self.dag_validator = AdvancedDAGValidator()
 
             # Unified system components
             logger.info("Initializing unified system components...")
             self.evidence_registry = EvidenceRegistry()
             self.flow_validator = CanonicalFlowValidator()
-            self.system_health_validator = SystemHealthValidator()
+
+            # Initialize Questionnaire Engine for 300-question evaluation
+            logger.info("Initializing Questionnaire Engine (300 questions)...")
+            self.questionnaire_engine = QuestionnaireEngine()
 
             # Verify system components
             verification_level = self.config.get("verification_level", "normal")
@@ -233,10 +232,10 @@ class MINIMINIMOONOrchestrator:
             # Register initialization success
             for component_name in [
                 "sanitizer", "processor", "segmenter", "embedding_model",
-                "spacy_processor", "doc_mapper", "responsibility_detector",
+                "spacy_processor", "responsibility_detector",
                 "contradiction_detector", "monetary_detector", "feasibility_scorer",
                 "causal_detector", "dag_validator", "evidence_registry",
-                "flow_validator", "system_health_validator"
+                "flow_validator", "questionnaire_engine"
             ]:
                 self.context.component_status[component_name] = "initialized"
 
@@ -402,7 +401,7 @@ class MINIMINIMOONOrchestrator:
             )
 
             # 11. DAG Validation
-            logger.info("[11/11] DAG Validation...")
+            logger.info("[11/12] DAG Validation...")
             dag_results = {
                 "is_acyclic": self.dag_validator.is_acyclic(),
                 "node_count": len(list(self.dag_validator.dag.nodes())),
@@ -410,6 +409,38 @@ class MINIMINIMOONOrchestrator:
             }
             results["dag_validation"] = dag_results
             results["executed_nodes"].append("dag_validation")
+
+            # 12. Questionnaire Engine Evaluation (300 questions)
+            logger.info("[12/12] Questionnaire Engine - 300 Question Evaluation...")
+            logger.info("  → Evaluating 30 questions × 10 thematic points = 300 evaluations")
+
+            # Extract municipality and department if available
+            municipality = results.get("metadata", {}).get("municipality", "")
+            department = results.get("metadata", {}).get("department", "")
+
+            # Execute full questionnaire evaluation using orchestrator results
+            questionnaire_results = self._execute_questionnaire_evaluation(
+                results, municipality, department
+            )
+            results["questionnaire_evaluation"] = questionnaire_results
+            results["executed_nodes"].append("questionnaire_evaluation")
+
+            # Register questionnaire evidence
+            if questionnaire_results and "point_scores" in questionnaire_results:
+                for point_id, point_data in questionnaire_results.get("point_scores", {}).items():
+                    self.evidence_registry.register(
+                        source_component="questionnaire_engine",
+                        evidence_type="structured_evaluation",
+                        content={
+                            "point_id": point_id,
+                            "score": point_data.get("score_percentage", 0),
+                            "classification": point_data.get("classification", {}).get("name", "")
+                        },
+                        confidence=0.95,
+                        applicable_questions=[f"{point_id}-D{d}-Q{q}" for d in range(1, 7) for q in range(1, 6)]
+                    )
+
+            logger.info(f"  ✅ Questionnaire evaluation completed: {questionnaire_results.get('metadata', {}).get('total_evaluations', 0)} questions evaluated")
 
             # Freeze evidence registry
             logger.info("Freezing evidence registry...")
@@ -612,6 +643,56 @@ class MINIMINIMOONOrchestrator:
             from_node, to_node = edge
             self.dag_validator.add_edge(from_node, to_node)
 
+    @component_execution("questionnaire_evaluation")
+    def _execute_questionnaire_evaluation(
+        self,
+        orchestrator_results: Dict[str, Any],
+        municipality: str = "",
+        department: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Execute 300-question evaluation using QuestionnaireEngine
+
+        Args:
+            orchestrator_results: Results from the 11 previous orchestrator steps
+            municipality: Municipality name
+            department: Department name
+
+        Returns:
+            Complete questionnaire evaluation results with 300 questions
+        """
+        try:
+            logger.info("  → Initializing QuestionnaireEngine evaluation...")
+
+            # Execute full evaluation using the questionnaire engine
+            questionnaire_results = self.questionnaire_engine.execute_full_evaluation(
+                orchestrator_results=orchestrator_results,
+                municipality=municipality,
+                department=department
+            )
+
+            # Extract summary statistics
+            total_questions = questionnaire_results.get("metadata", {}).get("total_evaluations", 300)
+            global_score = questionnaire_results.get("global_score", {})
+            score_percentage = global_score.get("score_percentage", 0.0)
+            classification = global_score.get("classification", {})
+
+            logger.info(f"  → Total questions evaluated: {total_questions}")
+            logger.info(f"  → Global score: {score_percentage:.1f}%")
+            logger.info(f"  → Classification: {classification.get('name', 'N/A')} {classification.get('color', '')}")
+
+            return questionnaire_results
+
+        except Exception as e:
+            logger.error(f"Error in questionnaire evaluation: {e}", exc_info=True)
+            return {
+                "error": f"Questionnaire evaluation failed: {str(e)}",
+                "metadata": {
+                    "total_evaluations": 0,
+                    "status": "error"
+                }
+            }
+
 
 def main():
     """Example usage of the MINIMINIMOON orchestrator"""
@@ -641,4 +722,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

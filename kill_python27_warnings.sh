@@ -14,3 +14,4 @@ fi
 rm -rf .idea/inspectionProfiles/ 2>/dev/null
 
 echo "Eliminadas todas las inspecciones Python 2.7"
+echo "Forzado el uso de Python 3.11"
