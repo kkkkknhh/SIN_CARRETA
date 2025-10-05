@@ -22,7 +22,7 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Pattern, Tuple
+from typing import Dict, List, Optional, Pattern, Tuple, Any
 
 logger = logging.getLogger(__name__)
 
@@ -59,16 +59,18 @@ class ContradictionAnalysis:
 
 
 class ContradictionDetector:
-    """Detector de contradicciones por patrones adversativos y palabras clave.
+    """
+    Industrial-grade contradiction detector with provenance tracking.
 
-    Attributes:
-        context_window: número de caracteres alrededor del conector adversativo a analizar.
+    **NORMALIZED OUTPUTS**: Strict schema with confidence scores.
+    **EVIDENCE REGISTRY**: Auto-registration with question mapping.
     """
 
     DEFAULT_CONTEXT_WINDOW = 150
 
-    def __init__(self, context_window: int = DEFAULT_CONTEXT_WINDOW) -> None:
+    def __init__(self, context_window: int = DEFAULT_CONTEXT_WINDOW, evidence_registry=None) -> None:
         self.context_window = int(context_window)
+        self.evidence_registry = evidence_registry
 
         # Definir patrones relevantes (español).
         # Se evitan patrones demasiado genéricos y se normaliza el texto antes de buscar.
@@ -368,6 +370,157 @@ class ContradictionDetector:
             "contradiction_count": analysis.total_contradictions,
             "highest_contradiction_confidence": float(highest_confidence),
         }
+
+    def detect(self, text: str, plan_name: str = "unknown") -> Dict[str, Any]:
+        """
+        Detect contradictions with NORMALIZED OUTPUT SCHEMA.
+
+        Returns:
+            {
+                "matches": List[{
+                    "statement_1": str,
+                    "statement_2": str,
+                    "contradiction_type": str,  # RiskLevel.value
+                    "confidence": float,  # 0.0-1.0
+                    "severity": float,  # 0.0-1.0
+                    "context_1": str,
+                    "context_2": str,
+                    "position_1": int,
+                    "position_2": int,
+                    "applicable_questions": List[str],
+                    "provenance": Dict[str, str]
+                }],
+                "total_contradictions": int,
+                "high_severity_count": int,
+                "coherence_score": float  # 0.0-1.0 (1.0 = sin contradicciones)
+            }
+        """
+        matches = []
+
+        # Detectar contradicciones numéricas
+        numeric_contradictions = self._detect_numeric_contradictions(text)
+
+        # Detectar contradicciones semánticas
+        semantic_contradictions = self._detect_semantic_contradictions(text)
+
+        # Detectar contradicciones de plazos
+        temporal_contradictions = self._detect_temporal_contradictions(text)
+
+        all_contradictions = numeric_contradictions + semantic_contradictions + temporal_contradictions
+
+        # Normalizar outputs
+        for contradiction in all_contradictions:
+            # Calcular confidence DETERMINISTA
+            confidence = self._calculate_confidence(contradiction)
+
+            # Calcular severity
+            severity = self._calculate_severity(contradiction)
+
+            # Mapear a preguntas aplicables
+            applicable_qs = self._map_to_questions(contradiction["type"])
+
+            normalized = {
+                "statement_1": contradiction["statement_1"],
+                "statement_2": contradiction["statement_2"],
+                "contradiction_type": contradiction["type"],
+                "confidence": confidence,
+                "severity": severity,
+                "context_1": contradiction.get("context_1", ""),
+                "context_2": contradiction.get("context_2", ""),
+                "position_1": contradiction.get("pos_1", 0),
+                "position_2": contradiction.get("pos_2", 0),
+                "applicable_questions": applicable_qs,
+                "provenance": {
+                    "plan_name": plan_name,
+                    "detector": "contradiction_detector",
+                    "detection_method": contradiction.get("method", "pattern")
+                }
+            }
+
+            matches.append(normalized)
+
+            # Registrar automáticamente si hay registry
+            if self.evidence_registry:
+                self.evidence_registry.register(
+                    source_component="contradiction_detector",
+                    evidence_type="contradiction",
+                    content=normalized,
+                    confidence=confidence,
+                    applicable_questions=applicable_qs
+                )
+
+        # Calcular coherence score
+        coherence_score = self._calculate_coherence_score(len(matches), len(text))
+
+        return {
+            "matches": matches,
+            "total_contradictions": len(matches),
+            "high_severity_count": sum(1 for m in matches if m["severity"] > 0.7),
+            "coherence_score": coherence_score
+        }
+
+    def _calculate_confidence(self, contradiction: Dict) -> float:
+        """Calcular confidence DETERMINISTA"""
+        confidence = 0.6  # Base
+
+        # Boost por tipo de contradicción
+        if contradiction["type"] == "numeric":
+            confidence += 0.2  # Contradicciones numéricas son más confiables
+        elif contradiction["type"] == "temporal":
+            confidence += 0.15
+
+        # Boost por palabras clave explícitas
+        keywords = ["sin embargo", "pero", "aunque", "contradice"]
+        if any(k in contradiction.get("context_1", "").lower() for k in keywords):
+            confidence += 0.1
+
+        return min(1.0, confidence)
+
+    def _calculate_severity(self, contradiction: Dict) -> float:
+        """Calcular severidad de la contradicción"""
+        severity = 0.5  # Base
+
+        # Mayor severidad para contradicciones numéricas grandes
+        if contradiction["type"] == "numeric":
+            # Analizar diferencia numérica si está disponible
+            severity += 0.3
+
+        # Mayor severidad si afecta objetivos principales
+        if "objetivo" in contradiction.get("context_1", "").lower():
+            severity += 0.2
+
+        return min(1.0, severity)
+
+    def _map_to_questions(self, contradiction_type: str) -> List[str]:
+        """Mapear contradicción a preguntas del cuestionario"""
+        questions = []
+
+        # Contradicciones afectan coherencia (D1)
+        questions.extend([f"D1-Q{i}" for i in [1, 3, 5, 8]])
+
+        # También afectan calidad del diagnóstico (D5)
+        questions.extend([f"D5-Q{i}" for i in [2, 5, 10]])
+
+        # Si es temporal, afecta planificación (D2)
+        if contradiction_type == "temporal":
+            questions.extend([f"D2-Q{i}" for i in [5, 10]])
+
+        return questions
+
+    def _calculate_coherence_score(self, num_contradictions: int, text_length: int) -> float:
+        """Calcular score de coherencia global (1.0 = sin contradicciones)"""
+        if text_length == 0:
+            return 0.5
+
+        # Normalizar por longitud del texto
+        contradiction_density = num_contradictions / (text_length / 1000)  # Por cada 1000 chars
+
+        # Score inverso (más contradicciones = menor score)
+        coherence = 1.0 - min(1.0, contradiction_density * 0.2)
+
+        return max(0.0, coherence)
+
+    # ...existing code...
 
 
 if __name__ == "__main__":

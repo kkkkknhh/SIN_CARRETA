@@ -9,12 +9,17 @@ import networkx as nx
 
 
 class PDETCausalPatternDetector:
-    """Industrial-grade causal detector for PDET municipal development plans"""
+    """Industrial-grade causal detector for PDET municipal development plans
 
-    def __init__(self, pdet_municipalities: List[str]):
+    **NORMALIZED OUTPUTS**: Strict schema with confidence scores.
+    **EVIDENCE REGISTRY**: Auto-registration with applicable_questions.
+    """
+
+    def __init__(self, pdet_municipalities: List[str], evidence_registry=None):
         self.pdet_municipalities = pdet_municipalities
         self.indicators = self._load_pdet_indicators()
         self.logger = logging.getLogger(__name__)
+        self.evidence_registry = evidence_registry
 
     def _load_pdet_indicators(self) -> Dict[str, List[str]]:
         """Load PDET-specific indicators for causal analysis"""
@@ -343,6 +348,109 @@ class PDETCausalPatternDetector:
             confidence -= 0.1
 
         return max(0.1, min(1.0, confidence))
+
+    def detect_patterns(self, text: str, plan_name: str = "unknown") -> Dict[str, Any]:
+        """
+        Detect causal patterns with NORMALIZED OUTPUT SCHEMA.
+
+        Returns:
+            {
+                "patterns": List[{
+                    "cause": str,
+                    "effect": str,
+                    "pattern_type": str,
+                    "confidence": float,  # 0.0-1.0
+                    "strength": float,  # 0.0-1.0
+                    "context": str,
+                    "source_sentence": str,
+                    "applicable_questions": List[str],
+                    "provenance": Dict[str, str]
+                }],
+                "total_patterns": int,
+                "strong_patterns_count": int,
+                "causal_density": float
+            }
+        """
+        patterns = []
+
+        # Detectar patrones causales
+        raw_patterns = self._extract_causal_claims(text)
+
+        for pattern in raw_patterns:
+            # Calcular confidence DETERMINISTA
+            confidence = self._calculate_claim_confidence(
+                pattern["sentence"],
+                pattern["cause"],
+                pattern["effect"]
+            )
+
+            # Calcular fuerza del patrón
+            strength = self._calculate_pattern_strength(pattern)
+
+            # Mapear a preguntas aplicables
+            applicable_qs = self._map_pattern_to_questions(pattern)
+
+            normalized = {
+                "cause": pattern["cause"],
+                "effect": pattern["effect"],
+                "pattern_type": pattern.get("type", "causal_claim"),
+                "confidence": confidence,
+                "strength": strength,
+                "context": pattern.get("context", ""),
+                "source_sentence": pattern["sentence"],
+                "applicable_questions": applicable_qs,
+                "provenance": {
+                    "plan_name": plan_name,
+                    "detector": "causal_pattern_detector",
+                    "method": "linguistic_pattern"
+                }
+            }
+
+            patterns.append(normalized)
+
+            # Registrar automáticamente
+            if self.evidence_registry:
+                self.evidence_registry.register(
+                    source_component="causal_pattern_detector",
+                    evidence_type="causal_pattern",
+                    content=normalized,
+                    confidence=confidence,
+                    applicable_questions=applicable_qs
+                )
+
+        return {
+            "patterns": patterns,
+            "total_patterns": len(patterns),
+            "strong_patterns_count": sum(1 for p in patterns if p["strength"] > 0.7),
+            "causal_density": len(patterns) / max(1, len(text) / 1000)
+        }
+
+    def _calculate_pattern_strength(self, pattern: Dict) -> float:
+        """Calcular fuerza del patrón causal"""
+        strength = 0.5
+
+        # Boost por verbos causales fuertes
+        strong_verbs = ["causa", "genera", "produce", "determina"]
+        if any(v in pattern.get("sentence", "").lower() for v in strong_verbs):
+            strength += 0.3
+
+        # Boost por cuantificación
+        if any(char.isdigit() for char in pattern.get("sentence", "")):
+            strength += 0.2
+
+        return min(1.0, strength)
+
+    def _map_pattern_to_questions(self, pattern: Dict) -> List[str]:
+        """Mapear patrón causal a preguntas del cuestionario"""
+        questions = []
+
+        # Patrones causales son evidencia para teoría de cambio (D1)
+        questions.extend([f"D1-Q{i}" for i in [4, 6, 8, 12]])
+
+        # También para lógica de intervención (D2)
+        questions.extend([f"D2-Q{i}" for i in [2, 5, 8]])
+
+        return questions
 
 
 # Factory function for your system

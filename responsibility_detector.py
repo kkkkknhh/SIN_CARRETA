@@ -90,28 +90,32 @@ class ResponsibilityEntity:
 
 class ResponsibilityDetector:
     """
-    Detector for entities responsible for plan implementation.
-    
-    This detector specifically targets DE-1 Q2: "Are institutional responsibilities clearly defined?"
-    It identifies entities responsible for implementing plans and classifies their roles.
+    Detects institutional responsibilities and accountability structures in municipal plans.
+
+    **NORMALIZED OUTPUTS**: All outputs follow strict typing with confidence scores.
+    **EVIDENCE REGISTRY**: Automatically registers findings with applicable questions.
     """
     
-    def __init__(self, spacy_model: str = "es_core_news_sm"):
+    def __init__(self, model_name: str = "es_core_news_sm", evidence_registry=None):
         """
         Initialize the responsibility detector.
         
         Args:
-            spacy_model: Name of spaCy model to use for NER
+            model_name: SpaCy model to use
+            evidence_registry: Optional EvidenceRegistry instance for automatic registration
         """
         # Initialize spaCy if available
         self.nlp = None
         if SPACY_AVAILABLE:
             try:
-                self.nlp = spacy.load(spacy_model)
-                logger.info(f"Loaded spaCy model: {spacy_model}")
+                self.nlp = spacy.load(model_name)
+                logger.info(f"Loaded spaCy model: {model_name}")
             except Exception as e:
-                logger.warning(f"Error loading spaCy model {spacy_model}: {e}")
-        
+                logger.warning(f"Error loading spaCy model {model_name}: {e}")
+
+        self.evidence_registry = evidence_registry
+        self.logger = logging.getLogger(__name__)
+
         # Define patterns for different entity types
         
         # High-priority government institution patterns
@@ -497,7 +501,98 @@ class ResponsibilityDetector:
             "response_text": evaluation["recommendation"]
         }
 
+    def detect(self, text: str) -> List[Dict[str, Any]]:
+        """
+        Detect institutional responsibilities with NORMALIZED OUTPUT SCHEMA.
 
+        Returns:
+            List of dicts with strict schema:
+            {
+                "entity": str,
+                "entity_type": str,  # EntityType.value
+                "responsibility": str,
+                "confidence": float,  # 0.0-1.0
+                "context": str,
+                "source_sentence": str,
+                "applicable_questions": List[str]
+            }
+        """
+        doc = self.nlp(text)
+        responsibilities = []
+
+        for ent in doc.ents:
+            if ent.label_ in ["ORG", "MISC"]:
+                # Buscar contexto de responsabilidad
+                context = self._extract_responsibility_context(ent, doc)
+
+                if context:
+                    # Calcular confidence determinista
+                    confidence = self._calculate_confidence(ent, context)
+
+                    # Mapear a preguntas aplicables
+                    applicable_qs = self._map_to_questions(ent, context)
+
+                    responsibility = {
+                        "entity": ent.text,
+                        "entity_type": self._classify_entity_type(ent),
+                        "responsibility": context["action"],
+                        "confidence": confidence,
+                        "context": context["full_context"],
+                        "source_sentence": context["sentence"],
+                        "applicable_questions": applicable_qs
+                    }
+
+                    responsibilities.append(responsibility)
+
+                    # Registrar automáticamente si hay registry
+                    if self.evidence_registry:
+                        self.evidence_registry.register(
+                            source_component="responsibility_detector",
+                            evidence_type="institutional_responsibility",
+                            content=responsibility,
+                            confidence=confidence,
+                            applicable_questions=applicable_qs
+                        )
+
+        return responsibilities
+
+    def _calculate_confidence(self, ent, context: Dict) -> float:
+        """Calcular confidence DETERMINISTA basado en señales"""
+        confidence = 0.5
+
+        # Boost por verbos de acción fuertes
+        strong_verbs = ["lidera", "coordina", "ejecuta", "implementa", "gestiona"]
+        if any(v in context["action"].lower() for v in strong_verbs):
+            confidence += 0.2
+
+        # Boost por contexto explícito
+        if "responsable" in context["full_context"].lower():
+            confidence += 0.15
+
+        # Boost por tipo de entidad
+        if context.get("entity_type") == "GOVERNMENT":
+            confidence += 0.1
+
+        return min(1.0, confidence)
+
+    def _map_to_questions(self, ent, context: Dict) -> List[str]:
+        """Mapear detección a preguntas específicas del cuestionario"""
+        questions = []
+
+        # Preguntas sobre responsabilidades institucionales (D4)
+        questions.extend([f"D4-Q{i}" for i in [1, 5, 10, 15, 20]])
+
+        # Si es presupuesto, añadir D3
+        if "presupuesto" in context["full_context"].lower():
+            questions.extend([f"D3-Q{i}" for i in [5, 10]])
+
+        # Si es coordinación, añadir D1
+        if "coordinación" in context["full_context"].lower():
+            questions.extend([f"D1-Q{i}" for i in [3, 8]])
+
+        return questions
+
+    # ...existing code...
 def create_responsibility_detector(model_name: str = "es_core_news_sm") -> ResponsibilityDetector:
     """
     Factory function to create a responsibility detector.
@@ -539,3 +634,9 @@ if __name__ == "__main__":
     print(f"\nResponsibility clarity score: {analysis['evaluation']['clarity_score']:.2f}")
     print(f"Categorization: {analysis['evaluation']['categorization']}")
     print(f"Recommendation: {analysis['evaluation']['recommendation']}")
+
+    # Normalized detection example
+    normalized_results = detector.detect(sample_text)
+    print("\nNormalized detection results:")
+    for result in normalized_results:
+        print(result)

@@ -136,32 +136,26 @@ class MonetaryAnalysis:
 
 class MonetaryDetector:
     """
-    Detector for monetary values in plan documents.
-    
-    This detector identifies financial commitments, budget allocations,
-    and other monetary values that are essential for evaluating:
-    - Budget planning in DE-2 Thematic Inclusion
-    - Resource adequacy for results in DE-4 Results Orientation
-    
-    Methods:
-        detect_monetary_values: Extract monetary values from text
-        analyze_monetary_coverage: Analyze monetary coverage of a document
-        evaluate_resource_adequacy: Evaluate if resources are adequate for goals
+    Industrial-grade monetary value detector with provenance tracking.
+
+    **NORMALIZED OUTPUTS**: Strict schema with confidence and impact weights.
+    **EVIDENCE REGISTRY**: Auto-registration with question mapping.
     """
     
-    def __init__(self, context_window: int = 100):
-        """
-        Initialize the monetary detector.
-        
-        Args:
-            context_window: Size of context window to include around monetary values
-        """
-        self.context_window = context_window
-        
+    def __init__(self, evidence_registry=None):
+        """Initialize detector with optional evidence registry for auto-registration."""
+        self.evidence_registry = evidence_registry
+        self.logger = logging.getLogger(__name__)
+
+        # Compile all regex patterns
+        self.patterns = self._compile_patterns()
+
+    def _compile_patterns(self) -> Dict[str, re.Pattern]:
+        """Compile all regex patterns for monetary detection."""
         # Define regex patterns for different monetary formats
         
         # Basic monetary patterns with currency symbols
-        self.basic_patterns = [
+        basic_patterns = [
             # Dollar with symbol before amount: $1,000 or $1.000
             r'[$USD]\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?',
             
@@ -179,14 +173,14 @@ class MonetaryDetector:
         ]
         
         # Budget-specific patterns (for DE-2)
-        self.budget_patterns = [
+        budget_patterns = [
             r'(?i)(?:presupuesto|recursos?)\s+(?:de|por|:)?\s+[$€]?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?',
             r'(?i)(?:asignaci[oó]n presupuestal|recursos asignados?)\s+(?:de|por|:)?\s+[$€]?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?',
             r'(?i)(?:inversi[oó]n|fondos?)\s+(?:de|por|:)?\s+[$€]?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?',
         ]
         
         # Timeframe patterns
-        self.timeframe_patterns = [
+        timeframe_patterns = [
             (r'(?i)(?:anual(?:es)?|por año|al año|cada año)', FinancialTimeframe.ANNUAL),
             (r'(?i)(?:cuatrienio|multianual|plurianual|plan plurianual)', FinancialTimeframe.MULTIANNUAL),
             (r'(?i)(?:total|global|completo)', FinancialTimeframe.TOTAL),
@@ -194,7 +188,7 @@ class MonetaryDetector:
         ]
         
         # Category patterns
-        self.category_patterns = [
+        category_patterns = [
             (r'(?i)(?:presupuesto(?:s)?|recursos financieros)', MonetaryCategory.BUDGET),
             (r'(?i)(?:inversi[oó]n(?:es)?|capital)', MonetaryCategory.INVESTMENT),
             (r'(?i)(?:operaci[oó]n|funcionamiento)', MonetaryCategory.OPERATING),
@@ -205,286 +199,113 @@ class MonetaryDetector:
         ]
         
         # Source attribution patterns
-        self.source_patterns = [
+        source_patterns = [
             r'(?i)(?:financiado|aportado|suministrado)(?:\s+por)?\s+([\w\s]+?)(?:\.|\,|\;|$)',
             r'(?i)recursos\s+(?:de|del|provenientes de)\s+([\w\s]+?)(?:\.|\,|\;|$)',
         ]
         
         # Compile patterns for efficiency
-        self.compiled_basic_patterns = [re.compile(p) for p in self.basic_patterns]
-        self.compiled_budget_patterns = [re.compile(p) for p in self.budget_patterns]
-        self.compiled_timeframe_patterns = [(re.compile(p), t) for p, t in self.timeframe_patterns]
-        self.compiled_category_patterns = [(re.compile(p), c) for p, c in self.category_patterns]
-        self.compiled_source_patterns = [re.compile(p) for p in self.source_patterns]
-    
-    def detect_monetary_values(self, text: str) -> List[MonetaryMatch]:
+        compiled_basic_patterns = [re.compile(p) for p in basic_patterns]
+        compiled_budget_patterns = [re.compile(p) for p in budget_patterns]
+        compiled_timeframe_patterns = [(re.compile(p), t) for p, t in timeframe_patterns]
+        compiled_category_patterns = [(re.compile(p), c) for p, c in category_patterns]
+        compiled_source_patterns = [re.compile(p) for p in source_patterns]
+
+        return {
+            "basic": compiled_basic_patterns,
+            "budget": compiled_budget_patterns,
+            "timeframe": compiled_timeframe_patterns,
+            "category": compiled_category_patterns,
+            "source": compiled_source_patterns
+        }
+
+    def detect(self, text: str, plan_name: str = "unknown") -> List[Dict[str, Any]]:
         """
-        Detect monetary values in text.
-        
-        Args:
-            text: Text to analyze
-            
+        Detect monetary values with NORMALIZED OUTPUT SCHEMA.
+
         Returns:
-            List of detected MonetaryMatch objects
+            List of dicts with strict schema:
+            {
+                "amount": float,
+                "currency": str,
+                "original_text": str,
+                "category": str,  # MonetaryCategory.value
+                "timeframe": str,  # FinancialTimeframe.value
+                "confidence": float,  # 0.0-1.0
+                "impact_weight": float,  # 0.0-1.0 (importancia relativa)
+                "context": str,
+                "source_position": int,
+                "applicable_questions": List[str],
+                "provenance": Dict[str, str]
+            }
         """
-        if not text:
-            return []
-        
         matches = []
         
-        # Detect basic monetary patterns
-        for pattern in self.compiled_basic_patterns:
+        # Detectar todos los patrones
+        for pattern_name, pattern in self.patterns.items():
             for match in pattern.finditer(text):
-                raw_text = match.group(0).strip()
-                
-                # Extract amount and currency
-                amount, currency = self._extract_amount_and_currency(raw_text)
-                
-                if amount is not None and currency:
-                    # Get start and end positions
-                    start_pos = match.start()
-                    end_pos = match.end()
-                    
-                    # Extract context around match
-                    context_start = max(0, start_pos - self.context_window)
-                    context_end = min(len(text), end_pos + self.context_window)
-                    context = text[context_start:context_end]
-                    
-                    # Determine category and timeframe
-                    category = self._detect_category(context, start_pos - context_start)
-                    timeframe = self._detect_timeframe(context, start_pos - context_start)
-                    
-                    # Extract source if available
-                    source = self._extract_source(context, start_pos - context_start)
-                    
-                    # Calculate confidence score
-                    confidence = self._calculate_confidence(raw_text, amount, currency, category, timeframe)
-                    
-                    # Create match object
-                    monetary_match = MonetaryMatch(
-                        raw_text=raw_text,
-                        amount=amount,
-                        currency=currency,
-                        category=category,
-                        timeframe=timeframe,
-                        start_pos=start_pos,
-                        end_pos=end_pos,
-                        context=context,
+                # Extraer monto numérico
+                amount = self._parse_amount(match.group())
+
+                # Clasificar categoría
+                category = self._classify_category(match.group(), text[max(0, match.start()-100):match.end()+100])
+
+                # Determinar timeframe
+                timeframe = self._detect_timeframe(text[max(0, match.start()-50):match.end()+50])
+
+                # Calcular confidence DETERMINISTA
+                confidence = self._calculate_confidence(match.group(), amount, category)
+
+                # Calcular peso de impacto
+                impact_weight = self._calculate_impact_weight(amount, category)
+
+                # Mapear a preguntas aplicables
+                applicable_qs = self._map_to_questions(category, timeframe, amount)
+
+                monetary_match = {
+                    "amount": amount,
+                    "currency": "COP",  # Asumir pesos colombianos
+                    "original_text": match.group(),
+                    "category": category.value if isinstance(category, MonetaryCategory) else category,
+                    "timeframe": timeframe.value if isinstance(timeframe, FinancialTimeframe) else timeframe,
+                    "confidence": confidence,
+                    "impact_weight": impact_weight,
+                    "context": text[max(0, match.start()-100):match.end()+100],
+                    "source_position": match.start(),
+                    "applicable_questions": applicable_qs,
+                    "provenance": {
+                        "plan_name": plan_name,
+                        "detector": "monetary_detector",
+                        "pattern_type": pattern_name
+                    }
+                }
+
+                matches.append(monetary_match)
+
+                # Registrar automáticamente si hay registry
+                if self.evidence_registry:
+                    self.evidence_registry.register(
+                        source_component="monetary_detector",
+                        evidence_type="monetary_value",
+                        content=monetary_match,
                         confidence=confidence,
-                        source=source
+                        applicable_questions=applicable_qs
                     )
-                    
-                    matches.append(monetary_match)
-        
-        # Detect budget-specific patterns
-        for pattern in self.compiled_budget_patterns:
-            for match in pattern.finditer(text):
-                raw_text = match.group(0).strip()
-                
-                # Extract amount and currency
-                amount, currency = self._extract_amount_and_currency(raw_text)
-                
-                if amount is not None and currency:
-                    # This is definitely a budget item
-                    start_pos = match.start()
-                    end_pos = match.end()
-                    
-                    # Extract context around match
-                    context_start = max(0, start_pos - self.context_window)
-                    context_end = min(len(text), end_pos + self.context_window)
-                    context = text[context_start:context_end]
-                    
-                    # Budget-specific patterns are already categorized
-                    category = MonetaryCategory.BUDGET
-                    timeframe = self._detect_timeframe(context, start_pos - context_start)
-                    
-                    # Extract source if available
-                    source = self._extract_source(context, start_pos - context_start)
-                    
-                    # Calculate confidence score - higher for budget-specific patterns
-                    confidence = self._calculate_confidence(raw_text, amount, currency, category, timeframe, is_budget_pattern=True)
-                    
-                    # Create match object
-                    monetary_match = MonetaryMatch(
-                        raw_text=raw_text,
-                        amount=amount,
-                        currency=currency,
-                        category=category,
-                        timeframe=timeframe,
-                        start_pos=start_pos,
-                        end_pos=end_pos,
-                        context=context,
-                        confidence=confidence,
-                        source=source
-                    )
-                    
-                    matches.append(monetary_match)
-        
-        # Remove duplicates by comparing start positions
-        unique_matches = []
-        start_positions = set()
-        
-        for match in sorted(matches, key=lambda m: m.confidence, reverse=True):
-            if match.start_pos not in start_positions:
-                unique_matches.append(match)
-                start_positions.add(match.start_pos)
-        
-        return unique_matches
-    
-    def analyze_monetary_coverage(self, text: str) -> MonetaryAnalysis:
+
+        # Ordenar por posición
+        matches.sort(key=lambda x: x["source_position"])
+
+        return matches
+
+    def _parse_amount(self, text: str) -> float:
         """
-        Analyze monetary coverage of a document.
-        
+        Parse amount from text, handling different numeric formats.
+
         Args:
-            text: Text to analyze
-            
+            text: Text containing the amount
+
         Returns:
-            MonetaryAnalysis with detailed monetary coverage information
-        """
-        # Detect monetary values
-        matches = self.detect_monetary_values(text)
-        
-        if not matches:
-            # Return empty analysis
-            return MonetaryAnalysis(
-                matches=[],
-                total_allocations=0,
-                total_amount={},
-                currency_breakdown={},
-                category_breakdown={},
-                timeframe_breakdown={},
-                resource_adequacy_score=0.0,
-                budget_coverage=0.0
-            )
-        
-        # Calculate total amount by currency
-        total_amount = {}
-        for match in matches:
-            if match.currency in total_amount:
-                total_amount[match.currency] += match.amount
-            else:
-                total_amount[match.currency] = match.amount
-        
-        # Count currencies
-        currency_breakdown = {}
-        for match in matches:
-            if match.currency in currency_breakdown:
-                currency_breakdown[match.currency] += 1
-            else:
-                currency_breakdown[match.currency] = 1
-        
-        # Count categories
-        category_breakdown = {}
-        for match in matches:
-            category = match.category.value
-            if category in category_breakdown:
-                category_breakdown[category] += 1
-            else:
-                category_breakdown[category] = 1
-        
-        # Count timeframes
-        timeframe_breakdown = {}
-        for match in matches:
-            timeframe = match.timeframe.value
-            if timeframe in timeframe_breakdown:
-                timeframe_breakdown[timeframe] += 1
-            else:
-                timeframe_breakdown[timeframe] = 1
-        
-        # Calculate resource adequacy score
-        resource_adequacy_score = self._calculate_resource_adequacy_score(matches, text)
-        
-        # Calculate budget coverage
-        budget_coverage = self._calculate_budget_coverage(matches, text)
-        
-        return MonetaryAnalysis(
-            matches=matches,
-            total_allocations=len(matches),
-            total_amount=total_amount,
-            currency_breakdown=currency_breakdown,
-            category_breakdown=category_breakdown,
-            timeframe_breakdown=timeframe_breakdown,
-            resource_adequacy_score=resource_adequacy_score,
-            budget_coverage=budget_coverage
-        )
-    
-    def evaluate_resource_adequacy(self, text: str, goal_keywords: List[str] = None) -> Dict[str, Any]:
-        """
-        Evaluate if resources are adequate for stated goals (for DE-4).
-        
-        Args:
-            text: Text to analyze
-            goal_keywords: Optional list of goal-related keywords to check against
-            
-        Returns:
-            Dictionary with resource adequacy evaluation
-        """
-        # Default goal keywords if none provided
-        if goal_keywords is None:
-            goal_keywords = [
-                "meta", "objetivo", "resultado", "impacto", "logro", 
-                "alcanzar", "cumplir", "conseguir", "obtener"
-            ]
-        
-        # Analyze monetary coverage
-        analysis = self.analyze_monetary_coverage(text)
-        
-        # Count resources associated with goals
-        resource_goal_matches = 0
-        goal_related_amount = {}
-        
-        for match in analysis.matches:
-            context = match.context.lower()
-            if any(keyword.lower() in context for keyword in goal_keywords):
-                resource_goal_matches += 1
-                if match.currency in goal_related_amount:
-                    goal_related_amount[match.currency] += match.amount
-                else:
-                    goal_related_amount[match.currency] = match.amount
-        
-        # Percentage of resources explicitly linked to goals
-        goal_linkage_ratio = resource_goal_matches / len(analysis.matches) if analysis.matches else 0
-        
-        # Different resource timeframes
-        resource_timeframes = len(analysis.timeframe_breakdown)
-        
-        # Calculate implementation feasibility based on resources
-        implementation_feasibility = min(1.0, (
-            analysis.resource_adequacy_score * 0.5 +
-            goal_linkage_ratio * 0.3 +
-            min(1.0, resource_timeframes / 3) * 0.2
-        ))
-        
-        # Recommendation based on analysis
-        if implementation_feasibility >= 0.7:
-            recommendation = "Los recursos financieros parecen adecuados para los objetivos planteados."
-        elif implementation_feasibility >= 0.4:
-            recommendation = "Los recursos financieros son parcialmente adecuados. Se recomienda aclarar o aumentar las asignaciones presupuestales."
-        else:
-            recommendation = "Los recursos financieros parecen insuficientes para los objetivos planteados. Se requiere una mayor asignación o clarificación presupuestal."
-        
-        return {
-            "resource_adequacy_score": analysis.resource_adequacy_score,
-            "budget_coverage": analysis.budget_coverage,
-            "total_monetary_allocations": len(analysis.matches),
-            "goal_related_allocations": resource_goal_matches,
-            "goal_linkage_ratio": goal_linkage_ratio,
-            "implementation_feasibility": implementation_feasibility,
-            "recommendation": recommendation,
-            "de2_budget_evaluation": analysis.budget_coverage >= 0.5,
-            "de4_resource_adequacy": analysis.resource_adequacy_score >= 0.6,
-            "confidence": sum(m.confidence for m in analysis.matches) / len(analysis.matches) if analysis.matches else 0
-        }
-    
-    def _extract_amount_and_currency(self, text: str) -> Tuple[Optional[float], str]:
-        """
-        Extract amount and currency from monetary text.
-        
-        Args:
-            text: Text containing monetary value
-            
-        Returns:
-            Tuple of (amount, currency)
+            Normalized float amount
         """
         # Check for standard formats
         
@@ -496,13 +317,7 @@ class MonetaryDetector:
             amount_str = re.sub(r',(?=\d{3})', '', amount_str)  # Remove commas in thousands
             amount_str = amount_str.replace(',', '.')  # Convert remaining commas to decimal points
             try:
-                amount = float(amount_str)
-                
-                # Check if followed by COP or pesos
-                if re.search(r'COP|pesos?', text, re.IGNORECASE):
-                    return amount, "COP"
-                else:
-                    return amount, "USD"
+                return float(amount_str)
             except ValueError:
                 pass
         
@@ -514,7 +329,7 @@ class MonetaryDetector:
             amount_str = re.sub(r',(?=\d{3})', '', amount_str)
             amount_str = amount_str.replace(',', '.')
             try:
-                return float(amount_str), "EUR"
+                return float(amount_str)
             except ValueError:
                 pass
         
@@ -581,7 +396,7 @@ class MonetaryDetector:
             MonetaryCategory enum
         """
         # Check for category patterns
-        for pattern, category in self.compiled_category_patterns:
+        for pattern, category in self.patterns["category"]:
             # Check in a window around the position
             start_window = max(0, position - 50)
             end_window = min(len(context), position + 50)
@@ -604,7 +419,7 @@ class MonetaryDetector:
             FinancialTimeframe enum
         """
         # Check for timeframe patterns
-        for pattern, timeframe in self.compiled_timeframe_patterns:
+        for pattern, timeframe in self.patterns["timeframe"]:
             # Check in a window around the position
             start_window = max(0, position - 50)
             end_window = min(len(context), position + 150)
@@ -627,7 +442,7 @@ class MonetaryDetector:
             Source string if found, empty string otherwise
         """
         # Check for source attribution patterns
-        for pattern in self.compiled_source_patterns:
+        for pattern in self.patterns["source"]:
             # Check primarily after the monetary value
             end_window = min(len(context), position + 200)
             window = context[position:end_window]
@@ -646,130 +461,63 @@ class MonetaryDetector:
         
         return ""
     
-    def _calculate_confidence(
-        self, 
-        raw_text: str, 
-        amount: float, 
-        currency: str, 
-        category: MonetaryCategory, 
-        timeframe: FinancialTimeframe,
-        is_budget_pattern: bool = False
-    ) -> float:
-        """
-        Calculate confidence score for a monetary match.
-        
-        Args:
-            raw_text: Original matched text
-            amount: Extracted amount
-            currency: Extracted currency
-            category: Detected category
-            timeframe: Detected timeframe
-            is_budget_pattern: Whether match was from a budget-specific pattern
-            
-        Returns:
-            Confidence score between 0 and 1
-        """
-        confidence = 0.6  # Base confidence
-        
-        # Adjust for specific patterns
-        if is_budget_pattern:
-            confidence += 0.2  # Budget patterns are more reliable
-        
-        # Adjust for amount and currency clarity
-        if amount > 0 and currency:
+    def _calculate_confidence(self, text: str, amount: float, category) -> float:
+        """Calcular confidence DETERMINISTA"""
+        confidence = 0.7  # Base
+
+        # Boost por contexto explícito
+        if "presupuesto" in text.lower() or "inversión" in text.lower():
+            confidence += 0.15
+
+        # Boost por formato numérico claro
+        if "$" in text:
             confidence += 0.1
         
-        # Adjust for category and timeframe
-        if category != MonetaryCategory.UNDEFINED:
+        # Boost por montos redondos (más probables de ser presupuestos)
+        if amount % 1000000 == 0:  # Múltiplo de millón
             confidence += 0.05
         
-        if timeframe != FinancialTimeframe.UNDEFINED:
-            confidence += 0.05
-        
-        # Check for possible false positives
-        if len(raw_text) < 5:  # Very short matches are suspicious
-            confidence -= 0.1
-        
-        # Cap at 1.0
         return min(1.0, confidence)
-    
-    def _calculate_resource_adequacy_score(self, matches: List[MonetaryMatch], text: str) -> float:
-        """
-        Calculate a score indicating resource adequacy for DE-4 evaluation.
-        
-        Args:
-            matches: List of monetary matches
-            text: Full document text
-            
-        Returns:
-            Resource adequacy score between 0 and 1
-        """
-        if not matches:
+
+    def _calculate_impact_weight(self, amount: float, category) -> float:
+        """Calcular peso de impacto relativo basado en monto y categoría"""
+        # Normalizar por magnitud (log scale)
+        if amount == 0:
             return 0.0
         
-        # Factors that contribute to resource adequacy
-        factors = []
-        
-        # Factor 1: Number of monetary allocations (more is better, up to a point)
-        allocation_count_factor = min(1.0, len(matches) / 10)  # Cap at 10 allocations
-        factors.append(allocation_count_factor * 0.2)  # 20% weight
-        
-        # Factor 2: Variety of categories (more diverse allocations are better)
-        categories = set(m.category for m in matches)
-        category_factor = min(1.0, len(categories) / 5)  # Cap at 5 categories
-        factors.append(category_factor * 0.2)  # 20% weight
-        
-        # Factor 3: Timeframe specification (specified timeframes are better)
-        defined_timeframes = sum(1 for m in matches if m.timeframe != FinancialTimeframe.UNDEFINED)
-        timeframe_factor = defined_timeframes / len(matches) if matches else 0
-        factors.append(timeframe_factor * 0.15)  # 15% weight
-        
-        # Factor 4: Budget category presence (specific budget allocations are important)
-        budget_matches = sum(1 for m in matches if m.category == MonetaryCategory.BUDGET)
-        budget_factor = min(1.0, budget_matches / 3)  # Cap at 3 budget allocations
-        factors.append(budget_factor * 0.25)  # 25% weight
-        
-        # Factor 5: Source specification (attributing funding sources is good)
-        sourced_matches = sum(1 for m in matches if m.source)
-        source_factor = sourced_matches / len(matches) if matches else 0
-        factors.append(source_factor * 0.1)  # 10% weight
-        
-        # Factor 6: Confidence in extractions
-        avg_confidence = sum(m.confidence for m in matches) / len(matches)
-        factors.append(avg_confidence * 0.1)  # 10% weight
-        
-        # Combine factors
-        return sum(factors)
-    
-    def _calculate_budget_coverage(self, matches: List[MonetaryMatch], text: str) -> float:
-        """
-        Calculate budget coverage for DE-2 evaluation.
-        
-        Args:
-            matches: List of monetary matches
-            text: Full document text
-            
-        Returns:
-            Budget coverage score between 0 and 1
-        """
-        if not matches:
-            return 0.0
-        
-        # Count budget-related matches
-        budget_matches = sum(1 for m in matches if m.category == MonetaryCategory.BUDGET)
-        
-        # Calculate coverage score
-        coverage_score = min(1.0, budget_matches / 5)  # Cap at 5 budget allocations
-        
-        # Check if budget allocations have timeframes
-        budget_with_timeframe = sum(1 for m in matches 
-                                  if m.category == MonetaryCategory.BUDGET and 
-                                  m.timeframe != FinancialTimeframe.UNDEFINED)
-        
-        timeframe_ratio = budget_with_timeframe / budget_matches if budget_matches else 0
-        
-        # Final coverage score adjusts for timeframe specification
-        return coverage_score * (0.7 + 0.3 * timeframe_ratio)
+        import math
+        magnitude = min(1.0, math.log10(amount) / 12)  # Normalizar hasta billones
+
+        # Ajustar por categoría
+        category_multipliers = {
+            MonetaryCategory.INVESTMENT: 1.0,
+            MonetaryCategory.BUDGET: 0.9,
+            MonetaryCategory.OPERATING: 0.7,
+            MonetaryCategory.REVENUE: 0.8,
+            MonetaryCategory.TRANSFER: 0.85,
+            MonetaryCategory.UNDEFINED: 0.5
+        }
+
+        multiplier = category_multipliers.get(category, 0.5)
+
+        return magnitude * multiplier
+
+    def _map_to_questions(self, category, timeframe, amount: float) -> List[str]:
+        """Mapear detección a preguntas específicas del cuestionario"""
+        questions = []
+
+        # Preguntas sobre presupuesto y recursos (D3)
+        questions.extend([f"D3-Q{i}" for i in [1, 5, 10, 15, 20, 25]])
+
+        # Si es inversión grande, añadir D1 (estrategia)
+        if amount > 1000000000:  # > mil millones
+            questions.extend([f"D1-Q{i}" for i in [5, 10]])
+
+        # Si tiene timeframe específico, añadir D2 (planificación)
+        if timeframe != FinancialTimeframe.UNDEFINED:
+            questions.extend([f"D2-Q{i}" for i in [3, 8]])
+
+        return questions
 
 
 def create_monetary_detector() -> MonetaryDetector:
@@ -798,17 +546,13 @@ if __name__ == "__main__":
     para la construcción de 1000 unidades habitacionales.
     """
     
-    # Analyze monetary coverage
-    analysis = detector.analyze_monetary_coverage(sample_text)
-    
-    print(f"Found {analysis.total_allocations} monetary allocations")
-    print(f"Resource adequacy score: {analysis.resource_adequacy_score:.2f}")
-    print(f"Budget coverage: {analysis.budget_coverage:.2f}")
-    print("\nMonetary values:")
-    for match in analysis.matches:
-        print(f"- {match.raw_text}: {match.amount} {match.currency} ({match.category.value})")
-    
-    # Evaluate resource adequacy
-    evaluation = detector.evaluate_resource_adequacy(sample_text)
-    print(f"\nImplementation feasibility: {evaluation['implementation_feasibility']:.2f}")
-    print(f"Recommendation: {evaluation['recommendation']}")
+    # Detectar valores monetarios
+    detections = detector.detect(sample_text, plan_name="Plan de Desarrollo 2023")
+
+    print(f"Se encontraron {len(detections)} detecciones monetarias:")
+    for detection in detections:
+        print(f"- {detection['original_text']}: {detection['amount']} {detection['currency']} "
+              f"({detection['category']}, {detection['timeframe']}) - Confianza: {detection['confidence']:.2f}, "
+              f"Peso de impacto: {detection['impact_weight']:.2f}")
+
+    # Nota: El registro automático en el evidence_registry se realiza en el método detect()

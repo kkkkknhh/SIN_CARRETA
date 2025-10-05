@@ -41,6 +41,13 @@ class DataType(Enum):
     TEORIA_CAMBIO = "teoria_cambio"
     DAG_STRUCTURE = "dag_structure"
     METADATA = "metadata"
+    # **NUEVOS TIPOS PARA DECATALOGO_PRINCIPAL.PY**
+    DECATALOGO_EVIDENCIA = "decatalogo_evidencia"
+    DECATALOGO_DIMENSION = "decatalogo_dimension"
+    DECATALOGO_CLUSTER = "decatalogo_cluster"
+    ONTOLOGIA_PATTERNS = "ontologia_patterns"
+    ADVANCED_EMBEDDINGS = "advanced_embeddings"
+    CAUSAL_COEFFICIENTS = "causal_coefficients"
 
 
 class ValidationCache:
@@ -192,32 +199,27 @@ class NodeContract:
 
 class CanonicalFlowValidator:
     """
-    Validator for the canonical MINIMINIMOON pipeline flow.
+    Validates the canonical flow of the MINIMINIMOON pipeline.
 
-    Maintains contracts for all nodes and validates the entire flow.
-    Includes performance-optimized validation with memoization caching.
+    Ensures all data contracts are met at each node transition.
+    **EXTENDED WITH DECATALOGO_PRINCIPAL.PY VALIDATION**
     """
 
-    def __init__(self, enable_cache: bool = True, cache_size: int = 1000):
-        """
-        Initialize with canonical node contracts.
-        
-        Args:
-            enable_cache: Enable validation result caching
-            cache_size: Maximum number of cached results (LRU eviction)
-        """
-        self.contracts: Dict[str, NodeContract] = {}
-        self.execution_order: List[str] = []
-        self._cache = ValidationCache(max_size=cache_size) if enable_cache else None
-        self._build_canonical_contracts()
+    def __init__(self):
+        self.contracts = self._define_contracts()
+        self.validation_cache = ValidationCache()
+        self._version = "2.0-decatalogo-integrated"
 
-        logger.info(f"CanonicalFlowValidator initialized (cache={'enabled' if enable_cache else 'disabled'})")
+    def _define_contracts(self) -> Dict[str, NodeContract]:
+        """
+        Define contracts for each node in the canonical flow.
 
-    def _build_canonical_contracts(self):
-        """Build contracts for all canonical pipeline nodes"""
+        **INCLUDES DECATALOGO_PRINCIPAL.PY NODE CONTRACT**
+        """
+        contracts = {}
 
         # 1. Sanitization
-        self.contracts["sanitization"] = NodeContract(
+        contracts["sanitization"] = NodeContract(
             node_name="sanitization",
             dependencies=[],
             required_inputs=[DataType.RAW_TEXT],
@@ -231,7 +233,7 @@ class CanonicalFlowValidator:
         )
 
         # 2. Plan Processing
-        self.contracts["plan_processing"] = NodeContract(
+        contracts["plan_processing"] = NodeContract(
             node_name="plan_processing",
             dependencies=["sanitization"],
             required_inputs=[DataType.SANITIZED_TEXT],
@@ -245,7 +247,7 @@ class CanonicalFlowValidator:
         )
 
         # 3. Document Segmentation
-        self.contracts["document_segmentation"] = NodeContract(
+        contracts["document_segmentation"] = NodeContract(
             node_name="document_segmentation",
             dependencies=["sanitization"],
             required_inputs=[DataType.SANITIZED_TEXT],
@@ -259,7 +261,7 @@ class CanonicalFlowValidator:
         )
 
         # 4. Embedding
-        self.contracts["embedding"] = NodeContract(
+        contracts["embedding"] = NodeContract(
             node_name="embedding",
             dependencies=["document_segmentation"],
             required_inputs=[DataType.SEGMENTS],
@@ -273,7 +275,7 @@ class CanonicalFlowValidator:
         )
 
         # 5. Responsibility Detection
-        self.contracts["responsibility_detection"] = NodeContract(
+        contracts["responsibility_detection"] = NodeContract(
             node_name="responsibility_detection",
             dependencies=["sanitization"],
             required_inputs=[DataType.SANITIZED_TEXT],
@@ -287,7 +289,7 @@ class CanonicalFlowValidator:
         )
 
         # 6. Contradiction Detection
-        self.contracts["contradiction_detection"] = NodeContract(
+        contracts["contradiction_detection"] = NodeContract(
             node_name="contradiction_detection",
             dependencies=["sanitization"],
             required_inputs=[DataType.SANITIZED_TEXT],
@@ -295,7 +297,7 @@ class CanonicalFlowValidator:
         )
 
         # 7. Monetary Detection
-        self.contracts["monetary_detection"] = NodeContract(
+        contracts["monetary_detection"] = NodeContract(
             node_name="monetary_detection",
             dependencies=["sanitization"],
             required_inputs=[DataType.SANITIZED_TEXT],
@@ -303,7 +305,7 @@ class CanonicalFlowValidator:
         )
 
         # 8. Feasibility Scoring
-        self.contracts["feasibility_scoring"] = NodeContract(
+        contracts["feasibility_scoring"] = NodeContract(
             node_name="feasibility_scoring",
             dependencies=["sanitization"],
             required_inputs=[DataType.SANITIZED_TEXT],
@@ -311,7 +313,7 @@ class CanonicalFlowValidator:
         )
 
         # 9. Causal Pattern Detection
-        self.contracts["causal_detection"] = NodeContract(
+        contracts["causal_detection"] = NodeContract(
             node_name="causal_detection",
             dependencies=["sanitization"],
             required_inputs=[DataType.SANITIZED_TEXT],
@@ -319,7 +321,7 @@ class CanonicalFlowValidator:
         )
 
         # 10. Theory of Change
-        self.contracts["teoria_cambio"] = NodeContract(
+        contracts["teoria_cambio"] = NodeContract(
             node_name="teoria_cambio",
             dependencies=["responsibility_detection", "causal_detection", "monetary_detection"],
             required_inputs=[
@@ -332,29 +334,231 @@ class CanonicalFlowValidator:
         )
 
         # 11. DAG Validation
-        self.contracts["dag_validation"] = NodeContract(
+        contracts["dag_validation"] = NodeContract(
             node_name="dag_validation",
             dependencies=["teoria_cambio"],
             required_inputs=[DataType.TEORIA_CAMBIO],
             produces=[DataType.DAG_STRUCTURE],
         )
 
-        # Define execution order (canonical)
-        self.execution_order = [
-            "sanitization",
-            "plan_processing",
-            "document_segmentation",
-            "embedding",
-            "responsibility_detection",
-            "contradiction_detection",
-            "monetary_detection",
-            "feasibility_scoring",
-            "causal_detection",
-            "teoria_cambio",
-            "dag_validation"
-        ]
+        # **CONTRATO CRÍTICO: DECATALOGO_EVALUATION**
+        contracts["decatalogo_evaluation"] = NodeContract(
+            node_name="decatalogo_evaluation",
+            required_inputs={
+                "plan_text": DataType.SANITIZED_TEXT,
+                "segments": DataType.SEGMENTS,
+                "responsibilities": DataType.ENTITIES,
+                "monetary": DataType.MONETARY_VALUES,
+                "feasibility": DataType.FEASIBILITY_SCORES,
+                "teoria_cambio": DataType.TEORIA_CAMBIO,
+                "causal_patterns": DataType.CAUSAL_PATTERNS
+            },
+            required_outputs={
+                "evaluacion_por_dimension": DataType.DECATALOGO_DIMENSION,
+                "evidencias_globales": DataType.DECATALOGO_EVIDENCIA,
+                "metricas_globales": DataType.METADATA,
+                "analisis_clusters": DataType.DECATALOGO_CLUSTER,
+                "interdependencias_globales": DataType.DAG_STRUCTURE
+            },
+            validation_rules=[
+                lambda data: "plan_text" in data and len(data["plan_text"]) > 100,
+                lambda data: "segments" in data and isinstance(data["segments"], list),
+                lambda data: "responsibilities" in data and isinstance(data["responsibilities"], list),
+                lambda data: "monetary" in data and isinstance(data["monetary"], list),
+                lambda data: "feasibility" in data and isinstance(data["feasibility"], dict),
+                lambda data: "teoria_cambio" in data and isinstance(data["teoria_cambio"], dict),
+                lambda data: "causal_patterns" in data and isinstance(data["causal_patterns"], dict)
+            ],
+            output_validation_rules=[
+                lambda data: "evaluacion_por_dimension" in data and isinstance(data["evaluacion_por_dimension"], dict),
+                lambda data: "metricas_globales" in data and "coherencia_promedio" in data["metricas_globales"],
+                lambda data: "metricas_globales" in data and "kpi_promedio" in data["metricas_globales"],
+                lambda data: "metricas_globales" in data and "evidencias_totales" in data["metricas_globales"],
+                lambda data: "analisis_clusters" in data and isinstance(data["analisis_clusters"], dict),
+                lambda data: "cobertura_cuestionario_industrial" in data,
+                lambda data: data.get("metricas_globales", {}).get("dimensiones_evaluadas", 0) > 0
+            ],
+            dependencies=["sanitization", "segmentation", "responsibility_detection",
+                         "monetary_detection", "feasibility_scoring", "teoria_cambio", "causal_patterns"],
+            performance_budget_ms=30000,  # 30 segundos para evaluación completa
+            description="Evaluación avanzada con ExtractorEvidenciaIndustrialAvanzado para 300 preguntas del decálogo industrial"
+        )
 
-        logger.info(f"Built contracts for {len(self.contracts)} nodes")
+        # **CONTRATO: DECATALOGO_EXTRACTOR (componente interno)**
+        contracts["decatalogo_extractor_init"] = NodeContract(
+            node_name="decatalogo_extractor_init",
+            required_inputs={
+                "documentos": DataType.SEGMENTS,
+                "nombre_plan": DataType.METADATA
+            },
+            required_outputs={
+                "embeddings_doc": DataType.ADVANCED_EMBEDDINGS,
+                "embeddings_metadata": DataType.METADATA,
+                "estructura_documental": DataType.METADATA,
+                "ontologia": DataType.ONTOLOGIA_PATTERNS
+            },
+            validation_rules=[
+                lambda data: "documentos" in data and isinstance(data["documentos"], list),
+                lambda data: len(data.get("documentos", [])) > 0,
+                lambda data: all(isinstance(doc, tuple) and len(doc) == 2 for doc in data.get("documentos", []))
+            ],
+            output_validation_rules=[
+                lambda data: "embeddings_doc" in data,
+                lambda data: "embeddings_metadata" in data and isinstance(data["embeddings_metadata"], list),
+                lambda data: "estructura_documental" in data and isinstance(data["estructura_documental"], dict)
+            ],
+            dependencies=["segmentation"],
+            performance_budget_ms=10000,
+            description="Inicialización del ExtractorEvidenciaIndustrialAvanzado con precomputación de embeddings y análisis estructural"
+        )
+
+        # **CONTRATO: BUSQUEDA DE EVIDENCIA AVANZADA**
+        contracts["decatalogo_evidencia_busqueda"] = NodeContract(
+            node_name="decatalogo_evidencia_busqueda",
+            required_inputs={
+                "query": DataType.RAW_TEXT,
+                "conceptos_clave": DataType.METADATA,
+                "embeddings_doc": DataType.ADVANCED_EMBEDDINGS
+            },
+            required_outputs={
+                "evidencias": DataType.DECATALOGO_EVIDENCIA,
+                "scores": DataType.METADATA
+            },
+            validation_rules=[
+                lambda data: "query" in data and isinstance(data["query"], str) and len(data["query"]) > 0,
+                lambda data: "conceptos_clave" in data and isinstance(data["conceptos_clave"], list),
+                lambda data: "embeddings_doc" in data
+            ],
+            output_validation_rules=[
+                lambda data: "evidencias" in data and isinstance(data["evidencias"], list),
+                lambda data: all("score_final" in e for e in data.get("evidencias", [])),
+                lambda data: all("similitud_semantica" in e for e in data.get("evidencias", [])),
+                lambda data: all("densidad_causal_agregada" in e for e in data.get("evidencias", [])),
+                lambda data: all(0 <= e.get("score_final", 0) <= 1 for e in data.get("evidencias", []))
+            ],
+            dependencies=["decatalogo_extractor_init"],
+            performance_budget_ms=5000,
+            description="Búsqueda avanzada de evidencia causal con scoring multi-criterio"
+        )
+
+        return contracts
+
+    def validate_decatalogo_integration(self, orchestrator_results: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validación especializada para la integración de Decatalogo_principal.py
+
+        Args:
+            orchestrator_results: Resultados completos del orquestador
+
+        Returns:
+            Reporte de validación con estado y detalles
+        """
+        validation_report = {
+            "status": "passed",
+            "timestamp": time.time(),
+            "checks": {},
+            "warnings": [],
+            "errors": []
+        }
+
+        try:
+            decatalogo_results = orchestrator_results.get("decatalogo_evaluation", {})
+
+            # Check 1: Estructura básica
+            if not isinstance(decatalogo_results, dict):
+                validation_report["errors"].append("decatalogo_evaluation debe ser un diccionario")
+                validation_report["status"] = "failed"
+                return validation_report
+
+            validation_report["checks"]["estructura_basica"] = "passed"
+
+            # Check 2: Metadatos
+            metadata = decatalogo_results.get("metadata", {})
+            required_metadata = ["plan_evaluado", "fecha_evaluacion", "version_sistema"]
+            for field in required_metadata:
+                if field not in metadata:
+                    validation_report["errors"].append(f"Metadata faltante: {field}")
+                    validation_report["status"] = "failed"
+
+            validation_report["checks"]["metadata"] = "passed" if not validation_report["errors"] else "failed"
+
+            # Check 3: Métricas globales
+            metricas = decatalogo_results.get("metricas_globales", {})
+            required_metrics = ["coherencia_promedio", "kpi_promedio", "evidencias_totales",
+                              "dimensiones_evaluadas", "cobertura_preguntas"]
+            for metric in required_metrics:
+                if metric not in metricas:
+                    validation_report["errors"].append(f"Métrica faltante: {metric}")
+                    validation_report["status"] = "failed"
+
+            # Validar rangos de métricas
+            if "coherencia_promedio" in metricas:
+                if not (0 <= metricas["coherencia_promedio"] <= 1):
+                    validation_report["warnings"].append("coherencia_promedio fuera de rango [0,1]")
+
+            if "kpi_promedio" in metricas:
+                if not (0 <= metricas["kpi_promedio"] <= 1):
+                    validation_report["warnings"].append("kpi_promedio fuera de rango [0,1]")
+
+            validation_report["checks"]["metricas_globales"] = "passed" if not validation_report["errors"] else "failed"
+
+            # Check 4: Evaluación por dimensión
+            evaluacion_dims = decatalogo_results.get("evaluacion_por_dimension", {})
+            if not isinstance(evaluacion_dims, dict):
+                validation_report["errors"].append("evaluacion_por_dimension debe ser un diccionario")
+                validation_report["status"] = "failed"
+            else:
+                # Validar estructura de cada dimensión
+                for dim_nombre, dim_data in evaluacion_dims.items():
+                    required_fields = ["dimension_id", "coherencia", "kpis", "evidencias_encontradas"]
+                    for field in required_fields:
+                        if field not in dim_data:
+                            validation_report["warnings"].append(
+                                f"Dimensión '{dim_nombre}' faltante campo: {field}"
+                            )
+
+            validation_report["checks"]["evaluacion_dimensiones"] = "passed"
+
+            # Check 5: Clusters
+            clusters = decatalogo_results.get("analisis_clusters", {})
+            if not isinstance(clusters, dict):
+                validation_report["warnings"].append("analisis_clusters debe ser un diccionario")
+            else:
+                validation_report["checks"]["analisis_clusters"] = "passed"
+
+            # Check 6: Cobertura de preguntas
+            cobertura = decatalogo_results.get("cobertura_cuestionario_industrial", {})
+            if "porcentaje_cobertura" in cobertura:
+                porcentaje = cobertura["porcentaje_cobertura"]
+                if porcentaje < 30:
+                    validation_report["warnings"].append(
+                        f"Cobertura baja del cuestionario: {porcentaje:.1f}%"
+                    )
+                validation_report["checks"]["cobertura_preguntas"] = "passed"
+            else:
+                validation_report["errors"].append("Falta porcentaje_cobertura")
+                validation_report["status"] = "failed"
+
+            # Check 7: Integración de componentes
+            integracion = decatalogo_results.get("integracion_componentes", {})
+            if integracion:
+                validation_report["checks"]["integracion_componentes"] = "passed"
+            else:
+                validation_report["warnings"].append("Falta integracion_componentes")
+
+            # Summary
+            validation_report["summary"] = {
+                "total_checks": len(validation_report["checks"]),
+                "passed_checks": sum(1 for v in validation_report["checks"].values() if v == "passed"),
+                "total_errors": len(validation_report["errors"]),
+                "total_warnings": len(validation_report["warnings"])
+            }
+
+        except Exception as e:
+            validation_report["status"] = "error"
+            validation_report["errors"].append(f"Error durante validación: {str(e)}")
+
+        return validation_report
 
     def validate_node_execution(
         self,
@@ -378,8 +582,8 @@ class CanonicalFlowValidator:
             (is_valid, report_dict)
         """
         # Try cache first if enabled
-        if use_cache and self._cache is not None and outputs is None:
-            cached = self._cache.get(available_data, node_name)
+        if use_cache and self.validation_cache is not None and outputs is None:
+            cached = self.validation_cache.get(available_data, node_name)
             if cached is not None:
                 is_valid, report = cached
                 report["cached"] = True
@@ -427,8 +631,8 @@ class CanonicalFlowValidator:
                 report["errors"].extend(output_errors)
 
         # Cache result if only input validation (outputs=None)
-        if use_cache and self._cache is not None and outputs is None:
-            self._cache.put(available_data, node_name, report["valid"], report)
+        if use_cache and self.validation_cache is not None and outputs is None:
+            self.validation_cache.put(available_data, node_name, report["valid"], report)
 
         return report["valid"], report
 
@@ -470,7 +674,7 @@ class CanonicalFlowValidator:
         warnings = []
 
         # Check if all canonical nodes were executed
-        canonical_set = set(self.execution_order)
+        canonical_set = set(self.get_execution_plan())
         executed_set = set(executed_nodes)
 
         missing = canonical_set - executed_set
@@ -483,7 +687,7 @@ class CanonicalFlowValidator:
 
         # Check order for nodes that are in canonical order
         canonical_indices = {}
-        for i, node in enumerate(self.execution_order):
+        for i, node in enumerate(self.get_execution_plan()):
             canonical_indices[node] = i
 
         last_canonical_index = -1
@@ -509,14 +713,14 @@ class CanonicalFlowValidator:
 
     def clear_cache(self):
         """Clear validation cache"""
-        if self._cache is not None:
-            self._cache.clear()
+        if self.validation_cache is not None:
+            self.validation_cache.clear()
             logger.info("Validation cache cleared")
     
     def get_cache_stats(self) -> Optional[Dict[str, Any]]:
         """Get cache performance statistics"""
-        if self._cache is not None:
-            return self._cache.get_stats()
+        if self.validation_cache is not None:
+            return self.validation_cache.get_stats()
         return None
 
     def generate_flow_report(self, executed_nodes: List[str], node_reports: Dict[str, Dict]) -> Dict[str, Any]:

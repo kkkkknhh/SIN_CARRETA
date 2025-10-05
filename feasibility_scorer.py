@@ -30,6 +30,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Union, Any, Iterator
+import numpy as np
+import random
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -189,27 +191,23 @@ def safe_write_json(path: Path, data: Any, label: str = "json") -> SafeWriteResu
 
 class FeasibilityScorer:
     """
-    Evaluates the feasibility of plan elements by detecting baselines, targets, and timeframes.
-    
-    This scorer is essential for answering:
-    - DE-1 Q3: "Do outcomes have baselines and targets?"
-    - DE-4 Q1: "Do products have measurable KPIs?"
-    - DE-4 Q2: "Do results have baselines?"
-    
-    It detects and evaluates indicators according to SMART criteria and provides
-    comprehensive scoring of their feasibility.
+    Industrial-grade feasibility scorer with deterministic execution.
+
+    **DETERMINISM**: Fixed seed, sorted outputs, reproducible scores.
+    **NORMALIZED OUTPUTS**: Strict schema with confidence.
+    **EVIDENCE REGISTRY**: Auto-registration.
     """
-    
-    def __init__(self, enable_parallel: bool = False):
-        """
-        Initialize the feasibility scorer.
-        
-        Args:
-            enable_parallel: Whether to enable parallel processing for large documents
-        """
+
+    def __init__(self, enable_parallel: bool = True, seed: int = 42, evidence_registry=None):
+        """Initialize with DETERMINISTIC configuration."""
         self.enable_parallel = enable_parallel
-        self.logger = logger
-        
+        self.seed = seed
+        self.evidence_registry = evidence_registry
+
+        # Fijar seed para reproducibilidad
+        np.random.seed(seed)
+        random.seed(seed)
+
         # Define detection patterns
         
         # Baseline patterns
@@ -1752,6 +1750,120 @@ class FeasibilityScorer:
         # This method would be implemented in the full version
         return [self.evaluate_indicator(indicator) for indicator in indicators]
 
+    def score(self, text: str, plan_name: str = "unknown") -> Dict[str, Any]:
+        """
+        Score feasibility with NORMALIZED OUTPUT SCHEMA and DETERMINISM.
+
+        Returns:
+            {
+                "overall_score": float,  # 0.0-1.0
+                "dimension_scores": Dict[str, float],
+                "detailed_matches": List[{
+                    "indicator": str,
+                    "value": float,
+                    "confidence": float,
+                    "context": str,
+                    "applicable_questions": List[str]
+                }],
+                "confidence": float,
+                "provenance": Dict[str, str]
+            }
+        """
+        # Procesamiento con orden DETERMINISTA
+        detailed_matches = []
+        dimension_scores = {}
+
+        # Detectar indicadores en ORDEN FIJO
+        indicators = self._detect_indicators_deterministic(text)
+
+        # Ordenar por posición para determinismo
+        indicators.sort(key=lambda x: x.get("position", 0))
+
+        for indicator in indicators:
+            confidence = self._calculate_confidence_deterministic(indicator)
+            applicable_qs = self._map_indicator_to_questions(indicator)
+
+            match = {
+                "indicator": indicator["name"],
+                "value": indicator["value"],
+                "confidence": confidence,
+                "context": indicator.get("context", ""),
+                "applicable_questions": applicable_qs
+            }
+
+            detailed_matches.append(match)
+
+            # Registrar
+            if self.evidence_registry:
+                self.evidence_registry.register(
+                    source_component="feasibility_scorer",
+                    evidence_type="feasibility_indicator",
+                    content=match,
+                    confidence=confidence,
+                    applicable_questions=applicable_qs
+                )
+
+        # Calcular scores por dimensión (ordenado para determinismo)
+        for dim in sorted(set(i.get("dimension", "unknown") for i in indicators)):
+            dim_indicators = [i for i in indicators if i.get("dimension") == dim]
+            if dim_indicators:
+                dimension_scores[dim] = np.mean([i["value"] for i in dim_indicators])
+
+        overall_score = np.mean(list(dimension_scores.values())) if dimension_scores else 0.0
+
+        return {
+            "overall_score": float(overall_score),
+            "dimension_scores": dimension_scores,
+            "detailed_matches": detailed_matches,
+            "confidence": float(np.mean([m["confidence"] for m in detailed_matches])) if detailed_matches else 0.0,
+            "provenance": {
+                "plan_name": plan_name,
+                "detector": "feasibility_scorer",
+                "seed": self.seed
+            }
+        }
+
+    def _detect_indicators_deterministic(self, text: str) -> List[Dict]:
+        """Detectar indicadores con ORDEN DETERMINISTA."""
+        # Implementación que garantiza mismo orden siempre
+        indicators = []
+
+        # Procesar en bloques de tamaño fijo
+        for i in range(0, len(text), 1000):
+            block = text[i:i+1000]
+            # Extraer indicadores del bloque
+            block_indicators = self._extract_from_block(block, i)
+            indicators.extend(block_indicators)
+
+        return indicators
+
+    def _calculate_confidence_deterministic(self, indicator: Dict) -> float:
+        """Calcular confidence SIN randomness."""
+        confidence = 0.7
+
+        if indicator.get("has_baseline", False):
+            confidence += 0.15
+
+        if indicator.get("has_target", False):
+            confidence += 0.15
+
+        return min(1.0, confidence)
+
+    def _map_indicator_to_questions(self, indicator: Dict) -> List[str]:
+        """Mapear indicador a preguntas."""
+        questions = []
+
+        # Indicadores de viabilidad (D4)
+        questions.extend([f"D4-Q{i}" for i in [1, 3, 5, 8, 10]])
+
+        # Si tiene línea base, D1
+        if indicator.get("has_baseline"):
+            questions.extend([f"D1-Q{i}" for i in [3, 5]])
+
+        return questions
+
+    # ...existing code...
+
 
 # Example usage when run as a script
 if __name__ == "__main__":
@@ -1871,6 +1983,68 @@ Examples:
         action="store_true",
         help="Generate consolidated traceability matrix CSV file",
     )
+    parser.add_argument(
+        "--export-json",
+        action="store_true",
+        help="Export results as JSON file",
+    )
+    parser.add_argument(
+        "--export-markdown",
+        action="store_true",
+        help="Export results as Markdown report",
+    )
+
+    args = parser.parse_args()
+
+    # Demo mode: run built-in examples
+    if args.demo:
+        demo_indicators = [
+            "Incrementar la línea base de 65% a una meta de 85% para 2025",
+            "Reducir la tasa de desempleo al 8% para 2027",
+            "Aumentar la cobertura educativa al 95% para el año 2027",
+            "Construir 500 viviendas de interés social en 4 años",
+            "Mejorar el acceso a servicios de salud esenciales",
+            "Aumentar el porcentaje de satisfacción del ciudadano con la administración pública",
+            "Disminuir el índice de criminalidad en un 20% para el año 2025",
+            "Incrementar la cobertura de internet de alta velocidad en zonas rurales",
+            "Reducir la deserción escolar en educación media a menos del 10%",
+            "Aumentar el número de convenios de cofinanciación para proyectos de infraestructura",
+        ]
+
+        print("Running demo evaluations...")
+        for indicator in demo_indicators:
+            print(f"\nEvaluating indicator: {indicator}")
+            result = scorer.evaluate_indicator(indicator)
+            print(f"Feasibility Score: {result.feasibility_score:.2f}")
+            print(f"SMART Score: {result.smart_score:.2f}")
+            print(f"Has Baseline: {result.has_baseline}")
+            print(f"Has Target: {result.has_target}")
+            print(f"Has Timeframe: {result.has_timeframe}")
+            print(f"Components Detected: {[c.component_type.value for c in result.components]}")
+
+        return 0
+
+    # Normal operation: evaluate provided text or batch file
+    if args.text:
+        indicator_texts = [args.text]
+    elif args.batch_file:
+        try:
+            with open(args.batch_file, "r", encoding="utf-8") as f:
+                indicator_texts = [line.strip() for line in f if line.strip()]
+        except Exception as e:
+            logger.error(f"Error reading batch file: {e}")
+            return 1
+
+    # Evaluate indicators
+    results = scorer.evaluate_indicators(indicator_texts)
+
+    # Export results
+    if args.export_csv:
+        scorer.generate_traceability_matrix_csv(
+            {f"Indicator {i+1}": result for i, result in enumerate(results)},
+            output_dir=args.output_dir,
+        )
+
     if args.export_json:
         json_path = output_dir / "resultados_factibilidad.json"
         json_data = {}
