@@ -104,7 +104,7 @@ Examples:
         "--mode",
         type=str,
         default="feasibility",
-        choices=["feasibility", "decatalogo", "embedding", "demo"],
+        choices=["feasibility", "embedding", "demo"],
         help="Processing mode to execute (default: feasibility)",
     )
 
@@ -471,81 +471,6 @@ def run_demo_mode(args: argparse.Namespace) -> int:
         return 1
 
 
-def run_decatalogo_mode(args: argparse.Namespace) -> int:
-    """Execute Decatalogo evaluation mode."""
-    os.environ["CLI_WORKERS"] = str(args.workers)
-    os.environ["CLI_DEVICE"] = args.device
-    os.environ["CLI_PRECISION"] = args.precision
-    os.environ["CLI_TOPK"] = str(args.topk)
-    os.environ["CLI_UMBRAL"] = str(args.umbral)
-    os.environ["CLI_MAX_SEGMENTOS"] = str(args.max_segmentos)
-    os.environ["CLI_INPUT_DIR"] = args.input
-    os.environ["CLI_OUTPUT_DIR"] = args.outdir
-
-    try:
-        from Decatalogo_evaluador import IndustrialDecatalogoEvaluatorFull
-    except ImportError:
-        LOGGER.exception("Decatalogo evaluator module not available")
-        return 1
-
-    LOGGER.info(
-        "Running Decatalogo evaluation with input=%s output=%s", args.input, args.outdir
-    )
-
-    evaluator = IndustrialDecatalogoEvaluatorFull()
-
-    input_path = Path(args.input)
-    text_files = list(input_path.glob("*.txt"))
-
-    if not text_files:
-        LOGGER.warning("No text files found in %s", args.input)
-        return 1
-
-    LOGGER.info("Found %s files to evaluate", len(text_files))
-
-    for file_path in text_files:
-        try:
-            with open(file_path, "r", encoding="utf-8") as source_file:
-                content = source_file.read()
-
-            for punto_id in range(1, 11):
-                result = evaluator.evaluar_punto_completo(content, punto_id)
-                output_file = (
-                    Path(args.outdir)
-                    / f"decatalogo_punto_{punto_id}_{file_path.stem}.json"
-                )
-                with open(output_file, "w", encoding="utf-8") as output_handle:
-                    json.dump(
-                        {
-                            "punto_id": result.punto_id,
-                            "nombre_punto": result.nombre_punto,
-                            "puntaje_agregado": result.puntaje_agregado_punto,
-                            "evaluaciones_dimensiones": [
-                                {
-                                    "dimension": ed.dimension,
-                                    "puntaje": ed.puntaje_dimension,
-                                    "preguntas_evaluadas": len(
-                                        ed.evaluaciones_preguntas
-                                    ),
-                                }
-                                for ed in result.evaluaciones_dimensiones
-                            ],
-                        },
-                        output_handle,
-                        indent=2,
-                        ensure_ascii=False,
-                    )
-
-            LOGGER.info("Processed %s", file_path.name)
-        except OSError as exc:
-            LOGGER.warning("Error processing %s: %s", file_path, exc)
-        except Exception:
-            LOGGER.exception("Unexpected error processing %s", file_path)
-
-    LOGGER.info("Decatalogo evaluation complete. Results in %s", args.outdir)
-    return 0
-
-
 def main():
     """Main entry point for the CLI application."""
 
@@ -597,8 +522,6 @@ def main():
         return run_embedding_mode(args)
     elif args.mode == "demo":
         return run_demo_mode(args)
-    elif args.mode == "decatalogo":
-        return run_decatalogo_mode(args)
     else:
         LOGGER.error("Unknown mode: %s", args.mode)
         return 1

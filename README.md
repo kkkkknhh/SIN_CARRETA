@@ -126,9 +126,8 @@ como al motor de contradicciones:
   `decalogo-industrial.latest.clean.json`, `dnp-standards.latest.clean.json`, además del `crosswalk.latest.json`).
 - **Contratos y validación**: `pdm_contra/bridges/decalogo_loader_adapter.py` aplica los esquemas JSON incluidos en `schemas/`
   para asegurar integridad de dominios, clusters y crosswalks antes de exponer el bundle como diccionario Python.
-- **Consumidores principales**: `Decatalogo_principal.py` construye el contexto industrial completo y `Decatalogo_evaluador.py`
-  orquesta la evaluación de evidencias integrando contradicciones, responsabilidades, patrones de factibilidad y señales
-  monetarias.
+- **Consumidores principales**: `Decatalogo_principal.py` construye el contexto industrial completo y orquesta la evaluación 
+  de evidencias integrando contradicciones, responsabilidades, patrones de factibilidad y señales monetarias.
 - **Uso rápido**:
   ```python
   from pdm_contra.bridges.decatalogo_provider import provide_decalogos
