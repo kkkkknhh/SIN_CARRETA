@@ -7,12 +7,22 @@ Data Flow Contract Validator
 Defines and enforces contracts for each node in the canonical MINIMINIMOON pipeline.
 Ensures that each component receives valid inputs and produces valid outputs,
 maintaining data integrity throughout the flow.
+
+Performance Optimizations:
+- Memoization cache for validation results with input hash-based keys
+- LRU eviction policy with configurable size limits
+- Cache invalidation based on contract version changes
 """
 
 import logging
+import hashlib
+import json
+import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Callable
+from typing import Any, Dict, List, Optional, Set, Callable, Tuple
 from enum import Enum
+from functools import wraps
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +41,97 @@ class DataType(Enum):
     TEORIA_CAMBIO = "teoria_cambio"
     DAG_STRUCTURE = "dag_structure"
     METADATA = "metadata"
+
+
+class ValidationCache:
+    """
+    LRU cache for validation results with hash-based memoization.
+    
+    Reduces validation overhead by caching results based on input hashes.
+    Implements size-based eviction to prevent memory growth.
+    """
+    
+    def __init__(self, max_size: int = 1000):
+        self.max_size = max_size
+        self.cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+        self.hits = 0
+        self.misses = 0
+        self._version = "1.0"
+    
+    def _compute_hash(self, data: Dict[str, Any], node_name: str) -> str:
+        """Compute stable hash for input data"""
+        try:
+            # Sort keys for deterministic hashing
+            stable_repr = json.dumps(
+                {k: self._hashable_value(v) for k, v in sorted(data.items())},
+                sort_keys=True,
+                default=str
+            )
+            hash_input = f"{node_name}:{self._version}:{stable_repr}"
+            return hashlib.sha256(hash_input.encode()).hexdigest()
+        except Exception:
+            return None
+    
+    def _hashable_value(self, value: Any) -> Any:
+        """Convert value to hashable representation"""
+        if isinstance(value, (str, int, float, bool, type(None))):
+            return value
+        elif isinstance(value, (list, tuple)):
+            return str(value[:100])  # Limit list size for hashing
+        elif isinstance(value, dict):
+            return str({k: str(v)[:100] for k, v in list(value.items())[:10]})
+        else:
+            return str(type(value))
+    
+    def get(self, data: Dict[str, Any], node_name: str) -> Optional[Tuple[bool, Dict[str, Any]]]:
+        """Get cached validation result"""
+        cache_key = self._compute_hash(data, node_name)
+        if cache_key is None:
+            return None
+        
+        if cache_key in self.cache:
+            self.hits += 1
+            # Move to end (most recently used)
+            self.cache.move_to_end(cache_key)
+            cached = self.cache[cache_key]
+            return cached["result"], cached["report"]
+        
+        self.misses += 1
+        return None
+    
+    def put(self, data: Dict[str, Any], node_name: str, result: bool, report: Dict[str, Any]):
+        """Store validation result in cache"""
+        cache_key = self._compute_hash(data, node_name)
+        if cache_key is None:
+            return
+        
+        # Evict oldest if at capacity
+        if len(self.cache) >= self.max_size and cache_key not in self.cache:
+            self.cache.popitem(last=False)
+        
+        self.cache[cache_key] = {
+            "result": result,
+            "report": report,
+            "timestamp": time.time()
+        }
+    
+    def clear(self):
+        """Clear all cached results"""
+        self.cache.clear()
+        self.hits = 0
+        self.misses = 0
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get cache statistics"""
+        total = self.hits + self.misses
+        hit_rate = self.hits / total if total > 0 else 0.0
+        return {
+            "size": len(self.cache),
+            "max_size": self.max_size,
+            "hits": self.hits,
+            "misses": self.misses,
+            "hit_rate": hit_rate
+        }
 
 
 @dataclass
@@ -94,15 +195,23 @@ class CanonicalFlowValidator:
     Validator for the canonical MINIMINIMOON pipeline flow.
 
     Maintains contracts for all nodes and validates the entire flow.
+    Includes performance-optimized validation with memoization caching.
     """
 
-    def __init__(self):
-        """Initialize with canonical node contracts"""
+    def __init__(self, enable_cache: bool = True, cache_size: int = 1000):
+        """
+        Initialize with canonical node contracts.
+        
+        Args:
+            enable_cache: Enable validation result caching
+            cache_size: Maximum number of cached results (LRU eviction)
+        """
         self.contracts: Dict[str, NodeContract] = {}
         self.execution_order: List[str] = []
+        self._cache = ValidationCache(max_size=cache_size) if enable_cache else None
         self._build_canonical_contracts()
 
-        logger.info("CanonicalFlowValidator initialized")
+        logger.info(f"CanonicalFlowValidator initialized (cache={'enabled' if enable_cache else 'disabled'})")
 
     def _build_canonical_contracts(self):
         """Build contracts for all canonical pipeline nodes"""
@@ -251,24 +360,37 @@ class CanonicalFlowValidator:
         self,
         node_name: str,
         available_data: Dict[str, Any],
-        outputs: Optional[Dict[str, Any]] = None
+        outputs: Optional[Dict[str, Any]] = None,
+        use_cache: bool = True
     ) -> tuple[bool, Dict[str, Any]]:
         """
         Validate a node's execution (inputs and optionally outputs).
+        
+        Performance-optimized with memoization cache to reduce validation overhead.
 
         Args:
             node_name: Name of the node
             available_data: Data available before node execution
             outputs: Data produced by node (optional, for post-validation)
+            use_cache: Use cached results if available
 
         Returns:
             (is_valid, report_dict)
         """
+        # Try cache first if enabled
+        if use_cache and self._cache is not None and outputs is None:
+            cached = self._cache.get(available_data, node_name)
+            if cached is not None:
+                is_valid, report = cached
+                report["cached"] = True
+                return is_valid, report
+        
         if node_name not in self.contracts:
             return False, {
                 "valid": False,
                 "node": node_name,
-                "error": f"Unknown node: {node_name}"
+                "error": f"Unknown node: {node_name}",
+                "cached": False
             }
 
         contract = self.contracts[node_name]
@@ -277,7 +399,8 @@ class CanonicalFlowValidator:
             "valid": True,
             "input_validation": {},
             "output_validation": {},
-            "errors": []
+            "errors": [],
+            "cached": False
         }
 
         # Validate inputs
@@ -302,6 +425,10 @@ class CanonicalFlowValidator:
             if not output_valid:
                 report["valid"] = False
                 report["errors"].extend(output_errors)
+
+        # Cache result if only input validation (outputs=None)
+        if use_cache and self._cache is not None and outputs is None:
+            self._cache.put(available_data, node_name, report["valid"], report)
 
         return report["valid"], report
 
@@ -380,6 +507,18 @@ class CanonicalFlowValidator:
         """Get contract for a specific node"""
         return self.contracts.get(node_name)
 
+    def clear_cache(self):
+        """Clear validation cache"""
+        if self._cache is not None:
+            self._cache.clear()
+            logger.info("Validation cache cleared")
+    
+    def get_cache_stats(self) -> Optional[Dict[str, Any]]:
+        """Get cache performance statistics"""
+        if self._cache is not None:
+            return self._cache.get_stats()
+        return None
+
     def generate_flow_report(self, executed_nodes: List[str], node_reports: Dict[str, Dict]) -> Dict[str, Any]:
         """
         Generate comprehensive flow validation report.
@@ -399,7 +538,7 @@ class CanonicalFlowValidator:
             for report in node_reports.values()
         )
 
-        return {
+        report = {
             "flow_valid": dep_valid and all_nodes_valid,
             "canonical_order_followed": order_valid,
             "dependencies_satisfied": dep_valid,
@@ -414,4 +553,11 @@ class CanonicalFlowValidator:
                 "invalid_nodes": sum(1 for r in node_reports.values() if not r.get("valid", True)),
             }
         }
+        
+        # Add cache stats if available
+        cache_stats = self.get_cache_stats()
+        if cache_stats is not None:
+            report["cache_stats"] = cache_stats
+        
+        return report
 

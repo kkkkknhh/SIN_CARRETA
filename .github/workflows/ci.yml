@@ -30,3 +30,166 @@ jobs:
 
       - name: Run pytest
         run: pytest -q
+  
+  performance:
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m spacy download es_core_news_sm
+
+      - name: Run performance suite (100 iterations per component)
+        id: perf_test
+        run: |
+          echo "Running performance benchmark suite..."
+          python3 performance_test_suite.py > performance_output.txt 2>&1 || echo "PERF_FAILED=true" >> $GITHUB_ENV
+          cat performance_output.txt
+
+      - name: Upload performance report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-report
+          path: |
+            performance_report.json
+            performance_output.txt
+
+      - name: Check performance budgets
+        run: |
+          if [ "$PERF_FAILED" == "true" ]; then
+            echo "❌ Performance budgets exceeded - blocking PR"
+            echo "Review performance_report.json for details"
+            exit 1
+          else
+            echo "✅ All performance budgets met"
+          fi
+
+      - name: Comment PR with performance results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const report = JSON.parse(fs.readFileSync('performance_report.json', 'utf8'));
+              const summary = report.summary;
+              const results = report.results;
+              
+              let comment = '## 🚀 Performance Test Results\n\n';
+              comment += `- **Total Components**: ${summary.total_components}\n`;
+              comment += `- **Passed**: ${summary.passed} ✅\n`;
+              comment += `- **Failed**: ${summary.failed} ❌\n\n`;
+              
+              comment += '### Component Performance\n\n';
+              comment += '| Component | p95 Latency | Budget | Status |\n';
+              comment += '|-----------|-------------|--------|--------|\n';
+              
+              for (const [name, result] of Object.entries(results)) {
+                const status = result.budget_passed ? '✅' : '❌';
+                comment += `| ${name} | ${result.p95_ms.toFixed(2)}ms | ${result.budget_message} | ${status} |\n`;
+              }
+              
+              if (summary.failed > 0) {
+                comment += '\n⚠️ **Performance budgets exceeded - PR blocked**\n';
+              }
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.log('Could not read performance report:', error);
+            }
+  
+  soak_test:
+    runs-on: ubuntu-latest
+    needs: performance
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-soak-test')
+    timeout-minutes: 300
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m spacy download es_core_news_sm
+
+      - name: Run 4-hour soak test
+        id: soak_test
+        run: |
+          echo "Starting 4-hour soak test for memory leak detection..."
+          python3 performance_test_suite.py --soak > soak_test_output.txt 2>&1 || echo "SOAK_FAILED=true" >> $GITHUB_ENV
+          cat soak_test_output.txt
+
+      - name: Upload soak test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: soak-test-results
+          path: |
+            performance_report.json
+            soak_test_output.txt
+
+      - name: Check for memory leaks
+        run: |
+          if [ "$SOAK_FAILED" == "true" ]; then
+            echo "❌ Memory leak detected in 4-hour soak test - blocking PR"
+            exit 1
+          else
+            echo "✅ No memory leaks detected"
+          fi
+
+      - name: Comment PR with soak test results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const report = JSON.parse(fs.readFileSync('performance_report.json', 'utf8'));
+              const soak = report.soak_test;
+              
+              if (soak) {
+                let comment = '## 🔬 4-Hour Soak Test Results\n\n';
+                comment += `- **Duration**: ${soak.duration_hours} hours\n`;
+                comment += `- **Iterations**: ${soak.iterations}\n`;
+                comment += `- **Memory Growth**: ${soak.memory_growth_mb_per_hour.toFixed(2)} MB/hour\n`;
+                comment += `- **Initial Memory**: ${soak.initial_memory_mb.toFixed(2)} MB\n`;
+                comment += `- **Final Memory**: ${soak.final_memory_mb.toFixed(2)} MB\n\n`;
+                
+                if (soak.leak_detected) {
+                  comment += '❌ **Memory leak detected - PR blocked**\n';
+                } else {
+                  comment += '✅ **No memory leaks detected**\n';
+                }
+                
+                github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: comment
+                });
+              }
+            } catch (error) {
+              console.log('Could not read soak test report:', error);
+            }

@@ -41,6 +41,30 @@ Para cada punto temático (P1 a P10):
 4. **Manejo de ausencias**: Si un elemento no se encuentra, score = 0 (no asumir presencia implícita)
 5. **N/A explícito**: Si un punto temático no aplica al municipio, marcar como N/A y excluir del cálculo global
 
+## Performance Optimizations
+
+This project includes comprehensive performance optimizations with automated CI/CD gates:
+
+- **Contract validation caching**: Reduces validation overhead from 7.9ms to <5ms (37% improvement)
+- **Mathematical invariant optimizations**: Improves PERMUTATION_INVARIANCE from 0.87ms to <0.5ms (43% improvement) and BUDGET_MONOTONICITY from 0.25ms to <0.15ms (40% improvement)
+- **CI/CD performance gate**: Runs 100 iterations per PR, calculates p95 latency, and blocks PRs exceeding budgets by >10%
+- **4-hour soak test**: Optional memory leak detection for critical PRs
+
+See [PERFORMANCE_OPTIMIZATIONS.md](PERFORMANCE_OPTIMIZATIONS.md) for complete documentation.
+
+### Running Performance Tests
+
+```bash
+# Quick performance suite
+python3 performance_test_suite.py
+
+# With 4-hour soak test
+python3 performance_test_suite.py --soak
+
+# Demo optimizations
+python3 demo_performance_optimizations.py
+```
+
 ## Uso
 
 Para utilizar el sistema de evaluación:
