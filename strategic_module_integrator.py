@@ -225,6 +225,14 @@ class StrategicModuleIntegrator:
         """
         Maps a questionnaire question to contributing modules based on
         question semantics and required evidence types.
+
+        REAL DIMENSIONS FROM decalogo_industrial.json:
+        D1: INSUMOS (diagnóstico, líneas base, recursos, capacidades)
+        D2: ACTIVIDADES (formalización, mecanismos causales, teoría de intervención)
+        D3: PRODUCTOS (outputs con indicadores verificables)
+        D4: RESULTADOS (outcomes con métricas y encadenamiento causal)
+        D5: IMPACTOS (efectos de largo plazo, proxies, alineación marcos)
+        D6: CAUSALIDAD (teoría de cambio explícita, DAG, validación lógica)
         """
 
         strategy = QuestionResponseStrategy(
@@ -237,101 +245,108 @@ class StrategicModuleIntegrator:
         # Analyze question to determine required modules
         question_lower = question_text.lower()
 
-        # Dimension-based module mapping
-        if dimension == "D1":  # Problemas identificados
+        # Dimension-based module mapping - CORREGIDO CON DIMENSIONES REALES
+        if dimension == "D1":  # INSUMOS - Diagnóstico, líneas base, recursos, capacidades
             strategy.contributing_modules.extend([
-                self.module_capabilities["causal_pattern_detector"],
                 self.module_capabilities["evidence_registry"],
                 self.module_capabilities["document_segmenter"],
+                self.module_capabilities["monetary_detector"],
                 self.module_capabilities["pdm_nlp_modules"],
             ])
             strategy.response_structure = {
-                "paragraph_1": "Problem identification and evidence",
-                "paragraph_2": "Causal analysis and relationships",
-                "paragraph_3": "Validation and quality assessment"
+                "paragraph_1": "Baseline and diagnostic data quality assessment",
+                "paragraph_2": "Resource allocation and institutional capacity analysis",
+                "paragraph_3": "Coherence between objectives, resources and capabilities"
             }
 
-        elif dimension == "D2":  # Objetivos
+        elif dimension == "D2":  # ACTIVIDADES - Formalización, mecanismos causales
+            strategy.contributing_modules.extend([
+                self.module_capabilities["plan_processor"],
+                self.module_capabilities["responsibility_detector"],
+                self.module_capabilities["causal_pattern_detector"],
+                self.module_capabilities["feasibility_scorer"],
+            ])
+            strategy.response_structure = {
+                "paragraph_1": "Activity formalization and structure analysis",
+                "paragraph_2": "Causal mechanisms and intervention theory validation",
+                "paragraph_3": "Complementarities, sequencing and risk assessment"
+            }
+
+        elif dimension == "D3":  # PRODUCTOS - Outputs con indicadores verificables
+            strategy.contributing_modules.extend([
+                self.module_capabilities["plan_processor"],
+                self.module_capabilities["evidence_registry"],
+                self.module_capabilities["contradiction_detector"],
+                self.module_capabilities["monetary_detector"],
+            ])
+            strategy.response_structure = {
+                "paragraph_1": "Product definition and verifiable indicators",
+                "paragraph_2": "Coverage, dosage and proportionality to gap",
+                "paragraph_3": "Budget traceability and activity linkage validation"
+            }
+
+        elif dimension == "D4":  # RESULTADOS - Outcomes con métricas y encadenamiento
+            strategy.contributing_modules.extend([
+                self.module_capabilities["teoria_cambio"],
+                self.module_capabilities["feasibility_scorer"],
+                self.module_capabilities["causal_pattern_detector"],
+                self.module_capabilities["contradiction_detector"],
+            ])
+            strategy.response_structure = {
+                "paragraph_1": "Outcome metrics specification and maturation window",
+                "paragraph_2": "Product-to-result causal chaining with assumptions",
+                "paragraph_3": "Ambition level consistency and alignment validation"
+            }
+
+        elif dimension == "D5":  # IMPACTOS - Efectos de largo plazo
             strategy.contributing_modules.extend([
                 self.module_capabilities["teoria_cambio"],
                 self.module_capabilities["dag_validation"],
                 self.module_capabilities["feasibility_scorer"],
-                self.module_capabilities["contradiction_detector"],
-            ])
-            strategy.response_structure = {
-                "paragraph_1": "Objective specification and alignment",
-                "paragraph_2": "Theory of change logic validation",
-                "paragraph_3": "Feasibility assessment and risks"
-            }
-
-        elif dimension == "D3":  # Indicadores
-            strategy.contributing_modules.extend([
-                self.module_capabilities["monetary_detector"],
                 self.module_capabilities["evidence_registry"],
-                self.module_capabilities["feasibility_scorer"],
-                self.module_capabilities["plan_processor"],
             ])
             strategy.response_structure = {
-                "paragraph_1": "Indicator specification and measurement",
-                "paragraph_2": "Data quality and availability analysis",
-                "paragraph_3": "Baseline and target validation"
+                "paragraph_1": "Long-term impact definition and transmission routes",
+                "paragraph_2": "Result-to-impact integration and proxy validity",
+                "paragraph_3": "Systemic risks, external validity and ambition realism"
             }
 
-        elif dimension == "D4":  # Productos y actividades
+        elif dimension == "D6":  # CAUSALIDAD - Teoría de cambio explícita, DAG
             strategy.contributing_modules.extend([
-                self.module_capabilities["plan_processor"],
-                self.module_capabilities["responsibility_detector"],
-                self.module_capabilities["feasibility_scorer"],
-                self.module_capabilities["monetary_detector"],
-            ])
-            strategy.response_structure = {
-                "paragraph_1": "Activity specification and sequencing",
-                "paragraph_2": "Resource allocation and responsibility",
-                "paragraph_3": "Implementation feasibility"
-            }
-
-        elif dimension == "D5":  # Supuestos y riesgos
-            strategy.contributing_modules.extend([
-                self.module_capabilities["contradiction_detector"],
                 self.module_capabilities["teoria_cambio"],
                 self.module_capabilities["dag_validation"],
-                self.module_capabilities["feasibility_scorer"],
+                self.module_capabilities["causal_pattern_detector"],
+                self.module_capabilities["contradiction_detector"],
             ])
             strategy.response_structure = {
-                "paragraph_1": "Assumption identification and validation",
-                "paragraph_2": "Risk analysis and mitigation strategies",
-                "paragraph_3": "Critical dependency mapping"
-            }
-
-        elif dimension == "D6":  # Stakeholders y gobernanza
-            strategy.contributing_modules.extend([
-                self.module_capabilities["responsibility_detector"],
-                self.module_capabilities["evidence_registry"],
-                self.module_capabilities["pdm_nli_policy_modules"],
-            ])
-            strategy.response_structure = {
-                "paragraph_1": "Stakeholder identification and roles",
-                "paragraph_2": "Governance structure analysis",
-                "paragraph_3": "Participation mechanisms validation"
+                "paragraph_1": "Explicit theory of change with causal diagram",
+                "paragraph_2": "DAG validation, acyclicity and logical consistency",
+                "paragraph_3": "Evidence backing and sensitivity to key assumptions"
             }
 
         # Add keyword-based module selection
-        if any(kw in question_lower for kw in ["causal", "causa", "efecto", "impacto"]):
+        if any(kw in question_lower for kw in ["causal", "causa", "efecto", "impacto", "teoría", "mecanismo"]):
             if self.module_capabilities["causal_pattern_detector"] not in strategy.contributing_modules:
                 strategy.contributing_modules.append(
                     self.module_capabilities["causal_pattern_detector"]
                 )
 
-        if any(kw in question_lower for kw in ["presupuesto", "costo", "gasto", "financ"]):
+        if any(kw in question_lower for kw in ["presupuesto", "costo", "gasto", "financ", "recursos"]):
             if self.module_capabilities["monetary_detector"] not in strategy.contributing_modules:
                 strategy.contributing_modules.append(
                     self.module_capabilities["monetary_detector"]
                 )
 
-        if any(kw in question_lower for kw in ["responsable", "actor", "instituc"]):
+        if any(kw in question_lower for kw in ["responsable", "actor", "instituc", "actividad"]):
             if self.module_capabilities["responsibility_detector"] not in strategy.contributing_modules:
                 strategy.contributing_modules.append(
                     self.module_capabilities["responsibility_detector"]
+                )
+
+        if any(kw in question_lower for kw in ["línea base", "diagnóstico", "indicador", "métrica"]):
+            if self.module_capabilities["evidence_registry"] not in strategy.contributing_modules:
+                strategy.contributing_modules.append(
+                    self.module_capabilities["evidence_registry"]
                 )
 
         # Set aggregation strategy
@@ -792,4 +807,3 @@ if __name__ == "__main__":
     print("✅ Multi-paragraph explanatory responses guaranteed")
 
     sys.exit(0)
-
