@@ -2904,14 +2904,14 @@ class ExtractorEvidenciaIndustrialAvanzado:
                             umbral_certeza=args.umbral,
                         )
 
-                        # Evaluar coherencia
-                        coherencia = dimension.evaluar_coherencia_causal_avanzada()
+                        # Evaluar coherencia usando EvidenceRegistry si está disponible
+                        coherencia = dimension.evaluar_coherencia_causal_avanzada(evidence_registry=None)
 
-                        # Calcular KPIs
-                        kpis = dimension.calcular_kpi_global_avanzado()
+                        # Calcular KPIs usando EvidenceRegistry si está disponible
+                        kpis = dimension.calcular_kpi_global_avanzado(evidence_registry=None)
 
-                        # Generar matriz de riesgos
-                        riesgos = dimension.generar_matriz_riesgos_avanzada()
+                        # Generar matriz de riesgos usando EvidenceRegistry si está disponible
+                        riesgos = dimension.generar_matriz_riesgos_avanzada(evidence_registry=None)
 
                         resultados_evaluacion[dimension.nombre] = {
                             "dimension_id": dimension_id,
