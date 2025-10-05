@@ -28,6 +28,8 @@ python3 -m py_compile responsibility_detector.py
 python3 -m py_compile decalogo_loader.py
 # SpaCy model loader components
 python3 -m py_compile spacy_loader.py
+# Deployment infrastructure components
+python3 -m py_compile canary_deployment.py opentelemetry_instrumentation.py slo_monitoring.py
 ```
 
 ### Lint
@@ -45,6 +47,9 @@ python3 -m py_compile responsibility_detector.py test_responsibility_detector.py
 python3 -m py_compile decalogo_loader.py test_decalogo_loader.py
 # SpaCy model loader components
 python3 -m py_compile spacy_loader.py test_spacy_loader.py
+# Deployment infrastructure components
+python3 -m py_compile canary_deployment.py opentelemetry_instrumentation.py slo_monitoring.py
+python3 -m py_compile test_canary_deployment.py test_opentelemetry_instrumentation.py test_slo_monitoring.py
 ```
 
 ### Test
@@ -58,6 +63,10 @@ python3 -m pytest test_responsibility_detector.py -v
 python3 -m pytest test_decalogo_loader.py -v
 # SpaCy model loader tests
 python3 -m pytest test_spacy_loader.py -v
+# Deployment infrastructure tests
+python3 -m pytest test_canary_deployment.py -v
+python3 -m pytest test_opentelemetry_instrumentation.py -v
+python3 -m pytest test_slo_monitoring.py -v
 # Additional tests if available
 python3 test_unicode_normalization.py 2>/dev/null || echo "Text processing tests not available"
 python3 test_dag_validation.py 2>/dev/null || echo "DAG validation tests not available"
@@ -75,6 +84,9 @@ python3 responsibility_detector.py
 python3 -c "from decalogo_loader import get_decalogo_industrial; print(get_decalogo_industrial())"
 # SpaCy model loader demo
 python3 spacy_loader.py
+# Deployment infrastructure demos
+python3 deployment_example.py
+python3 test_deployment_integration.py
 # Additional demos if available
 python3 demo_unicode_comparison.py 2>/dev/null || echo "Text processing demo not available"
 python3 dag_validation.py 2>/dev/null || echo "DAG validation demo not available"
@@ -157,6 +169,43 @@ teoria_cambio.py               # TeoriaCambio class with cached causal graph con
 ├── construir_grafo_causal()   # Cached graph construction method
 ├── _crear_grafo_causal()      # Private graph creation method
 └── invalidar_cache_grafo()    # Cache invalidation method
+
+# Deployment Infrastructure Components
+canary_deployment.py           # Canary deployment with progressive traffic routing
+├── CanaryDeploymentController # Main deployment controller
+├── TrafficRouter              # Routes traffic between baseline and canary (5%→25%→100%)
+├── MetricsCollector           # Real-time metrics collection and analysis
+├── RollbackThresholds         # Automated rollback triggers (error rate, latency, contracts)
+├── DeploymentResult           # Deployment result tracking
+└── create_canary_controller() # Factory function for easy setup
+
+test_canary_deployment.py      # Comprehensive test suite for canary deployment
+
+opentelemetry_instrumentation.py # OpenTelemetry distributed tracing
+├── TracingManager             # Manages tracing initialization and span creation
+├── FlowType (28 flows)        # Critical flow enumeration (document, evidence, evaluation, validation, infrastructure)
+├── ComponentType (11 comps)   # Pipeline component enumeration
+├── @trace_flow decorator      # Decorator for tracing critical flows
+├── @trace_component decorator # Decorator for tracing pipeline components
+├── SpanLogger                 # Logger with trace context correlation (Phase 0 integration)
+└── Context propagation        # Inject/extract trace context across service boundaries
+
+test_opentelemetry_instrumentation.py # Comprehensive test suite for OpenTelemetry
+
+slo_monitoring.py              # SLO monitoring and alerting system
+├── SLOMonitor                 # Main monitoring class
+├── MetricsAggregator          # Aggregates metrics across time windows
+├── SLOThresholds              # Threshold configuration (99.5% availability, 200ms p95, 0.1% error)
+├── AlertType                  # Contract violations, performance regressions, fault recovery
+├── DashboardDataGenerator     # Generates dashboard data with visual indicators
+├── FlowMetrics                # Per-flow metrics (availability, latency, error rate)
+└── create_slo_monitor()       # Factory function with phase integration
+
+test_slo_monitoring.py         # Comprehensive test suite for SLO monitoring
+
+# Integration Components
+test_deployment_integration.py # Integration test for canary + tracing + monitoring
+deployment_example.py          # Example deployment with monitoring
 ```
 
 ## Code Style
@@ -169,3 +218,55 @@ teoria_cambio.py               # TeoriaCambio class with cached causal graph con
 - Statistical interpretation warnings to prevent misuse
 - Atomic file operations for deployment safety
 - No SystemExit calls - graceful error handling with degraded mode fallback
+
+## Deployment Infrastructure
+
+The system includes comprehensive canary deployment, distributed tracing, and SLO monitoring infrastructure:
+
+### Key Features
+
+1. **Canary Deployment** - Progressive traffic routing (5%→25%→100%) with automated rollback on:
+   - Contract violations (Phase 6 integration)
+   - Error rate exceeding 10%
+   - P95 latency exceeding 500ms
+
+2. **OpenTelemetry Tracing** - Instrumentation for:
+   - 28 critical flows (document processing, evidence extraction, evaluation, validation, infrastructure)
+   - 11 pipeline components (segmenter, embedding model, detectors, evaluators, orchestrator)
+   - Context propagation across service boundaries
+   - Trace ID correlation with Phase 0 structured logging
+
+3. **SLO Monitoring** - Real-time monitoring with thresholds:
+   - Availability: 99.5%
+   - P95 Latency: 200ms
+   - Error Rate: 0.1%
+   - Performance regression: 10% (Phase 3 integration)
+   - Fault recovery: 1.5s p99 (Phase 4 integration)
+
+### Usage Example
+
+```python
+from canary_deployment import create_canary_controller
+from slo_monitoring import create_slo_monitor
+from opentelemetry_instrumentation import initialize_tracing, trace_flow, FlowType
+
+# Initialize tracing
+initialize_tracing(service_name="decalogo-evaluation-system")
+
+# Create SLO monitor
+slo_monitor = create_slo_monitor()
+
+# Create canary controller
+controller = create_canary_controller("deployment-v2.0")
+
+# Trace critical flows
+@trace_flow(FlowType.DECALOGO_EVALUATION)
+def evaluate_plan(plan_text):
+    # Evaluation logic
+    return results
+
+# Execute deployment with monitoring
+result = controller.execute_deployment(request_generator)
+```
+
+See `DEPLOYMENT_INFRASTRUCTURE.md` for complete documentation.
