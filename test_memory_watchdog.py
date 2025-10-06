@@ -415,7 +415,7 @@ class TestIntegrationScenarios:
         # Set up callback to track terminations
         termination_events = []
         memory_watchdog.set_termination_callback(
-            lambda event: termination_events.append(event)
+            termination_events.append
         )
 
         # Mock process with high memory usage

@@ -1118,7 +1118,7 @@ class IndustrialEmbeddingModel:
         """Compute similarity with multiple distance metrics."""
 
         similarity_functions = {
-            'cosine': lambda a, b: cosine_similarity(a, b),
+            'cosine': cosine_similarity,
             'euclidean': lambda a, b: 1.0 / (1.0 + euclidean_distances(a, b)),
             'manhattan': lambda a, b: 1.0 / (1.0 + np.sum(np.abs(a[:, None, :] - b[None, :, :]), axis=2)),
             'angular': lambda a, b: 1.0 - np.arccos(np.clip(cosine_similarity(a, b), -1, 1)) / np.pi
