@@ -1,7 +1,7 @@
 # Minimal stub for econml.iv.nnet.DeepIV used in causal_pattern_detector imports
 class DeepIV:
     def __init__(self, *args, **kwargs):
-        pass
+        raise NotImplementedError()
 
     def fit(self, *args, **kwargs):
         return self
