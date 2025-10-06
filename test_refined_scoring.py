@@ -46,10 +46,9 @@ class TestRefinedScoring(unittest.TestCase):
         ]
         
         for w1, w2, w3 in invalid_weight_sets:
-            with self.subTest(w1=w1, w2=w2, w3=w3):
-                with self.assertRaises(ValueError):
-                    FactibilidadScorer(w1=w1, w2=w2, w3=w3)
-                    
+            with self.subTest(w1=w1, w2=w2, w3=w3), self.assertRaises(ValueError):
+                FactibilidadScorer(w1=w1, w2=w2, w3=w3)
+                
     def test_weight_update(self):
         """Test weight update functionality."""
         scorer = FactibilidadScorer()
