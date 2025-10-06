@@ -374,29 +374,121 @@ class AnswerAssembler:
         self._validate_rubric_coverage()
 
     def _load_rubric(self, path: Path) -> Dict[str, Any]:
+        """
+        Load and validate RUBRIC_SCORING.json structure.
+        Ensures both 'questions' and 'weights' sections exist.
+        Validates that every weight entry corresponds to a base question in questions section.
+        
+        The questions section contains base questions (e.g., D1-Q1).
+        The weights section contains expanded questions across thematic points (e.g., D1-Q1-P1).
+        Validation ensures every weight has a corresponding base question.
+        """
         with open(path, 'r', encoding='utf-8') as f:
-            rubric = json.load(f)
+            rubric_data = json.load(f)
 
-        if "questions" not in rubric or "weights" not in rubric:
-            raise ValueError(f"Rubric missing 'questions' or 'weights' keys: {path}")
+        # Validate top-level structure
+        if "questions" not in rubric_data:
+            raise ValueError(f"Rubric missing required 'questions' section: {path}")
+        if "weights" not in rubric_data:
+            raise ValueError(f"Rubric missing required 'weights' section: {path}")
 
-        return rubric
+        # Extract base question IDs from questions section
+        questions_section = rubric_data["questions"]
+        if not isinstance(questions_section, list):
+            raise ValueError(f"Rubric 'questions' must be a list: {path}")
 
-    def _validate_rubric_coverage(self):
-        """Gate #5: Ensure all questions have weights (300/300)"""
-        questions = set(self.rubric["questions"].keys())
-        weights = set(self.rubric["weights"].keys())
+        base_question_ids = set()
+        for q in questions_section:
+            if not isinstance(q, dict) or "id" not in q:
+                raise ValueError(f"Invalid question entry in rubric (missing 'id'): {q}")
+            base_question_ids.add(q["id"])
 
-        missing = questions - weights
-        extra = weights - questions
+        # Extract expanded question IDs from weights section
+        weights_section = rubric_data["weights"]
+        if not isinstance(weights_section, dict):
+            raise ValueError(f"Rubric 'weights' must be a dictionary: {path}")
 
-        if missing or extra:
+        # Validate that every weight entry corresponds to a base question
+        # Weights are in format "D1-Q1-P1", base questions are "D1-Q1"
+        weight_base_questions = set()
+        invalid_weight_ids = []
+        
+        for weight_id in weights_section.keys():
+            # Extract base question ID by removing the "-P{n}" suffix
+            parts = weight_id.split('-')
+            if len(parts) >= 3 and parts[-1].startswith('P'):
+                base_id = '-'.join(parts[:-1])
+                weight_base_questions.add(base_id)
+            else:
+                invalid_weight_ids.append(weight_id)
+
+        # Check for invalid weight IDs
+        if invalid_weight_ids:
             raise ValueError(
-                f"Rubric validation FAILED (gate #5): "
-                f"missing weights={len(missing)}, extra weights={len(extra)}"
+                f"Rubric validation FAILED: Invalid weight IDs that don't match expected format 'Dx-Qy-Pz': "
+                f"{invalid_weight_ids[:10]}{'...' if len(invalid_weight_ids) > 10 else ''}"
             )
 
-        self.logger.info(f"✓ Rubric validated (gate #5): {len(questions)}/300 questions with weights")
+        # Check for orphaned weights (weights without corresponding base questions)
+        orphaned_weights = weight_base_questions - base_question_ids
+        if orphaned_weights:
+            raise ValueError(
+                f"Rubric validation FAILED: Weight entries exist for base questions not found in 'questions' section: "
+                f"{sorted(orphaned_weights)[:10]}{'...' if len(orphaned_weights) > 10 else ''}"
+            )
+
+        # Check for base questions without any weights
+        questions_without_weights = base_question_ids - weight_base_questions
+        if questions_without_weights:
+            raise ValueError(
+                f"Rubric validation FAILED: Base questions exist without any weight entries: "
+                f"{sorted(questions_without_weights)[:10]}{'...' if len(questions_without_weights) > 10 else ''}"
+            )
+
+        # Build normalized rubric structure for internal use
+        questions_dict = {q["id"]: q for q in questions_section}
+        
+        return {
+            "questions": questions_dict,
+            "weights": weights_section,
+            "raw_data": rubric_data
+        }
+
+    def _validate_rubric_coverage(self):
+        """
+        Gate #5: Ensure all base questions have corresponding weight entries with exact 1:1 matching.
+        This validation is performed at initialization time and will fail immediately
+        if any mismatch is detected.
+        
+        Base questions (e.g., D1-Q1) must have corresponding expanded weights (e.g., D1-Q1-P1..P10).
+        """
+        base_questions = set(self.rubric["questions"].keys())
+        
+        # Extract base question IDs from weight keys
+        weight_base_questions = set()
+        for weight_id in self.rubric["weights"].keys():
+            parts = weight_id.split('-')
+            if len(parts) >= 3 and parts[-1].startswith('P'):
+                base_id = '-'.join(parts[:-1])
+                weight_base_questions.add(base_id)
+
+        # Verify 1:1 correspondence
+        missing_weights = base_questions - weight_base_questions
+        extra_weights = weight_base_questions - base_questions
+
+        if missing_weights or extra_weights:
+            raise ValueError(
+                f"Rubric validation FAILED (gate #5): "
+                f"missing weights for {len(missing_weights)} base questions, "
+                f"extra weights for {len(extra_weights)} base questions. "
+                f"This indicates a critical error in rubric structure."
+            )
+
+        total_weight_entries = len(self.rubric["weights"])
+        self.logger.info(
+            f"✓ Rubric validated (gate #5): "
+            f"{len(base_questions)} base questions with {total_weight_entries} expanded weight entries"
+        )
 
     def assemble(
             self,
