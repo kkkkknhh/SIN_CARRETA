@@ -62,6 +62,9 @@ class EvidenceRegistry:
 
 
 # ==================== ENUMS Y CONSTANTES ====================
+from enum import Enum
+
+
 class EvidenceQuality(Enum):
     EXCELENTE = "excelente"
     BUENA = "buena"
@@ -91,6 +94,7 @@ class QuestionAnswer:
     max_score: float
     score_percentage: float
     scoring_modality: str
+    rubric_weight: float
     evidence_ids: List[str]
     evidence_count: int
     evidence_metrics: EvidenceMetrics
@@ -162,26 +166,31 @@ class AnswerAssembler:
     def __init__(
             self,
             rubric_path: str = "rubric_scoring.json",
-            decalogo_path: str = "DECALOGO_FULL.json"
+            decalogo_path: str = "DECALOGO_FULL.json",
+            weights_path: str = "dnp-standards.latest.clean.json"
     ) -> None:
         self.rubric_path = pathlib.Path(rubric_path)
         self.decalogo_path = pathlib.Path(decalogo_path)
+        self.weights_path = pathlib.Path(weights_path)
 
         self.rubric_config = self._load_json_config(self.rubric_path, "Rúbrica de Scoring")
         self.decalogo_config = self._load_json_config(self.decalogo_path, "Decálogo de Preguntas")
+        self.weights_config = self._load_json_config(self.weights_path, "DNP Standards Weights")
 
         self.score_bands = self.rubric_config.get("score_bands", {})
         self.modalities = self.rubric_config.get("scoring_modalities", {})
         self.dimensions_meta = self.rubric_config.get("dimensions", {})
         self.question_templates = {q['id']: q for q in self.rubric_config.get("questions", [])}
         self.questions_by_unique_id = self._organize_decalogo_questions()
+        
+        self.weights_lookup = self._load_and_validate_weights()
 
         # Load and validate rubric weights (GATE #5)
         self.weights = self._load_rubric()
         self._validate_rubric_coverage()
 
         LOGGER.info(
-            f"✅ AnswerAssembler inicializado con {len(self.question_templates)} plantillas y {len(self.questions_by_unique_id)} preguntas únicas.")
+            f"✅ AnswerAssembler inicializado con {len(self.question_templates)} plantillas, {len(self.questions_by_unique_id)} preguntas únicas y {len(self.weights_lookup)} pesos cargados.")
 
     def _load_json_config(self, path: pathlib.Path, config_name: str) -> Dict[str, Any]:
         if not path.exists():
@@ -267,6 +276,49 @@ class AnswerAssembler:
             f"✓ Rubric validated (gate #5): {len(question_ids)}/{len(question_ids)} questions with weights"
         )
 
+    def _load_and_validate_weights(self) -> Dict[str, float]:
+        dimension_mapping = self.weights_config.get("decalogo_dimension_mapping", {})
+        
+        weights_lookup = {}
+        for point_code, point_weights in dimension_mapping.items():
+            for dim_id in ["D1", "D2", "D3", "D4", "D5", "D6"]:
+                weight_key = f"{dim_id}_weight"
+                if weight_key not in point_weights:
+                    raise ValueError(
+                        f"❌ Missing weight for {dim_id} in point {point_code}. "
+                        f"Each point must have weights for all 6 dimensions."
+                    )
+                weight_value = point_weights[weight_key]
+                weights_lookup[f"{point_code}_{dim_id}"] = weight_value
+        
+        for question_unique_id in self.questions_by_unique_id.keys():
+            parts = question_unique_id.split("-")
+            if len(parts) >= 3:
+                dim_id = parts[0]
+                point_code = parts[2]
+                weight_key = f"{point_code}_{dim_id}"
+                if weight_key not in weights_lookup:
+                    raise ValueError(
+                        f"❌ Weight constraint violation: Question '{question_unique_id}' "
+                        f"requires weight '{weight_key}' which is not defined in weights config. "
+                        f"Every question must have exactly one corresponding weight entry."
+                    )
+        
+        for weight_key in weights_lookup.keys():
+            point_code, dim_id = weight_key.split("_")
+            matching_questions = [
+                qid for qid in self.questions_by_unique_id.keys()
+                if qid.startswith(f"{dim_id}-") and qid.endswith(f"-{point_code}")
+            ]
+            if not matching_questions:
+                LOGGER.warning(
+                    f"⚠️ Weight entry '{weight_key}' has no corresponding questions in DECALOGO. "
+                    f"This weight will not be used."
+                )
+        
+        LOGGER.info(f"✅ Weight validation passed: {len(weights_lookup)} weights loaded and validated.")
+        return weights_lookup
+
     def assemble(
             self,
             evidence_registry: EvidenceRegistry,
@@ -330,6 +382,16 @@ class AnswerAssembler:
         q_template = self.question_templates.get(template_id, {})
         scoring_modality = q_template.get("scoring_modality", "DESCONOCIDO")
 
+        parts = question_unique_id.split("-")
+        if len(parts) >= 3:
+            dim_id = parts[0]
+            point_code = parts[2]
+            weight_key = f"{point_code}_{dim_id}"
+            rubric_weight = self.weights_lookup.get(weight_key, 0.0)
+        else:
+            rubric_weight = 0.0
+            LOGGER.warning(f"⚠️ Could not extract dimension and point from '{question_unique_id}'")
+
         evidences = evidence_registry.get_evidence_for_question(question_unique_id)
         ev_metrics, quality = self._analyze_evidence_quality(evidences)
         confidence = self._calculate_confidence_bayesian(evidences)
@@ -346,6 +408,7 @@ class AnswerAssembler:
             max_score=3.0,
             score_percentage=round((raw_score / 3.0) * 100, 1),
             scoring_modality=scoring_modality,
+            rubric_weight=round(rubric_weight, 2),
             evidence_ids=[ev.metadata.get("evidence_id", "N/A") for ev in evidences],
             evidence_count=len(evidences),
             evidence_metrics=ev_metrics,
@@ -424,6 +487,11 @@ class AnswerAssembler:
         dim_meta = self.dimensions_meta.get(question_answers[0].dimension, {})
         scores = [qa.raw_score for qa in question_answers]
         total_score = sum(scores)
+        
+        if question_answers:
+            rubric_weight = question_answers[0].rubric_weight
+        else:
+            rubric_weight = 0.0
 
         return DimensionSummary(
             dimension_id=question_answers[0].dimension,
@@ -431,7 +499,7 @@ class AnswerAssembler:
             point_code=question_answers[0].point_code,
             question_scores=scores,
             total_score=round(total_score, 2),
-            max_score=15.0,  # 5 preguntas * 3 puntos
+            max_score=15.0,
             percentage=round((total_score / 15.0) * 100, 1),
             total_evidences=sum(qa.evidence_count for qa in question_answers),
             avg_confidence=round(np.mean([qa.confidence for qa in question_answers if qa.evidence_count > 0] or [0]),
@@ -444,20 +512,27 @@ class AnswerAssembler:
 
     def _aggregate_to_point(self, dimension_summaries: List[DimensionSummary]) -> PointSummary:
         point_code = dimension_summaries[0].point_code
-        # Busca el título en la primera pregunta que coincida con el código de punto
         point_title = next(
             (q['point_title'] for q in self.decalogo_config['questions'] if q['point_code'] == point_code),
             "Título Desconocido")
 
-        avg_percentage = np.mean([ds.percentage for ds in dimension_summaries])
+        point_weights = self.weights_config.get("decalogo_dimension_mapping", {}).get(point_code, {})
+        
+        weighted_percentages = []
+        for ds in dimension_summaries:
+            weight_key = f"{ds.dimension_id}_weight"
+            weight = point_weights.get(weight_key, 1.0 / len(dimension_summaries))
+            weighted_percentages.append(ds.percentage * weight)
+        
+        weighted_avg_percentage = sum(weighted_percentages)
 
         return PointSummary(
             point_code=point_code,
             point_title=point_title,
             dimension_summaries=dimension_summaries,
-            average_percentage=round(avg_percentage, 1),
+            average_percentage=round(weighted_avg_percentage, 1),
             total_score=round(sum(ds.total_score for ds in dimension_summaries), 2),
-            max_score=90.0,  # 6 dimensiones * 15 puntos
+            max_score=90.0,
             critical_gaps=[f"Dimensión {ds.dimension_id} en estado crítico ({ds.percentage:.1f}%)" for ds in
                            dimension_summaries if ds.percentage < 55.0]
         )
@@ -520,7 +595,8 @@ if __name__ == "__main__":
     try:
         assembler = AnswerAssembler(
             rubric_path="rubric_scoring.json",
-            decalogo_path="DECALOGO_FULL.json"
+            decalogo_path="DECALOGO_FULL.json",
+            weights_path="dnp-standards.latest.clean.json"
         )
     except FileNotFoundError as e:
         LOGGER.error(f"Error Crítico: No se pudo inicializar el ensamblador. {e}")
