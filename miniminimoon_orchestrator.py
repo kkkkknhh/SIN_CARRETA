@@ -968,7 +968,7 @@ class CanonicalDeterministicOrchestrator:
         # ========== FLOW #14: QUESTIONNAIRE EVALUATION ==========
         questionnaire_eval = self._run_stage(
             PipelineStage.QUESTIONNAIRE_EVAL,
-            lambda: self.questionnaire_engine.evaluate(),
+            self.questionnaire_engine.evaluate,
             results["stages_completed"]
         )
         results["evaluations"]["questionnaire"] = questionnaire_eval
