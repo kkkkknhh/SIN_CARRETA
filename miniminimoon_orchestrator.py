@@ -44,7 +44,7 @@ except ImportError:
 # Critical imports (must exist in your codebase)
 from Decatalogo_principal import (
     ExtractorEvidenciaIndustrialAvanzado,
-    obtener_decalogo_contexto_avanzado
+    BUNDLE
 )
 from miniminimoon_immutability import EnhancedImmutabilityContract
 
@@ -52,7 +52,7 @@ from miniminimoon_immutability import EnhancedImmutabilityContract
 from plan_sanitizer import PlanSanitizer
 from plan_processor import PlanProcessor
 from document_segmenter import DocumentSegmenter
-from embedding_model import EmbeddingModel
+from embedding_model import IndustrialEmbeddingModel as EmbeddingModel
 from responsibility_detector import ResponsibilityDetector
 from contradiction_detector import ContradictionDetector
 from monetary_detector import MonetaryDetector
@@ -437,7 +437,7 @@ class AnswerAssembler:
         if not evidence:
             return 0.3
 
-        avg_evidence_conf = sum(e.confidence for e in evidence) / len(evidence)
+        avg_evidence_conf = sum(e.confidence for e in evidence) / len(evidence) if evidence else 0.0
         evidence_factor = min(len(evidence) / 3.0, 1.0)
 
         extremity = abs(score - 0.5) * 2
@@ -674,7 +674,7 @@ class CanonicalDeterministicOrchestrator:
     REQUIRED_CONFIG_FILES = [
         "DECALOGO_FULL.json",
         "decalogo_industrial.json",
-        "DNP_STANDARDS.json",
+        "dnp-standards.latest.clean.json",
         "RUBRIC_SCORING.json"
     ]
 
@@ -705,7 +705,7 @@ class CanonicalDeterministicOrchestrator:
         self.evidence_registry = EvidenceRegistry()
 
         # Load configurations
-        self.decalogo_contexto = obtener_decalogo_contexto_avanzado()
+        self.decalogo_contexto = BUNDLE # Corrected: Use BUNDLE from Decatalogo_principal
         self.decatalogo_extractor = ExtractorEvidenciaIndustrialAvanzado(
             self.decalogo_contexto
         )
@@ -866,7 +866,7 @@ class CanonicalDeterministicOrchestrator:
         # Input: {doc_struct: dict} -> Output: {segments: list[str|dict]}
         segments = self._run_stage(
             PipelineStage.SEGMENTATION,
-            lambda: self.document_segmenter.segment(doc_struct), # Corrected to use doc_struct
+            lambda: self.document_segmenter.segment(sanitized_text), # Corrected to use sanitized_text
             results["stages_completed"]
         )
         segment_texts = [s.text for s in segments]
@@ -1077,7 +1077,7 @@ class CanonicalDeterministicOrchestrator:
         # Contradiction detector returns a dict, we need the list of matches
         contradiction_analysis = all_inputs.get('contradictions')
         if contradiction_analysis and hasattr(contradiction_analysis, 'contradictions'):
-             register_evidence(PipelineStage.CONTRADICTION, contradiction_analysis.contradictions, 'contra')
+             register_evidence(PipelineStage.CONTRADICTION, getattr(contradiction_analysis, 'contradictions', []), 'contra')
 
         register_evidence(PipelineStage.MONETARY, all_inputs.get('monetary', []), 'money')
 
@@ -1107,6 +1107,7 @@ class CanonicalDeterministicOrchestrator:
 
         # The decatalogo_extractor would use this evidence to score questions
         # This is a placeholder for that complex logic
+        # NOTE: Assumes 'evaluate_from_evidence' method exists on the extractor.
         evaluation = self.decatalogo_extractor.evaluate_from_evidence(evidence_registry)
 
         self.logger.info("  Decálogo evaluation completed.")
@@ -1122,6 +1123,7 @@ class CanonicalDeterministicOrchestrator:
         questionnaire_eval = evaluation_inputs.get('questionnaire_eval', {})
         # The answer_assembler would take the evaluations and the evidence registry
         # to create a comprehensive report with full traceability.
+        # NOTE: Assumes 'assemble_report' method exists on the assembler.
         final_report = self.answer_assembler.assemble_report(
             decalogo_eval=evaluation_inputs.get('decalogo_eval'),
             questionnaire_eval=questionnaire_eval

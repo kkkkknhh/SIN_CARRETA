@@ -1,4 +1,45 @@
 """
+⚠️⚠️⚠️ DEPRECATED MODULE - DO NOT USE ⚠️⚠️⚠️
+
+This module has been DEPRECATED and replaced by miniminimoon_orchestrator.py
+
+RATIONALE:
+- Parallel orchestration paths create non-determinism
+- Evidence registry fragmentation
+- Gate enforcement bypass risk
+- Audit trail inconsistency
+
+MIGRATION:
+Use CanonicalDeterministicOrchestrator from miniminimoon_orchestrator.py
+
+ENFORCEMENT:
+This module raises RuntimeError on import to prevent accidental usage.
+See DEPRECATIONS.md for full migration guide.
+"""
+
+raise RuntimeError(
+    "CRITICAL: decalogo_pipeline_orchestrator is DEPRECATED and FORBIDDEN.\n"
+    "\n"
+    "This module creates parallel execution paths that violate:\n"
+    "  - Gate #6: No deprecated orchestrator usage\n"
+    "  - Evidence registry uniqueness (single source of truth)\n"
+    "  - Deterministic flow order enforcement\n"
+    "  - Audit trail integrity\n"
+    "\n"
+    "REQUIRED ACTION:\n"
+    "  Use: from miniminimoon_orchestrator import CanonicalDeterministicOrchestrator\n"
+    "\n"
+    "See FLUJOS_CRITICOS_GARANTIZADOS.md for canonical flow documentation.\n"
+    "\n"
+    "If you believe you need this functionality, it has been migrated to:\n"
+    "  miniminimoon_orchestrator.CanonicalDeterministicOrchestrator\n"
+    "\n"
+    "This error is INTENTIONAL and part of the system's integrity enforcement."
+)
+
+# Everything below this line is unreachable - kept for documentation purposes only
+
+"""
 DECALOGO Pipeline Orchestrator
 
 Serves as the central coordinator for the knowledge extraction pipeline,

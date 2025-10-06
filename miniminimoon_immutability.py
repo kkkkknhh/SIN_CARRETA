@@ -47,7 +47,7 @@ class EnhancedImmutabilityContract:
     Critical files monitored:
     - DECALOGO_FULL.json
     - decalogo_industrial.json
-    - DNP_STANDARDS.json
+    - dnp-standards.latest.clean.json
     - RUBRIC_SCORING.json
     """
 
@@ -58,7 +58,7 @@ class EnhancedImmutabilityContract:
     CRITICAL_CONFIGS = [
         "DECALOGO_FULL.json",
         "decalogo_industrial.json",
-        "DNP_STANDARDS.json",
+        "dnp-standards.latest.clean.json",
         "RUBRIC_SCORING.json"
     ]
 

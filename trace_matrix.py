@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# coding=utf-8
 """
 trace_matrix.py — Provenance Traceability Auditor (QA Gate)
 ============================================================

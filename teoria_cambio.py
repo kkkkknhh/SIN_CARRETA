@@ -1,3 +1,4 @@
+# coding=utf-8
 """
 Teoria de Cambio (Theory of Change) Module
 
@@ -60,6 +61,41 @@ class LogicModelQuality(Enum):
     PARTIAL = "partial"            # Some components missing or connections unclear
     MINIMAL = "minimal"            # Few components, poor connections
     INVALID = "invalid"            # Critical flaws or missing components
+
+
+class CategoriaCausal(Enum):
+    """Categorías causales tradicionales en español para pruebas unitarias."""
+    INSUMOS = 1
+    PROCESOS = 2
+    PRODUCTOS = 3
+    RESULTADOS = 4
+    IMPACTOS = 5
+
+    @classmethod
+    def from_text(cls, text: str) -> "CategoriaCausal":
+        t = (text or "").lower()
+        if any(k in t for k in ("insumo", "recurso")):
+            return cls.INSUMOS
+        if any(k in t for k in ("proceso", "actividad")):
+            return cls.PROCESOS
+        if any(k in t for k in ("producto", "entregable")):
+            return cls.PRODUCTOS
+        if any(k in t for k in ("resultado", "cambio")):
+            return cls.RESULTADOS
+        if "impact" in t or "transform" in t:
+            return cls.IMPACTOS
+        # Default neutral category for unknowns
+        return cls.PRODUCTOS
+
+
+@dataclass
+class ValidacionResultado:
+    """Resultado unificado esperado por pruebas para validaciones simples."""
+    es_valida: bool
+    violaciones_orden: List[Dict[str, str]] = field(default_factory=list)
+    caminos_completos: List[List[str]] = field(default_factory=list)
+    categorias_faltantes: List[CategoriaCausal] = field(default_factory=list)
+    sugerencias: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -185,7 +221,7 @@ class TeoriaCambio:
         self._cached_graph = None
         self._cached_hash = None
     
-    def _calculate_elementos_hash(self, elementos: List[CausalElement]) -> str:
+    def _calculate_elementos_hash(self, elementos: List<CausalElement]) -> str:
         """Calculate deterministic hash for a list of elements."""
         if not elementos:
             return "empty"
@@ -199,7 +235,7 @@ class TeoriaCambio:
         
         return hashlib.sha256(hash_input.encode('utf-8')).hexdigest()
     
-    def _crear_grafo_causal(self, elementos: List[CausalElement]) -> nx.DiGraph:
+    def _crear_grafo_causal(self, elementos: List<CausalElement]) -> nx.DiGraph:
         """
         Create causal graph from elements.
         
@@ -583,7 +619,7 @@ class TeoriaCambio:
         
         return recommendations
     
-    def _calcular_coherencia(self, G: nx.DiGraph, elementos: List[CausalElement]) -> float:
+    def _calcular_coherencia(self, G: nx.DiGraph, elementos: List<CausalElement]) -> float:
         """Calculate coherence score of the logical framework."""
         if not elementos:
             return 0.0
@@ -646,7 +682,7 @@ class TeoriaCambio:
         
         return coherence_score
     
-    def _validar_estructura_causal(self, elementos: List[CausalElement]) -> Optional[float]:
+    def _validar_estructura_causal(self, elementos: List<CausalElement]) -> Optional[float]:
         """
         Validate causal structure using DAG validation.
         
@@ -725,6 +761,115 @@ class TeoriaCambio:
             return "Débil"
         else:
             return "Deficiente"
+
+    # ==========================
+    # Métodos mínimos para tests
+    # ==========================
+    def _obtener_categoria_nodo(self, nodo: str, grafo: nx.DiGraph) -> CategoriaCausal:
+        """Inferir categoría del nodo por nombre o posición topológica."""
+        # Intentar por nombre
+        cat = CategoriaCausal.from_text(nodo)
+        # Si el nombre no ayuda (defaults a PRODUCTOS), usar posición
+        if cat == CategoriaCausal.PRODUCTOS and grafo is not None:
+            pred = list(grafo.predecessors(nodo)) if nodo in grafo else []
+            succ = list(grafo.successors(nodo)) if nodo in grafo else []
+            if not pred:
+                return CategoriaCausal.INSUMOS
+            if not succ:
+                return CategoriaCausal.IMPACTOS
+        return cat
+
+    def _es_conexion_valida(self, origen: CategoriaCausal, destino: CategoriaCausal) -> bool:
+        """Conexión válida si avanza 1 o 2 categorías hacia adelante."""
+        diff = destino.value - origen.value
+        return 1 <= diff <= 2
+
+    def _es_camino_completo(self, camino: List[str], grafo: nx.DiGraph) -> bool:
+        """Un camino completo va de INSUMOS a IMPACTOS y todos los pasos son válidos."""
+        if not camino:
+            return False
+        c_inicio = self._obtener_categoria_nodo(camino[0], grafo)
+        c_fin = self._obtener_categoria_nodo(camino[-1], grafo)
+        if c_inicio != CategoriaCausal.INSUMOS or c_fin != CategoriaCausal.IMPACTOS:
+            return False
+        # Validar transiciones
+        for a, b in zip(camino, camino[1:]):
+            if not self._es_conexion_valida(self._obtener_categoria_nodo(a, grafo),
+                                            self._obtener_categoria_nodo(b, grafo)):
+                return False
+        return True
+
+    def validar_orden_causal(self, grafo: nx.DiGraph) -> ValidacionResultado:
+        """Valida que las aristas respeten saltos de 1 o 2 categorías."""
+        violaciones: List[Dict[str, str]] = []
+        for u, v in grafo.edges():
+            cu = self._obtener_categoria_nodo(u, grafo)
+            cv = self._obtener_categoria_nodo(v, grafo)
+            if not self._es_conexion_valida(cu, cv):
+                violaciones.append({
+                    "origen": u,
+                    "destino": v,
+                    "categoria_origen": cu.name,
+                    "categoria_destino": cv.name,
+                })
+        return ValidacionResultado(es_valida=len(violaciones) == 0, violaciones_orden=violaciones)
+
+    def detectar_caminos_completos(self, grafo: nx.DiGraph) -> ValidacionResultado:
+        """Detecta caminos completos de INSUMOS a IMPACTOS."""
+        # Identificar nodos origen y destino por heurística
+        nodos_insumos = [n for n in grafo.nodes() if self._obtener_categoria_nodo(n, grafo) == CategoriaCausal.INSUMOS]
+        nodos_impactos = [n for n in grafo.nodes() if self._obtener_categoria_nodo(n, grafo) == CategoriaCausal.IMPACTOS]
+        caminos: List[List[str]] = []
+        for s in nodos_insumos:
+            for t in nodos_impactos:
+                try:
+                    for path in nx.all_simple_paths(grafo, s, t, cutoff=8):
+                        if self._es_camino_completo(path, grafo):
+                            caminos.append(path)
+                except nx.NetworkXNoPath:
+                    continue
+        return ValidacionResultado(es_valida=len(caminos) > 0, caminos_completos=caminos)
+
+    def obtener_nodos_por_categoria(self, grafo: nx.DiGraph, categoria: CategoriaCausal) -> List[str]:
+        return [n for n in grafo.nodes() if self._obtener_categoria_nodo(n, grafo) == categoria]
+
+    # Alias privado solicitado por pruebas
+    def _obtener_nodos_por_categoria(self, grafo: nx.DiGraph, categoria: CategoriaCausal) -> List[str]:
+        return self.obtener_nodos_por_categoria(grafo, categoria)
+
+    def generar_sugerencias(self, grafo: nx.DiGraph) -> ValidacionResultado:
+        """Genera sugerencias para categorías faltantes según nodos presentes."""
+        presentes = {self._obtener_categoria_nodo(n, grafo) for n in grafo.nodes()}
+        todas = set(CategoriaCausal)
+        faltantes = list(sorted(todas - presentes, key=lambda c: c.value))
+        sugerencias: List[str] = []
+        for cat in faltantes:
+            if cat == CategoriaCausal.PROCESOS:
+                sugerencias.append("Agregar PROCESOS que transformen INSUMOS en PRODUCTOS")
+            elif cat == CategoriaCausal.PRODUCTOS:
+                sugerencias.append("Definir PRODUCTOS resultantes de los PROCESOS")
+            elif cat == CategoriaCausal.RESULTADOS:
+                sugerencias.append("Vincular RESULTADOS que surgen de los PRODUCTOS")
+            elif cat == CategoriaCausal.INSUMOS:
+                sugerencias.append("Incluir INSUMOS necesarios para iniciar la cadena")
+            elif cat == CategoriaCausal.IMPACTOS:
+                sugerencias.append("Establecer IMPACTOS a largo plazo esperados")
+        return ValidacionResultado(es_valida=len(faltantes) == 0, categorias_faltantes=faltantes, sugerencias=sugerencias)
+
+    def validacion_completa(self, grafo: nx.DiGraph) -> ValidacionResultado:
+        """Ejecución integrada: orden, caminos y sugerencias."""
+        orden = self.validar_orden_causal(grafo)
+        caminos = self.detectar_caminos_completos(grafo)
+        sug = self.generar_sugerencias(grafo)
+        es_valida = orden.es_valida and caminos.es_valida and sug.es_valida
+        # Combinar
+        return ValidacionResultado(
+            es_valida=es_valida,
+            violaciones_orden=orden.violaciones_orden,
+            caminos_completos=caminos.caminos_completos,
+            categorias_faltantes=sug.categorias_faltantes,
+            sugerencias=sug.sugerencias,
+        )
 
 
 def extract_causal_elements_from_text(text: str) -> List[CausalElement]:
@@ -939,3 +1084,6 @@ if __name__ == "__main__":
     print("\nComplete Logical Framework Evaluation:")
     print(f"Is complete: {framework['is_complete']}")
     print(f"DE-1 Q6 answer: {framework['de1_q6_answer']}")
+
+# Alias for compatibility with orchestrator
+TeoriaCambioValidator = TeoriaCambio

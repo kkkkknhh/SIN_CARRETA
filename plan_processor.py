@@ -134,15 +134,30 @@ class PlanProcessor:
         Process a plan document text and extract structured information
         aligned with the DECALOGO evaluation framework.
         
+        **FLUJO CRÍTICO #2**: Input: {sanitized_text:str} → Output: {doc_struct:dict}
+
         Args:
             text: Raw text of the plan document
             
         Returns:
             Dictionary with structured plan information and extracted evidence
+            Guaranteed fields: metadata, sections, evidence, full_text, processing_status
         """
         if not text:
-            return {"error": "Empty text provided"}
-            
+            logger.warning("Empty text provided to plan_processor")
+            return {
+                "error": "Empty text provided",
+                "metadata": {},
+                "sections": {},
+                "evidence": {},
+                "cluster_evidence": {},
+                "structured_elements": {},
+                "cluster_dimension_mapping": {},
+                "text_length": 0,
+                "full_text": "",
+                "processing_status": "failed"
+            }
+
         # Normalize text
         normalized_text = normalize_text(text)
         
@@ -181,6 +196,7 @@ class PlanProcessor:
         # Create cluster-dimension mapping
         cluster_dimension_mapping = self._create_cluster_dimension_mapping()
         
+        # CRITICAL: Return complete doc_struct with full_text for downstream processing
         return {
             "metadata": metadata,
             "sections": sections,
@@ -189,7 +205,7 @@ class PlanProcessor:
             "structured_elements": structured_elements,
             "cluster_dimension_mapping": cluster_dimension_mapping,
             "text_length": len(normalized_text),
-            "full_text": normalized_text,  # Add full text for downstream consumers
+            "full_text": normalized_text,  # CRITICAL: Required by detectors
             "processing_status": "complete"
         }
 
@@ -435,7 +451,7 @@ class PlanProcessor:
         """Get the name of a decalogo point by ID."""
         # Try to get from DNP standards
         try:
-            dnp_standards_path = os.path.join(os.path.dirname(__file__), "DNP_STANDARDS.json")
+            dnp_standards_path = os.path.join(os.path.dirname(__file__), "dnp-standards.latest.clean.json")
             if os.path.exists(dnp_standards_path):
                 with open(dnp_standards_path, 'r', encoding='utf-8') as f:
                     standards = json.load(f)

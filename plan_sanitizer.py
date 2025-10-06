@@ -17,7 +17,7 @@ import os
 import re
 import unicodedata
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union, Any
 
 # Import utility functions from text_processor
 from text_processor import (
@@ -143,12 +143,8 @@ class PlanSanitizer:
             normalized_text = self._preserve_structure(normalized_text)
         
         # Clean the text while preserving marked elements
-        cleaned_text = clean_policy_text(
-            normalized_text,
-            remove_accents=False,
-            keep_line_breaks=self.preserve_structure,
-        )
-        
+        cleaned_text = clean_policy_text(normalized_text)
+
         # Update statistics
         self.stats["total_chars_after"] = len(cleaned_text)
         

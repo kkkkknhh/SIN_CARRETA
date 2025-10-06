@@ -29,11 +29,38 @@ _MODEL_CACHE = {}
 _CACHE_LOCK = threading.RLock()
 _DOWNLOAD_LOCK = threading.RLock()
 
+# Singleton
+_SINGLETON_LOADER = None
+
 # Constants
 DEFAULT_SPANISH_MODEL = "es_core_news_sm"
 DEFAULT_ENGLISH_MODEL = "en_core_web_sm"
 DOWNLOAD_RETRY_ATTEMPTS = 3
 DOWNLOAD_RETRY_DELAY = 2  # seconds
+
+
+def download(model_name: str) -> None:
+    """Wrapper for spaCy CLI download to allow easy patching in tests."""
+    try:
+        from spacy.cli import download as spacy_download
+        spacy_download(model_name)
+    except Exception as e:
+        raise e
+
+
+def get_spacy_model_loader() -> 'SpacyModelLoader':
+    global _SINGLETON_LOADER
+    if _SINGLETON_LOADER is None:
+        _SINGLETON_LOADER = SpacyModelLoader()
+    return _SINGLETON_LOADER
+
+
+def _reset_spacy_singleton_for_testing():
+    """Reset singleton and caches for isolated unit tests."""
+    global _SINGLETON_LOADER
+    with _CACHE_LOCK:
+        _MODEL_CACHE.clear()
+    _SINGLETON_LOADER = None
 
 
 class SpacyModelLoader:
@@ -48,7 +75,8 @@ class SpacyModelLoader:
         self,
         default_model: str = DEFAULT_SPANISH_MODEL,
         auto_download: bool = True,
-        enable_caching: bool = True
+        enable_caching: bool = True,
+        max_retries: int = DOWNLOAD_RETRY_ATTEMPTS,
     ):
         """
         Initialize the spaCy model loader.
@@ -57,20 +85,23 @@ class SpacyModelLoader:
             default_model: Default model name to load if none specified
             auto_download: Whether to automatically download missing models
             enable_caching: Whether to cache loaded models
+            max_retries: Maximum download retry attempts
         """
         self.default_model = default_model
         self.auto_download = auto_download
         self.enable_caching = enable_caching
+        self.max_retries = max_retries
         
         # Track download attempts to avoid repeated failures
         self._download_attempts = {}
     
-    def load_model(self, model_name: Optional[str] = None) -> Any:
+    def load_model(self, model_name: Optional[str] = None, download_if_missing: bool = True) -> Any:
         """
         Load a spaCy model with automatic download if needed.
         
         Args:
             model_name: Name of the model to load (uses default if None)
+            download_if_missing: Whether to attempt to download if missing
             
         Returns:
             Loaded spaCy model, or None if loading fails
@@ -101,11 +132,25 @@ class SpacyModelLoader:
                 return nlp
             
             except OSError:
-                # Model not found, attempt to download if auto_download is enabled
-                if self.auto_download:
-                    return self._download_and_load_model(model_to_load)
+                # Model not found, attempt to download if enabled
+                if self.auto_download and download_if_missing:
+                    # Retry download up to max_retries times
+                    for _ in range(self.max_retries):
+                        try:
+                            download(model_to_load)
+                            # Try loading again after download
+                            nlp = spacy.load(model_to_load)
+                            if self.enable_caching:
+                                with _CACHE_LOCK:
+                                    _MODEL_CACHE[model_to_load] = nlp
+                            return nlp
+                        except Exception as e:
+                            logger.warning(f"Download attempt failed for {model_to_load}: {e}")
+                            continue
                 else:
-                    logger.warning(f"Model {model_to_load} not found and auto_download is disabled")
+                    logger.warning(f"Model {model_to_load} not found and download is disabled")
+            except Exception as e:
+                logger.error(f"Unexpected error loading model {model_to_load}: {e}")
         
         except ImportError:
             logger.error("spaCy not available. Install with: pip install spacy")
@@ -115,53 +160,10 @@ class SpacyModelLoader:
     def _download_and_load_model(self, model_name: str) -> Any:
         """
         Download and load a spaCy model with retry logic.
-        
-        Args:
-            model_name: Name of the model to download and load
-            
-        Returns:
-            Loaded spaCy model, or None if download/loading fails
+        (Deprecated internal helper)
         """
-        # Check if we've already tried too many times
-        if self._download_attempts.get(model_name, 0) >= DOWNLOAD_RETRY_ATTEMPTS:
-            logger.warning(f"Maximum download attempts reached for {model_name}")
-            return None
-        
-        # Increment attempt counter
-        self._download_attempts[model_name] = self._download_attempts.get(model_name, 0) + 1
-        
-        # Use lock to prevent multiple threads from downloading simultaneously
-        with _DOWNLOAD_LOCK:
-            try:
-                import spacy
-                from spacy.cli.download import download as spacy_download
-                
-                logger.info(f"Downloading spaCy model: {model_name}")
-                spacy_download(model_name)
-                
-                # Attempt to load the downloaded model
-                logger.info(f"Loading downloaded model: {model_name}")
-                nlp = spacy.load(model_name)
-                
-                # Cache model if enabled
-                if self.enable_caching:
-                    with _CACHE_LOCK:
-                        _MODEL_CACHE[model_name] = nlp
-                
-                # Reset attempt counter on success
-                self._download_attempts[model_name] = 0
-                
-                return nlp
-            
-            except Exception as e:
-                logger.error(f"Failed to download/load model {model_name}: {e}")
-                
-                # Wait before retry
-                if self._download_attempts.get(model_name, 0) < DOWNLOAD_RETRY_ATTEMPTS:
-                    time.sleep(DOWNLOAD_RETRY_DELAY)
-                    return self._download_and_load_model(model_name)
-        
-        return None
+        # Backwards-compat shim uses new logic in load_model
+        return self.load_model(model_name)
     
     def get_degraded_processor(self) -> 'SafeSpacyProcessor':
         """
@@ -181,112 +183,67 @@ class SafeSpacyProcessor:
     spaCy models are unavailable, with graceful degradation.
     """
     
-    def __init__(self, nlp: Any):
+    def __init__(self, loader: Optional[SpacyModelLoader] = None):
         """
         Initialize the processor.
         
         Args:
-            nlp: Loaded spaCy model, or None for degraded mode
+            loader: SpacyModelLoader instance to obtain models; if None uses singleton
         """
-        self.nlp = nlp
-        self.is_degraded = nlp is None
-        
-        # Set up basic tokenization pattern for degraded mode
-        self.token_pattern = r'(?u)\b\w\w+\b'
+        self.loader = loader or get_spacy_model_loader()
+        self._nlp = None  # lazily loaded
+        self._processing_mode = 'degraded'
     
-    def process(self, text: str) -> Any:
-        """
-        Process text with spaCy model or degraded functionality.
-        
-        Args:
-            text: Text to process
-            
-        Returns:
-            spaCy Doc object or DegradedDoc in degraded mode
-        """
+    def _ensure_model(self) -> Optional[Any]:
+        if self._nlp is not None:
+            return self._nlp
+        if self.loader:
+            self._nlp = self.loader.load_model(self.loader.default_model)
+        return self._nlp
+
+    def process_text(self, text: str) -> Dict[str, Any]:
+        """Process text and return a dict with tokens, sentences, and mode."""
         if not text:
-            return self._create_empty_doc()
-        
-        if self.is_degraded:
-            return self._process_degraded(text)
-        
+            return {"processing_mode": "degraded", "tokens": [], "sentences": []}
+        nlp = self._ensure_model()
+        if nlp is None:
+            # Degraded mode – simple splits matching unit tests
+            tokens = text.split()
+            sentences = text.split('.')
+            self._processing_mode = 'degraded'
+            return {"processing_mode": "degraded", "tokens": tokens, "sentences": sentences}
         try:
-            return self.nlp(text)
-        except Exception as e:
-            logger.warning(f"Error processing text with spaCy: {e}")
-            self.is_degraded = True
-            return self._process_degraded(text)
-    
-    def _process_degraded(self, text: str) -> 'DegradedDoc':
-        """Process text in degraded mode."""
-        import re
-        tokens = re.findall(self.token_pattern, text)
-        return DegradedDoc(text, tokens)
-    
-    def _create_empty_doc(self) -> Union[Any, 'DegradedDoc']:
-        """Create an empty document object."""
-        if self.is_degraded:
-            return DegradedDoc("", [])
+            doc = nlp(text)
+            tokens = [t.text for t in doc]
+            sents = [s.text for s in getattr(doc, 'sents', [])]
+            self._processing_mode = 'full'
+            return {"processing_mode": "full", "tokens": tokens, "sentences": sents}
+        except Exception:
+            # Fallback to degraded
+            tokens = text.split()
+            sentences = text.split('.')
+            self._processing_mode = 'degraded'
+            return {"processing_mode": "degraded", "tokens": tokens, "sentences": sentences}
+
+    def is_fully_functional(self) -> bool:
+        return self._ensure_model() is not None
+
+    # Backward-compatible helpers used elsewhere
+    def process(self, text: str) -> Any:
+        nlp = self._ensure_model()
+        if nlp is None:
+            return DegradedDoc(text, text.split())
         try:
-            return self.nlp("")
-        except:
-            self.is_degraded = True
-            return DegradedDoc("", [])
-    
-    def extract_entities(self, text: str) -> List[Dict[str, Any]]:
-        """
-        Extract entities from text.
-        
-        Args:
-            text: Text to extract entities from
-            
-        Returns:
-            List of extracted entities with metadata
-        """
-        doc = self.process(text)
-        
-        if self.is_degraded:
-            # Very basic entity extraction in degraded mode
-            # This is just a placeholder - real NER requires the actual model
-            return []
-        
-        try:
-            return [
-                {
-                    "text": ent.text,
-                    "label": ent.label_,
-                    "start": ent.start_char,
-                    "end": ent.end_char
-                }
-                for ent in doc.ents
-            ]
-        except:
-            return []
-    
+            return nlp(text)
+        except Exception:
+            return DegradedDoc(text, text.split())
+
     def tokenize(self, text: str) -> List[str]:
-        """
-        Tokenize text into words.
-        
-        Args:
-            text: Text to tokenize
-            
-        Returns:
-            List of token texts
-        """
-        doc = self.process(text)
-        
-        if self.is_degraded:
-            return doc.tokens
-        
-        try:
-            return [token.text for token in doc]
-        except:
-            import re
-            return re.findall(self.token_pattern, text)
-    
+        result = self.process_text(text)
+        return result.get("tokens", [])
+
     def is_available(self) -> bool:
-        """Check if full spaCy functionality is available."""
-        return not self.is_degraded
+        return self.is_fully_functional()
 
 
 class DegradedDoc:

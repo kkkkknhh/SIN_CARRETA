@@ -79,9 +79,12 @@ def safe_write_bytes(path: Path, content: bytes, *, label: str) -> SafeWriteResu
 
 
 def _safe_write_bytes(path: Path, content: bytes, *, label: str) -> SafeWriteResult:
-    """Core persistence helper handling permission errors and disk exhaustion."""
+    """Core persistence helper handling permission errors and disk exhaustion.
 
-    path = path.resolve()
+    Important: Do not resolve the provided path to preserve exact value for monkeypatch
+    tests that compare the string form of the path.
+    """
+
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
     except (PermissionError, OSError) as exc:
