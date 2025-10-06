@@ -24,6 +24,7 @@ Salida:
 from __future__ import annotations
 import json
 import pathlib
+import subprocess
 import sys
 from typing import Any, Dict, List, Tuple
 
@@ -191,21 +192,57 @@ class SystemHealthValidator:
         ok_rubric_1to1 = True
         if check_rubric_strict:
             rubric_path = self.repo / "RUBRIC_SCORING.json"
-            rubric, e4 = _read_json(rubric_path)
-            if e4:
+            rubric_check_script = self.repo / "tools" / "rubric_check.py"
+            
+            # Try invoking tools/rubric_check.py as a subprocess
+            try:
+                result = subprocess.run(
+                    [sys.executable, str(rubric_check_script), str(answers_path), str(rubric_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                
+                # Handle exit codes
+                if result.returncode == 3:
+                    # Mismatch error: missing_weights and extra_weights diff
+                    ok_rubric_1to1 = False
+                    error_msg = f"Rubric mismatch detected (exit code 3): Questions in answers_report.json do not align with RUBRIC_SCORING.json weights section"
+                    if result.stdout.strip():
+                        error_msg += f"\n{result.stdout.strip()}"
+                    if result.stderr.strip():
+                        error_msg += f"\n{result.stderr.strip()}"
+                    errors.append(error_msg)
+                elif result.returncode == 2:
+                    # Missing input files
+                    ok_rubric_1to1 = False
+                    error_msg = f"Rubric check failed (exit code 2): Missing input files for rubric validation"
+                    if result.stdout.strip():
+                        error_msg += f"\n{result.stdout.strip()}"
+                    if result.stderr.strip():
+                        error_msg += f"\n{result.stderr.strip()}"
+                    errors.append(error_msg)
+                elif result.returncode != 0:
+                    # Other non-zero exit codes
+                    ok_rubric_1to1 = False
+                    error_msg = f"Rubric check failed with exit code {result.returncode}"
+                    if result.stdout.strip():
+                        error_msg += f"\n{result.stdout.strip()}"
+                    if result.stderr.strip():
+                        error_msg += f"\n{result.stderr.strip()}"
+                    errors.append(error_msg)
+                # Exit code 0 means success, ok_rubric_1to1 remains True
+                    
+            except FileNotFoundError:
+                # Handle missing rubric_check.py script gracefully
                 ok_rubric_1to1 = False
-                errors.append(e4)
-            else:
-                weights = rubric.get("weights", {})
-                reported_qids = {a.get("question_id") for a in answers.get("answers", [])}
-                missing = [q for q in reported_qids if q not in weights]
-                extra = [q for q in weights.keys() if q not in reported_qids]
-                ok_rubric_1to1 = (len(missing) == 0 and len(extra) == 0)
-                if not ok_rubric_1to1:
-                    if missing:
-                        errors.append(f"Rubric missing weights for questions: {sorted(missing)[:10]}{' ...' if len(missing)>10 else ''}")
-                    if extra:
-                        errors.append(f"Rubric has extra weights not in answers: {sorted(extra)[:10]}{' ...' if len(extra)>10 else ''}")
+                errors.append(f"Rubric validation failed: tools/rubric_check.py not found")
+            except subprocess.TimeoutExpired:
+                ok_rubric_1to1 = False
+                errors.append("Rubric validation timed out after 30 seconds")
+            except Exception as e:
+                ok_rubric_1to1 = False
+                errors.append(f"Rubric validation error: {e}")
 
         ok_all = (ok_order_doc and ok_order_contracts and ok_coverage and ok_rubric_1to1 and len(errors) == 0)
         return {
