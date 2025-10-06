@@ -1,0 +1,137 @@
+digraph ValidationGates {
+    graph [bgcolor="#0a0e27", fontname="JetBrains Mono", fontsize=12, rankdir=TB, splines=ortho, pad=0.5, nodesep=0.8, ranksep=1.0];
+    node [fontname="JetBrains Mono", fontsize=10, style="filled,rounded", shape=box, margin=0.3];
+    edge [fontname="JetBrains Mono", fontsize=9, arrowsize=0.8];
+
+    // Title
+    label=<
+        <table border="0" cellborder="0" cellspacing="0">
+            <tr><td><font point-size="24" color="#ffff00"><b>🛡️ VALIDATION GATES</b></font></td></tr>
+            <tr><td><font point-size="12" color="#00d4ff">Pre-Execution Checks + Pipeline Execution + Post-Execution Validation</font></td></tr>
+        </table>
+    >;
+    labelloc="t";
+
+    // Pre-Execution Gates
+    subgraph cluster_pre {
+        label=<
+            <font color="#ff00ff"><b>⚡ PRE-EXECUTION GATES</b></font>
+        >;
+        style=filled;
+        fillcolor="#1a1f35";
+        color="#ff00ff";
+        penwidth=3;
+
+        gate1 [label=<
+            <table border="0" cellborder="1" cellspacing="0" cellpadding="8" bgcolor="#2a1f3a" color="#00ffff">
+                <tr><td bgcolor="#00ffff"><font color="#000000"><b>🔒 GATE #1: FREEZE</b></font></td></tr>
+                <tr><td align="left"><font color="#ffffff"><b>Config Immutability</b></font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ Verify frozen snapshot</font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ SHA-256 validation</font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ 3 critical files</font></td></tr>
+                <tr><td align="left"><font color="#00ffff">✓ BLOCKING</font></td></tr>
+            </table>
+        >, fillcolor="#2a1f3a", color="#00ffff", penwidth=2];
+
+        gate2 [label=<
+            <table border="0" cellborder="1" cellspacing="0" cellpadding="8" bgcolor="#2a1f3a" color="#00ffff">
+                <tr><td bgcolor="#00ffff"><font color="#000000"><b>📋 GATE #2: FLOW ORDER</b></font></td></tr>
+                <tr><td align="left"><font color="#ffffff"><b>Canonical Flow Validation</b></font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ Compare flow_doc.json</font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ Verify stage order</font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ Contract I/O check</font></td></tr>
+                <tr><td align="left"><font color="#00ffff">✓ BLOCKING</font></td></tr>
+            </table>
+        >, fillcolor="#2a1f3a", color="#00ffff", penwidth=2];
+
+        gate6 [label=<
+            <table border="0" cellborder="1" cellspacing="0" cellpadding="8" bgcolor="#2a1f3a" color="#00ffff">
+                <tr><td bgcolor="#00ffff"><font color="#000000"><b>❌ GATE #6: NO DEPRECATED</b></font></td></tr>
+                <tr><td align="left"><font color="#ffffff"><b>Deprecated Module Check</b></font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ Block old orchestrator</font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ Ensure single path</font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ RuntimeError trigger</font></td></tr>
+                <tr><td align="left"><font color="#00ffff">✓ BLOCKING</font></td></tr>
+            </table>
+        >, fillcolor="#2a1f3a", color="#00ffff", penwidth=2];
+    }
+
+    // Pipeline Execution
+    pipeline [label=<
+        <table border="0" cellborder="1" cellspacing="0" cellpadding="10" bgcolor="#1a3040" color="#00ff88">
+            <tr><td bgcolor="#00ff88"><font color="#000000"><b>⚙️ CANONICAL PIPELINE EXECUTION</b></font></td></tr>
+            <tr><td align="left"><font color="#ffffff">15 Sequential Stages</font></td></tr>
+            <tr><td align="left"><font color="#00ffff">Stage 1-11: Processing + Detection</font></td></tr>
+            <tr><td align="left"><font color="#00ffff">Stage 12: Evidence Registry (FAN-IN)</font></td></tr>
+            <tr><td align="left"><font color="#00ffff">Stage 13-14: Evaluators</font></td></tr>
+            <tr><td align="left"><font color="#00ffff">Stage 15: Answer Assembly</font></td></tr>
+            <tr><td align="left"><font color="#ffff00"><b>Runtime Tracing: flow_runtime.json</b></font></td></tr>
+        </table>
+    >, fillcolor="#1a3040", color="#00ff88", penwidth=3];
+
+    // Post-Execution Gates
+    subgraph cluster_post {
+        label=<
+            <font color="#ffff00"><b>⚡ POST-EXECUTION GATES</b></font>
+        >;
+        style=filled;
+        fillcolor="#1f1f2a";
+        color="#ffff00";
+        penwidth=3;
+
+        gate3 [label=<
+            <table border="0" cellborder="1" cellspacing="0" cellpadding="8" bgcolor="#2a2435" color="#ff00ff">
+                <tr><td bgcolor="#ff00ff"><font color="#000000"><b>🔐 GATE #3: DETERMINISM</b></font></td></tr>
+                <tr><td align="left"><font color="#ffffff"><b>Evidence Hash Stability</b></font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ Triple-run verification</font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ Same evidence_hash</font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ Same flow_hash</font></td></tr>
+                <tr><td align="left"><font color="#00ffff">✓ CRITICAL</font></td></tr>
+            </table>
+        >, fillcolor="#2a2435", color="#ff00ff", penwidth=2];
+
+        gate4 [label=<
+            <table border="0" cellborder="1" cellspacing="0" cellpadding="8" bgcolor="#2a2435" color="#ff00ff">
+                <tr><td bgcolor="#ff00ff"><font color="#000000"><b>📊 GATE #4: COVERAGE</b></font></td></tr>
+                <tr><td align="left"><font color="#ffffff"><b>Question Coverage</b></font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ Count total questions</font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ Verify ≥ 300</font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ No missing questions</font></td></tr>
+                <tr><td align="left"><font color="#00ffff">✓ BLOCKING</font></td></tr>
+            </table>
+        >, fillcolor="#2a2435", color="#ff00ff", penwidth=2];
+
+        gate5 [label=<
+            <table border="0" cellborder="1" cellspacing="0" cellpadding="8" bgcolor="#2a2435" color="#ff00ff">
+                <tr><td bgcolor="#ff00ff"><font color="#000000"><b>📏 GATE #5: RUBRIC</b></font></td></tr>
+                <tr><td align="left"><font color="#ffffff"><b>Rubric Alignment</b></font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ 1:1 Question↔Weight</font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ No missing/extra</font></td></tr>
+                <tr><td align="left"><font color="#ffff00">▸ Weight sum = 1.0</font></td></tr>
+                <tr><td align="left"><font color="#00ffff">✓ BLOCKING</font></td></tr>
+            </table>
+        >, fillcolor="#2a2435", color="#ff00ff", penwidth=2];
+    }
+
+    // Success/Failure nodes
+    success [label="✅ VALIDATION\nPASSED", shape=octagon, fillcolor="#00ff88", color="#00ff88", fontcolor="#000000", penwidth=3, style="filled"];
+    failure [label="❌ VALIDATION\nFAILED", shape=octagon, fillcolor="#ff0000", color="#ff0000", fontcolor="#ffffff", penwidth=3, style="filled"];
+
+    // Flow
+    gate1 -> gate2 [label="PASS", color="#00ff88", fontcolor="#00ff88", penwidth=2];
+    gate2 -> gate6 [label="PASS", color="#00ff88", fontcolor="#00ff88", penwidth=2];
+    gate6 -> pipeline [label="PASS", color="#00ff88", fontcolor="#00ff88", penwidth=3, style="bold"];
+
+    pipeline -> gate3 [label="Complete", color="#ffff00", fontcolor="#ffff00", penwidth=2];
+    gate3 -> gate4 [label="PASS", color="#ff00ff", fontcolor="#ff00ff", penwidth=2];
+    gate4 -> gate5 [label="PASS", color="#ff00ff", fontcolor="#ff00ff", penwidth=2];
+    gate5 -> success [label="PASS", color="#00ff88", fontcolor="#00ff88", penwidth=3, style="bold"];
+
+    // Failure paths
+    gate1 -> failure [label="FAIL", color="#ff0000", fontcolor="#ff0000", penwidth=2, style="dashed"];
+    gate2 -> failure [label="FAIL", color="#ff0000", fontcolor="#ff0000", penwidth=2, style="dashed"];
+    gate6 -> failure [label="FAIL", color="#ff0000", fontcolor="#ff0000", penwidth=2, style="dashed"];
+    gate3 -> failure [label="FAIL", color="#ff0000", fontcolor="#ff0000", penwidth=2, style="dashed"];
+    gate4 -> failure [label="FAIL", color="#ff0000", fontcolor="#ff0000", penwidth=2, style="dashed"];
+    gate5 -> failure [label="FAIL", color="#ff0000", fontcolor="#ff0000", penwidth=2, style="dashed"];
+}
