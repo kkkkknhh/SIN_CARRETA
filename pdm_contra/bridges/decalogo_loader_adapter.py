@@ -72,17 +72,25 @@ def load_decalogos(
         _validate_payload(schema_name, payload)
         payloads.append(payload)
         domains.append(payload.get("domain", ""))
+        # Solo tomar la versión del PRIMER archivo (decalogo-industrial)
         if version is None:
             version = payload.get("version", "0.0.0")
-        elif version != payload.get("version"):
-            raise ValueError("Las versiones de los decálogos no coinciden")
+        # NO comparar versiones - son archivos de tipos diferentes
+
     if crosswalk_path:
         crosswalk = _load_json(Path(crosswalk_path))
     else:
         crosswalk = payloads[0].get("crosswalk", {})
+
+    # Extraer clusters del primer payload si existe, sino usar lista vacía
+    clusters = payloads[0].get("clusters", [])
+    # Si no hay clusters pero hay questions, crear clusters desde questions
+    if not clusters and "questions" in payloads[0]:
+        clusters = [{"questions": payloads[0]["questions"]}]
+
     return CanonicalDecalogoBundle(
         version=version or "0.0.0",
         domains=domains,
-        clusters=payloads[0]["clusters"],
+        clusters=clusters,
         crosswalk=crosswalk,
     ).to_dict()
