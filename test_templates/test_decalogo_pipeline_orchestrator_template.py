@@ -22,11 +22,11 @@ class TestDecalogoPipelineOrchestrator(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures"""
-        pass
+        raise NotImplementedError()
     
     def tearDown(self):
         """Clean up after tests"""
-        pass
+        raise NotImplementedError()
     
     def test_basic_functionality(self):
         """Test basic functionality"""
