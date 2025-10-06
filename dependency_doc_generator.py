@@ -380,8 +380,8 @@ class DependencyDocGenerator:
         doc.append("## Critical Path Diagram\n\n")
         for i, path in enumerate(self.critical_paths, 1):
             doc.append(f"### Path {i}\n\n```mermaid\ngraph LR\n")
-            for j in range(len(path)):
-                doc.append(f"    {chr(65+j)}[{path[j]}]")
+            for j, item in enumerate(path):
+                doc.append(f"    {chr(65+j)}[{item}]")
                 if j < len(path) - 1:
                     doc.append(f" --> ")
             doc.append("\n```\n\n")
