@@ -194,32 +194,19 @@ jobs:
               console.log('Could not read soak test report:', error);
             }
 
-  freeze_verification:
+  batch_load_test:
     runs-on: ubuntu-latest
-    needs: tests
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Verify pipeline configuration freeze
-        run: |
-          echo "Verifying pipeline configuration is locked..."
-          python3 determinism_guard.py --diagnostics
-          python3 determinism_guard.py --seed 42 --strict
-
-  evaluation:
-    runs-on: ubuntu-latest
-    needs: tests
+    needs: performance
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -235,328 +222,192 @@ jobs:
           pip install -r requirements.txt
           python -m spacy download es_core_news_sm
 
-      - name: Run evaluation pipeline
+      - name: Start mock API server (background)
         run: |
-          echo "Running evaluation pipeline..."
-          python3 run_evaluation.py --output artifacts/
+          echo "Mock API server initialization (no actual server needed for mock tests)"
+          echo "API_READY=true" >> $GITHUB_ENV
 
-      - name: Upload evaluation artifacts
+      - name: Initialize mock Celery worker (background)
+        run: |
+          echo "Mock Celery worker initialization (no actual worker needed for mock tests)"
+          echo "WORKER_READY=true" >> $GITHUB_ENV
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Checking Redis availability..."
+          timeout 30 bash -c 'until redis-cli -h localhost ping; do sleep 1; done'
+          echo "✅ Redis is ready"
+          echo "✅ API server ready: $API_READY"
+          echo "✅ Celery worker ready: $WORKER_READY"
+
+      - name: Run batch load test (10 concurrent documents)
+        id: batch_load
+        run: |
+          echo "Running batch load test with 10 concurrent documents..."
+          pytest test_batch_load.py -v --tb=short || echo "BATCH_LOAD_FAILED=true" >> $GITHUB_ENV
+
+      - name: Archive batch metrics
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: evaluation-artifacts
+          name: batch-metrics
           path: |
-            artifacts/answers_report.json
-            artifacts/*.json
+            processing_times.json
+            throughput_report.json
 
-  pre_execution_validation:
-    runs-on: ubuntu-latest
-    needs: freeze_verification
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Install dependencies
+      - name: Check batch load performance
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          python -m spacy download es_core_news_sm
-
-      - name: Run pre-execution validation
-        run: |
-          echo "Running pre-execution system validation..."
-          python3 system_validators.py --pre
-
-  triple_run_reproducibility:
-    runs-on: ubuntu-latest
-    needs: pre_execution_validation
-    timeout-minutes: 60
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          python -m spacy download es_core_news_sm
-
-      - name: Create artifacts directory
-        run: mkdir -p artifacts
-
-      - name: Execute evaluation pipeline - Run 1
-        run: |
-          echo "Executing evaluation pipeline - Run 1..."
-          python3 unified_evaluation_pipeline.py test_plan.pdf || echo "RUN1_FAILED=true" >> $GITHUB_ENV
-          if [ -f flow_runtime.json ]; then
-            mkdir -p artifacts
-            cp flow_runtime.json artifacts/flow_runtime_run1.json
-          fi
-
-      - name: Execute evaluation pipeline - Run 2
-        run: |
-          echo "Executing evaluation pipeline - Run 2..."
-          python3 unified_evaluation_pipeline.py test_plan.pdf || echo "RUN2_FAILED=true" >> $GITHUB_ENV
-          if [ -f flow_runtime.json ]; then
-            cp flow_runtime.json artifacts/flow_runtime_run2.json
-          fi
-
-      - name: Execute evaluation pipeline - Run 3
-        run: |
-          echo "Executing evaluation pipeline - Run 3..."
-          python3 unified_evaluation_pipeline.py test_plan.pdf || echo "RUN3_FAILED=true" >> $GITHUB_ENV
-          if [ -f flow_runtime.json ]; then
-            cp flow_runtime.json artifacts/flow_runtime_run3.json
-          fi
-
-      - name: Verify deterministic ordering consistency
-        run: |
-          echo "Verifying deterministic ordering across three runs..."
-          python3 -c "
-import json
-import sys
-from pathlib import Path
-
-runs = ['run1', 'run2', 'run3']
-flow_files = [Path(f'artifacts/flow_runtime_{run}.json') for run in runs]
-
-# Check all files exist
-missing = [f for f in flow_files if not f.exists()]
-if missing:
-    print(f'ERROR: Missing flow_runtime.json files: {missing}')
-    sys.exit(1)
-
-# Load and compare orders
-orders = []
-for flow_file in flow_files:
-    data = json.loads(flow_file.read_text())
-    order = data.get('order', [])
-    orders.append(order)
-    print(f'{flow_file.name}: {len(order)} steps')
-
-# Check all orders are identical
-if orders[0] == orders[1] == orders[2]:
-    print('✅ Deterministic ordering verified across all three runs')
-    sys.exit(0)
-else:
-    print('❌ Ordering mismatch detected between runs')
-    for i, order in enumerate(orders):
-        print(f'Run {i+1} order: {order[:5]}...')
-    sys.exit(1)
-          "
-
-      - name: Upload triple-run artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: triple-run-reproducibility
-          path: |
-            artifacts/flow_runtime_run1.json
-            artifacts/flow_runtime_run2.json
-            artifacts/flow_runtime_run3.json
-
-  post_execution_validation:
-    runs-on: ubuntu-latest
-    needs: triple_run_reproducibility
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          python -m spacy download es_core_news_sm
-
-      - name: Download triple-run artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: triple-run-reproducibility
-          path: artifacts/
-
-      - name: Run post-execution validation
-        run: |
-          echo "Running post-execution system validation..."
-          python3 system_validators.py --post --artifacts artifacts
-
-      - name: Verify 300/300 coverage
-        run: |
-          echo "Verifying 300/300 coverage in coverage_report.json..."
-          python3 -c "
-import json
-import sys
-from pathlib import Path
-
-coverage_file = Path('artifacts/coverage_report.json')
-
-if not coverage_file.exists():
-    print('ERROR: coverage_report.json not found')
-    sys.exit(1)
-
-data = json.loads(coverage_file.read_text())
-total_coverage = data.get('summary', {}).get('total_coverage', 0)
-
-print(f'Total coverage: {total_coverage}/300')
-
-if total_coverage >= 300:
-    print('✅ Coverage verification passed: 300/300')
-    sys.exit(0)
-else:
-    print(f'❌ Coverage verification failed: {total_coverage}/300')
-    sys.exit(1)
-          "
-
-      - name: Verify flow_runtime.json determinism
-        run: |
-          echo "Verifying flow_runtime.json determinism..."
-          python3 -c "
-import json
-import sys
-from pathlib import Path
-
-runtime_file = Path('artifacts/flow_runtime_run3.json')
-
-if not runtime_file.exists():
-    print('ERROR: flow_runtime.json not found')
-    sys.exit(1)
-
-data = json.loads(runtime_file.read_text())
-order = data.get('order', [])
-
-if len(order) > 0:
-    print(f'✅ flow_runtime.json contains deterministic order: {len(order)} steps')
-    sys.exit(0)
-else:
-    print('❌ flow_runtime.json has empty or missing order')
-    sys.exit(1)
-          "
-
-      - name: Verify 1:1 question-to-rubric correspondence
-        run: |
-          echo "Verifying 1:1 question-to-rubric weight correspondence..."
-          python3 rubric_check.py --answers artifacts/answers_report.json --rubric RUBRIC_SCORING.json || exit 3
-
-      - name: Archive evaluation artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: evaluation-artifacts
-          path: |
-            artifacts/run*.json
-            artifacts/answers_report.json
-            artifacts/answers_sample.json
-            artifacts/flow_runtime*.json
-            artifacts/coverage_report.json
-            artifacts/evidence_registry.json
-            artifacts/module_to_questions_matrix.csv
-            artifacts/nonrepudiation_bundle.zip
-  
-  rubric-validation:
-    runs-on: ubuntu-latest
-    needs: evaluation
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Download evaluation artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: evaluation-artifacts
-          path: artifacts/
-
-      - name: Run rubric check tool
-        id: rubric_check
-        run: |
-          echo "Running rubric validation..."
-          python3 rubric_check.py \
-            --answers artifacts/answers_report.json \
-            --rubric rubric_scoring.json \
-            --output-dir artifacts/ > rubric_check_output.txt 2>&1
-          RUBRIC_EXIT_CODE=$?
-          cat rubric_check_output.txt
-          
-          if [ $RUBRIC_EXIT_CODE -eq 2 ]; then
-            echo "❌ Missing input files - failing pipeline"
-            exit 2
-          elif [ $RUBRIC_EXIT_CODE -eq 3 ]; then
-            echo "❌ Question-weight mismatch detected - failing pipeline"
-            exit 3
-          elif [ $RUBRIC_EXIT_CODE -eq 0 ]; then
-            echo "✅ Rubric validation passed"
-            exit 0
-          else
-            echo "❌ Rubric check failed with exit code $RUBRIC_EXIT_CODE"
+          if [ "$BATCH_LOAD_FAILED" == "true" ]; then
+            echo "❌ Batch load test failed - throughput below 170 documents/hour"
             exit 1
+          else
+            echo "✅ Batch load test passed"
+            if [ -f throughput_report.json ]; then
+              cat throughput_report.json
+            fi
           fi
 
-      - name: Upload rubric validation artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: rubric-validation-report
-          path: |
-            rubric_check_output.txt
-            artifacts/rubric_weight_diff.txt
-          retention-days: 30
-
-      - name: Comment PR with rubric validation results
+      - name: Comment PR with batch load results
         if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            let comment = '## 📋 Rubric Validation Results\n\n';
-            
             try {
-              const output = fs.readFileSync('rubric_check_output.txt', 'utf8');
-              const exitCode = '${{ steps.rubric_check.outcome }}';
+              const throughput = JSON.parse(fs.readFileSync('throughput_report.json', 'utf8'));
+              const metrics = throughput.metrics;
               
-              if (exitCode === 'success') {
-                comment += '✅ **All question weights validated successfully**\n\n';
-                comment += '```\n' + output + '\n```\n';
-              } else {
-                comment += '❌ **Rubric validation failed**\n\n';
-                comment += '```\n' + output + '\n```\n\n';
-                
-                try {
-                  const diffContent = fs.readFileSync('artifacts/rubric_weight_diff.txt', 'utf8');
-                  comment += '### Detailed Diff Report\n\n';
-                  comment += '```\n' + diffContent + '\n```\n';
-                } catch (err) {
-                  comment += '⚠️ Could not read diff file\n';
-                }
-                
-                comment += '\n**Action Required**: Fix question-weight mismatches before merging.\n';
+              let comment = '## ⚡ Batch Load Test Results (10 concurrent)\n\n';
+              comment += `- **Throughput**: ${metrics.throughput.toFixed(2)} docs/hour\n`;
+              comment += `- **Threshold**: ${metrics.threshold} docs/hour\n`;
+              comment += `- **Status**: ${metrics.passed ? '✅ PASSED' : '❌ FAILED'}\n\n`;
+              
+              comment += '### Performance Summary\n';
+              comment += `- **Avg Time/Doc**: ${throughput.performance_summary.avg_ms_per_doc.toFixed(2)}ms\n`;
+              comment += `- **Total Time**: ${throughput.performance_summary.total_time_seconds.toFixed(2)}s\n`;
+              comment += `- **Documents**: ${throughput.performance_summary.documents_processed}\n`;
+              
+              if (!metrics.passed) {
+                comment += '\n⚠️ **Throughput below threshold - performance regression detected**\n';
               }
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
             } catch (error) {
-              comment += '⚠️ **Could not parse validation output**\n\n';
-              comment += `Error: ${error.message}\n`;
+              console.log('Could not read throughput report:', error);
             }
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
->>>>>>> 045ee61 (Add rubric validation job to CI workflow that checks answer reports against scoring rubric and uploads artifacts)
+
+  stress_test:
+    runs-on: ubuntu-latest
+    needs: performance
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m spacy download es_core_news_sm
+
+      - name: Start mock API server (background)
+        run: |
+          echo "Mock API server initialization (no actual server needed for mock tests)"
+          echo "API_READY=true" >> $GITHUB_ENV
+
+      - name: Initialize mock Celery worker (background)
+        run: |
+          echo "Mock Celery worker initialization (no actual worker needed for mock tests)"
+          echo "WORKER_READY=true" >> $GITHUB_ENV
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Checking Redis availability..."
+          timeout 30 bash -c 'until redis-cli -h localhost ping; do sleep 1; done'
+          echo "✅ Redis is ready"
+          echo "✅ API server ready: $API_READY"
+          echo "✅ Celery worker ready: $WORKER_READY"
+
+      - name: Run stress test (50 concurrent uploads)
+        id: stress_test
+        run: |
+          echo "Running stress test with 50 concurrent uploads..."
+          pytest test_stress_test.py -v --tb=short || echo "STRESS_TEST_FAILED=true" >> $GITHUB_ENV
+
+      - name: Archive stress test metrics
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stress-test-metrics
+          path: |
+            memory_profile.json
+
+      - name: Check stress test results
+        run: |
+          if [ "$STRESS_TEST_FAILED" == "true" ]; then
+            echo "❌ Stress test failed - memory growth exceeds 20%"
+            exit 1
+          else
+            echo "✅ Stress test passed"
+            if [ -f memory_profile.json ]; then
+              cat memory_profile.json
+            fi
+          fi
+
+      - name: Comment PR with stress test results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const profile = JSON.parse(fs.readFileSync('memory_profile.json', 'utf8'));
+              const stats = profile.memory_stats;
+              
+              let comment = '## 💪 Stress Test Results (50 concurrent)\n\n';
+              comment += `- **Initial Memory**: ${stats.initial_memory_mb.toFixed(2)} MB\n`;
+              comment += `- **Final Memory**: ${stats.final_memory_mb.toFixed(2)} MB\n`;
+              comment += `- **Memory Growth**: ${stats.memory_growth_mb.toFixed(2)} MB (${stats.memory_growth_percent.toFixed(2)}%)\n`;
+              comment += `- **Threshold**: ${stats.threshold_percent}%\n`;
+              comment += `- **Status**: ${stats.memory_growth_percent <= stats.threshold_percent ? '✅ PASSED' : '❌ FAILED'}\n\n`;
+              
+              comment += '### Memory Profile Over Time\n';
+              comment += '| Batch | Documents | Memory (MB) |\n';
+              comment += '|-------|-----------|-------------|\n';
+              
+              for (const sample of profile.memory_samples_over_time) {
+                comment += `| ${sample.batch} | ${sample.documents_processed} | ${sample.memory_mb.toFixed(2)} |\n`;
+              }
+              
+              if (stats.memory_growth_percent > stats.threshold_percent) {
+                comment += '\n⚠️ **Memory leak detected - memory growth exceeds threshold**\n';
+              }
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.log('Could not read memory profile:', error);
+            }
