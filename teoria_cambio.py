@@ -221,7 +221,7 @@ class TeoriaCambio:
         self._cached_graph = None
         self._cached_hash = None
     
-    def _calculate_elementos_hash(self, elementos: List<CausalElement]) -> str:
+    def _calculate_elementos_hash(self, elementos: List[CausalElement]) -> str:
         """Calculate deterministic hash for a list of elements."""
         if not elementos:
             return "empty"
@@ -235,7 +235,7 @@ class TeoriaCambio:
         
         return hashlib.sha256(hash_input.encode('utf-8')).hexdigest()
     
-    def _crear_grafo_causal(self, elementos: List<CausalElement]) -> nx.DiGraph:
+    def _crear_grafo_causal(self, elementos: List[CausalElement]) -> nx.DiGraph:
         """
         Create causal graph from elements.
         
@@ -619,7 +619,7 @@ class TeoriaCambio:
         
         return recommendations
     
-    def _calcular_coherencia(self, G: nx.DiGraph, elementos: List<CausalElement]) -> float:
+    def _calcular_coherencia(self, G: nx.DiGraph, elementos: List[CausalElement]) -> float:
         """Calculate coherence score of the logical framework."""
         if not elementos:
             return 0.0
@@ -682,7 +682,7 @@ class TeoriaCambio:
         
         return coherence_score
     
-    def _validar_estructura_causal(self, elementos: List<CausalElement]) -> Optional[float]:
+    def _validar_estructura_causal(self, elementos: List[CausalElement]) -> Optional[float]:
         """
         Validate causal structure using DAG validation.
         

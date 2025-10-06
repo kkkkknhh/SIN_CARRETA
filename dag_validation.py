@@ -1692,3 +1692,7 @@ if __name__ == "__main__":
     print("✓ Parallel processing capabilities")
     print("✓ Multiple export formats")
     print("✓ Comprehensive reporting")
+
+
+# Alias for compatibility with orchestrator
+DAGValidator = AdvancedDAGValidator

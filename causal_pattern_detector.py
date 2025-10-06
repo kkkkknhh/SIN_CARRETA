@@ -478,3 +478,7 @@ def integrate_with_miniminimoon():
         print(f"Calidad general: {analysis['evaluation_scores']['overall_quality']:.2f}")
         print(f"Reclamaciones causales: {len(analysis['causal_claims'])}")
         print(f"Métricas cuantitativas: {len(analysis['quantitative_metrics'])}")
+
+
+# Alias for compatibility with orchestrator
+CausalPatternDetector = PDETCausalPatternDetector
