@@ -1,0 +1,189 @@
+name: Canonical Integration Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  validate-integration:
+    name: Validate 11 Canonical Nodes + 5 Target Components
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        python -m spacy download es_core_news_sm
+        
+    - name: Run canonical integration validation
+      id: validation
+      run: |
+        source venv/bin/activate
+        python validate_canonical_integration.py --ci \
+          --output reports/canonical_integration_validation.json \
+          --dashboard-output reports/dashboard_metrics.json \
+          --baseline-output reports/baseline_metrics.json
+      continue-on-error: true
+          
+    - name: Upload validation reports
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: validation-reports
+        path: |
+          reports/canonical_integration_validation.json
+          reports/dashboard_metrics.json
+          reports/baseline_metrics.json
+        retention-days: 30
+        
+    - name: Parse validation results
+      if: always()
+      id: parse
+      run: |
+        if [ -f reports/canonical_integration_validation.json ]; then
+          PASSED=$(python3 -c "import json; report = json.load(open('reports/canonical_integration_validation.json')); print(report['passed_nodes'])")
+          FAILED=$(python3 -c "import json; report = json.load(open('reports/canonical_integration_validation.json')); print(report['failed_nodes'])")
+          TOTAL=$(python3 -c "import json; report = json.load(open('reports/canonical_integration_validation.json')); print(report['total_nodes'])")
+          SUCCESS=$(python3 -c "import json; report = json.load(open('reports/canonical_integration_validation.json')); print(str(report['overall_success']).lower())")
+          AVG_TIME=$(python3 -c "import json; report = json.load(open('reports/canonical_integration_validation.json')); print(f\"{report['performance_metrics']['average_node_time_ms']:.2f}\")")
+          
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "success=$SUCCESS" >> $GITHUB_OUTPUT
+          echo "avg_time=$AVG_TIME" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Comment PR with validation results
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          
+          let status = '❌ FAILED';
+          let body = '## Canonical Integration Validation Failed\n\nCould not load validation report.';
+          
+          try {
+            const report = JSON.parse(fs.readFileSync('reports/canonical_integration_validation.json', 'utf8'));
+            const dashboard = JSON.parse(fs.readFileSync('reports/dashboard_metrics.json', 'utf8'));
+            
+            status = report.overall_success ? '✅ PASSED' : '❌ FAILED';
+            
+            // Component health
+            let componentTable = '| Component | Status |\n|-----------|--------|\n';
+            for (const [name, health] of Object.entries(dashboard.components)) {
+              const icon = health.status === 'healthy' ? '✅' : '❌';
+              componentTable += `| ${name} | ${icon} ${health.status} |\n`;
+            }
+            
+            // Node results
+            let nodeTable = '| Node | Status | Time (ms) |\n|------|--------|----------|\n';
+            const nodeOrder = [
+              'sanitization', 'plan_processing', 'document_segmentation', 'embedding',
+              'responsibility_detection', 'contradiction_detection', 'monetary_detection',
+              'feasibility_scoring', 'causal_detection', 'teoria_cambio', 'dag_validation'
+            ];
+            
+            for (const nodeName of nodeOrder) {
+              const result = report.node_results[nodeName];
+              if (result) {
+                const icon = result.success ? '✅' : '❌';
+                nodeTable += `| ${nodeName} | ${icon} | ${result.execution_time_ms.toFixed(2)} |\n`;
+              }
+            }
+            
+            // SLO compliance
+            let sloTable = '| SLO | Status |\n|-----|--------|\n';
+            for (const [name, compliant] of Object.entries(report.slo_compliance)) {
+              const icon = compliant ? '✅' : '❌';
+              sloTable += `| ${name} | ${icon} ${compliant ? 'COMPLIANT' : 'BREACH'} |\n`;
+            }
+            
+            body = `## Canonical Integration Validation ${status}
+            
+            ### Summary
+            - **Total Nodes**: ${report.total_nodes}
+            - **Passed**: ${report.passed_nodes} (${(report.passed_nodes/report.total_nodes*100).toFixed(1)}%)
+            - **Failed**: ${report.failed_nodes}
+            - **Average Node Time**: ${report.performance_metrics.average_node_time_ms.toFixed(2)}ms
+            - **Total Time**: ${report.performance_metrics.total_validation_time_ms.toFixed(2)}ms
+            - **Cache Hit Rate**: ${report.cache_stats ? (report.cache_stats.hit_rate * 100).toFixed(1) : 0}%
+            
+            ### Target Component Health (5 Critical Components)
+            ${componentTable}
+            
+            ### Node Validation Results (11 Canonical Nodes)
+            ${nodeTable}
+            
+            ### SLO Compliance
+            ${sloTable}
+            
+            ### Performance Metrics
+            - **Slowest Node**: ${report.performance_metrics.slowest_node}
+            - **Cached Validations**: ${report.performance_metrics.cached_validations}/${report.total_nodes}
+            
+            ---
+            📊 Full validation report available in artifacts.
+            `;
+          } catch (error) {
+            body = `## Canonical Integration Validation ⚠️ ERROR\n\n**Error parsing validation report**: ${error.message}\n\nPlease check workflow logs for details.`;
+          }
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: body
+          });
+          
+    - name: Check validation status
+      if: steps.validation.outcome == 'failure'
+      run: |
+        echo "::error::Canonical integration validation failed - blocking PR merge"
+        exit 1
+        
+    - name: Create check run
+      if: always()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          let conclusion = 'failure';
+          let summary = 'Validation failed';
+          
+          try {
+            const report = JSON.parse(fs.readFileSync('reports/canonical_integration_validation.json', 'utf8'));
+            conclusion = report.overall_success ? 'success' : 'failure';
+            summary = `${report.passed_nodes}/${report.total_nodes} nodes passed`;
+          } catch (error) {
+            summary = 'Could not parse validation report';
+          }
+          
+          await github.rest.checks.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            name: 'Canonical Integration Validation',
+            head_sha: context.sha,
+            status: 'completed',
+            conclusion: conclusion,
+            output: {
+              title: 'Canonical Integration Validation',
+              summary: summary
+            }
+          });
