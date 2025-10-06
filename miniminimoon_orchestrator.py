@@ -1,1454 +1,1206 @@
-# coding=utf-8
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-CANONICAL DETERMINISTIC ORCHESTRATOR — FINAL VERSION
-====================================================
-Aligned with Dependency Flow Documentation (72 flows, 6 acceptance gates)
+MINIMINIMOON Orchestrator
+=========================
 
-Architecture guarantees:
-- Determinism: Fixed seeds + frozen config + reproducible flows
-- Immutability: SHA-256 snapshot verification (gate #1)
-- Traceability: Evidence registry with full provenance
-- Quality: Rubric-aligned scoring with confidence (gate #4, #5)
-- Flow integrity: Runtime trace matches canonical doc (gate #2)
+Central orchestrator that coordinates all components in the canonical flow of the MINIMINIMOON system.
+This module manages the execution sequence, data flow, and component interactions,
+ensuring robust integration across all analytical modules.
 
-Version: 2.0.0 (Post-Flow-Finalization)
-Author: System Architect
-Date: 2025-10-05
+REFACTORED: Unified orchestration with EvidenceRegistry and deterministic execution.
 """
-
-import json
-import hashlib
-import random
 import logging
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, field, asdict
+import time
+import os
+import json
+import random
+import numpy as np
+import yaml
+import statistics
+from typing import Dict, List, Any, Optional
+from functools import wraps
 from datetime import datetime
-from enum import Enum
-import sys
 
-try:
-    import numpy as np
+# Import performance monitoring and circuit breaker components
+from performance_test_suite import PerformanceBenchmark, PerformanceResult
+from circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError
 
-    NUMPY_AVAILABLE = True
-except ImportError:
-    NUMPY_AVAILABLE = False
-
-try:
-    import torch
-
-    TORCH_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
-
-# Critical imports (must exist in your codebase)
-from Decatalogo_principal import (
-    ExtractorEvidenciaIndustrialAvanzado,
-    BUNDLE
-)
-from miniminimoon_immutability import EnhancedImmutabilityContract
-
-# Pipeline components
+# Import core processing components
 from plan_sanitizer import PlanSanitizer
 from plan_processor import PlanProcessor
 from document_segmenter import DocumentSegmenter
-from embedding_model import IndustrialEmbeddingModel as EmbeddingModel
+from embedding_model import IndustrialEmbeddingModel
+from spacy_loader import SpacyModelLoader, SafeSpacyProcessor
+
+# Import analysis components
 from responsibility_detector import ResponsibilityDetector
 from contradiction_detector import ContradictionDetector
 from monetary_detector import MonetaryDetector
 from feasibility_scorer import FeasibilityScorer
-from causal_pattern_detector import CausalPatternDetector
-from teoria_cambio import TeoriaCambioValidator
-from dag_validation import DAGValidator
+from teoria_cambio import TeoriaCambio
+from dag_validation import AdvancedDAGValidator
+from causal_pattern_detector import PDETCausalPatternDetector
+
+# Import unified system components
+from evidence_registry import EvidenceRegistry
+from data_flow_contract import CanonicalFlowValidator
+from miniminimoon_immutability import ImmutabilityContract
+
+# Import questionnaire engine for 300-question evaluation
 from questionnaire_engine import QuestionnaireEngine
 
-
-# ============================================================================
-# I/O SCHEMAS (explicit type contracts per flow documentation)
-# ============================================================================
-
-@dataclass
-class SanitizationIO:
-    """Flow #1: miniminimoon_orchestrator → plan_sanitizer"""
-    input: Dict[str, str]  # {raw_text: str}
-    output: Dict[str, str]  # {sanitized_text: str}
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger("MINIMINIMOONOrchestrator")
 
 
-@dataclass
-class PlanProcessingIO:
-    """Flow #2: miniminimoon_orchestrator → plan_processor"""
-    input: Dict[str, str]  # {sanitized_text: str}
-    output: Dict[str, dict]  # {doc_struct: dict}
-
-
-@dataclass
-class SegmentationIO:
-    """Flow #3: miniminimoon_orchestrator → document_segmenter"""
-    input: Dict[str, dict]  # {doc_struct: dict}
-    output: Dict[str, list]  # {segments: list[str|dict]}
-
-
-@dataclass
-class EmbeddingIO:
-    """Flow #4: miniminimoon_orchestrator → embedding_model"""
-    input: Dict[str, list]  # {segments: list}
-    output: Dict[str, list]  # {embeddings: list}
-
-
-@dataclass
-class DetectorIO:
-    """Flows #5-7,9: responsibility/contradiction/monetary/causal detectors"""
-    input: Dict[str, list]  # {segments: list}
-    output: Dict[str, list]  # {results: list[dict]}
-
-
-@dataclass
-class FeasibilityIO:
-    """Flow #8: miniminimoon_orchestrator → feasibility_scorer"""
-    input: Dict[str, list]  # {segments: list}
-    output: Dict[str, dict]  # {feasibility: dict}
-
-
-@dataclass
-class TeoriaIO:
-    """Flow #10: miniminimoon_orchestrator → teoria_cambio"""
-    input: Dict[str, list]  # {segments: list}
-    output: Dict[str, dict]  # {toc_graph: dict}
-
-
-@dataclass
-class DAGIO:
-    """Flow #11: miniminimoon_orchestrator → dag_validation"""
-    input: Dict[str, dict]  # {toc_graph: dict}
-    output: Dict[str, dict]  # {dag_diagnostics: dict}
-
-
-@dataclass
-class EvidenceRegistryIO:
-    """Flow #12: evidence_registry build (fan-in)"""
-    input: Dict[str, Any]  # {responsibilities, contradictions, ...}
-    output: Dict[str, str]  # {evidence_hash: str, evidence_store}
-
-
-@dataclass
-class EvaluationIO:
-    """Flows #13-14: decalogo/questionnaire evaluation"""
-    input: Dict[str, object]  # {evidence_registry: object}
-    output: Dict[str, dict]  # {eval: dict(questions→scores/meta)}
-
-
-@dataclass
-class AnswerAssemblyIO:
-    """Flow #15: miniminimoon_orchestrator → AnswerAssembler"""
-    input: Dict[str, Any]  # {evidence_store, rubric, decalogo_eval, questionnaire_eval}
-    output: Dict[str, dict]  # {answers_report: dict}
-
-
-# ============================================================================
-# CORE DATA STRUCTURES
-# ============================================================================
-
-class PipelineStage(Enum):
-    """Canonical pipeline stages (15 total, flows #1-15)"""
-    SANITIZATION = "sanitization"
-    PLAN_PROCESSING = "plan_processing"
-    SEGMENTATION = "document_segmentation"
-    EMBEDDING = "embedding_generation"
-    RESPONSIBILITY = "responsibility_detection"
-    CONTRADICTION = "contradiction_detection"
-    MONETARY = "monetary_detection"
-    FEASIBILITY = "feasibility_scoring"
-    CAUSAL = "causal_pattern_detection"
-    TEORIA = "teoria_cambio_validation"
-    DAG = "dag_validation"
-    REGISTRY_BUILD = "evidence_registry_build"
-    DECALOGO_EVAL = "decalogo_evaluation"
-    QUESTIONNAIRE_EVAL = "questionnaire_evaluation"
-    ANSWER_ASSEMBLY = "answer_assembly"
-
-
-@dataclass
-class EvidenceEntry:
-    """Single evidence entry with full provenance"""
-    evidence_id: str
-    stage: str
-    content: Any
-    source_segment_ids: List[str] = field(default_factory=list)
-    confidence: float = 1.0
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-    def to_hash(self) -> str:
-        """Deterministic hash for reproducibility (gate #3)"""
-        content_str = json.dumps(self.content, sort_keys=True, ensure_ascii=False)
-        return hashlib.sha256(content_str.encode('utf-8')).hexdigest()[:16]
-
-
-@dataclass
-class Answer:
-    """High-quality answer with full attribution (gate #4)"""
-    question_id: str
-    dimension: str
-    evidence_ids: List[str]
-    confidence: float
-    score: float
-    reasoning: str
-    rubric_weight: float
-    supporting_quotes: List[str] = field(default_factory=list)
-    caveats: List[str] = field(default_factory=list)
-
-    def weighted_score(self) -> float:
-        return self.score * self.rubric_weight
-
-
-class EvidenceRegistry:
+class PerformanceMonitor:
     """
-    Single source of truth for all pipeline evidence (flow #12).
-    Thread-safe, deterministic, with provenance tracking.
+    Real-time performance monitoring with p95/p99 percentile tracking.
+    Exports metrics in Prometheus format and enforces performance budgets.
     """
-
-    def __init__(self):
-        self._evidence: Dict[str, EvidenceEntry] = {}
-        self._stage_index: Dict[str, List[str]] = {}
-        self._segment_index: Dict[str, List[str]] = {}
-        self.logger = logging.getLogger(__name__)
-
-    def register(self, entry: EvidenceEntry) -> str:
-        """Register evidence and update indices"""
-        eid = entry.evidence_id
-        if eid in self._evidence:
-            self.logger.warning(f"Evidence {eid} already exists, overwriting")
-
-        self._evidence[eid] = entry
-
-        # Update stage index
-        if entry.stage not in self._stage_index:
-            self._stage_index[entry.stage] = []
-        self._stage_index[entry.stage].append(eid)
-
-        # Update segment index
-        for seg_id in entry.source_segment_ids:
-            if seg_id not in self._segment_index:
-                self._segment_index[seg_id] = []
-            self._segment_index[seg_id].append(eid)
-
-        return eid
-
-    def get(self, evidence_id: str) -> Optional[EvidenceEntry]:
-        return self._evidence.get(evidence_id)
-
-    def get_by_stage(self, stage: str) -> List[EvidenceEntry]:
-        eids = self._stage_index.get(stage, [])
-        return [self._evidence[eid] for eid in eids]
-
-    def get_by_segment(self, segment_id: str) -> List[EvidenceEntry]:
-        eids = self._segment_index.get(segment_id, [])
-        return [self._evidence[eid] for eid in eids]
-
-    def deterministic_hash(self) -> str:
-        """
-        Generate deterministic hash (gate #3: evidence_hash stable with same input).
-        Used for triple-run reproducibility verification (flow #69).
-        """
-        sorted_eids = sorted(self._evidence.keys())
-        hash_inputs = [self._evidence[eid].to_hash() for eid in sorted_eids]
-        combined = "|".join(hash_inputs)
-        return hashlib.sha256(combined.encode('utf-8')).hexdigest()
-
-    def export(self, path: Path):
-        """Export to artifacts/evidence_registry.json"""
-        data = {
-            "evidence_count": len(self._evidence),
-            "deterministic_hash": self.deterministic_hash(),
-            "evidence": {eid: asdict(entry) for eid, entry in self._evidence.items()}
-        }
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-
-
-class RuntimeTracer:
-    """
-    Flow #57: deterministic_pipeline_validator → artifacts/flow_runtime.json
-    Traces execution order and validates against canonical flow documentation.
-    """
-
-    def __init__(self):
-        self.stages: List[str] = []
-        self.stage_timestamps: Dict[str, float] = {}
-        self.stage_errors: Dict[str, str] = {}
-        self.start_time: Optional[float] = None
-        self.end_time: Optional[float] = None
-
-    def start(self):
-        self.start_time = datetime.utcnow().timestamp()
-
-    def stop(self):
-        self.end_time = datetime.utcnow().timestamp()
-
-    def record_stage(self, stage_name: str, success: bool = True, error: str = ""):
-        self.stages.append(stage_name)
-        self.stage_timestamps[stage_name] = datetime.utcnow().timestamp()
-        if not success:
-            self.stage_errors[stage_name] = error
-
-    def get_stages(self) -> List[str]:
-        return self.stages
-
-    def compute_flow_hash(self) -> str:
-        """Deterministic hash of execution order (gate #2)"""
-        stages_str = "|".join(self.stages)
-        return hashlib.sha256(stages_str.encode('utf-8')).hexdigest()
-
-    def export(self) -> dict:
-        """Export for artifacts/flow_runtime.json"""
-        return {
-            "flow_hash": self.compute_flow_hash(),
-            "stages": self.stages,
-            "stage_count": len(self.stages),
-            "stage_timestamps": self.stage_timestamps,
-            "errors": self.stage_errors,
-            "duration_seconds": (self.end_time - self.start_time) if self.end_time else None
-        }
-
-
-class CanonicalFlowValidator:
-    """
-    Flow #17: Validates runtime trace against canonical flow documentation.
-    Gate #2: flow_runtime.json identical to tools/flow_doc.json + contracts OK.
-    """
-
-    CANONICAL_ORDER = [stage.value for stage in PipelineStage]
-
-    def __init__(self, flow_doc_path: Optional[Path] = None):
-        self.flow_doc_path = flow_doc_path
-        self.logger = logging.getLogger(__name__)
-
-    def validate(self, runtime_trace: RuntimeTracer) -> Dict[str, Any]:
-        """
-        Compare runtime execution with canonical order.
-        Returns validation report with OK/errors.
-        """
-        actual_stages = runtime_trace.get_stages()
-
-        result = {
-            "flow_valid": actual_stages == self.CANONICAL_ORDER,
-            "expected_stages": self.CANONICAL_ORDER,
-            "actual_stages": actual_stages,
-            "missing_stages": list(set(self.CANONICAL_ORDER) - set(actual_stages)),
-            "extra_stages": list(set(actual_stages) - set(self.CANONICAL_ORDER)),
-            "flow_hash": runtime_trace.compute_flow_hash()
-        }
-
-        # If flow_doc.json exists, compare hashes
-        if self.flow_doc_path and self.flow_doc_path.exists():
-            with open(self.flow_doc_path, 'r') as f:
-                doc_data = json.load(f)
-                doc_hash = doc_data.get("flow_hash", "")
-                result["doc_hash"] = doc_hash
-                result["hashes_match"] = doc_hash == result["flow_hash"]
-
-        if not result["flow_valid"]:
-            self.logger.error(
-                f"⨯ Flow validation FAILED (gate #2): "
-                f"missing={result['missing_stages']}, extra={result['extra_stages']}"
-            )
-        else:
-            self.logger.info("✓ Flow validation PASSED (gate #2): canonical order preserved")
-
-        return result
-
-
-class AnswerAssembler:
-    """
-    Flow #15: Transforms evidence into high-quality answers.
-    Flow #59: Exports to artifacts/answers_report.json.
-    Gate #4: Coverage ≥ 300 questions.
-    Gate #5: tools/rubric_check.py passes.
-    """
-
-    def __init__(self, rubric_path: Path, evidence_registry: EvidenceRegistry):
-        self.rubric = self._load_rubric(rubric_path)
-        self.registry = evidence_registry
-        self.logger = logging.getLogger(__name__)
-        self._validate_rubric_coverage()
-
-    def _load_rubric(self, path: Path) -> Dict[str, Any]:
-        with open(path, 'r', encoding='utf-8') as f:
-            rubric = json.load(f)
-
-        if "questions" not in rubric or "weights" not in rubric:
-            raise ValueError(f"Rubric missing 'questions' or 'weights' keys: {path}")
-
-        return rubric
-
-    def _validate_rubric_coverage(self):
-        """Gate #5: Ensure all questions have weights (300/300)"""
-        questions = set(self.rubric["questions"].keys())
-        weights = set(self.rubric["weights"].keys())
-
-        missing = questions - weights
-        extra = weights - questions
-
-        if missing or extra:
-            raise ValueError(
-                f"Rubric validation FAILED (gate #5): "
-                f"missing weights={len(missing)}, extra weights={len(extra)}"
-            )
-
-        self.logger.info(f"✓ Rubric validated (gate #5): {len(questions)}/300 questions with weights")
-
-    def assemble(
-            self,
-            question_id: str,
-            dimension: str,
-            relevant_evidence_ids: List[str],
-            raw_score: float,
-            reasoning: str = ""
-    ) -> Answer:
-        """Assemble complete answer with evidence, confidence, weighted score"""
-        weight = self.rubric["weights"].get(question_id)
-        if weight is None:
-            raise KeyError(f"Question {question_id} has no rubric weight (gate #5 failure)")
-
-        evidence_entries = [self.registry.get(eid) for eid in relevant_evidence_ids]
-        evidence_entries = [e for e in evidence_entries if e is not None]
-
-        confidence = self._calculate_confidence(evidence_entries, raw_score)
-        quotes = self._extract_quotes(evidence_entries)
-
-        if not reasoning:
-            reasoning = self._generate_reasoning(dimension, evidence_entries, raw_score)
-
-        caveats = self._identify_caveats(evidence_entries, raw_score)
-
-        return Answer(
-            question_id=question_id,
-            dimension=dimension,
-            evidence_ids=relevant_evidence_ids,
-            confidence=confidence,
-            score=raw_score,
-            reasoning=reasoning,
-            rubric_weight=weight,
-            supporting_quotes=quotes,
-            caveats=caveats
-        )
-
-    def _calculate_confidence(self, evidence: List[EvidenceEntry], score: float) -> float:
-        if not evidence:
-            return 0.3
-
-        avg_evidence_conf = sum(e.confidence for e in evidence) / len(evidence) if evidence else 0.0
-        evidence_factor = min(len(evidence) / 3.0, 1.0)
-
-        extremity = abs(score - 0.5) * 2
-        if extremity > 0.7 and len(evidence) < 2:
-            extremity_penalty = 0.85
-        else:
-            extremity_penalty = 1.0
-
-        confidence = avg_evidence_conf * evidence_factor * extremity_penalty
-        return round(min(confidence, 1.0), 2)
-
-    def _extract_quotes(self, evidence: List[EvidenceEntry], max_quotes: int = 3) -> List[str]:
-        quotes = []
-        for entry in evidence[:max_quotes]:
-            if isinstance(entry.content, dict) and "text" in entry.content:
-                text = entry.content["text"]
-                if len(text) > 150:
-                    text = text[:147] + "..."
-                quotes.append(text)
-            elif isinstance(entry.content, str):
-                text = entry.content
-                if len(text) > 150:
-                    text = text[:147] + "..."
-                quotes.append(text)
-        return quotes
-
-    def _generate_reasoning(self, dimension: str, evidence: List[EvidenceEntry], score: float) -> str:
-        if not evidence:
-            return f"No evidence found for {dimension}. Score reflects absence of required information."
-
-        evidence_types = list(set(e.stage for e in evidence))
-        evidence_summary = ", ".join(evidence_types[:3])
-
-        if score > 0.7:
-            return f"Strong evidence from {evidence_summary} supports high compliance in {dimension}. Multiple sources confirm alignment with requirements."
-        elif score > 0.4:
-            return f"Partial evidence from {evidence_summary} indicates moderate compliance in {dimension}. Some gaps or ambiguities remain."
-        else:
-            return f"Limited evidence from {evidence_summary} suggests low compliance in {dimension}. Critical elements are missing or unclear."
-
-    def _identify_caveats(self, evidence: List[EvidenceEntry], score: float) -> List[str]:
-        caveats = []
-
-        if len(evidence) == 0:
-            caveats.append("No supporting evidence found")
-        elif len(evidence) == 1:
-            caveats.append("Based on single evidence source")
-
-        low_conf_evidence = [e for e in evidence if e.confidence < 0.5]
-        if low_conf_evidence:
-            caveats.append(f"{len(low_conf_evidence)} low-confidence evidence pieces")
-
-        if score > 0.8 and len(evidence) < 2:
-            caveats.append("High score with limited evidence—verify manually")
-
-        return caveats
-
-
-class SystemValidators:
-    """
-    Flow #19, #56: Pre/post validation gates.
-    Enforces acceptance criteria before/after pipeline execution.
-    """
-
-    def __init__(self, config_dir: Path):
-        self.config_dir = config_dir
-        self.logger = logging.getLogger(__name__)
-
-    def run_pre_checks(self) -> Dict[str, Any]:
-        """
-        Flow #56: Gate before execution.
-        Checks:
-        - Frozen config snapshot exists (gate #1)
-        - RUBRIC_SCORING.json valid
-        - No deprecated orchestrator imports
-        """
-        results = {
-            "pre_validation_ok": True,
-            "checks": []
-        }
-
-        # Check 1: Frozen config (gate #1)
-        immut = EnhancedImmutabilityContract()
-        if not immut.has_snapshot():
-            results["pre_validation_ok"] = False
-            results["checks"].append({
-                "name": "frozen_config_exists",
-                "status": "FAIL",
-                "message": "No .immutability_snapshot.json found. Run freeze first."
-            })
-        else:
-            if not immut.verify_frozen_config():
-                results["pre_validation_ok"] = False
-                results["checks"].append({
-                    "name": "frozen_config_valid",
-                    "status": "FAIL",
-                    "message": "Config mismatch. Run freeze or revert changes."
-                })
+    
+    def __init__(self, budgets_config_path: str = "performance_budgets.yaml"):
+        self.latencies: Dict[str, List[float]] = {}
+        self.budgets = {}
+        self.circuit_breaker_events: List[Dict[str, Any]] = []
+        self.load_budgets(budgets_config_path)
+        
+    def load_budgets(self, config_path: str):
+        """Load performance budgets from YAML configuration"""
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                    self.budgets = config.get('budgets', {})
+                    logger.info(f"Loaded performance budgets for {len(self.budgets)} nodes")
             else:
-                results["checks"].append({
-                    "name": "frozen_config_valid",
-                    "status": "PASS",
-                    "message": "Frozen config verified"
-                })
-
-        # Check 2: RUBRIC_SCORING.json exists
-        rubric_path = self.config_dir / "RUBRIC_SCORING.json"
-        if not rubric_path.exists():
-            results["pre_validation_ok"] = False
-            results["checks"].append({
-                "name": "rubric_exists",
-                "status": "FAIL",
-                "message": f"RUBRIC_SCORING.json not found at {rubric_path}"
-            })
+                logger.warning(f"Performance budgets file not found: {config_path}")
+        except Exception as e:
+            logger.error(f"Error loading performance budgets: {e}")
+    
+    def record_latency(self, node_name: str, latency_ms: float):
+        """Record latency measurement for a node"""
+        if node_name not in self.latencies:
+            self.latencies[node_name] = []
+        self.latencies[node_name].append(latency_ms)
+    
+    def get_percentiles(self, node_name: str) -> Dict[str, float]:
+        """Calculate p50, p95, p99 percentiles for a node"""
+        if node_name not in self.latencies or not self.latencies[node_name]:
+            return {"p50": 0.0, "p95": 0.0, "p99": 0.0}
+        
+        sorted_latencies = sorted(self.latencies[node_name])
+        n = len(sorted_latencies)
+        
+        return {
+            "p50": sorted_latencies[int(n * 0.50)] if n > 0 else 0.0,
+            "p95": sorted_latencies[int(n * 0.95)] if n > 0 else 0.0,
+            "p99": sorted_latencies[int(n * 0.99)] if n > 0 else 0.0,
+            "mean": statistics.mean(sorted_latencies),
+            "count": n
+        }
+    
+    def check_budget_violation(self, node_name: str) -> tuple[bool, str]:
+        """Check if node's p95 latency exceeds budget"""
+        if node_name not in self.budgets:
+            return True, f"No budget defined for {node_name}"
+        
+        percentiles = self.get_percentiles(node_name)
+        p95_ms = percentiles["p95"]
+        
+        budget_config = self.budgets[node_name]
+        budget_ms = budget_config.get("p95_ms", float('inf'))
+        tolerance_pct = budget_config.get("tolerance_pct", 10.0)
+        max_allowed_ms = budget_ms * (1 + tolerance_pct / 100)
+        
+        passed = p95_ms <= max_allowed_ms
+        
+        if passed:
+            margin = ((max_allowed_ms - p95_ms) / budget_ms) * 100
+            msg = f"✅ {node_name}: p95={p95_ms:.2f}ms < {max_allowed_ms:.2f}ms (margin: {margin:.1f}%)"
         else:
-            results["checks"].append({
-                "name": "rubric_exists",
-                "status": "PASS",
-                "message": "RUBRIC_SCORING.json found"
-            })
+            overage = ((p95_ms - max_allowed_ms) / budget_ms) * 100
+            msg = f"❌ {node_name}: p95={p95_ms:.2f}ms > {max_allowed_ms:.2f}ms (overage: {overage:.1f}%)"
+        
+        return passed, msg
+    
+    def record_circuit_event(self, event_type: str, circuit_name: str, data: Dict[str, Any]):
+        """Record circuit breaker state transition"""
+        self.circuit_breaker_events.append({
+            "timestamp": datetime.now().isoformat(),
+            "event_type": event_type,
+            "circuit_name": circuit_name,
+            "data": data
+        })
+    
+    def export_prometheus_metrics(self, output_path: str = "performance_metrics.prom"):
+        """Export metrics in Prometheus format"""
+        lines = [
+            "# HELP miniminimoon_pipeline_latency_milliseconds Pipeline node latency",
+            "# TYPE miniminimoon_pipeline_latency_milliseconds histogram",
+        ]
+        
+        for node_name, latencies in self.latencies.items():
+            if not latencies:
+                continue
+            
+            percentiles = self.get_percentiles(node_name)
+            
+            # Prometheus histogram format
+            lines.append(f'miniminimoon_pipeline_latency_milliseconds{{node="{node_name}",quantile="0.5"}} {percentiles["p50"]:.2f}')
+            lines.append(f'miniminimoon_pipeline_latency_milliseconds{{node="{node_name}",quantile="0.95"}} {percentiles["p95"]:.2f}')
+            lines.append(f'miniminimoon_pipeline_latency_milliseconds{{node="{node_name}",quantile="0.99"}} {percentiles["p99"]:.2f}')
+            lines.append(f'miniminimoon_pipeline_latency_milliseconds_count{{node="{node_name}"}} {percentiles["count"]}')
+        
+        # Circuit breaker metrics
+        lines.append("")
+        lines.append("# HELP miniminimoon_circuit_breaker_events_total Circuit breaker state transitions")
+        lines.append("# TYPE miniminimoon_circuit_breaker_events_total counter")
+        
+        event_counts = {}
+        for event in self.circuit_breaker_events:
+            key = (event["circuit_name"], event["event_type"])
+            event_counts[key] = event_counts.get(key, 0) + 1
+        
+        for (circuit_name, event_type), count in event_counts.items():
+            lines.append(f'miniminimoon_circuit_breaker_events_total{{circuit="{circuit_name}",event="{event_type}"}} {count}')
+        
+        with open(output_path, 'w') as f:
+            f.write('\n'.join(lines))
+        
+        logger.info(f"Exported Prometheus metrics to {output_path}")
+    
+    def generate_dashboard_html(self, output_path: str = "performance_dashboard.html"):
+        """Generate HTML dashboard with real-time metrics"""
+        html = """<!DOCTYPE html>
+<html>
+<head>
+    <title>MINIMINIMOON Performance Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { color: #333; }
+        .metric-card { 
+            background: white; 
+            border-radius: 8px; 
+            padding: 15px; 
+            margin: 10px 0; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .pass { color: #28a745; }
+        .fail { color: #dc3545; }
+        .warning { color: #ffc107; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #007bff; color: white; }
+        .percentile { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>🚀 MINIMINIMOON Performance Dashboard</h1>
+    <p>Generated: """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """</p>
+    
+    <div class="metric-card">
+        <h2>Pipeline Node Latencies</h2>
+        <table>
+            <tr>
+                <th>Node</th>
+                <th>p50 (ms)</th>
+                <th>p95 (ms)</th>
+                <th>p99 (ms)</th>
+                <th>Budget</th>
+                <th>Status</th>
+            </tr>
+"""
+        
+        for node_name in sorted(self.latencies.keys()):
+            percentiles = self.get_percentiles(node_name)
+            passed, msg = self.check_budget_violation(node_name)
+            
+            status_class = "pass" if passed else "fail"
+            status_icon = "✅" if passed else "❌"
+            
+            budget_str = f"{self.budgets.get(node_name, {}).get('p95_ms', 'N/A')} ms" if node_name in self.budgets else "N/A"
+            
+            html += f"""            <tr>
+                <td>{node_name}</td>
+                <td>{percentiles['p50']:.2f}</td>
+                <td class="percentile">{percentiles['p95']:.2f}</td>
+                <td>{percentiles['p99']:.2f}</td>
+                <td>{budget_str}</td>
+                <td class="{status_class}">{status_icon} {msg.split(':')[0]}</td>
+            </tr>
+"""
+        
+        html += """        </table>
+    </div>
+    
+    <div class="metric-card">
+        <h2>Circuit Breaker Events</h2>
+        <p>Total events: """ + str(len(self.circuit_breaker_events)) + """</p>
+    </div>
+</body>
+</html>"""
+        
+        with open(output_path, 'w') as f:
+            f.write(html)
+        
+        logger.info(f"Generated dashboard: {output_path}")
 
-        # Check 3: Deprecated orchestrator not imported (gate #6)
-        try:
-            import decalogo_pipeline_orchestrator
-            results["pre_validation_ok"] = False
-            results["checks"].append({
-                "name": "no_deprecated_imports",
-                "status": "FAIL",
-                "message": "decalogo_pipeline_orchestrator is DEPRECATED and must not be imported"
-            })
-        except (ImportError, RuntimeError):
-            results["checks"].append({
-                "name": "no_deprecated_imports",
-                "status": "PASS",
-                "message": "No deprecated orchestrator imports detected"
-            })
 
-        if results["pre_validation_ok"]:
-            self.logger.info("✓ Pre-validation PASSED: all gates OK")
-        else:
-            self.logger.error("⨯ Pre-validation FAILED: see checks")
+class ExecutionContext:
+    """
+    Maintains context information during the orchestration process.
+    Tracks execution time, component dependencies, and data flow.
+    """
+    def __init__(self):
+        self.start_time = time.time()
+        self.execution_times = {}
+        self.component_status = {}
+        self.data_flow_history = []
+        self.error_registry = []
+        self.config = {}
 
-        return results
+    def register_component_execution(self, component_name: str, start_time: float, end_time: float, status: str):
+        """Register the execution of a component with timing and status"""
+        self.execution_times[component_name] = end_time - start_time
+        self.component_status[component_name] = status
 
-    def run_post_checks(self, results: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Post-execution validation.
-        Checks:
-        - Evidence hash stable (gate #3)
-        - Flow hash matches doc (gate #2)
-        - Coverage ≥ 300 (gate #4)
-        - No rubric mismatches (gate #5)
-        """
-        post_results = {
-            "post_validation_ok": True,
-            "checks": []
+    def register_data_flow(self, source: str, destination: str, data_type: str, size: int):
+        """Register data flowing between components"""
+        self.data_flow_history.append({
+            "timestamp": time.time(),
+            "source": source,
+            "destination": destination,
+            "data_type": data_type,
+            "size": size
+        })
+
+    def register_error(self, component: str, error_type: str, error_message: str, is_fatal: bool = False):
+        """Register an error that occurred during execution"""
+        self.error_registry.append({
+            "timestamp": time.time(),
+            "component": component,
+            "error_type": error_type,
+            "message": error_message,
+            "is_fatal": is_fatal
+        })
+
+    def get_execution_summary(self) -> Dict[str, Any]:
+        """Generate a summary of the orchestration execution"""
+        return {
+            "total_time": time.time() - self.start_time,
+            "component_times": self.execution_times,
+            "component_status": self.component_status,
+            "data_flows": len(self.data_flow_history),
+            "errors": len(self.error_registry),
+            "fatal_errors": sum(1 for e in self.error_registry if e["is_fatal"])
         }
 
-        # Check 1: Evidence hash present (gate #3)
-        if "evidence_hash" not in results:
-            post_results["post_validation_ok"] = False
-            post_results["checks"].append({
-                "name": "evidence_hash_present",
-                "status": "FAIL",
-                "message": "No evidence_hash in results"
-            })
-        else:
-            post_results["checks"].append({
-                "name": "evidence_hash_present",
-                "status": "PASS",
-                "message": f"Evidence hash: {results['evidence_hash'][:16]}..."
-            })
 
-        # Check 2: Flow validation (gate #2)
-        if "validation" in results and not results["validation"].get("flow_valid"):
-            post_results["post_validation_ok"] = False
-            post_results["checks"].append({
-                "name": "flow_order_valid",
-                "status": "FAIL",
-                "message": "Flow order does not match canonical documentation"
-            })
-        else:
-            post_results["checks"].append({
-                "name": "flow_order_valid",
-                "status": "PASS",
-                "message": "Flow order matches canonical doc"
-            })
-
-        # Check 3: Coverage (gate #4)
-        answers = results.get("evaluations", {}).get("answers_report", {})
-        total_questions = answers.get("summary", {}).get("total_questions", 0)
-        if total_questions < 300:
-            post_results["post_validation_ok"] = False
-            post_results["checks"].append({
-                "name": "coverage_300",
-                "status": "FAIL",
-                "message": f"Only {total_questions}/300 questions answered"
-            })
-        else:
-            post_results["checks"].append({
-                "name": "coverage_300",
-                "status": "PASS",
-                "message": f"{total_questions}/300 questions answered"
-            })
-
-        if post_results["post_validation_ok"]:
-            self.logger.info("✓ Post-validation PASSED: all gates OK")
-        else:
-            self.logger.error("⨯ Post-validation FAILED: see checks")
-
-        return post_results
-
-
-# ============================================================================
-# CANONICAL ORCHESTRATOR (v2.0)
-# ============================================================================
-
-class CanonicalDeterministicOrchestrator:
+def component_execution(component_name: str):
     """
-    Master orchestrator implementing flows #1-17 from canonical documentation.
-
-    Acceptance gates (all 6 enforced):
-    1. verify_frozen_config() == True before execution
-    2. flow_runtime.json identical to tools/flow_doc.json
-    3. evidence_hash stable with same input
-    4. Coverage answers_report.summary.total_questions ≥ 300
-    5. tools/rubric_check.py passes (no missing/extra)
-    6. No deprecated orchestrator usage
-
-    Entry: process_plan_deterministic(plan_path) → results + evidence_hash
+    Decorator to track component execution time and status,
+    and handle exceptions gracefully.
     """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            context = kwargs.get('context', self.context)
+            start_time = time.time()
+            status = "success"
 
-    VERSION = "2.0.0-flow-finalized"
-    REQUIRED_CONFIG_FILES = [
-        "DECALOGO_FULL.json",
-        "decalogo_industrial.json",
-        "dnp-standards.latest.clean.json",
-        "RUBRIC_SCORING.json"
-    ]
-
-    def __init__(
-            self,
-            config_dir: Path,
-            enable_validation: bool = True,
-            flow_doc_path: Optional[Path] = None,
-            log_level: str = "INFO"
-    ):
-        self.config_dir = Path(config_dir)
-        self.enable_validation = enable_validation
-        self.flow_doc_path = flow_doc_path
-
-        logging.basicConfig(
-            level=getattr(logging, log_level),
-            format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-        )
-        self.logger = logging.getLogger(__name__)
-
-        # CRITICAL: Deterministic seeds
-        self._set_deterministic_seeds()
-
-        # CRITICAL: Verify frozen config (gate #1)
-        self._verify_immutability()
-
-        # Initialize evidence registry
-        self.evidence_registry = EvidenceRegistry()
-
-        # Load configurations
-        self.decalogo_contexto = BUNDLE # Corrected: Use BUNDLE from Decatalogo_principal
-        self.decatalogo_extractor = ExtractorEvidenciaIndustrialAvanzado(
-            self.decalogo_contexto
-        )
-
-        # Initialize pipeline components
-        self._init_pipeline_components()
-
-        # Initialize evaluators
-        self._init_evaluators()
-
-        # Initialize validators
-        self.system_validators = SystemValidators(self.config_dir)
-
-        if self.enable_validation:
-            self.flow_validator = CanonicalFlowValidator(self.flow_doc_path)
-            self.runtime_tracer = RuntimeTracer()
-
-        self.logger.info(f"CanonicalDeterministicOrchestrator {self.VERSION} initialized")
-
-    def _set_deterministic_seeds(self):
-        """Fix all random seeds for reproducibility"""
-        SEED = 42
-        random.seed(SEED)
-
-        if NUMPY_AVAILABLE:
-            np.random.seed(SEED)
-
-        if TORCH_AVAILABLE:
             try:
-                torch.manual_seed(SEED)
-                if torch.cuda.is_available():
-                    torch.cuda.manual_seed_all(SEED)
-                torch.backends.cudnn.deterministic = True
-                torch.backends.cudnn.benchmark = False
+                result = func(self, *args, **kwargs)
+                return result
             except Exception as e:
-                self.logger.warning(f"Could not set torch determinism: {e}")
+                status = "error"
+                error_msg = str(e)
+                logger.error(f"Error in {component_name}: {error_msg}")
+                context.register_error(component_name, type(e).__name__, error_msg)
+                return None
+            finally:
+                end_time = time.time()
+                context.register_component_execution(component_name, start_time, end_time, status)
 
-        self.logger.info("Deterministic seeds set (random=42, numpy=42, torch=42)")
+        return wrapper
+    return decorator
 
-    def _verify_immutability(self):
+
+class MINIMINIMOONOrchestrator:
+    """
+    Central orchestrator for the MINIMINIMOON system.
+
+    This class coordinates the interactions between all system components,
+    manages the canonical flow, and ensures robust error handling and recovery.
+    """
+
+    def __init__(self, config_path: Optional[str] = None):
         """
-        Gate #1: Verify frozen configuration.
-        Flow #16: miniminimoon_orchestrator → miniminimoon_immutability
+        Initialize the MINIMINIMOON orchestrator.
+
+        Args:
+            config_path: Optional path to configuration file
         """
-        self.immutability_contract = EnhancedImmutabilityContract()
+        self.context = ExecutionContext()
 
-        if not self.immutability_contract.has_snapshot():
-            raise RuntimeError(
-                "GATE #1 FAILED: No frozen config snapshot. "
-                "Run freeze_configuration() first."
-            )
+        # Load configuration
+        self.config = self._load_config(config_path)
+        self.context.config = self.config
 
-        if not self.immutability_contract.verify_frozen_config():
-            raise RuntimeError(
-                "GATE #1 FAILED: Frozen config mismatch. "
-                "Config files changed since snapshot. "
-                "Run freeze_configuration() or revert changes."
-            )
+        # Initialize the immutability contract
+        self.immutability_contract = ImmutabilityContract()
 
-        self.logger.info("✓ Gate #1 PASSED: Frozen config verified")
+        # Initialize performance monitoring
+        logger.info("Initializing performance monitoring...")
+        self.performance_monitor = PerformanceMonitor()
+        
+        # Initialize circuit breakers for fault-prone operations
+        logger.info("Initializing circuit breakers (2.0s recovery threshold)...")
+        self.circuit_breakers = self._initialize_circuit_breakers()
 
-    def _init_pipeline_components(self):
-        """Initialize 11 pipeline processing stages (flows #1-11)"""
-        self.plan_sanitizer = PlanSanitizer()
-        self.plan_processor = PlanProcessor()
-        self.document_segmenter = DocumentSegmenter()
-        self.embedding_model = EmbeddingModel()
-        self.responsibility_detector = ResponsibilityDetector()
-        self.contradiction_detector = ContradictionDetector()
-        self.monetary_detector = MonetaryDetector()
-        self.feasibility_scorer = FeasibilityScorer()
-        self.causal_pattern_detector = CausalPatternDetector()
-        self.teoria_cambio_validator = TeoriaCambioValidator()
-        self.dag_validator = DAGValidator()
+        logger.info("Initializing MINIMINIMOON Orchestrator")
+        self._initialize_components()
+        logger.info("MINIMINIMOON Orchestrator initialized successfully")
 
-        self.logger.info("Pipeline components initialized (11 stages)")
-
-    def _init_evaluators(self):
-        """Initialize evaluators (flows #13-15)"""
-        rubric_path = self.config_dir / "RUBRIC_SCORING.json"
-
-        self.questionnaire_engine = QuestionnaireEngine(
-            evidence_registry=self.evidence_registry,
-            rubric_path=rubric_path
-        )
-
-        self.answer_assembler = AnswerAssembler(
-            rubric_path=rubric_path,
-            evidence_registry=self.evidence_registry
-        )
-
-        self.logger.info("Evaluators initialized (questionnaire + assembler)")
-
-    def process_plan_deterministic(self, plan_path: str) -> Dict[str, Any]:
-        """
-        ███ CANONICAL ENTRY POINT ███
-
-        Implements flows #1-15 in strict sequential order.
-        Returns results with evidence_hash for reproducibility (gate #3).
-
-        15-stage flow:
-        1-11: Processing pipeline (sanitize → DAG validation)
-        12: Build evidence registry (single source of truth)
-        13: Decálogo evaluation (data-driven)
-        14: Questionnaire evaluation (300 questions)
-        15: Answer assembly (high-quality report)
-
-        Gates enforced:
-        - #1: Frozen config verified in __init__
-        - #2: Flow order validated (if enable_validation=True)
-        - #3: Evidence hash computed and stable
-        - #4: Coverage ≥ 300 validated in post-checks
-        - #5: Rubric alignment validated in AnswerAssembler
-        - #6: No deprecated imports (checked in pre-validation)
-        """
-        plan_path = Path(plan_path)
-        if not plan_path.exists():
-            raise FileNotFoundError(f"Plan not found: {plan_path}")
-
-        self.logger.info(f"▶ Starting canonical pipeline for: {plan_path.name}")
-        start_time = datetime.utcnow()
-
-        # Start runtime tracing
-        if self.enable_validation:
-            self.runtime_tracer.start()
-
-        results = {
-            "plan_path": str(plan_path),
-            "orchestrator_version": self.VERSION,
-            "start_time": start_time.isoformat(),
-            "stages_completed": [],
-            "evaluations": {},
-            "runtime_stats": {}
+    def _load_config(self, config_path: Optional[str] = None) -> Dict[str, Any]:
+        """Load configuration from file or use defaults"""
+        default_config = {
+            "parallel_processing": True,
+            "embedding_batch_size": 32,
+            "segmentation_strategy": "paragraph",
+            "context_window_size": 150,
+            "error_tolerance": "medium",
+            "log_level": "INFO",
+            "cache_embeddings": True,
+            "verification_level": "normal",
+            "determinism": {
+                "enabled": True,
+                "seed": 42
+            }
         }
 
-        # ========== FLOWS #1-11: SEQUENTIAL PROCESSING ==========
+        if config_path and os.path.exists(config_path):
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    user_config = json.load(f)
+                config = {**default_config, **user_config}
+                logger.info(f"Loaded custom configuration from {config_path}")
+                return config
+            except Exception as e:
+                logger.error(f"Error loading configuration: {e}")
 
-        # Flow #1: Sanitization
-        # Input: {raw_text: str} -> Output: {sanitized_text: str}
-        with open(plan_path, 'r', encoding='utf-8') as f:
-            raw_text = f.read()
+        logger.info("Using default configuration")
+        return default_config
 
-        sanitized_text = self._run_stage(
-            PipelineStage.SANITIZATION,
-            lambda: self.plan_sanitizer.sanitize_text(raw_text),
-            results["stages_completed"]
+    def _initialize_circuit_breakers(self) -> Dict[str, CircuitBreaker]:
+        """Initialize circuit breakers for fault-prone operations"""
+        circuit_config = CircuitBreakerConfig(
+            failure_threshold=5,
+            success_threshold=2,
+            timeout_seconds=60.0,
+            recovery_time_sla_seconds=2.0
         )
+        
+        fault_prone_operations = [
+            "embedding",
+            "responsibility_detection",
+            "contradiction_detection",
+            "causal_detection",
+            "teoria_cambio",
+            "dag_validation"
+        ]
+        
+        circuits = {}
+        for op_name in fault_prone_operations:
+            circuit = CircuitBreaker(op_name, circuit_config)
+            
+            # Register alert callback for monitoring
+            def alert_callback(event_type, circuit_name, data):
+                self.performance_monitor.record_circuit_event(event_type, circuit_name, data)
+                if event_type == "circuit_opened":
+                    logger.error(f"🔴 Circuit breaker OPENED: {circuit_name}")
+                elif event_type == "state_transition":
+                    logger.warning(f"⚠️  Circuit breaker transition: {circuit_name} -> {data.get('to')}")
+            
+            circuit.register_alert(alert_callback)
+            circuits[op_name] = circuit
+            
+        logger.info(f"Initialized {len(circuits)} circuit breakers")
+        return circuits
 
-        # Flow #2: Plan Processing
-        # Input: {sanitized_text: str} -> Output: {doc_struct: dict}
-        doc_struct = self._run_stage(
-            PipelineStage.PLAN_PROCESSING,
-            lambda: self.plan_processor.process(sanitized_text),
-            results["stages_completed"]
-        )
-
-        # Flow #3: Document Segmentation
-        # Input: {doc_struct: dict} -> Output: {segments: list[str|dict]}
-        segments = self._run_stage(
-            PipelineStage.SEGMENTATION,
-            lambda: self.document_segmenter.segment(sanitized_text), # Corrected to use sanitized_text
-            results["stages_completed"]
-        )
-        segment_texts = [s.text for s in segments]
-
-        # Flow #4: Embedding Generation
-        # Input: {segments: list} -> Output: {embeddings: list}
-        embeddings = self._run_stage(
-            PipelineStage.EMBEDDING,
-            lambda: self.embedding_model.encode(segment_texts),
-            results["stages_completed"]
-        )
-
-        # Flow #5: Responsibility Detection
-        # Input: {segments: list} -> Output: {responsibilities: list[dict]}
-        responsibilities = self._run_stage(
-            PipelineStage.RESPONSIBILITY,
-            lambda: self.responsibility_detector.detect_entities(sanitized_text),
-            results["stages_completed"]
-        )
-
-        # Flow #6: Contradiction Detection
-        # Input: {segments: list} -> Output: {contradictions: list[dict]}
-        contradictions = self._run_stage(
-            PipelineStage.CONTRADICTION,
-            lambda: self.contradiction_detector.detect_contradictions(sanitized_text),
-            results["stages_completed"]
-        )
-
-        # Flow #7: Monetary Detection
-        # Input: {segments: list} -> Output: {monetary: list[dict]}
-        monetary = self._run_stage(
-            PipelineStage.MONETARY,
-            lambda: self.monetary_detector.detect(sanitized_text, plan_name=plan_path.name),
-            results["stages_completed"]
-        )
-
-        # Flow #8: Feasibility Scoring
-        # Input: {segments: list} -> Output: {feasibility: dict}
-        feasibility = self._run_stage(
-            PipelineStage.FEASIBILITY,
-            lambda: self.feasibility_scorer.evaluate_plan_feasibility(sanitized_text),
-            results["stages_completed"]
-        )
-
-        # Flow #9: Causal Pattern Detection
-        # Input: {segments: list} -> Output: {causal_patterns: dict}
-        causal_patterns = self._run_stage(
-            PipelineStage.CAUSAL,
-            lambda: self.causal_pattern_detector.detect_patterns(sanitized_text, plan_name=plan_path.name),
-            results["stages_completed"]
-        )
-
-        # Flow #10: Teoría del Cambio Validation
-        # Input: {segments: list} -> Output: {toc_graph: dict}
-        toc_graph = self._run_stage(
-            PipelineStage.TEORIA,
-            lambda: self.teoria_cambio_validator.verificar_marco_logico_completo(segments),
-            results["stages_completed"]
-        )
-
-        # Flow #11: DAG Validation
-        # Input: {toc_graph: dict} -> Output: {dag_diagnostics: dict}
-        dag_diagnostics = self._run_stage(
-            PipelineStage.DAG,
-            lambda: self.dag_validator.calculate_acyclicity_pvalue_advanced(plan_path.name),
-            results["stages_completed"]
-        )
-
-        # ========== FLOW #12: BUILD EVIDENCE REGISTRY ==========
-        # This is the fan-in step
-        all_detector_outputs = {
-            "segments": segments,
-            "embeddings": embeddings,
-            "responsibilities": responsibilities,
-            "contradictions": contradictions,
-            "monetary": monetary,
-            "feasibility": feasibility,
-            "causal_patterns": causal_patterns,
-            "toc_graph": toc_graph,
-            "dag_diagnostics": dag_diagnostics
-        }
-        self._run_stage(
-            PipelineStage.REGISTRY_BUILD,
-            lambda: self._build_evidence_registry(all_detector_outputs),
-            results["stages_completed"]
-        )
-
-        # ========== FLOW #13: DECÁLOGO EVALUATION ==========
-        decalogo_eval = self._run_stage(
-            PipelineStage.DECALOGO_EVAL,
-            lambda: self._execute_decalogo_evaluation(self.evidence_registry),
-            results["stages_completed"]
-        )
-        results["evaluations"]["decalogo"] = decalogo_eval
-
-        # ========== FLOW #14: QUESTIONNAIRE EVALUATION ==========
-        questionnaire_eval = self._run_stage(
-            PipelineStage.QUESTIONNAIRE_EVAL,
-            lambda: self.questionnaire_engine.evaluate(),
-            results["stages_completed"]
-        )
-        results["evaluations"]["questionnaire"] = questionnaire_eval
-
-        # ========== FLOW #15: ANSWER ASSEMBLY ==========
-        answer_assembly_input = {
-            "decalogo_eval": decalogo_eval,
-            "questionnaire_eval": questionnaire_eval
-        }
-        answers_report = self._run_stage(
-            PipelineStage.ANSWER_ASSEMBLY,
-            lambda: self._assemble_answers(answer_assembly_input),
-            results["stages_completed"]
-        )
-        results["evaluations"]["answers_report"] = answers_report
-
-        # ========== FINALIZATION ==========
-
-        if self.enable_validation:
-            self.runtime_tracer.stop()
-            # Flow #17: Validate execution order (gate #2)
-            results["validation"] = self.flow_validator.validate(self.runtime_tracer)
-
-        # Gate #3: Calculate evidence hash
-        results["evidence_hash"] = self.evidence_registry.deterministic_hash()
-
-        # Runtime stats
-        end_time = datetime.utcnow()
-        results["end_time"] = end_time.isoformat()
-        results["runtime_stats"] = {
-            "duration_seconds": (end_time - start_time).total_seconds(),
-            "stages_count": len(results["stages_completed"]),
-            "evidence_entries": len(self.evidence_registry._evidence)
-        }
-
-        self.logger.info(
-            f"✓ Pipeline completed in {results['runtime_stats']['duration_seconds']:.1f}s "
-            f"| Evidence hash: {results['evidence_hash'][:12]}..."
-        )
-
-        return results
-
-    def _run_stage(
-            self,
-            stage: PipelineStage,
-            func: callable,
-            stages_list: List[str],
-            io_schema: Optional[Any] = None,
-            input_data: Optional[Any] = None
-    ) -> Any:
-        """Execute pipeline stage with logging, tracing, and I/O schema validation."""
-        stage_name = stage.value
-        self.logger.info(f"  → {stage_name}")
-
+    def _initialize_components(self):
+        """Initialize all system components in the correct order"""
         try:
-            # The function `func` is now expected to take input_data
-            result = func(input_data) if input_data is not None else func()
+            # Core processing components
+            logger.info("Initializing core processing components...")
+            self.sanitizer = PlanSanitizer()
+            self.processor = PlanProcessor()
+            self.segmenter = DocumentSegmenter()
 
-            if self.enable_validation:
-                self.runtime_tracer.record_stage(stage_name, success=True)
+            # Embedding and NLP components
+            logger.info("Initializing embedding and NLP components...")
+            self.embedding_model = IndustrialEmbeddingModel()
+            self.spacy_loader = SpacyModelLoader()
+            self.spacy_processor = SafeSpacyProcessor(self.spacy_loader)
 
-            stages_list.append(stage_name)
+            # Analysis components
+            logger.info("Initializing analysis components...")
+            self.responsibility_detector = ResponsibilityDetector()
+            self.contradiction_detector = ContradictionDetector()
+            self.monetary_detector = MonetaryDetector()
+            self.feasibility_scorer = FeasibilityScorer(
+                enable_parallel=self.config.get("parallel_processing", True)
+            )
+            # Initialize causal detector with empty list if no PDET municipalities configured
+            pdet_municipalities = self.config.get("pdet_municipalities", [])
+            self.causal_detector = PDETCausalPatternDetector(pdet_municipalities)
+            self.dag_validator = AdvancedDAGValidator()
 
-            # Basic I/O validation if schema is provided
-            if io_schema:
-                # This is a simplified check. A real implementation would use a library like Pydantic.
-                if not isinstance(result, dict) or "output" not in result:
-                     self.logger.warning(f"Stage {stage_name} output may not match expected IO schema.")
+            # Unified system components
+            logger.info("Initializing unified system components...")
+            self.evidence_registry = EvidenceRegistry()
+            self.flow_validator = CanonicalFlowValidator()
 
-            return result
+            # Initialize Questionnaire Engine for 300-question evaluation
+            logger.info("Initializing Questionnaire Engine (300 questions)...")
+            self.questionnaire_engine = QuestionnaireEngine()
+
+            # Verify system components
+            verification_level = self.config.get("verification_level", "normal")
+            self.immutability_contract.verify_components(verification_level)
+
+            # Register initialization success
+            for component_name in [
+                "sanitizer", "processor", "segmenter", "embedding_model",
+                "spacy_processor", "responsibility_detector",
+                "contradiction_detector", "monetary_detector", "feasibility_scorer",
+                "causal_detector", "dag_validator", "evidence_registry",
+                "flow_validator", "questionnaire_engine"
+            ]:
+                self.context.component_status[component_name] = "initialized"
 
         except Exception as e:
-            self.logger.error(f"⨯ Stage {stage_name} FAILED: {e}")
-            if self.enable_validation:
-                self.runtime_tracer.record_stage(stage_name, success=False, error=str(e))
+            logger.error(f"Error initializing components: {e}")
+            self.context.register_error("initialization", type(e).__name__, str(e), is_fatal=True)
+            raise RuntimeError(f"Orchestrator initialization failed: {e}")
+
+    def process_plan(self, plan_path: str) -> Dict[str, Any]:
+        """
+        Process a plan document through the canonical flow.
+
+        Args:
+            plan_path: Path to the plan document file
+
+        Returns:
+            Dictionary containing comprehensive analysis results
+        """
+        logger.info(f"Processing plan: {plan_path}")
+
+        # Seed for determinism
+        if self.config.get("determinism", {}).get("enabled", False):
+            seed = self.config.get("determinism", {}).get("seed", 42)
+            random.seed(seed)
+            np.random.seed(seed)
+
+        results = {"plan_path": plan_path}
+
+        # Read the document
+        try:
+            with open(plan_path, 'r', encoding='utf-8') as f:
+                plan_text = f.read()
+        except Exception as e:
+            logger.error(f"Error reading plan file {plan_path}: {e}")
+            self.context.register_error("file_reading", type(e).__name__, str(e), is_fatal=True)
+            return {"error": f"Could not read file: {str(e)}", "plan_path": plan_path}
+
+        # Extract plan name
+        plan_name = os.path.basename(plan_path).split('.')[0]
+        results["plan_name"] = plan_name
+        results["executed_nodes"] = []
+
+        # Execute the canonical flow with evidence registration
+        try:
+            # 1. Sanitization
+            logger.info("[1/11] Sanitization...")
+            sanitized_text = self._execute_sanitization(plan_text)
+            results["executed_nodes"].append("sanitization")
+
+            # 2. Plan processing
+            logger.info("[2/11] Plan Processing...")
+            processed_plan = self._execute_plan_processing(sanitized_text)
+            results["metadata"] = processed_plan
+            results["executed_nodes"].append("plan_processing")
+
+            # 3. Document segmentation
+            logger.info("[3/11] Document Segmentation...")
+            segments = self._execute_segmentation(sanitized_text)
+            results["segments"] = {"count": len(segments)}
+            results["executed_nodes"].append("document_segmentation")
+
+            # 4. Embedding
+            logger.info("[4/11] Embedding Generation...")
+            embeddings = self._execute_embedding(segments)
+            results["embeddings"] = {"count": len(embeddings)}
+            results["executed_nodes"].append("embedding")
+
+            # 5. Responsibility detection
+            logger.info("[5/11] Responsibility Detection...")
+            responsibilities = self._execute_responsibility_detection(sanitized_text)
+            results["responsibilities"] = responsibilities
+            results["executed_nodes"].append("responsibility_detection")
+
+            # Register evidence for D4 questions
+            for resp in responsibilities:
+                self.evidence_registry.register(
+                    source_component="responsibility_detection",
+                    evidence_type="institutional_entity",
+                    content=resp,
+                    confidence=resp.get("confidence", 0.5),
+                    applicable_questions=[f"D4-Q{i}" for i in range(1, 51)]
+                )
+
+            # 6. Contradiction detection
+            logger.info("[6/11] Contradiction Detection...")
+            contradictions = self._execute_contradiction_detection(sanitized_text)
+            results["contradictions"] = contradictions
+            results["executed_nodes"].append("contradiction_detection")
+
+            # Register evidence for D5 questions
+            for contra in contradictions.get("matches", [])[:10]:
+                self.evidence_registry.register(
+                    source_component="contradiction_detector",
+                    evidence_type="contradiction",
+                    content=contra,
+                    confidence=contra.get("confidence", 0.5),
+                    applicable_questions=[f"D5-Q{i}" for i in range(1, 51)]
+                )
+
+            # 7. Monetary detection
+            logger.info("[7/11] Monetary Detection...")
+            monetary = self._execute_monetary_detection(sanitized_text)
+            results["monetary"] = monetary
+            results["executed_nodes"].append("monetary_detection")
+
+            # Register evidence for D3 questions
+            for mon in monetary:
+                self.evidence_registry.register(
+                    source_component="monetary_detector",
+                    evidence_type="monetary_value",
+                    content=mon,
+                    confidence=mon.get("confidence", 0.8),
+                    applicable_questions=[f"D3-Q{i}" for i in range(1, 51)]
+                )
+
+            # 8. Feasibility scoring
+            logger.info("[8/11] Feasibility Scoring...")
+            feasibility = self._execute_feasibility_scoring(sanitized_text)
+            results["feasibility"] = feasibility
+            results["executed_nodes"].append("feasibility_scoring")
+
+            # Register evidence for D1 questions
+            self.evidence_registry.register(
+                source_component="feasibility_scorer",
+                evidence_type="baseline_presence",
+                content={"has_baseline": feasibility.get("has_baseline", False)},
+                confidence=0.9 if feasibility.get("has_baseline") else 0.1,
+                applicable_questions=[f"D1-Q{i}" for i in range(1, 51)]
+            )
+
+            # 9. Causal pattern detection
+            logger.info("[9/11] Causal Pattern Detection...")
+            causal_patterns = self._execute_causal_detection(sanitized_text)
+            results["causal_patterns"] = causal_patterns
+            results["executed_nodes"].append("causal_detection")
+
+            # Register evidence for D2 questions
+            for pattern in causal_patterns:
+                self.evidence_registry.register(
+                    source_component="causal_pattern_detector",
+                    evidence_type="causal_mechanism",
+                    content=pattern,
+                    confidence=pattern.get("confidence", 0.6),
+                    applicable_questions=[f"D2-Q{i}" for i in range(1, 51)]
+                )
+
+            # 10. Theory of Change
+            logger.info("[10/11] Theory of Change...")
+            teoria_cambio = self._create_teoria_cambio(
+                sanitized_text, responsibilities, causal_patterns, monetary
+            )
+            teoria_validation = self._validate_teoria_cambio(teoria_cambio)
+            results["teoria_cambio"] = teoria_validation
+            results["executed_nodes"].append("teoria_cambio")
+
+            # Register ToC evidence for D6 questions
+            self.evidence_registry.register(
+                source_component="teoria_cambio",
+                evidence_type="theory_of_change",
+                content=teoria_validation,
+                confidence=0.8 if teoria_validation.get("is_valid") else 0.3,
+                applicable_questions=[f"D6-Q{i}" for i in range(1, 51)]
+            )
+
+            # 11. DAG Validation
+            logger.info("[11/12] DAG Validation...")
+            dag_results = {
+                "is_acyclic": self.dag_validator.is_acyclic(),
+                "node_count": len(list(self.dag_validator.dag.nodes())),
+                "edge_count": len(list(self.dag_validator.dag.edges()))
+            }
+            results["dag_validation"] = dag_results
+            results["executed_nodes"].append("dag_validation")
+
+            # 12. Questionnaire Engine Evaluation (300 questions)
+            logger.info("[12/12] Questionnaire Engine - 300 Question Evaluation...")
+            logger.info("  → Evaluating 30 questions × 10 thematic points = 300 evaluations")
+
+            # Extract municipality and department if available
+            municipality = results.get("metadata", {}).get("municipality", "")
+            department = results.get("metadata", {}).get("department", "")
+
+            # Execute full questionnaire evaluation using orchestrator results
+            questionnaire_results = self._execute_questionnaire_evaluation(
+                results, municipality, department
+            )
+            results["questionnaire_evaluation"] = questionnaire_results
+            results["executed_nodes"].append("questionnaire_evaluation")
+
+            # Register questionnaire evidence
+            if questionnaire_results and "point_scores" in questionnaire_results:
+                for point_id, point_data in questionnaire_results.get("point_scores", {}).items():
+                    self.evidence_registry.register(
+                        source_component="questionnaire_engine",
+                        evidence_type="structured_evaluation",
+                        content={
+                            "point_id": point_id,
+                            "score": point_data.get("score_percentage", 0),
+                            "classification": point_data.get("classification", {}).get("name", "")
+                        },
+                        confidence=0.95,
+                        applicable_questions=[f"{point_id}-D{d}-Q{q}" for d in range(1, 7) for q in range(1, 6)]
+                    )
+
+            logger.info(f"  ✅ Questionnaire evaluation completed: {questionnaire_results.get('metadata', {}).get('total_evaluations', 0)} questions evaluated")
+
+            # Freeze evidence registry
+            logger.info("Freezing evidence registry...")
+            self.evidence_registry.freeze()
+
+            # Get evidence statistics
+            results["evidence_registry"] = {
+                "statistics": self.evidence_registry.get_statistics()
+            }
+
+            # Execution summary
+            results["execution_summary"] = self.context.get_execution_summary()
+
+            # Immutability proof
+            self.immutability_contract.register_process_execution(results)
+            results["immutability_proof"] = {
+                "result_hash": self.immutability_contract.generate_result_hash(results),
+                "evidence_hash": self.evidence_registry.deterministic_hash()
+            }
+
+            logger.info("✅ Canonical flow completed successfully")
+            return results
+
+        except Exception as e:
+            logger.error(f"Error in canonical flow: {e}", exc_info=True)
+            self.context.register_error("canonical_flow", type(e).__name__, str(e), is_fatal=True)
+            return {
+                "error": f"Pipeline error: {str(e)}",
+                "plan_path": plan_path,
+                "executed_nodes": results.get("executed_nodes", []),
+                "execution_summary": self.context.get_execution_summary()
+            }
+
+    @component_execution("sanitization")
+    def _execute_sanitization(self, text: str) -> str:
+        """Execute text sanitization"""
+        start_time = time.perf_counter()
+        try:
+            result = self.sanitizer.sanitize(text)
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("sanitization", latency_ms)
+            return result
+        except Exception as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("sanitization", latency_ms)
             raise
 
-    def _build_evidence_registry(self, all_inputs: Dict[str, Any]):
-        """
-        Flow #12: Build the evidence registry from all detector outputs.
-        This is the critical "fan-in" step.
-        """
-        self.logger.info("  Building evidence registry...")
+    @component_execution("plan_processing")
+    def _execute_plan_processing(self, text: str) -> Dict[str, Any]:
+        """Execute plan processing"""
+        start_time = time.perf_counter()
+        try:
+            result = self.processor.process(text)
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("plan_processing", latency_ms)
+            return result
+        except Exception as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("plan_processing", latency_ms)
+            raise
 
-        # Helper to create evidence entries
-        def register_evidence(stage: PipelineStage, items: List[Any], id_prefix: str):
-            if not isinstance(items, list):
-                self.logger.warning(f"Expected a list for stage {stage.value}, but got {type(items)}. Skipping.")
-                return
-            for item in items:
-                try:
-                    # Create a unique ID for the evidence
-                    item_str = json.dumps(item, sort_keys=True)
-                    evidence_id = f"{id_prefix}_{hashlib.sha1(item_str.encode()).hexdigest()[:10]}"
-                    entry = EvidenceEntry(
-                        evidence_id=evidence_id,
-                        stage=stage.value,
-                        content=item,
-                        source_segment_ids=[], # Placeholder, needs robust implementation
-                        confidence=item.get('confidence', 0.8) if isinstance(item, dict) else 0.8
-                    )
-                    self.evidence_registry.register(entry)
-                except (TypeError, AttributeError) as e:
-                    self.logger.warning(f"Could not process item for evidence registry in stage {stage.value}: {item}. Error: {e}")
+    @component_execution("segmentation")
+    def _execute_segmentation(self, text: str) -> List[str]:
+        """Execute document segmentation"""
+        start_time = time.perf_counter()
+        try:
+            result = self.segmenter.segment(text)
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("document_segmentation", latency_ms)
+            return result
+        except Exception as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("document_segmentation", latency_ms)
+            raise
 
-        # Register evidence from each detector
-        register_evidence(PipelineStage.RESPONSIBILITY, all_inputs.get('responsibilities', []), 'resp')
+    @component_execution("embedding")
+    def _execute_embedding(self, segments: List[str]) -> List[Any]:
+        """Execute text embedding with circuit breaker protection"""
+        circuit = self.circuit_breakers.get("embedding")
+        start_time = time.perf_counter()
+        
+        def _embed():
+            embeddings_array = self.embedding_model.embed(segments)
+            if hasattr(embeddings_array, 'tolist'):
+                return embeddings_array.tolist()
+            return list(embeddings_array)
+        
+        try:
+            if circuit:
+                result = circuit.call(_embed)
+            else:
+                result = _embed()
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("embedding", latency_ms)
+            return result
+        except CircuitBreakerError:
+            logger.warning("Embedding circuit breaker is OPEN, returning empty embeddings")
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("embedding", latency_ms)
+            return []
+        except Exception as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("embedding", latency_ms)
+            raise
 
-        # Contradiction detector returns a dict, we need the list of matches
-        contradiction_analysis = all_inputs.get('contradictions')
-        if contradiction_analysis and hasattr(contradiction_analysis, 'contradictions'):
-             register_evidence(PipelineStage.CONTRADICTION, getattr(contradiction_analysis, 'contradictions', []), 'contra')
+    @component_execution("responsibility_detection")
+    def _execute_responsibility_detection(self, text: str) -> List[Dict[str, Any]]:
+        """Execute responsibility entity detection with circuit breaker protection"""
+        circuit = self.circuit_breakers.get("responsibility_detection")
+        start_time = time.perf_counter()
+        
+        def _detect():
+            entities = self.responsibility_detector.detect_entities(text)
+            return [
+                {
+                    "text": entity.text,
+                    "type": entity.entity_type.value,
+                    "confidence": entity.confidence
+                }
+                for entity in entities
+            ]
+        
+        try:
+            if circuit:
+                result = circuit.call(_detect)
+            else:
+                result = _detect()
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("responsibility_detection", latency_ms)
+            return result
+        except CircuitBreakerError:
+            logger.warning("Responsibility detection circuit breaker is OPEN")
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("responsibility_detection", latency_ms)
+            return []
+        except Exception as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("responsibility_detection", latency_ms)
+            raise
 
-        register_evidence(PipelineStage.MONETARY, all_inputs.get('monetary', []), 'money')
+    @component_execution("contradiction_detection")
+    def _execute_contradiction_detection(self, text: str) -> Dict[str, Any]:
+        """Execute contradiction detection with circuit breaker protection"""
+        circuit = self.circuit_breakers.get("contradiction_detection")
+        start_time = time.perf_counter()
+        
+        def _detect():
+            analysis = self.contradiction_detector.detect_contradictions(text)
+            return {
+                "total": analysis.total_contradictions,
+                "risk_score": analysis.risk_score,
+                "risk_level": analysis.risk_level.value,
+                "matches": [
+                    {
+                        "text": c.full_text,
+                        "connector": c.adversative_connector,
+                        "confidence": c.confidence,
+                    }
+                    for c in analysis.contradictions
+                ]
+            }
+        
+        try:
+            if circuit:
+                result = circuit.call(_detect)
+            else:
+                result = _detect()
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("contradiction_detection", latency_ms)
+            return result
+        except CircuitBreakerError:
+            logger.warning("Contradiction detection circuit breaker is OPEN")
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("contradiction_detection", latency_ms)
+            return {"total": 0, "risk_score": 0.0, "risk_level": "low", "matches": []}
+        except Exception as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("contradiction_detection", latency_ms)
+            raise
 
-        # Feasibility returns a dict, we need to handle it
-        feasibility_report = all_inputs.get('feasibility')
-        if isinstance(feasibility_report, dict):
-            register_evidence(PipelineStage.FEASIBILITY, feasibility_report.get('indicators', []), 'feas')
+    @component_execution("monetary_detection")
+    def _execute_monetary_detection(self, text: str) -> List[Dict[str, Any]]:
+        """Execute monetary value detection"""
+        start_time = time.perf_counter()
+        try:
+            monetary_matches = self.monetary_detector.find_monetary_expressions(text)
+            result = [
+                {
+                    "text": match.text,
+                    "value": match.value,
+                    "currency": match.currency,
+                    "confidence": match.confidence,
+                }
+                for match in monetary_matches
+            ]
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("monetary_detection", latency_ms)
+            return result
+        except Exception as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("monetary_detection", latency_ms)
+            raise
 
-        # Causal patterns returns a dict
-        causal_report = all_inputs.get('causal_patterns')
-        if isinstance(causal_report, dict):
-            register_evidence(PipelineStage.CAUSAL, causal_report.get('patterns', []), 'causal')
+    @component_execution("feasibility_scoring")
+    def _execute_feasibility_scoring(self, text: str) -> Dict[str, Any]:
+        """Execute feasibility scoring"""
+        start_time = time.perf_counter()
+        try:
+            feasibility_score = self.feasibility_scorer.score_text(text)
+            result = {
+                "score": feasibility_score.feasibility_score,
+                "has_baseline": feasibility_score.has_baseline,
+                "has_target": feasibility_score.has_quantitative_target,
+                "has_timeframe": feasibility_score.has_timeframe,
+                "detailed_matches": [
+                    {
+                        "type": match.component_type.value,
+                        "text": match.matched_text,
+                        "confidence": match.confidence,
+                    }
+                    for match in feasibility_score.detailed_matches
+                ][:10],
+            }
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("feasibility_scoring", latency_ms)
+            return result
+        except Exception as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("feasibility_scoring", latency_ms)
+            raise
 
-        self.logger.info(f"  Evidence registry built with {len(self.evidence_registry._evidence)} entries.")
-        return {"status": "built", "entries": len(self.evidence_registry._evidence)}
+    @component_execution("causal_detection")
+    def _execute_causal_detection(self, text: str) -> List[Dict[str, Any]]:
+        """Execute causal pattern detection with circuit breaker protection"""
+        circuit = self.circuit_breakers.get("causal_detection")
+        start_time = time.perf_counter()
+        
+        def _detect():
+            patterns = self.causal_detector.detect_patterns(text)
+            return [
+                {
+                    "text": pattern.text,
+                    "cause": pattern.cause,
+                    "effect": pattern.effect,
+                    "connector": pattern.causal_connector,
+                    "confidence": pattern.confidence
+                }
+                for pattern in patterns
+            ]
+        
+        try:
+            if circuit:
+                result = circuit.call(_detect)
+            else:
+                result = _detect()
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("causal_detection", latency_ms)
+            return result
+        except CircuitBreakerError:
+            logger.warning("Causal detection circuit breaker is OPEN")
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("causal_detection", latency_ms)
+            return []
+        except Exception as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("causal_detection", latency_ms)
+            raise
 
+    @component_execution("teoria_cambio_creation")
+    def _create_teoria_cambio(
+        self,
+        text: str,
+        responsibilities: List[Dict[str, Any]],
+        causal_patterns: List[Dict[str, Any]],
+        monetary: List[Dict[str, Any]]
+    ) -> TeoriaCambio:
+        """Create a Theory of Change object"""
+        supuestos_causales = [pattern["text"] for pattern in causal_patterns[:5]]
 
-    def _execute_decalogo_evaluation(self, evidence_registry: EvidenceRegistry) -> Dict[str, Any]:
-        """
-        Flow #13: Execute Decálogo evaluation using the evidence registry.
-        Placeholder for the actual evaluation logic.
-        """
-        self.logger.info("  Executing Decálogo evaluation...")
-        # The evidence registry is now populated and can be used by the extractor
-        # For example, get all responsibility evidence
-        responsibility_evidence = self.evidence_registry.get_by_stage(PipelineStage.RESPONSIBILITY.value)
+        mediadores = {"institucional": [], "social": []}
+        for resp in responsibilities:
+            if resp.get("type") in ["institución", "organización"]:
+                mediadores["institucional"].append(resp["text"])
+            else:
+                mediadores["social"].append(resp["text"])
 
-        # The decatalogo_extractor would use this evidence to score questions
-        # This is a placeholder for that complex logic
-        # NOTE: Assumes 'evaluate_from_evidence' method exists on the extractor.
-        evaluation = self.decatalogo_extractor.evaluate_from_evidence(evidence_registry)
+        resultados_intermedios = []
+        precondiciones = [item["text"] for item in monetary[:5]]
 
-        self.logger.info("  Decálogo evaluation completed.")
-        return evaluation
-
-
-    def _assemble_answers(self, evaluation_inputs: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Flow #15: Assemble the final answers report.
-        Placeholder for the answer assembly logic.
-        """
-        self.logger.info("  Assembling final answers report...")
-        questionnaire_eval = evaluation_inputs.get('questionnaire_eval', {})
-        # The answer_assembler would take the evaluations and the evidence registry
-        # to create a comprehensive report with full traceability.
-        # NOTE: Assumes 'assemble_report' method exists on the assembler.
-        final_report = self.answer_assembler.assemble_report(
-            decalogo_eval=evaluation_inputs.get('decalogo_eval'),
-            questionnaire_eval=questionnaire_eval
+        return TeoriaCambio(
+            supuestos_causales=supuestos_causales,
+            mediadores=mediadores,
+            resultados_intermedios=resultados_intermedios[:10],
+            precondiciones=precondiciones
         )
 
-        # Gate #4 check
-        if final_report.get("summary", {}).get("total_questions", 0) < 300:
-             self.logger.warning(f"GATE #4 FAILED: Coverage is less than 300 questions.")
+    @component_execution("teoria_cambio_validation")
+    def _validate_teoria_cambio(self, teoria_cambio: TeoriaCambio) -> Dict[str, Any]:
+        """Validate a Theory of Change with circuit breaker protection"""
+        circuit = self.circuit_breakers.get("teoria_cambio")
+        start_time = time.perf_counter()
+        
+        def _validate():
+            graph = teoria_cambio.construir_grafo_causal()
+            orden_result = teoria_cambio.validar_orden_causal(graph)
+            caminos_result = teoria_cambio.detectar_caminos_completos(graph)
+            sugerencias_result = teoria_cambio.generar_sugerencias(graph)
 
-        self.logger.info("  Final answers report assembled.")
-        return final_report
+            self._build_dag_from_teoria_cambio(teoria_cambio)
 
-    def export_artifacts(self, output_dir: Path):
+            monte_carlo_result = self.dag_validator.calculate_acyclicity_pvalue(
+                "teoria_cambio_validation", iterations=5000
+            )
+
+            return {
+                "is_valid": orden_result.es_valida and caminos_result.es_valida,
+                "order_violations": len(orden_result.violaciones_orden),
+                "complete_paths": len(caminos_result.caminos_completos),
+                "missing_categories": [cat.name for cat in sugerencias_result.categorias_faltantes],
+                "suggestions": sugerencias_result.sugerencias,
+                "monte_carlo": {
+                    "p_value": monte_carlo_result.p_value,
+                    "confidence_interval": monte_carlo_result.confidence_interval,
+                },
+                "causal_coefficient": teoria_cambio.calcular_coeficiente_causal(),
+            }
+        
+        try:
+            if circuit:
+                result = circuit.call(_validate)
+            else:
+                result = _validate()
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("teoria_cambio", latency_ms)
+            return result
+        except CircuitBreakerError:
+            logger.warning("Theory of change circuit breaker is OPEN")
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("teoria_cambio", latency_ms)
+            return {"is_valid": False, "error": "Circuit breaker open"}
+        except Exception as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("teoria_cambio", latency_ms)
+            raise
+
+    def _build_dag_from_teoria_cambio(self, teoria_cambio: TeoriaCambio) -> None:
+        """Build a DAG validator from a TeoriaCambio object"""
+        circuit = self.circuit_breakers.get("dag_validation")
+        start_time = time.perf_counter()
+        
+        def _build():
+            self.dag_validator = AdvancedDAGValidator()
+            graph = teoria_cambio.construir_grafo_causal()
+
+            for node in graph.nodes():
+                self.dag_validator.add_node(node)
+
+            for edge in graph.edges():
+                from_node, to_node = edge
+                self.dag_validator.add_edge(from_node, to_node)
+        
+        try:
+            if circuit:
+                circuit.call(_build)
+            else:
+                _build()
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("dag_validation", latency_ms)
+        except CircuitBreakerError:
+            logger.warning("DAG validation circuit breaker is OPEN")
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("dag_validation", latency_ms)
+        except Exception as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            self.performance_monitor.record_latency("dag_validation", latency_ms)
+            raise
+
+    @component_execution("questionnaire_evaluation")
+    def _execute_questionnaire_evaluation(
+        self,
+        orchestrator_results: Dict[str, Any],
+        municipality: str = "",
+        department: str = ""
+    ) -> Dict[str, Any]:
         """
-        Export all artifacts per flow documentation:
-        - Flow #59: artifacts/answers_report.json
-        - Flow #57: artifacts/flow_runtime.json
-        - Flow #64: artifacts/final_results.json
-        - artifacts/evidence_registry.json
+        Execute 300-question evaluation using QuestionnaireEngine
+
+        Args:
+            orchestrator_results: Results from the 11 previous orchestrator steps
+            municipality: Municipality name
+            department: Department name
+
+        Returns:
+            Complete questionnaire evaluation results with 300 questions
         """
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            logger.info("  → Initializing QuestionnaireEngine evaluation...")
 
-        # Export evidence registry
-        self.evidence_registry.export(output_dir / "evidence_registry.json")
+            # Execute full evaluation using the questionnaire engine
+            questionnaire_results = self.questionnaire_engine.execute_full_evaluation(
+                orchestrator_results=orchestrator_results,
+                municipality=municipality,
+                department=department
+            )
 
-        # Export runtime trace (if validation enabled)
-        if self.enable_validation:
-            with open(output_dir / "flow_runtime.json", 'w') as f:
-                json.dump(self.runtime_tracer.export(), f, indent=2)
+            # Extract summary statistics
+            total_questions = questionnaire_results.get("metadata", {}).get("total_evaluations", 300)
+            global_score = questionnaire_results.get("global_score", {})
+            score_percentage = global_score.get("score_percentage", 0.0)
+            classification = global_score.get("classification", {})
 
-        self.logger.info(f"✓ Artifacts exported to: {output_dir}")
+            logger.info(f"  → Total questions evaluated: {total_questions}")
+            logger.info(f"  → Global score: {score_percentage:.1f}%")
+            logger.info(f"  → Classification: {classification.get('name', 'N/A')} {classification.get('color', '')}")
 
+            return questionnaire_results
 
-class UnifiedEvaluationPipeline:
-    """
-    Flow #18: High-level wrapper for complete evaluation.
-    Flow #63: Exports artifacts/results_bundle.json.
+        except Exception as e:
+            logger.error(f"Error in questionnaire evaluation: {e}", exc_info=True)
+            return {
+                "error": f"Questionnaire evaluation failed: {str(e)}",
+                "metadata": {
+                    "total_evaluations": 0,
+                    "status": "error"
+                }
+            }
 
-    Integrates:
-    - SystemValidators (pre/post checks)
-    - CanonicalDeterministicOrchestrator (core pipeline)
-    - Artifact packaging
-    """
-
-    def __init__(self, config_dir: Path, flow_doc_path: Optional[Path] = None):
-        self.config_dir = config_dir
-        self.flow_doc_path = flow_doc_path
-        self.logger = logging.getLogger(__name__)
-
-    def evaluate(self, plan_path: str, output_dir: Path) -> Dict[str, Any]:
-        """
-        Complete evaluation with gates:
-        1. Pre-validation (gate #1, #6)
-        2. Pipeline execution (gates #2, #3)
-        3. Post-validation (gates #4, #5)
-        4. Artifact export
-        """
-        self.logger.info("═══ UNIFIED EVALUATION PIPELINE ═══")
-
-        # Flow #56: Pre-validation
-        validators = SystemValidators(self.config_dir)
-        pre_results = validators.run_pre_checks()
-
-        if not pre_results["pre_validation_ok"]:
-            raise RuntimeError("Pre-validation FAILED. Fix issues and retry.")
-
-        # Flow #1-17: Core pipeline
-        orchestrator = CanonicalDeterministicOrchestrator(
-            config_dir=self.config_dir,
-            enable_validation=True,
-            flow_doc_path=self.flow_doc_path
-        )
-
-        results = orchestrator.process_plan_deterministic(plan_path)
-
-        # Post-validation
-        post_results = validators.run_post_checks(results)
-
-        # Package results (flow #63)
-        bundle = {
-            "pre_validation": pre_results,
-            "pipeline_results": results,
-            "post_validation": post_results,
-            "bundle_timestamp": datetime.utcnow().isoformat()
+    def export_performance_metrics(self, output_dir: str = "."):
+        """Export performance metrics and dashboard"""
+        prometheus_path = os.path.join(output_dir, "performance_metrics.prom")
+        dashboard_path = os.path.join(output_dir, "performance_dashboard.html")
+        
+        self.performance_monitor.export_prometheus_metrics(prometheus_path)
+        self.performance_monitor.generate_dashboard_html(dashboard_path)
+        
+        logger.info(f"Exported metrics to {prometheus_path}")
+        logger.info(f"Generated dashboard at {dashboard_path}")
+    
+    def check_performance_budgets(self) -> Dict[str, Any]:
+        """Check all performance budgets and return violations"""
+        violations = []
+        passed = []
+        
+        for node_name in self.performance_monitor.latencies.keys():
+            is_passing, message = self.performance_monitor.check_budget_violation(node_name)
+            
+            if is_passing:
+                passed.append({"node": node_name, "message": message})
+            else:
+                violations.append({"node": node_name, "message": message})
+        
+        return {
+            "total_nodes": len(self.performance_monitor.latencies),
+            "passed": len(passed),
+            "failed": len(violations),
+            "violations": violations,
+            "all_passed": passed,
+            "ci_gate_status": "PASS" if len(violations) == 0 else "FAIL"
+        }
+    
+    def get_circuit_breaker_health(self) -> Dict[str, Any]:
+        """Get health status of all circuit breakers"""
+        return {
+            circuit_name: circuit.get_health_status()
+            for circuit_name, circuit in self.circuit_breakers.items()
         }
 
-        # Export artifacts
-        orchestrator.export_artifacts(output_dir)
 
-        with open(output_dir / "results_bundle.json", 'w', encoding='utf-8') as f:
-            json.dump(bundle, f, indent=2, ensure_ascii=False)
+def main():
+    """Example usage of the MINIMINIMOON orchestrator"""
+    import sys
 
-        # Export answers_report separately (flow #59)
-        answers_report = results.get("evaluations", {}).get("answers_report", {})
-        with open(output_dir / "answers_report.json", 'w', encoding='utf-8') as f:
-            json.dump(answers_report, f, indent=2, ensure_ascii=False)
+    if len(sys.argv) > 1:
+        plan_path = sys.argv[1]
+        config_path = sys.argv[2] if len(sys.argv) > 2 else None
 
-        # Export sample (flow #60)
-        sample = {"answers": answers_report.get("answers", [])[:10]}
-        with open(output_dir / "answers_sample.json", 'w', encoding='utf-8') as f:
-            json.dump(sample, f, indent=2, ensure_ascii=False)
+        orchestrator = MINIMINIMOONOrchestrator(config_path)
+        print(f"Processing plan: {plan_path}")
 
-        self.logger.info("✓ Unified evaluation complete")
+        results = orchestrator.process_plan(plan_path)
 
-        return bundle
+        print("\nProcessing Results:")
+        print(f"Plan: {results.get('plan_name', 'Unknown')}")
 
-
-# ============================================================================
-# TOOLS & UTILITIES (flows #61-62, #69)
-# ============================================================================
-
-def freeze_configuration(config_dir: Path):
-    """
-    Flow #55: Create .immutability_snapshot.json
-    Gate #1 prerequisite.
-    """
-    contract = EnhancedImmutabilityContract()
-    snapshot = contract.freeze_configuration()
-    print(f"✓ Configuration frozen: {snapshot['snapshot_hash'][:16]}...")
-    print(f"  Files: {list(snapshot['files'].keys())}")
-
-
-def rubric_check(answers_report_path: Path, rubric_path: Path) -> bool:
-    """
-    Flow #61: Verify 1:1 alignment questions↔weights.
-    Gate #5 enforcement.
-
-    Returns True if OK, False otherwise (exit 0/3).
-    """
-    with open(answers_report_path, 'r') as f:
-        report = json.load(f)
-
-    with open(rubric_path, 'r') as f:
-        rubric = json.load(f)
-
-    report_questions = set(a["question_id"] for a in report.get("answers", []))
-    rubric_questions = set(rubric["questions"].keys())
-    rubric_weights = set(rubric["weights"].keys())
-
-    missing_weights = rubric_questions - rubric_weights
-    extra_weights = rubric_weights - rubric_questions
-
-    if missing_weights or extra_weights:
-        print(f"⨯ Rubric check FAILED:")
-        print(f"  Missing weights: {len(missing_weights)}")
-        print(f"  Extra weights: {len(extra_weights)}")
-        return False
-
-    print(f"✓ Rubric check PASSED: {len(rubric_questions)}/300 aligned")
-    return True
-
-
-def generate_trace_matrix(answers_report_path: Path, output_path: Path):
-    """
-    Flow #62: Generate module→question traceability matrix.
-    CSV format for auditing.
-    """
-    with open(answers_report_path, 'r') as f:
-        report = json.load(f)
-
-    import csv
-
-    with open(output_path, 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(["question_id", "dimension", "evidence_count", "evidence_ids"])
-
-        for answer in report.get("answers", []):
-            writer.writerow([
-                answer["question_id"],
-                answer["dimension"],
-                len(answer["evidence_ids"]),
-                "|".join(answer["evidence_ids"])
-            ])
-
-    print(f"✓ Trace matrix exported: {output_path}")
-
-
-def verify_reproducibility(
-        config_dir: Path,
-        plan_path: str,
-        runs: int = 3
-) -> bool:
-    """
-    Flow #69: Triple-run test for determinism.
-    Gate #3 verification.
-
-    Returns True if all runs produce identical evidence_hash.
-    """
-    hashes = []
-    flow_hashes = []
-
-    for i in range(runs):
-        orchestrator = CanonicalDeterministicOrchestrator(
-            config_dir=config_dir,
-            enable_validation=True
-        )
-
-        result = orchestrator.process_plan_deterministic(plan_path)
-
-        evidence_hash = result["evidence_hash"]
-        flow_hash = result.get("validation", {}).get("flow_hash", "")
-
-        hashes.append(evidence_hash)
-        flow_hashes.append(flow_hash)
-
-        print(f"Run {i + 1}/{runs}: evidence={evidence_hash[:16]}... flow={flow_hash[:16]}...")
-
-    evidence_ok = len(set(hashes)) == 1
-    flow_ok = len(set(flow_hashes)) == 1
-
-    if evidence_ok and flow_ok:
-        print("✓ REPRODUCIBILITY VERIFIED: All runs identical (gate #3 PASSED)")
-        return True
+        if "error" in results:
+            print(f"Error: {results['error']}")
+        else:
+            print(f"\nNodes executed: {len(results.get('executed_nodes', []))}")
+            print(f"Evidence items: {results.get('evidence_registry', {}).get('statistics', {}).get('total_evidence', 0)}")
+            print(f"Evidence hash: {results.get('immutability_proof', {}).get('evidence_hash', 'N/A')[:32]}...")
+        
+        # Export performance metrics
+        print("\n" + "="*80)
+        print("PERFORMANCE METRICS")
+        print("="*80)
+        orchestrator.export_performance_metrics()
+        
+        # Check performance budgets
+        budget_check = orchestrator.check_performance_budgets()
+        print(f"\nBudget Check: {budget_check['ci_gate_status']}")
+        print(f"Passed: {budget_check['passed']}/{budget_check['total_nodes']}")
+        
+        if budget_check['violations']:
+            print("\n⚠️  Performance Budget Violations:")
+            for violation in budget_check['violations']:
+                print(f"  - {violation['message']}")
+        
+        # Circuit breaker health
+        cb_health = orchestrator.get_circuit_breaker_health()
+        open_circuits = sum(1 for h in cb_health.values() if h['state'] == 'open')
+        if open_circuits > 0:
+            print(f"\n🔴 {open_circuits} circuit breaker(s) OPEN")
     else:
-        print("⨯ REPRODUCIBILITY FAILED:")
-        if not evidence_ok:
-            print("  Evidence hashes differ:")
-            for i, h in enumerate(hashes):
-                print(f"    Run {i + 1}: {h}")
-        if not flow_ok:
-            print("  Flow hashes differ:")
-            for i, h in enumerate(flow_hashes):
-                print(f"    Run {i + 1}: {h}")
-        return False
+        print("Usage: python miniminimoon_orchestrator.py <plan_file_path> [config_path]")
 
-
-# ============================================================================
-# CLI ENTRY POINT
-# ============================================================================
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Canonical Deterministic Orchestrator (v2.0)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Freeze configuration (gate #1 prerequisite)
-  python canonical_orchestrator.py freeze ./config/
-
-  # Run evaluation
-  python canonical_orchestrator.py evaluate ./config/ plan.pdf ./output/
-
-  # Verify reproducibility (gate #3)
-  python canonical_orchestrator.py verify ./config/ plan.pdf
-
-  # Check rubric alignment (gate #5)
-  python canonical_orchestrator.py rubric-check ./output/answers_report.json ./config/RUBRIC_SCORING.json
-
-  # Generate trace matrix (flow #62)
-  python canonical_orchestrator.py trace-matrix ./output/answers_report.json ./output/trace_matrix.csv
-"""
-    )
-
-    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
-
-    # Freeze command
-    freeze_parser = subparsers.add_parser("freeze", help="Freeze configuration")
-    freeze_parser.add_argument("config_dir", type=Path, help="Config directory")
-
-    # Evaluate command
-    eval_parser = subparsers.add_parser("evaluate", help="Run evaluation pipeline")
-    eval_parser.add_argument("config_dir", type=Path, help="Config directory")
-    eval_parser.add_argument("plan_path", type=str, help="Path to PDM plan")
-    eval_parser.add_argument("output_dir", type=Path, help="Output directory for artifacts")
-    eval_parser.add_argument("--flow-doc", type=Path, help="Path to tools/flow_doc.json")
-
-    # Verify command
-    verify_parser = subparsers.add_parser("verify", help="Verify reproducibility")
-    verify_parser.add_argument("config_dir", type=Path, help="Config directory")
-    verify_parser.add_argument("plan_path", type=str, help="Path to PDM plan")
-    verify_parser.add_argument("--runs", type=int, default=3, help="Number of runs (default: 3)")
-
-    # Rubric check command
-    rubric_parser = subparsers.add_parser("rubric-check", help="Check rubric alignment")
-    rubric_parser.add_argument("answers_report", type=Path, help="Path to answers_report.json")
-    rubric_parser.add_argument("rubric", type=Path, help="Path to RUBRIC_SCORING.json")
-
-    # Trace matrix command
-    trace_parser = subparsers.add_parser("trace-matrix", help="Generate trace matrix")
-    trace_parser.add_argument("answers_report", type=Path, help="Path to answers_report.json")
-    trace_parser.add_argument("output", type=Path, help="Output CSV path")
-
-    args = parser.parse_args()
-
-    if not args.command:
-        parser.print_help()
-        sys.exit(1)
-
-    # Execute command
-    if args.command == "freeze":
-        freeze_configuration(args.config_dir)
-
-    elif args.command == "evaluate":
-        pipeline = UnifiedEvaluationPipeline(
-            config_dir=args.config_dir,
-            flow_doc_path=args.flow_doc
-        )
-
-        results = pipeline.evaluate(args.plan_path, args.output_dir)
-
-        print(f"\n✓ Evaluation completed")
-        print(f"  Evidence hash: {results['pipeline_results']['evidence_hash']}")
-        print(f"  Duration: {results['pipeline_results']['runtime_stats']['duration_seconds']:.1f}s")
-        print(f"  Artifacts: {args.output_dir}")
-
-        # Check if all gates passed
-        post_ok = results["post_validation"]["post_validation_ok"]
-        if post_ok:
-            print("\n✓ All acceptance gates PASSED")
-            sys.exit(0)
-        else:
-            print("\n⨯ Some acceptance gates FAILED")
-            sys.exit(3)
-
-    elif args.command == "verify":
-        ok = verify_reproducibility(args.config_dir, args.plan_path, args.runs)
-        sys.exit(0 if ok else 3)
-
-    elif args.command == "rubric-check":
-        ok = rubric_check(args.answers_report, args.rubric)
-        sys.exit(0 if ok else 3)
-
-    elif args.command == "trace-matrix":
-        generate_trace_matrix(args.answers_report, args.output)
-        sys.exit(0)
+    main()

@@ -1,0 +1,218 @@
+# Prometheus Alerting Rules for MINIMINIMOON Performance Monitoring
+# ====================================================================
+
+groups:
+  - name: miniminimoon_performance
+    interval: 10s
+    rules:
+      # P95 Latency SLA Violations
+      - alert: HighLatencySanitization
+        expr: miniminimoon_pipeline_latency_milliseconds{node="sanitization",quantile="0.95"} > 2.2
+        for: 1m
+        labels:
+          severity: warning
+          component: sanitization
+        annotations:
+          summary: "Sanitization p95 latency exceeds budget"
+          description: "Sanitization node p95 latency is {{ $value }}ms (budget: 2.0ms + 10% tolerance)"
+
+      - alert: HighLatencyPlanProcessing
+        expr: miniminimoon_pipeline_latency_milliseconds{node="plan_processing",quantile="0.95"} > 3.3
+        for: 1m
+        labels:
+          severity: warning
+          component: plan_processing
+        annotations:
+          summary: "Plan processing p95 latency exceeds budget"
+          description: "Plan processing node p95 latency is {{ $value }}ms (budget: 3.0ms + 10% tolerance)"
+
+      - alert: HighLatencyDocumentSegmentation
+        expr: miniminimoon_pipeline_latency_milliseconds{node="document_segmentation",quantile="0.95"} > 4.4
+        for: 1m
+        labels:
+          severity: warning
+          component: document_segmentation
+        annotations:
+          summary: "Document segmentation p95 latency exceeds budget"
+          description: "Document segmentation node p95 latency is {{ $value }}ms (budget: 4.0ms + 10% tolerance)"
+
+      - alert: HighLatencyEmbedding
+        expr: miniminimoon_pipeline_latency_milliseconds{node="embedding",quantile="0.95"} > 55.0
+        for: 2m
+        labels:
+          severity: warning
+          component: embedding
+        annotations:
+          summary: "Embedding p95 latency exceeds budget"
+          description: "Embedding node p95 latency is {{ $value }}ms (budget: 50.0ms + 10% tolerance). Check batch optimization."
+
+      - alert: CriticalLatencyEmbedding
+        expr: miniminimoon_pipeline_latency_milliseconds{node="embedding",quantile="0.95"} > 80.0
+        for: 1m
+        labels:
+          severity: critical
+          component: embedding
+        annotations:
+          summary: "Embedding p95 latency critically high"
+          description: "Embedding node p95 latency is {{ $value }}ms (exceeds p99 budget of 80ms). Immediate optimization required."
+
+      - alert: HighLatencyResponsibilityDetection
+        expr: miniminimoon_pipeline_latency_milliseconds{node="responsibility_detection",quantile="0.95"} > 11.0
+        for: 1m
+        labels:
+          severity: warning
+          component: responsibility_detection
+        annotations:
+          summary: "Responsibility detection p95 latency exceeds budget"
+          description: "Responsibility detection node p95 latency is {{ $value }}ms (budget: 10.0ms + 10% tolerance)"
+
+      - alert: HighLatencyContradictionDetection
+        expr: miniminimoon_pipeline_latency_milliseconds{node="contradiction_detection",quantile="0.95"} > 8.8
+        for: 1m
+        labels:
+          severity: warning
+          component: contradiction_detection
+        annotations:
+          summary: "Contradiction detection p95 latency exceeds budget"
+          description: "Contradiction detection node p95 latency is {{ $value }}ms (budget: 8.0ms + 10% tolerance)"
+
+      - alert: HighLatencyMonetaryDetection
+        expr: miniminimoon_pipeline_latency_milliseconds{node="monetary_detection",quantile="0.95"} > 5.5
+        for: 1m
+        labels:
+          severity: warning
+          component: monetary_detection
+        annotations:
+          summary: "Monetary detection p95 latency exceeds budget"
+          description: "Monetary detection node p95 latency is {{ $value }}ms (budget: 5.0ms + 10% tolerance)"
+
+      - alert: HighLatencyFeasibilityScoring
+        expr: miniminimoon_pipeline_latency_milliseconds{node="feasibility_scoring",quantile="0.95"} > 6.6
+        for: 1m
+        labels:
+          severity: warning
+          component: feasibility_scoring
+        annotations:
+          summary: "Feasibility scoring p95 latency exceeds budget"
+          description: "Feasibility scoring node p95 latency is {{ $value }}ms (budget: 6.0ms + 10% tolerance)"
+
+      - alert: HighLatencyCausalDetection
+        expr: miniminimoon_pipeline_latency_milliseconds{node="causal_detection",quantile="0.95"} > 7.7
+        for: 1m
+        labels:
+          severity: warning
+          component: causal_detection
+        annotations:
+          summary: "Causal detection p95 latency exceeds budget"
+          description: "Causal detection node p95 latency is {{ $value }}ms (budget: 7.0ms + 10% tolerance)"
+
+      - alert: HighLatencyTeoriaCambio
+        expr: miniminimoon_pipeline_latency_milliseconds{node="teoria_cambio",quantile="0.95"} > 16.5
+        for: 1m
+        labels:
+          severity: warning
+          component: teoria_cambio
+        annotations:
+          summary: "Theory of change p95 latency exceeds budget"
+          description: "Theory of change node p95 latency is {{ $value }}ms (budget: 15.0ms + 10% tolerance)"
+
+      - alert: HighLatencyDAGValidation
+        expr: miniminimoon_pipeline_latency_milliseconds{node="dag_validation",quantile="0.95"} > 11.0
+        for: 1m
+        labels:
+          severity: warning
+          component: dag_validation
+        annotations:
+          summary: "DAG validation p95 latency exceeds budget"
+          description: "DAG validation node p95 latency is {{ $value }}ms (budget: 10.0ms + 10% tolerance)"
+
+      # Special Contract Validation Target
+      - alert: HighLatencyContractValidation
+        expr: miniminimoon_pipeline_latency_milliseconds{node="contract_validation_ROUTING",quantile="0.95"} > 5.5
+        for: 1m
+        labels:
+          severity: critical
+          component: contract_validation
+        annotations:
+          summary: "Contract validation routing exceeds 5ms p95 target"
+          description: "Contract validation p95 latency is {{ $value }}ms (target: 5.0ms + 10% tolerance)"
+
+  # Circuit Breaker Alerts
+  - name: miniminimoon_circuit_breakers
+    interval: 10s
+    rules:
+      - alert: CircuitBreakerOpened
+        expr: rate(miniminimoon_circuit_breaker_events_total{event="circuit_opened"}[5m]) > 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker {{ $labels.circuit }} has opened"
+          description: "Circuit breaker for {{ $labels.circuit }} has transitioned to OPEN state, indicating repeated failures."
+
+      - alert: CircuitBreakerHalfOpen
+        expr: rate(miniminimoon_circuit_breaker_events_total{event="state_transition"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker {{ $labels.circuit }} is in HALF_OPEN state"
+          description: "Circuit breaker for {{ $labels.circuit }} is testing recovery. Monitor for full recovery."
+
+      - alert: CircuitBreakerSLAViolation
+        expr: rate(miniminimoon_circuit_breaker_events_total{event="sla_violation"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker {{ $labels.circuit }} recovery time exceeds 2.0s SLA"
+          description: "Recovery time for {{ $labels.circuit }} exceeds the 2.0s threshold."
+
+      - alert: HighCircuitBreakerEventRate
+        expr: rate(miniminimoon_circuit_breaker_events_total[5m]) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High rate of circuit breaker events"
+          description: "Circuit breaker event rate is {{ $value }} events/sec, indicating system instability."
+
+  # Performance Regression Detection
+  - name: miniminimoon_regression
+    interval: 30s
+    rules:
+      - alert: PerformanceRegression
+        expr: |
+          (
+            miniminimoon_pipeline_latency_milliseconds{quantile="0.95"}
+            / 
+            miniminimoon_pipeline_latency_milliseconds{quantile="0.95"} offset 1h
+          ) > 1.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Performance regression detected on {{ $labels.node }}"
+          description: "p95 latency for {{ $labels.node }} has increased by more than 10% in the last hour."
+
+  # Throughput Monitoring
+  - name: miniminimoon_throughput
+    interval: 30s
+    rules:
+      - alert: LowThroughput
+        expr: rate(miniminimoon_pipeline_latency_milliseconds_count[5m]) < 0.1
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "Low throughput on {{ $labels.node }}"
+          description: "Processing rate for {{ $labels.node }} is {{ $value }} requests/sec."
+
+      - alert: NoActivity
+        expr: increase(miniminimoon_pipeline_latency_milliseconds_count[10m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No activity detected on {{ $labels.node }}"
+          description: "Node {{ $labels.node }} has not processed any requests in the last 10 minutes."
