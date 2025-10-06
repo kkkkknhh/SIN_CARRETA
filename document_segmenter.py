@@ -199,7 +199,7 @@ class DocumentSegmenter:
             
             # DE-2: Thematic Inclusion (Budget)
             SectionType.BUDGET: [
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:presupuesto|recursos (?:financieros|econ[óo]micos))",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:presupuesto|recursos (?:financieros|econ[ó]micos))",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:financiaci[óo]n|inversi[óo]n|gasto(?:s)?)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:costeo|asignaci[óo]n (?:presupuestal|de recursos))"
             ],
@@ -217,6 +217,30 @@ class DocumentSegmenter:
         for section_type, patterns in self.section_patterns.items():
             self.compiled_patterns[section_type] = [re.compile(pattern) for pattern in patterns]
     
+    def segment(self, doc_struct: Dict[str, Any]) -> List[DocumentSegment]:
+        """
+        Segment a document based on its structured representation.
+
+        Args:
+            doc_struct: Structured document from PlanProcessor
+
+        Returns:
+            List of DocumentSegment objects
+        """
+        if not doc_struct:
+            return []
+
+        # Attempt to get full text, otherwise reconstruct it from sections
+        text = doc_struct.get("full_text")
+        if not text and "sections" in doc_struct:
+             text = "\n\n".join([section.get("text", "") for section in doc_struct.get("sections", {}).values() if section.get("text")])
+
+        if not text:
+            logger.warning("Could not extract text from doc_struct for segmentation.")
+            return []
+
+        return self.segment_text(text)
+
     def segment_text(self, text: str) -> List[DocumentSegment]:
         """
         Segment the given text into logical units.

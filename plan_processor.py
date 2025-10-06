@@ -189,6 +189,7 @@ class PlanProcessor:
             "structured_elements": structured_elements,
             "cluster_dimension_mapping": cluster_dimension_mapping,
             "text_length": len(normalized_text),
+            "full_text": normalized_text,  # Add full text for downstream consumers
             "processing_status": "complete"
         }
 
@@ -787,3 +788,4 @@ class PlanProcessor:
                 "total_indicators": total_indicators
             }
         }
+

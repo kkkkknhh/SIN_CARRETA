@@ -844,96 +844,120 @@ class CanonicalDeterministicOrchestrator:
         # ========== FLOWS #1-11: SEQUENTIAL PROCESSING ==========
 
         # Flow #1: Sanitization
-        sanitized = self._run_stage(
+        # Input: {raw_text: str} -> Output: {sanitized_text: str}
+        with open(plan_path, 'r', encoding='utf-8') as f:
+            raw_text = f.read()
+
+        sanitized_text = self._run_stage(
             PipelineStage.SANITIZATION,
-            lambda: self.plan_sanitizer.sanitize(plan_path),
+            lambda: self.plan_sanitizer.sanitize_text(raw_text),
             results["stages_completed"]
         )
 
         # Flow #2: Plan Processing
-        processed = self._run_stage(
+        # Input: {sanitized_text: str} -> Output: {doc_struct: dict}
+        doc_struct = self._run_stage(
             PipelineStage.PLAN_PROCESSING,
-            lambda: self.plan_processor.process(sanitized),
+            lambda: self.plan_processor.process(sanitized_text),
             results["stages_completed"]
         )
 
         # Flow #3: Document Segmentation
+        # Input: {doc_struct: dict} -> Output: {segments: list[str|dict]}
         segments = self._run_stage(
             PipelineStage.SEGMENTATION,
-            lambda: self.document_segmenter.segment(processed),
+            lambda: self.document_segmenter.segment(doc_struct), # Corrected to use doc_struct
             results["stages_completed"]
         )
+        segment_texts = [s.text for s in segments]
 
         # Flow #4: Embedding Generation
+        # Input: {segments: list} -> Output: {embeddings: list}
         embeddings = self._run_stage(
             PipelineStage.EMBEDDING,
-            lambda: self.embedding_model.embed(segments),
+            lambda: self.embedding_model.encode(segment_texts),
             results["stages_completed"]
         )
 
         # Flow #5: Responsibility Detection
+        # Input: {segments: list} -> Output: {responsibilities: list[dict]}
         responsibilities = self._run_stage(
             PipelineStage.RESPONSIBILITY,
-            lambda: self.responsibility_detector.detect(segments),
+            lambda: self.responsibility_detector.detect_entities(sanitized_text),
             results["stages_completed"]
         )
 
         # Flow #6: Contradiction Detection
+        # Input: {segments: list} -> Output: {contradictions: list[dict]}
         contradictions = self._run_stage(
             PipelineStage.CONTRADICTION,
-            lambda: self.contradiction_detector.detect(segments),
+            lambda: self.contradiction_detector.detect_contradictions(sanitized_text),
             results["stages_completed"]
         )
 
         # Flow #7: Monetary Detection
+        # Input: {segments: list} -> Output: {monetary: list[dict]}
         monetary = self._run_stage(
             PipelineStage.MONETARY,
-            lambda: self.monetary_detector.detect(segments),
+            lambda: self.monetary_detector.detect(sanitized_text, plan_name=plan_path.name),
             results["stages_completed"]
         )
 
         # Flow #8: Feasibility Scoring
+        # Input: {segments: list} -> Output: {feasibility: dict}
         feasibility = self._run_stage(
             PipelineStage.FEASIBILITY,
-            lambda: self.feasibility_scorer.score(segments),
+            lambda: self.feasibility_scorer.evaluate_plan_feasibility(sanitized_text),
             results["stages_completed"]
         )
 
         # Flow #9: Causal Pattern Detection
+        # Input: {segments: list} -> Output: {causal_patterns: dict}
         causal_patterns = self._run_stage(
             PipelineStage.CAUSAL,
-            lambda: self.causal_pattern_detector.detect(segments),
+            lambda: self.causal_pattern_detector.detect_patterns(sanitized_text, plan_name=plan_path.name),
             results["stages_completed"]
         )
 
         # Flow #10: Teoría del Cambio Validation
+        # Input: {segments: list} -> Output: {toc_graph: dict}
         toc_graph = self._run_stage(
             PipelineStage.TEORIA,
-            lambda: self.teoria_cambio_validator.validate(segments),
+            lambda: self.teoria_cambio_validator.verificar_marco_logico_completo(segments),
             results["stages_completed"]
         )
 
         # Flow #11: DAG Validation
+        # Input: {toc_graph: dict} -> Output: {dag_diagnostics: dict}
         dag_diagnostics = self._run_stage(
             PipelineStage.DAG,
-            lambda: self.dag_validator.validate(toc_graph),
+            lambda: self.dag_validator.calculate_acyclicity_pvalue_advanced(plan_path.name),
             results["stages_completed"]
         )
 
         # ========== FLOW #12: BUILD EVIDENCE REGISTRY ==========
+        # This is the fan-in step
+        all_detector_outputs = {
+            "segments": segments,
+            "embeddings": embeddings,
+            "responsibilities": responsibilities,
+            "contradictions": contradictions,
+            "monetary": monetary,
+            "feasibility": feasibility,
+            "causal_patterns": causal_patterns,
+            "toc_graph": toc_graph,
+            "dag_diagnostics": dag_diagnostics
+        }
         self._run_stage(
             PipelineStage.REGISTRY_BUILD,
-            lambda: self._build_evidence_registry(
-                segments, embeddings, responsibilities, contradictions,
-                monetary, feasibility, causal_patterns, toc_graph, dag_diagnostics
-            ),
+            lambda: self._build_evidence_registry(all_detector_outputs),
             results["stages_completed"]
         )
 
         # ========== FLOW #13: DECÁLOGO EVALUATION ==========
         decalogo_eval = self._run_stage(
             PipelineStage.DECALOGO_EVAL,
-            lambda: self._execute_decalogo_evaluation(),
+            lambda: self._execute_decalogo_evaluation(self.evidence_registry),
             results["stages_completed"]
         )
         results["evaluations"]["decalogo"] = decalogo_eval
@@ -947,9 +971,13 @@ class CanonicalDeterministicOrchestrator:
         results["evaluations"]["questionnaire"] = questionnaire_eval
 
         # ========== FLOW #15: ANSWER ASSEMBLY ==========
+        answer_assembly_input = {
+            "decalogo_eval": decalogo_eval,
+            "questionnaire_eval": questionnaire_eval
+        }
         answers_report = self._run_stage(
             PipelineStage.ANSWER_ASSEMBLY,
-            lambda: self._assemble_answers(questionnaire_eval),
+            lambda: self._assemble_answers(answer_assembly_input),
             results["stages_completed"]
         )
         results["evaluations"]["answers_report"] = answers_report
@@ -984,175 +1012,127 @@ class CanonicalDeterministicOrchestrator:
             self,
             stage: PipelineStage,
             func: callable,
-            stages_list: List[str]
+            stages_list: List[str],
+            io_schema: Optional[Any] = None,
+            input_data: Optional[Any] = None
     ) -> Any:
-        """Execute pipeline stage with logging and tracing"""
+        """Execute pipeline stage with logging, tracing, and I/O schema validation."""
         stage_name = stage.value
         self.logger.info(f"  → {stage_name}")
 
         try:
-            result = func()
+            # The function `func` is now expected to take input_data
+            result = func(input_data) if input_data is not None else func()
 
             if self.enable_validation:
                 self.runtime_tracer.record_stage(stage_name, success=True)
 
             stages_list.append(stage_name)
+
+            # Basic I/O validation if schema is provided
+            if io_schema:
+                # This is a simplified check. A real implementation would use a library like Pydantic.
+                if not isinstance(result, dict) or "output" not in result:
+                     self.logger.warning(f"Stage {stage_name} output may not match expected IO schema.")
+
             return result
 
         except Exception as e:
-            self.logger.error(f"✗ Stage {stage_name} failed: {e}")
+            self.logger.error(f"⨯ Stage {stage_name} FAILED: {e}")
             if self.enable_validation:
                 self.runtime_tracer.record_stage(stage_name, success=False, error=str(e))
             raise
 
-    def _build_evidence_registry(
-            self,
-            segments, embeddings, responsibilities, contradictions,
-            monetary, feasibility, causal_patterns, toc_graph, dag_diagnostics
-    ):
+    def _build_evidence_registry(self, all_inputs: Dict[str, Any]):
         """
-        Flow #12: Populate evidence registry (fan-in).
-        Single source of truth for flows #13-15.
+        Flow #12: Build the evidence registry from all detector outputs.
+        This is the critical "fan-in" step.
         """
-        # Register segments
-        for i, seg in enumerate(segments):
-            self.evidence_registry.register(EvidenceEntry(
-                evidence_id=f"seg_{i}",
-                stage="segmentation",
-                content=seg,
-                confidence=1.0
-            ))
+        self.logger.info("  Building evidence registry...")
 
-        # Register embeddings
-        for i, emb in enumerate(embeddings):
-            self.evidence_registry.register(EvidenceEntry(
-                evidence_id=f"emb_{i}",
-                stage="embedding",
-                content=emb,
-                source_segment_ids=[f"seg_{i}"],
-                confidence=1.0
-            ))
+        # Helper to create evidence entries
+        def register_evidence(stage: PipelineStage, items: List[Any], id_prefix: str):
+            if not isinstance(items, list):
+                self.logger.warning(f"Expected a list for stage {stage.value}, but got {type(items)}. Skipping.")
+                return
+            for item in items:
+                try:
+                    # Create a unique ID for the evidence
+                    item_str = json.dumps(item, sort_keys=True)
+                    evidence_id = f"{id_prefix}_{hashlib.sha1(item_str.encode()).hexdigest()[:10]}"
+                    entry = EvidenceEntry(
+                        evidence_id=evidence_id,
+                        stage=stage.value,
+                        content=item,
+                        source_segment_ids=[], # Placeholder, needs robust implementation
+                        confidence=item.get('confidence', 0.8) if isinstance(item, dict) else 0.8
+                    )
+                    self.evidence_registry.register(entry)
+                except (TypeError, AttributeError) as e:
+                    self.logger.warning(f"Could not process item for evidence registry in stage {stage.value}: {item}. Error: {e}")
 
-        # Register responsibilities
-        for i, resp in enumerate(responsibilities):
-            self.evidence_registry.register(EvidenceEntry(
-                evidence_id=f"resp_{i}",
-                stage="responsibility",
-                content=resp,
-                source_segment_ids=resp.get("segment_ids", []),
-                confidence=resp.get("confidence", 0.8)
-            ))
+        # Register evidence from each detector
+        register_evidence(PipelineStage.RESPONSIBILITY, all_inputs.get('responsibilities', []), 'resp')
 
-        # Register contradictions
-        for i, cont in enumerate(contradictions):
-            self.evidence_registry.register(EvidenceEntry(
-                evidence_id=f"cont_{i}",
-                stage="contradiction",
-                content=cont,
-                source_segment_ids=cont.get("segment_ids", []),
-                confidence=cont.get("confidence", 0.7)
-            ))
+        # Contradiction detector returns a dict, we need the list of matches
+        contradiction_analysis = all_inputs.get('contradictions')
+        if contradiction_analysis and hasattr(contradiction_analysis, 'contradictions'):
+             register_evidence(PipelineStage.CONTRADICTION, contradiction_analysis.contradictions, 'contra')
 
-        # Register monetary
-        for i, mon in enumerate(monetary):
-            self.evidence_registry.register(EvidenceEntry(
-                evidence_id=f"mon_{i}",
-                stage="monetary",
-                content=mon,
-                source_segment_ids=mon.get("segment_ids", []),
-                confidence=mon.get("confidence", 0.9)
-            ))
+        register_evidence(PipelineStage.MONETARY, all_inputs.get('monetary', []), 'money')
 
-        # Register feasibility
-        self.evidence_registry.register(EvidenceEntry(
-            evidence_id="feasibility_global",
-            stage="feasibility",
-            content=feasibility,
-            confidence=1.0
-        ))
+        # Feasibility returns a dict, we need to handle it
+        feasibility_report = all_inputs.get('feasibility')
+        if isinstance(feasibility_report, dict):
+            register_evidence(PipelineStage.FEASIBILITY, feasibility_report.get('indicators', []), 'feas')
 
-        # Register causal patterns
-        for i, pattern in enumerate(causal_patterns):
-            self.evidence_registry.register(EvidenceEntry(
-                evidence_id=f"causal_{i}",
-                stage="causal",
-                content=pattern,
-                source_segment_ids=pattern.get("segment_ids", []),
-                confidence=pattern.get("confidence", 0.75)
-            ))
+        # Causal patterns returns a dict
+        causal_report = all_inputs.get('causal_patterns')
+        if isinstance(causal_report, dict):
+            register_evidence(PipelineStage.CAUSAL, causal_report.get('patterns', []), 'causal')
 
-        # Register ToC
-        self.evidence_registry.register(EvidenceEntry(
-            evidence_id="toc_graph",
-            stage="teoria_cambio",
-            content=toc_graph,
-            confidence=1.0
-        ))
+        self.logger.info(f"  Evidence registry built with {len(self.evidence_registry._evidence)} entries.")
+        return {"status": "built", "entries": len(self.evidence_registry._evidence)}
 
-        # Register DAG
-        self.evidence_registry.register(EvidenceEntry(
-            evidence_id="dag_diagnostics",
-            stage="dag_validation",
-            content=dag_diagnostics,
-            confidence=1.0
-        ))
 
-        self.logger.info(
-            f"  Evidence registry built: {len(self.evidence_registry._evidence)} entries"
+    def _execute_decalogo_evaluation(self, evidence_registry: EvidenceRegistry) -> Dict[str, Any]:
+        """
+        Flow #13: Execute Decálogo evaluation using the evidence registry.
+        Placeholder for the actual evaluation logic.
+        """
+        self.logger.info("  Executing Decálogo evaluation...")
+        # The evidence registry is now populated and can be used by the extractor
+        # For example, get all responsibility evidence
+        responsibility_evidence = self.evidence_registry.get_by_stage(PipelineStage.RESPONSIBILITY.value)
+
+        # The decatalogo_extractor would use this evidence to score questions
+        # This is a placeholder for that complex logic
+        evaluation = self.decatalogo_extractor.evaluate_from_evidence(evidence_registry)
+
+        self.logger.info("  Decálogo evaluation completed.")
+        return evaluation
+
+
+    def _assemble_answers(self, evaluation_inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Flow #15: Assemble the final answers report.
+        Placeholder for the answer assembly logic.
+        """
+        self.logger.info("  Assembling final answers report...")
+        questionnaire_eval = evaluation_inputs.get('questionnaire_eval', {})
+        # The answer_assembler would take the evaluations and the evidence registry
+        # to create a comprehensive report with full traceability.
+        final_report = self.answer_assembler.assemble_report(
+            decalogo_eval=evaluation_inputs.get('decalogo_eval'),
+            questionnaire_eval=questionnaire_eval
         )
 
-    def _execute_decalogo_evaluation(self) -> Dict[str, Any]:
-        """Flow #13: Decálogo evaluation using evidence registry"""
-        evidence_snapshot = {
-            "segments": self.evidence_registry.get_by_stage("segmentation"),
-            "responsibilities": self.evidence_registry.get_by_stage("responsibility"),
-            "contradictions": self.evidence_registry.get_by_stage("contradiction"),
-            "monetary": self.evidence_registry.get_by_stage("monetary"),
-            "feasibility": self.evidence_registry.get_by_stage("feasibility"),
-            "causal": self.evidence_registry.get_by_stage("causal"),
-            "toc": self.evidence_registry.get("toc_graph"),
-            "dag": self.evidence_registry.get("dag_diagnostics")
-        }
+        # Gate #4 check
+        if final_report.get("summary", {}).get("total_questions", 0) < 300:
+             self.logger.warning(f"GATE #4 FAILED: Coverage is less than 300 questions.")
 
-        return self.decatalogo_extractor.evaluar_completo(evidence_snapshot)
-
-    def _assemble_answers(self, questionnaire_eval: Dict[str, Any]) -> Dict[str, Any]:
-        """Flow #15: Transform evaluation into high-quality answers"""
-        answers = []
-
-        for question_id, eval_data in questionnaire_eval.get("questions", {}).items():
-            dimension = eval_data.get("dimension", "unknown")
-            raw_score = eval_data.get("score", 0.0)
-            evidence_ids = eval_data.get("evidence_ids", [])
-
-            answer = self.answer_assembler.assemble(
-                question_id=question_id,
-                dimension=dimension,
-                relevant_evidence_ids=evidence_ids,
-                raw_score=raw_score
-            )
-
-            answers.append(asdict(answer))
-
-        total_weighted_score = sum(Answer(**a).weighted_score() for a in answers)
-        avg_confidence = sum(a["confidence"] for a in answers) / len(answers) if answers else 0
-
-        report = {
-            "answers": answers,
-            "summary": {
-                "total_questions": len(answers),
-                "total_weighted_score": round(total_weighted_score, 2),
-                "average_confidence": round(avg_confidence, 2),
-                "questions_with_low_confidence": sum(1 for a in answers if a["confidence"] < 0.5),
-                "questions_with_caveats": sum(1 for a in answers if a["caveats"])
-            }
-        }
-
-        self.logger.info(
-            f"  Answers assembled: {len(answers)} questions, avg confidence {avg_confidence:.2f}"
-        )
-
-        return report
+        self.logger.info("  Final answers report assembled.")
+        return final_report
 
     def export_artifacts(self, output_dir: Path):
         """
@@ -1232,17 +1212,17 @@ class UnifiedEvaluationPipeline:
         # Export artifacts
         orchestrator.export_artifacts(output_dir)
 
-        with open(output_dir / "results_bundle.json", 'w') as f:
+        with open(output_dir / "results_bundle.json", 'w', encoding='utf-8') as f:
             json.dump(bundle, f, indent=2, ensure_ascii=False)
 
         # Export answers_report separately (flow #59)
-        answers_report = results["evaluations"].get("answers_report", {})
-        with open(output_dir / "answers_report.json", 'w') as f:
+        answers_report = results.get("evaluations", {}).get("answers_report", {})
+        with open(output_dir / "answers_report.json", 'w', encoding='utf-8') as f:
             json.dump(answers_report, f, indent=2, ensure_ascii=False)
 
         # Export sample (flow #60)
         sample = {"answers": answers_report.get("answers", [])[:10]}
-        with open(output_dir / "answers_sample.json", 'w') as f:
+        with open(output_dir / "answers_sample.json", 'w', encoding='utf-8') as f:
             json.dump(sample, f, indent=2, ensure_ascii=False)
 
         self.logger.info("✓ Unified evaluation complete")
