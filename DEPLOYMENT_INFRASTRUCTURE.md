@@ -603,8 +603,499 @@ export CANARY_FULL_HOLD_SECONDS=1800
 5. **Canary Duration**: Use longer hold times (15-30 minutes) per stage
 6. **Baseline Updates**: Refresh baselines weekly during stable periods
 
+## Batch Processing Architecture
+
+High-throughput asynchronous batch processing system for evaluating large document collections.
+
+### Architecture Overview
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         Client Applications                           │
+│  (Python scripts, Shell scripts, Postman, Web UI)                    │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │ HTTP/HTTPS
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                        Nginx Reverse Proxy                            │
+│  • SSL termination                                                    │
+│  • Rate limiting (100 req/min per IP)                                │
+│  • Load balancing across FastAPI instances                           │
+│  • Request buffering                                                  │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                        FastAPI Server(s)                              │
+│  • POST /api/v1/batch/upload       - Upload documents                │
+│  • GET  /api/v1/batch/status/{id}  - Check job status                │
+│  • GET  /api/v1/batch/results/{id} - Retrieve results                │
+│  • GET  /api/v1/health             - Health check                    │
+│  • Token-based authentication (Bearer tokens)                        │
+│  • Request validation (1-100 documents per batch)                    │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │ Enqueue tasks
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                      Redis Message Broker                             │
+│  • Task queue: decalogo_batch_tasks                                  │
+│  • Result backend: decalogo_batch_results                            │
+│  • Priority queuing (high/normal/low)                                │
+│  • TTL: 7 days for tasks, 30 days for results                       │
+│  • Persistence: AOF + RDB snapshots                                  │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │ Worker pool
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                     Celery Worker Pool                                │
+│                                                                       │
+│  Worker 1 (8 threads)    Worker 2 (8 threads)    Worker N (8 threads)│
+│  ├─ Document Loader      ├─ Document Loader      ├─ Document Loader │
+│  ├─ Segmentation         ├─ Segmentation         ├─ Segmentation    │
+│  ├─ Embedding Model      ├─ Embedding Model      ├─ Embedding Model │
+│  ├─ Evidence Extraction  ├─ Evidence Extraction  ├─ Evidence Extract.│
+│  ├─ Evaluation           ├─ Evaluation           ├─ Evaluation      │
+│  └─ Result Aggregation   └─ Result Aggregation   └─ Result Aggreg.  │
+│                                                                       │
+│  Configuration:                                                       │
+│  • concurrency=8 (threads per worker)                                │
+│  • prefetch_multiplier=4 (32 tasks prefetched per worker)           │
+│  • max_tasks_per_child=100 (worker restart after 100 tasks)         │
+│  • task_acks_late=True (acknowledge after completion)               │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │ Store results
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                      Artifact Storage                                 │
+│                                                                       │
+│  artifacts/                                                           │
+│  ├── batch_jobs/                                                      │
+│  │   ├── <job_id>/                                                    │
+│  │   │   ├── metadata.json       (job metadata, timestamps)          │
+│  │   │   ├── documents/           (uploaded documents)               │
+│  │   │   ├── results/             (evaluation results per doc)       │
+│  │   │   └── summary.json         (aggregated results)               │
+│  │   └── ...                                                          │
+│  └── logs/                                                            │
+│      └── batch_<job_id>.log       (detailed processing logs)         │
+│                                                                       │
+│  Storage policies:                                                    │
+│  • Compression: gzip for results > 1MB                               │
+│  • Retention: 90 days, then archive to cold storage                  │
+│  • Backup: Daily incremental, weekly full                            │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### Data Flow
+
+```
+Upload Request                Status Check              Result Retrieval
+     │                             │                            │
+     ▼                             ▼                            ▼
+┌─────────┐                 ┌─────────┐                 ┌─────────┐
+│ FastAPI │                 │ FastAPI │                 │ FastAPI │
+│ Endpoint│                 │ Endpoint│                 │ Endpoint│
+└────┬────┘                 └────┬────┘                 └────┬────┘
+     │                           │                            │
+     │ 1. Validate              │ 3. Query Redis            │ 5. Read from
+     │    documents             │    for task status        │    artifact
+     │                          │                           │    storage
+     ▼                          ▼                           ▼
+┌─────────┐                ┌─────────┐                ┌──────────┐
+│  Redis  │                │  Redis  │                │ Artifact │
+│  Queue  │                │ Backend │                │ Storage  │
+└────┬────┘                └─────────┘                └──────────┘
+     │                           ▲                            ▲
+     │ 2. Enqueue                │ 4. Update                 │ 6. Return
+     │    batch task             │    progress               │    results
+     ▼                           │                           │
+┌─────────┐                     │                           │
+│ Celery  │─────────────────────┴───────────────────────────┘
+│ Worker  │
+└─────────┘
+```
+
+### API Endpoint Specifications
+
+#### 1. Upload Documents (POST /api/v1/batch/upload)
+
+**Request Headers**
+```
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+```json
+{
+  "documents": [
+    {
+      "id": "doc_001",
+      "content": "Plan text content...",
+      "metadata": {
+        "title": "Plan Nacional de Desarrollo",
+        "year": 2024,
+        "sector": "Social"
+      }
+    }
+  ],
+  "options": {
+    "priority": "normal",
+    "include_evidence": true,
+    "include_traces": false,
+    "webhook_url": "https://example.com/webhook"
+  }
+}
+```
+
+**Validation Rules**
+- `documents`: Required, array of 1-100 documents
+- `documents[].id`: Required, unique string (max 100 chars)
+- `documents[].content`: Required, non-empty string (max 1MB)
+- `documents[].metadata`: Optional, object with arbitrary key-value pairs
+- `options.priority`: Optional, enum ["high", "normal", "low"], default "normal"
+- `options.include_evidence`: Optional, boolean, default true
+- `options.include_traces`: Optional, boolean, default false
+- `options.webhook_url`: Optional, valid HTTPS URL
+
+**Response (202 Accepted)**
+```json
+{
+  "job_id": "batch_20240115_abc123",
+  "status": "queued",
+  "document_count": 15,
+  "estimated_completion_seconds": 300,
+  "created_at": "2024-01-15T10:30:00Z",
+  "status_url": "/api/v1/batch/status/batch_20240115_abc123",
+  "results_url": "/api/v1/batch/results/batch_20240115_abc123"
+}
+```
+
+**Error Responses**
+```json
+// 400 Bad Request - Invalid input
+{
+  "error": "validation_error",
+  "message": "Document count exceeds maximum of 100",
+  "details": {
+    "received": 150,
+    "maximum": 100
+  }
+}
+
+// 401 Unauthorized - Missing/invalid token
+{
+  "error": "unauthorized",
+  "message": "Invalid or missing authentication token"
+}
+
+// 429 Too Many Requests - Rate limit exceeded
+{
+  "error": "rate_limit_exceeded",
+  "message": "Rate limit of 100 requests per minute exceeded",
+  "retry_after_seconds": 45
+}
+
+// 503 Service Unavailable - Queue full
+{
+  "error": "service_unavailable",
+  "message": "Queue capacity exceeded, please retry later",
+  "queue_size": 10000,
+  "queue_capacity": 10000
+}
+```
+
+#### 2. Check Job Status (GET /api/v1/batch/status/{job_id})
+
+**Request Headers**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK) - Queued**
+```json
+{
+  "job_id": "batch_20240115_abc123",
+  "status": "queued",
+  "document_count": 15,
+  "documents_completed": 0,
+  "documents_failed": 0,
+  "progress_percent": 0.0,
+  "created_at": "2024-01-15T10:30:00Z",
+  "started_at": null,
+  "completed_at": null,
+  "estimated_completion_seconds": 300
+}
+```
+
+**Response (200 OK) - Processing**
+```json
+{
+  "job_id": "batch_20240115_abc123",
+  "status": "processing",
+  "document_count": 15,
+  "documents_completed": 8,
+  "documents_failed": 1,
+  "progress_percent": 53.3,
+  "created_at": "2024-01-15T10:30:00Z",
+  "started_at": "2024-01-15T10:31:00Z",
+  "completed_at": null,
+  "estimated_completion_seconds": 120,
+  "current_worker": "worker-2@host-01"
+}
+```
+
+**Response (200 OK) - Completed**
+```json
+{
+  "job_id": "batch_20240115_abc123",
+  "status": "completed",
+  "document_count": 15,
+  "documents_completed": 14,
+  "documents_failed": 1,
+  "progress_percent": 100.0,
+  "created_at": "2024-01-15T10:30:00Z",
+  "started_at": "2024-01-15T10:31:00Z",
+  "completed_at": "2024-01-15T10:36:00Z",
+  "total_processing_seconds": 300,
+  "results_url": "/api/v1/batch/results/batch_20240115_abc123"
+}
+```
+
+**Response (200 OK) - Failed**
+```json
+{
+  "job_id": "batch_20240115_abc123",
+  "status": "failed",
+  "document_count": 15,
+  "documents_completed": 5,
+  "documents_failed": 10,
+  "progress_percent": 33.3,
+  "created_at": "2024-01-15T10:30:00Z",
+  "started_at": "2024-01-15T10:31:00Z",
+  "failed_at": "2024-01-15T10:33:00Z",
+  "error": "Worker crashed during processing",
+  "error_details": {
+    "worker_id": "worker-3@host-02",
+    "last_document": "doc_008",
+    "exception": "OutOfMemoryError"
+  }
+}
+```
+
+**Error Responses**
+```json
+// 404 Not Found - Job doesn't exist
+{
+  "error": "job_not_found",
+  "message": "No job found with ID: batch_20240115_xyz789"
+}
+```
+
+#### 3. Retrieve Results (GET /api/v1/batch/results/{job_id})
+
+**Request Headers**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters**
+- `format`: Optional, enum ["json", "csv"], default "json"
+- `include_evidence`: Optional, boolean, default true
+- `include_traces`: Optional, boolean, default false
+
+**Response (200 OK)**
+```json
+{
+  "job_id": "batch_20240115_abc123",
+  "status": "completed",
+  "document_count": 15,
+  "documents_completed": 14,
+  "documents_failed": 1,
+  "created_at": "2024-01-15T10:30:00Z",
+  "completed_at": "2024-01-15T10:36:00Z",
+  "summary": {
+    "average_score": 7.8,
+    "median_score": 8.0,
+    "total_evidence_extracted": 142,
+    "total_contradictions": 3,
+    "average_processing_time_seconds": 20.5
+  },
+  "results": [
+    {
+      "document_id": "doc_001",
+      "status": "completed",
+      "score": 8.5,
+      "evaluation": {
+        "D1_DIAGNOSTICO_SUFICIENTE": {
+          "score": 9.0,
+          "evidence_count": 5,
+          "confidence": 0.92
+        },
+        "D2_CAUSALIDAD_FUNDAMENTADA": {
+          "score": 8.0,
+          "evidence_count": 3,
+          "confidence": 0.88
+        }
+      },
+      "evidence": [
+        {
+          "type": "causal_relationship",
+          "text": "La reducción de la pobreza se logrará mediante...",
+          "confidence": 0.95,
+          "decalogo_alignment": ["D2_CAUSALIDAD_FUNDAMENTADA"]
+        }
+      ],
+      "contradictions": [],
+      "processing_time_seconds": 18.2
+    },
+    {
+      "document_id": "doc_002",
+      "status": "failed",
+      "error": "Document parsing failed",
+      "error_details": {
+        "exception": "InvalidDocumentFormat",
+        "message": "Unable to extract text from document"
+      }
+    }
+  ]
+}
+```
+
+**Response (200 OK) - CSV Format**
+```csv
+document_id,status,score,D1_score,D2_score,...,processing_time_seconds,error
+doc_001,completed,8.5,9.0,8.0,...,18.2,
+doc_002,failed,,,,...,,InvalidDocumentFormat
+```
+
+**Error Responses**
+```json
+// 404 Not Found
+{
+  "error": "job_not_found",
+  "message": "No job found with ID: batch_20240115_xyz789"
+}
+
+// 202 Accepted - Job still processing
+{
+  "error": "job_not_ready",
+  "message": "Job is still processing",
+  "status": "processing",
+  "progress_percent": 65.0,
+  "estimated_completion_seconds": 90
+}
+```
+
+#### 4. Health Check (GET /api/v1/health)
+
+**Response (200 OK)**
+```json
+{
+  "status": "healthy",
+  "version": "1.0.0",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "components": {
+    "api": {
+      "status": "healthy",
+      "uptime_seconds": 86400
+    },
+    "redis": {
+      "status": "healthy",
+      "queue_size": 245,
+      "queue_capacity": 10000,
+      "memory_usage_mb": 128,
+      "memory_capacity_mb": 2048
+    },
+    "workers": {
+      "status": "healthy",
+      "total_workers": 4,
+      "active_workers": 4,
+      "idle_workers": 2,
+      "busy_workers": 2,
+      "total_capacity": 32,
+      "current_load": 8
+    },
+    "storage": {
+      "status": "healthy",
+      "disk_usage_percent": 45.2,
+      "available_gb": 500
+    }
+  },
+  "metrics": {
+    "jobs_completed_last_hour": 85,
+    "jobs_failed_last_hour": 2,
+    "average_processing_time_seconds": 21.3,
+    "throughput_documents_per_hour": 170
+  }
+}
+```
+
+**Response (503 Service Unavailable)**
+```json
+{
+  "status": "unhealthy",
+  "version": "1.0.0",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "components": {
+    "api": {
+      "status": "healthy"
+    },
+    "redis": {
+      "status": "unhealthy",
+      "error": "Connection timeout after 5 seconds"
+    },
+    "workers": {
+      "status": "degraded",
+      "total_workers": 4,
+      "active_workers": 2,
+      "message": "2 workers unresponsive"
+    }
+  }
+}
+```
+
+### Performance Characteristics
+
+**Throughput**
+- Target: 170 documents per hour (with 4 workers @ 8 threads each)
+- Actual: 150-180 documents per hour (depends on document size and complexity)
+- Peak: 250 documents per hour (with 8 workers @ 8 threads each)
+
+**Latency**
+- Small batch (1-10 docs): 30-120 seconds
+- Medium batch (11-50 docs): 2-10 minutes
+- Large batch (51-100 docs): 10-30 minutes
+
+**Resource Usage**
+- Memory per worker: 2-4GB (depends on embedding model)
+- CPU per worker: 80-95% utilization (8 threads)
+- Redis memory: 100-500MB (for 1000 queued tasks)
+- Disk I/O: 50-100MB/s (artifact storage writes)
+
+### Scaling Guidelines
+
+**Horizontal Scaling**
+- Add workers across multiple machines to increase throughput linearly
+- Each worker adds ~40-50 documents/hour capacity
+- Redis can handle 50+ concurrent workers without performance degradation
+
+**Vertical Scaling**
+- Increase worker concurrency (8 → 16 threads) on machines with 16+ CPU cores
+- Increase Redis memory allocation for larger queue depths
+- Use NVMe storage for artifact storage to reduce I/O bottlenecks
+
+**Auto-scaling Triggers**
+- Scale up when queue depth > 500 tasks for > 5 minutes
+- Scale down when queue depth < 50 tasks for > 15 minutes
+- Min workers: 2 (for redundancy)
+- Max workers: 20 (to prevent Redis overload)
+
 ## References
 
 - [OpenTelemetry Python Documentation](https://opentelemetry.io/docs/instrumentation/python/)
 - [Canary Deployment Best Practices](https://cloud.google.com/architecture/application-deployment-and-testing-strategies)
 - [SLO Implementation Guide](https://sre.google/workbook/implementing-slos/)
+- [Celery Best Practices](https://docs.celeryq.dev/en/stable/userguide/optimizing.html)
+- [Redis Persistence](https://redis.io/topics/persistence)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)

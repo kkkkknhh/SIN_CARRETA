@@ -1,0 +1,344 @@
+{
+  "info": {
+    "name": "DECALOGO Batch Processing API",
+    "description": "Complete API collection for DECALOGO batch processing system",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "decalogo-batch-v1",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{api_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "api_token",
+      "value": "YOUR_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "job_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "health"
+          ]
+        },
+        "description": "Check API health status and component availability"
+      },
+      "response": []
+    },
+    {
+      "name": "Upload Documents - Small Batch",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Save job_id for subsequent requests",
+              "if (pm.response.code === 202) {",
+              "    var jsonData = pm.response.json();",
+              "    pm.collectionVariables.set('job_id', jsonData.job_id);",
+              "    console.log('Job ID saved: ' + jsonData.job_id);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"documents\": [\n    {\n      \"id\": \"doc_001\",\n      \"content\": \"Plan Nacional de Desarrollo Social 2024-2028. Diagnóstico: La pobreza afecta al 42% de la población. Causalidad: La falta de acceso a educación y salud perpetúa el ciclo de pobreza. Objetivos: Reducir la pobreza al 30% en 4 años mediante programas de educación, salud y empleo. Indicadores: Tasa de pobreza, cobertura educativa, acceso a salud.\",\n      \"metadata\": {\n        \"title\": \"Plan Nacional de Desarrollo Social\",\n        \"year\": 2024,\n        \"sector\": \"Social\"\n      }\n    },\n    {\n      \"id\": \"doc_002\",\n      \"content\": \"Programa de Infraestructura Vial 2024. Diagnóstico: El 60% de las vías rurales están en mal estado, limitando el acceso a mercados. Objetivos: Rehabilitar 5000 km de vías rurales para mejorar la conectividad y el comercio. Presupuesto: $500 millones USD. Cronograma: 3 años. Beneficiarios: 2 millones de personas en zonas rurales.\",\n      \"metadata\": {\n        \"title\": \"Programa de Infraestructura Vial\",\n        \"year\": 2024,\n        \"sector\": \"Infraestructura\"\n      }\n    },\n    {\n      \"id\": \"doc_003\",\n      \"content\": \"Plan de Salud Pública 2024-2030. Diagnóstico: Alta incidencia de enfermedades prevenibles por falta de vacunación. Causalidad: La baja cobertura de vacunación se debe a limitaciones de acceso en zonas remotas. Estrategia: Implementar brigadas móviles de vacunación en 200 municipios. Meta: Alcanzar 95% de cobertura de vacunación infantil. Recursos: Personal médico, vehículos, vacunas.\",\n      \"metadata\": {\n        \"title\": \"Plan de Salud Pública\",\n        \"year\": 2024,\n        \"sector\": \"Salud\"\n      }\n    }\n  ],\n  \"options\": {\n    \"priority\": \"normal\",\n    \"include_evidence\": true,\n    \"include_traces\": false\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/batch/upload",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "batch",
+            "upload"
+          ]
+        },
+        "description": "Upload a small batch of 3 documents for processing"
+      },
+      "response": []
+    },
+    {
+      "name": "Upload Documents - High Priority",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 202) {",
+              "    var jsonData = pm.response.json();",
+              "    pm.collectionVariables.set('job_id', jsonData.job_id);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"documents\": [\n    {\n      \"id\": \"urgent_doc_001\",\n      \"content\": \"Programa de Emergencia por Desastre Natural 2024. Diagnóstico urgente: Terremoto de magnitud 7.2 afectó a 500,000 personas. Se requiere respuesta inmediata. Acciones: Distribución de alimentos, agua, refugios temporales y atención médica de emergencia. Presupuesto: $100 millones USD de fondos de emergencia. Ejecución: Inmediata, 30 días.\",\n      \"metadata\": {\n        \"title\": \"Programa de Emergencia\",\n        \"year\": 2024,\n        \"sector\": \"Emergencias\",\n        \"urgency\": \"critical\"\n      }\n    }\n  ],\n  \"options\": {\n    \"priority\": \"high\",\n    \"include_evidence\": true,\n    \"include_traces\": true,\n    \"webhook_url\": \"https://example.com/webhook/urgent\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/batch/upload",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "batch",
+            "upload"
+          ]
+        },
+        "description": "Upload high-priority documents with webhook notification"
+      },
+      "response": []
+    },
+    {
+      "name": "Upload Documents - Large Batch",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 202) {",
+              "    var jsonData = pm.response.json();",
+              "    pm.collectionVariables.set('job_id', jsonData.job_id);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"documents\": [\n    {\n      \"id\": \"doc_batch_001\",\n      \"content\": \"Plan de Educación Rural 2024. Diagnóstico: 40% de escuelas rurales carecen de infraestructura básica. Objetivo: Construir y equipar 200 escuelas en zonas rurales. Presupuesto: $50 millones USD. Beneficiarios: 100,000 estudiantes.\",\n      \"metadata\": {\"sector\": \"Educación\"}\n    },\n    {\n      \"id\": \"doc_batch_002\",\n      \"content\": \"Programa de Agua Potable 2024. Diagnóstico: 30% de la población rural sin acceso a agua potable. Estrategia: Perforación de pozos y construcción de acueductos. Meta: Cobertura del 85% en 5 años.\",\n      \"metadata\": {\"sector\": \"Agua y Saneamiento\"}\n    },\n    {\n      \"id\": \"doc_batch_003\",\n      \"content\": \"Plan de Electrificación Rural 2024. Diagnóstico: 25% de viviendas rurales sin electricidad. Objetivo: Electrificar 50,000 viviendas mediante extensión de red y paneles solares. Plazo: 3 años.\",\n      \"metadata\": {\"sector\": \"Energía\"}\n    },\n    {\n      \"id\": \"doc_batch_004\",\n      \"content\": \"Programa de Nutrición Infantil 2024. Diagnóstico: 15% de niños menores de 5 años con desnutrición crónica. Intervención: Distribución de suplementos nutricionales y educación alimentaria. Meta: Reducir desnutrición al 8%.\",\n      \"metadata\": {\"sector\": \"Salud\"}\n    },\n    {\n      \"id\": \"doc_batch_005\",\n      \"content\": \"Plan de Reforestación 2024. Diagnóstico: Deforestación de 100,000 hectáreas en la última década. Objetivo: Reforestar 50,000 hectáreas con especies nativas. Impacto: Captura de carbono y protección de cuencas.\",\n      \"metadata\": {\"sector\": \"Medio Ambiente\"}\n    }\n  ],\n  \"options\": {\n    \"priority\": \"normal\",\n    \"include_evidence\": true,\n    \"include_traces\": false\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/batch/upload",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "batch",
+            "upload"
+          ]
+        },
+        "description": "Upload a larger batch of 5 documents"
+      },
+      "response": []
+    },
+    {
+      "name": "Check Job Status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/batch/status/{{job_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "batch",
+            "status",
+            "{{job_id}}"
+          ]
+        },
+        "description": "Check the status of a batch job using the saved job_id"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Results - JSON",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/batch/results/{{job_id}}?format=json&include_evidence=true&include_traces=false",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "batch",
+            "results",
+            "{{job_id}}"
+          ],
+          "query": [
+            {
+              "key": "format",
+              "value": "json"
+            },
+            {
+              "key": "include_evidence",
+              "value": "true"
+            },
+            {
+              "key": "include_traces",
+              "value": "false"
+            }
+          ]
+        },
+        "description": "Retrieve results in JSON format with evidence"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Results - CSV",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/batch/results/{{job_id}}?format=csv",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "batch",
+            "results",
+            "{{job_id}}"
+          ],
+          "query": [
+            {
+              "key": "format",
+              "value": "csv"
+            }
+          ]
+        },
+        "description": "Retrieve results in CSV format for spreadsheet analysis"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Results - With Traces",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/batch/results/{{job_id}}?format=json&include_evidence=true&include_traces=true",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "batch",
+            "results",
+            "{{job_id}}"
+          ],
+          "query": [
+            {
+              "key": "format",
+              "value": "json"
+            },
+            {
+              "key": "include_evidence",
+              "value": "true"
+            },
+            {
+              "key": "include_traces",
+              "value": "true"
+            }
+          ]
+        },
+        "description": "Retrieve results with OpenTelemetry traces for debugging"
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global pre-request script",
+          "console.log('Request to: ' + pm.request.url);"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test script",
+          "pm.test('Status code is valid', function () {",
+          "    pm.expect(pm.response.code).to.be.oneOf([200, 202, 401, 429, 503]);",
+          "});",
+          "",
+          "if (pm.response.code === 200 || pm.response.code === 202) {",
+          "    pm.test('Response has valid JSON', function () {",
+          "        pm.response.to.be.json;",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ]
+}
