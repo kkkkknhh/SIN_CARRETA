@@ -17,6 +17,7 @@ import pathlib
 from collections import defaultdict
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -175,6 +176,10 @@ class AnswerAssembler:
         self.question_templates = {q['id']: q for q in self.rubric_config.get("questions", [])}
         self.questions_by_unique_id = self._organize_decalogo_questions()
 
+        # Load and validate rubric weights (GATE #5)
+        self.weights = self._load_rubric()
+        self._validate_rubric_coverage()
+
         LOGGER.info(
             f"✅ AnswerAssembler inicializado con {len(self.question_templates)} plantillas y {len(self.questions_by_unique_id)} preguntas únicas.")
 
@@ -197,6 +202,70 @@ class AnswerAssembler:
             unique_id = f"{q['id']}-{q['point_code']}"
             questions_map[unique_id] = q
         return questions_map
+
+    def _load_rubric(self) -> Dict[str, float]:
+        """
+        Load and validate rubric weights from RUBRIC_SCORING.json.
+        
+        Validates presence of 'questions' and 'weights' keys.
+        Returns the weights dictionary for internal storage.
+        
+        Raises:
+            ValueError: If 'questions' or 'weights' keys are missing from rubric.
+        """
+        if "questions" not in self.rubric_config:
+            raise ValueError(
+                f"GATE #5 FAILED: 'questions' key missing from rubric at {self.rubric_path}"
+            )
+        
+        if "weights" not in self.rubric_config:
+            raise ValueError(
+                f"GATE #5 FAILED: 'weights' key missing from rubric at {self.rubric_path}. "
+                "Rubric must contain weights section for all 300 questions."
+            )
+        
+        weights = self.rubric_config.get("weights", {})
+        LOGGER.info(f"✓ Rubric loaded with {len(weights)} weight entries")
+        return weights
+
+    def _validate_rubric_coverage(self) -> None:
+        """
+        Validate strict 1:1 alignment between questions and weights.
+        
+        Ensures every question in DECALOGO_FULL.json has a corresponding weight
+        in RUBRIC_SCORING.json, and vice versa (no extra weights).
+        
+        Raises:
+            ValueError: If there's a mismatch between questions and weights.
+        """
+        question_ids = set(self.questions_by_unique_id.keys())
+        weight_ids = set(self.weights.keys())
+        
+        missing_weights = question_ids - weight_ids
+        extra_weights = weight_ids - question_ids
+        
+        if missing_weights or extra_weights:
+            error_parts = []
+            if missing_weights:
+                sample = sorted(missing_weights)[:10]
+                error_parts.append(
+                    f"Missing weights for {len(missing_weights)} questions: {sample}"
+                    + (" ..." if len(missing_weights) > 10 else "")
+                )
+            if extra_weights:
+                sample = sorted(extra_weights)[:10]
+                error_parts.append(
+                    f"Extra weights for {len(extra_weights)} non-existent questions: {sample}"
+                    + (" ..." if len(extra_weights) > 10 else "")
+                )
+            
+            raise ValueError(
+                f"GATE #5 FAILED: Rubric weight coverage mismatch. " + "; ".join(error_parts)
+            )
+        
+        LOGGER.info(
+            f"✓ Rubric validated (gate #5): {len(question_ids)}/{len(question_ids)} questions with weights"
+        )
 
     def assemble(
             self,
