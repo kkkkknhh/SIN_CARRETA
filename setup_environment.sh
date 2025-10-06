@@ -1,165 +1,154 @@
 #!/bin/bash
-# MINIMINIMOON v2.0 - Environment Setup Script
-# Updated: 2025-10-05
-# Usage: bash setup_environment.sh
-
-set -e  # Exit on error
+# MINIMINIMOON v2.0 - Environment Setup Script (macOS/Linux)
+# Updated: 2025-10-06
+# Usage: ./setup_environment.sh
 
 echo "=========================================="
 echo "MINIMINIMOON v2.0 - Environment Setup"
 echo "=========================================="
-echo ""
-
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+echo
 
 # Check Python version
-echo -e "${BLUE}Verificando versión de Python...${NC}"
-PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
-REQUIRED_VERSION="3.11"
-
-if [[ $(echo -e "$PYTHON_VERSION\n$REQUIRED_VERSION" | sort -V | head -n1) != "$REQUIRED_VERSION" ]]; then
-    echo -e "${RED}✗ Error: Se requiere Python 3.11 o superior${NC}"
-    echo -e "${RED}  Versión actual: $PYTHON_VERSION${NC}"
+echo "Verificando versión de Python..."
+if ! command -v python3 &> /dev/null; then
+    echo "Error: Python no encontrado."
+    echo "Por favor, instala una versión de Python compatible (se recomienda 3.8, 3.9 o 3.10)."
     exit 1
-else
-    echo -e "${GREEN}✓ Python $PYTHON_VERSION detectado${NC}"
 fi
+
+PY_VERSION=$(python3 --version 2>&1)
+echo "Python encontrado: $PY_VERSION"
+if [[ "$PY_VERSION" == *"Python 3.11"* || "$PY_VERSION" == *"Python 3.12"* ]]; then
+    echo "Advertencia: Tus dependencias parecen requerir una versión de Python anterior a la 3.11. Podrías encontrar errores."
+    read -p "¿Continuar de todas formas? (y/n): " CONTINUE
+    if [ "$CONTINUE" != "y" ]; then
+        exit 1
+    fi
+fi
+
 
 # Check if virtual environment exists
 if [ -d "venv" ]; then
-    echo -e "${YELLOW}⚠ Virtual environment 'venv' ya existe${NC}"
-    read -p "¿Deseas recrearlo? (y/n): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo -e "${YELLOW}Eliminando entorno existente...${NC}"
+    echo "El entorno virtual 'venv' ya existe."
+    read -p "¿Deseas recrearlo? (y/n): " RECREATE
+    if [ "$RECREATE" = "y" ]; then
+        echo "Eliminando entorno existente..."
         rm -rf venv
+        echo "Creando entorno virtual..."
+        python3 -m venv venv
     else
-        echo -e "${BLUE}Usando entorno existente${NC}"
-        source venv/bin/activate
-        SKIP_VENV=true
+        echo "Usando entorno existente."
     fi
-fi
-
-# Create virtual environment
-if [ -z "$SKIP_VENV" ]; then
-    echo ""
-    echo -e "${BLUE}Creando entorno virtual...${NC}"
+else
+    echo "Creando entorno virtual..."
     python3 -m venv venv
-    echo -e "${GREEN}✓ Entorno virtual creado${NC}"
-
-    # Activate virtual environment
-    source venv/bin/activate
-    echo -e "${GREEN}✓ Entorno virtual activado${NC}"
+    echo "Entorno virtual creado."
 fi
+
+# Activate virtual environment
+source venv/bin/activate
+echo "Entorno virtual activado."
 
 # Upgrade pip
-echo ""
-echo -e "${BLUE}Actualizando pip...${NC}"
-pip install --upgrade pip setuptools wheel
-echo -e "${GREEN}✓ pip actualizado${NC}"
+echo
+echo "Actualizando pip..."
+python -m pip install --upgrade pip setuptools wheel
+echo "pip actualizado."
 
 # Install requirements
-echo ""
-echo -e "${BLUE}Instalando dependencias base...${NC}"
+echo
+echo "Instalando dependencias base..."
 pip install -r requirements.txt
-echo -e "${GREEN}✓ Dependencias base instaladas${NC}"
+if [ $? -ne 0 ]; then
+    echo "Error instalando dependencias. Revisa los mensajes de error de arriba."
+    echo "Es posible que necesites usar una versión de Python diferente (e.g., 3.10)."
+    exit 1
+fi
+echo "Dependencias base instaladas."
 
 # Ask about development dependencies
-echo ""
-read -p "¿Deseas instalar dependencias de desarrollo? (y/n): " -n 1 -r
 echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo -e "${BLUE}Instalando dependencias de desarrollo...${NC}"
+read -p "¿Deseas instalar dependencias de desarrollo? (y/n): " INSTALL_DEV
+if [ "$INSTALL_DEV" = "y" ]; then
+    echo "Instalando dependencias de desarrollo..."
     pip install -r requirements-dev.txt
-    echo -e "${GREEN}✓ Dependencias de desarrollo instaladas${NC}"
+    echo "Dependencias de desarrollo instaladas."
 fi
 
 # Download Spacy models
-echo ""
-echo -e "${BLUE}Descargando modelos de Spacy...${NC}"
+echo
+echo "Descargando modelos de Spacy..."
 python -m spacy download es_core_news_sm
 python -m spacy download es_core_news_md
-echo -e "${GREEN}✓ Modelos de Spacy descargados${NC}"
+echo "Modelos de Spacy descargados."
 
 # Download NLTK data
-echo ""
-echo -e "${BLUE}Descargando datos de NLTK...${NC}"
-python -c "
-import nltk
-nltk.download('punkt')
-nltk.download('stopwords')
-nltk.download('wordnet')
-nltk.download('averaged_perceptron_tagger')
-print('✓ Datos de NLTK descargados')
-"
+echo
+echo "Descargando datos de NLTK..."
+python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords'); nltk.download('wordnet'); nltk.download('averaged_perceptron_tagger')"
 
 # Create necessary directories
-echo ""
-echo -e "${BLUE}Creando directorios necesarios...${NC}"
-mkdir -p artifacts
-mkdir -p config
-mkdir -p logs
-mkdir -p output
-mkdir -p data
-echo -e "${GREEN}✓ Directorios creados${NC}"
+echo
+echo "Creando directorios necesarios..."
+mkdir -p artifacts config logs output data
+echo "Directorios creados."
 
 # Check for configuration files
-echo ""
-echo -e "${BLUE}Verificando archivos de configuración...${NC}"
-CONFIG_FILES=("DECALOGO_FULL.json" "decalogo_industrial.json" "DNP_STANDARDS.json" "RUBRIC_SCORING.json")
-MISSING_CONFIGS=()
+echo
+echo "Verificando archivos de configuración..."
+MISSING=0
+if [ ! -f "DECALOGO_FULL.json" ] && [ ! -f "config/DECALOGO_FULL.json" ]; then
+    echo "  - DECALOGO_FULL.json FALTANTE"
+    MISSING=1
+fi
+if [ ! -f "decalogo_industrial.json" ] && [ ! -f "config/decalogo_industrial.json" ]; then
+    echo "  - decalogo_industrial.json FALTANTE"
+    MISSING=1
+fi
+if [ ! -f "DNP_STANDARDS.json" ] && [ ! -f "config/DNP_STANDARDS.json" ]; then
+    echo "  - DNP_STANDARDS.json FALTANTE"
+    MISSING=1
+fi
+if [ ! -f "RUBRIC_SCORING.json" ] && [ ! -f "config/RUBRIC_SCORING.json" ]; then
+    echo "  - RUBRIC_SCORING.json FALTANTE"
+    MISSING=1
+fi
 
-for config in "${CONFIG_FILES[@]}"; do
-    if [ ! -f "$config" ] && [ ! -f "config/$config" ]; then
-        MISSING_CONFIGS+=("$config")
-    fi
-done
-
-if [ ${#MISSING_CONFIGS[@]} -gt 0 ]; then
-    echo -e "${YELLOW}⚠ Archivos de configuración faltantes:${NC}"
-    for config in "${MISSING_CONFIGS[@]}"; do
-        echo -e "${YELLOW}  - $config${NC}"
-    done
-    echo -e "${YELLOW}  Deberás agregarlos antes de ejecutar el sistema${NC}"
+if [ $MISSING -eq 1 ]; then
+    echo "Deberás agregar los archivos faltantes antes de ejecutar el sistema."
 else
-    echo -e "${GREEN}✓ Todos los archivos de configuración presentes${NC}"
+    echo "Todos los archivos de configuración presentes."
 fi
 
 # Run basic tests
-echo ""
-read -p "¿Deseas ejecutar tests básicos de verificación? (y/n): " -n 1 -r
 echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo -e "${BLUE}Ejecutando tests básicos...${NC}"
-    python3 test_critical_flows.py || echo -e "${YELLOW}⚠ Algunos tests fallaron (esperado si faltan configuraciones)${NC}"
+read -p "¿Deseas ejecutar tests básicos de verificación? (y/n): " RUN_TESTS
+if [ "$RUN_TESTS" = "y" ]; then
+    echo "Ejecutando tests básicos..."
+    python test_critical_flows.py
 fi
 
 # Summary
-echo ""
+echo
 echo "=========================================="
-echo -e "${GREEN}${BOLD}Setup completado exitosamente!${NC}"
+echo "Setup completado exitosamente!"
 echo "=========================================="
-echo ""
-echo -e "${BLUE}Para activar el entorno en el futuro:${NC}"
+echo
+echo "Para activar el entorno en el futuro:"
 echo "  source venv/bin/activate"
-echo ""
-echo -e "${BLUE}Para ejecutar el sistema:${NC}"
+echo
+echo "Para ejecutar el sistema:"
 echo "  1. Congelar configuración:"
 echo "     python miniminimoon_orchestrator.py freeze ./config/"
-echo ""
+echo
 echo "  2. Ejecutar evaluación:"
 echo "     python miniminimoon_orchestrator.py evaluate ./config/ plan.pdf ./output/"
-echo ""
+echo
 echo "  3. Verificar reproducibilidad:"
 echo "     python miniminimoon_orchestrator.py verify ./config/ plan.pdf --runs 3"
-echo ""
-echo -e "${BLUE}Documentación completa en:${NC}"
+echo
+echo "Documentación completa en:"
 echo "  - FLUJOS_CRITICOS_GARANTIZADOS.md"
 echo "  - ARCHITECTURE.md"
-echo ""
+echo
 
