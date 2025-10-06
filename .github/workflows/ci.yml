@@ -217,6 +217,38 @@ jobs:
           python3 determinism_guard.py --diagnostics
           python3 determinism_guard.py --seed 42 --strict
 
+  evaluation:
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m spacy download es_core_news_sm
+
+      - name: Run evaluation pipeline
+        run: |
+          echo "Running evaluation pipeline..."
+          python3 run_evaluation.py --output artifacts/
+
+      - name: Upload evaluation artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluation-artifacts
+          path: |
+            artifacts/answers_report.json
+            artifacts/*.json
+
   pre_execution_validation:
     runs-on: ubuntu-latest
     needs: freeze_verification
@@ -433,3 +465,98 @@ else:
             artifacts/evidence_registry.json
             artifacts/module_to_questions_matrix.csv
             artifacts/nonrepudiation_bundle.zip
+  
+  rubric-validation:
+    runs-on: ubuntu-latest
+    needs: evaluation
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Download evaluation artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: evaluation-artifacts
+          path: artifacts/
+
+      - name: Run rubric check tool
+        id: rubric_check
+        run: |
+          echo "Running rubric validation..."
+          python3 rubric_check.py \
+            --answers artifacts/answers_report.json \
+            --rubric rubric_scoring.json \
+            --output-dir artifacts/ > rubric_check_output.txt 2>&1
+          RUBRIC_EXIT_CODE=$?
+          cat rubric_check_output.txt
+          
+          if [ $RUBRIC_EXIT_CODE -eq 2 ]; then
+            echo "❌ Missing input files - failing pipeline"
+            exit 2
+          elif [ $RUBRIC_EXIT_CODE -eq 3 ]; then
+            echo "❌ Question-weight mismatch detected - failing pipeline"
+            exit 3
+          elif [ $RUBRIC_EXIT_CODE -eq 0 ]; then
+            echo "✅ Rubric validation passed"
+            exit 0
+          else
+            echo "❌ Rubric check failed with exit code $RUBRIC_EXIT_CODE"
+            exit 1
+          fi
+
+      - name: Upload rubric validation artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rubric-validation-report
+          path: |
+            rubric_check_output.txt
+            artifacts/rubric_weight_diff.txt
+          retention-days: 30
+
+      - name: Comment PR with rubric validation results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let comment = '## 📋 Rubric Validation Results\n\n';
+            
+            try {
+              const output = fs.readFileSync('rubric_check_output.txt', 'utf8');
+              const exitCode = '${{ steps.rubric_check.outcome }}';
+              
+              if (exitCode === 'success') {
+                comment += '✅ **All question weights validated successfully**\n\n';
+                comment += '```\n' + output + '\n```\n';
+              } else {
+                comment += '❌ **Rubric validation failed**\n\n';
+                comment += '```\n' + output + '\n```\n\n';
+                
+                try {
+                  const diffContent = fs.readFileSync('artifacts/rubric_weight_diff.txt', 'utf8');
+                  comment += '### Detailed Diff Report\n\n';
+                  comment += '```\n' + diffContent + '\n```\n';
+                } catch (err) {
+                  comment += '⚠️ Could not read diff file\n';
+                }
+                
+                comment += '\n**Action Required**: Fix question-weight mismatches before merging.\n';
+              }
+            } catch (error) {
+              comment += '⚠️ **Could not parse validation output**\n\n';
+              comment += `Error: ${error.message}\n`;
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+>>>>>>> 045ee61 (Add rubric validation job to CI workflow that checks answer reports against scoring rubric and uploads artifacts)

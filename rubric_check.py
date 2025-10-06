@@ -1,130 +1,180 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-rubric_check.py - GATE #5 Validation Tool
-
-Validates strict 1:1 alignment between RUBRIC_SCORING.json weights
-and DECALOGO_FULL.json questions.
+Rubric Check Tool - Validates question-weight mapping between answers report and rubric scoring files.
 
 Exit codes:
-  0 - All checks passed
-  1 - Validation failed
+  0 - Success: All weights match
+  2 - Missing input files
+  3 - Question-weight mismatch detected
+  1 - Other errors
 """
 
+import argparse
 import json
 import sys
-import pathlib
-from typing import Set, Tuple
+from pathlib import Path
+from typing import Dict, Set, Tuple, Any
 
 
-def load_json(path: pathlib.Path) -> dict:
-    """Load and parse JSON file."""
+def load_json_file(file_path: Path) -> Tuple[Dict[str, Any], str]:
+    """Load JSON file and return (data, error_message)."""
+    if not file_path.exists():
+        return {}, f"File not found: {file_path}"
+    
     try:
-        with path.open('r', encoding='utf-8') as f:
-            return json.load(f)
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f), ""
+    except json.JSONDecodeError as e:
+        return {}, f"Invalid JSON in {file_path}: {e}"
     except Exception as e:
-        print(f"✗ ERROR: Failed to load {path}: {e}")
-        sys.exit(1)
+        return {}, f"Error reading {file_path}: {e}"
 
 
-def get_rubric_weights(rubric: dict) -> Set[str]:
-    """Extract weight keys from rubric."""
-    if 'weights' not in rubric:
-        print("✗ ERROR: 'weights' key missing from RUBRIC_SCORING.json")
-        sys.exit(1)
-    return set(rubric['weights'].keys())
+def extract_question_ids_from_answers(answers_data: Dict[str, Any]) -> Set[str]:
+    """Extract question IDs from answers report."""
+    question_ids = set()
+    for answer in answers_data.get("answers", []):
+        qid = answer.get("question_id")
+        if qid:
+            question_ids.add(qid)
+    return question_ids
 
 
-def get_decalogo_questions(decalogo: dict) -> Set[str]:
-    """Extract question IDs from decalogo."""
-    if 'questions' not in decalogo:
-        print("✗ ERROR: 'questions' key missing from DECALOGO_FULL.json")
-        sys.exit(1)
+def extract_question_ids_from_rubric(rubric_data: Dict[str, Any]) -> Set[str]:
+    """Extract question IDs from rubric scoring file."""
+    question_ids = set()
     
-    questions = set()
-    for q in decalogo['questions']:
-        unique_id = f"{q['id']}-{q['point_code']}"
-        questions.add(unique_id)
-    return questions
+    # Check weights section
+    weights = rubric_data.get("weights", {})
+    question_ids.update(weights.keys())
+    
+    # Also check questions array if present
+    for question in rubric_data.get("questions", []):
+        qid = question.get("id")
+        if qid:
+            question_ids.add(qid)
+    
+    return question_ids
 
 
-def validate_alignment(
-    weights: Set[str],
-    questions: Set[str]
-) -> Tuple[bool, list]:
-    """Validate 1:1 alignment between weights and questions."""
-    errors = []
+def generate_diff_report(missing: Set[str], extra: Set[str], output_dir: Path) -> str:
+    """Generate diff file showing missing and extra weights."""
+    diff_file = output_dir / "rubric_weight_diff.txt"
     
-    missing_weights = questions - weights
-    extra_weights = weights - questions
+    with open(diff_file, 'w', encoding='utf-8') as f:
+        f.write("=" * 80 + "\n")
+        f.write("RUBRIC WEIGHT MISMATCH REPORT\n")
+        f.write("=" * 80 + "\n\n")
+        
+        if missing:
+            f.write(f"MISSING WEIGHTS ({len(missing)} questions in answers but not in rubric):\n")
+            f.write("-" * 80 + "\n")
+            for qid in sorted(missing):
+                f.write(f"  - {qid}\n")
+            f.write("\n")
+        
+        if extra:
+            f.write(f"EXTRA WEIGHTS ({len(extra)} questions in rubric but not in answers):\n")
+            f.write("-" * 80 + "\n")
+            for qid in sorted(extra):
+                f.write(f"  + {qid}\n")
+            f.write("\n")
+        
+        f.write("=" * 80 + "\n")
+        f.write(f"Total mismatches: {len(missing) + len(extra)}\n")
     
-    if missing_weights:
-        sample = sorted(missing_weights)[:10]
-        errors.append(
-            f"Missing weights for {len(missing_weights)} questions: {sample}"
-            + (" ..." if len(missing_weights) > 10 else "")
-        )
-    
-    if extra_weights:
-        sample = sorted(extra_weights)[:10]
-        errors.append(
-            f"Extra weights for {len(extra_weights)} non-existent questions: {sample}"
-            + (" ..." if len(extra_weights) > 10 else "")
-        )
-    
-    return len(errors) == 0, errors
+    return str(diff_file)
 
 
 def main():
-    """Main validation routine."""
-    print("=" * 70)
-    print("GATE #5: Rubric Weight Validation")
-    print("=" * 70)
+    parser = argparse.ArgumentParser(
+        description="Validate question-weight mapping between answers report and rubric scoring files",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Exit codes:
+  0 - Success: All weights match
+  2 - Missing input files
+  3 - Question-weight mismatch detected
+  1 - Other errors
+        """
+    )
+    parser.add_argument(
+        "--answers",
+        type=Path,
+        default=Path("artifacts/answers_report.json"),
+        help="Path to answers report JSON file (default: artifacts/answers_report.json)"
+    )
+    parser.add_argument(
+        "--rubric",
+        type=Path,
+        default=Path("rubric_scoring.json"),
+        help="Path to rubric scoring JSON file (default: rubric_scoring.json)"
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("artifacts"),
+        help="Directory to write diff files (default: artifacts)"
+    )
+    
+    args = parser.parse_args()
+    
+    # Ensure output directory exists
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    
+    print(f"Rubric Check Tool")
+    print(f"=" * 80)
+    print(f"Answers file: {args.answers}")
+    print(f"Rubric file:  {args.rubric}")
+    print(f"Output dir:   {args.output_dir}")
+    print()
     
     # Load files
-    rubric_path = pathlib.Path("rubric_scoring.json")
-    decalogo_path = pathlib.Path("DECALOGO_FULL.json")
+    answers_data, answers_error = load_json_file(args.answers)
+    rubric_data, rubric_error = load_json_file(args.rubric)
     
-    if not rubric_path.exists():
-        print(f"✗ ERROR: {rubric_path} not found")
-        sys.exit(1)
+    if answers_error or rubric_error:
+        print("ERROR: Missing or invalid input files", file=sys.stderr)
+        if answers_error:
+            print(f"  - {answers_error}", file=sys.stderr)
+        if rubric_error:
+            print(f"  - {rubric_error}", file=sys.stderr)
+        print()
+        return 2
     
-    if not decalogo_path.exists():
-        print(f"✗ ERROR: {decalogo_path} not found")
-        sys.exit(1)
+    # Extract question IDs
+    answers_questions = extract_question_ids_from_answers(answers_data)
+    rubric_questions = extract_question_ids_from_rubric(rubric_data)
     
-    print(f"\n1. Loading {rubric_path}...")
-    rubric = load_json(rubric_path)
-    print(f"   ✓ Loaded successfully")
+    print(f"Questions in answers report: {len(answers_questions)}")
+    print(f"Questions in rubric scoring: {len(rubric_questions)}")
+    print()
     
-    print(f"\n2. Loading {decalogo_path}...")
-    decalogo = load_json(decalogo_path)
-    print(f"   ✓ Loaded successfully")
+    # Find mismatches
+    missing_in_rubric = answers_questions - rubric_questions
+    extra_in_rubric = rubric_questions - answers_questions
     
-    print("\n3. Extracting weights and questions...")
-    weights = get_rubric_weights(rubric)
-    questions = get_decalogo_questions(decalogo)
-    print(f"   ✓ Found {len(weights)} weights")
-    print(f"   ✓ Found {len(questions)} questions")
+    if not missing_in_rubric and not extra_in_rubric:
+        print("✅ SUCCESS: All question weights match perfectly!")
+        print(f"   Total questions validated: {len(answers_questions)}")
+        return 0
     
-    print("\n4. Validating 1:1 alignment...")
-    ok, errors = validate_alignment(weights, questions)
+    # Generate diff report
+    print("❌ MISMATCH DETECTED:")
+    if missing_in_rubric:
+        print(f"   - {len(missing_in_rubric)} questions in answers but missing weights in rubric")
+        print(f"     First 10: {sorted(list(missing_in_rubric))[:10]}")
+    if extra_in_rubric:
+        print(f"   - {len(extra_in_rubric)} questions have weights in rubric but not in answers")
+        print(f"     First 10: {sorted(list(extra_in_rubric))[:10]}")
+    print()
     
-    if ok:
-        print(f"   ✓ Perfect 1:1 alignment: {len(questions)}/300 questions have weights")
-        print("\n" + "=" * 70)
-        print("✅ GATE #5 VALIDATION PASSED")
-        print("=" * 70)
-        sys.exit(0)
-    else:
-        print(f"   ✗ Alignment validation failed:")
-        for error in errors:
-            print(f"      - {error}")
-        print("\n" + "=" * 70)
-        print("❌ GATE #5 VALIDATION FAILED")
-        print("=" * 70)
-        sys.exit(1)
+    diff_file = generate_diff_report(missing_in_rubric, extra_in_rubric, args.output_dir)
+    print(f"📄 Detailed diff report written to: {diff_file}")
+    print()
+    
+    return 3
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
