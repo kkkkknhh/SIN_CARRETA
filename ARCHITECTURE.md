@@ -156,6 +156,7 @@ This document describes the architecture of the MINIMINIMOON system, including 6
 - Critical flows: 39
 - Unique modules: 45
 - Critical paths identified: 5
+- Canonical flow order: defined in `tools/flow_doc.json`
 
 ## Flow Types Distribution
 
@@ -171,3 +172,4 @@ See also:
 - [Critical Paths](CRITICAL_PATHS.md)
 - [Data Contracts](DATA_CONTRACTS.md)
 - [Component Diagram](COMPONENT_DIAGRAM.md)
+- Canonical flow order: `tools/flow_doc.json`

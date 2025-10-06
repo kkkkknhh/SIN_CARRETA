@@ -125,7 +125,7 @@ python miniminimoon_orchestrator.py evaluate \
 **Artifacts generados:**
 - `output/answers_report.json` - Reporte completo (300 preguntas)
 - `output/evidence_registry.json` - Registro de evidencia
-- `output/flow_runtime.json` - Trace de ejecución
+- `output/flow_runtime.json` - Trace de ejecución (validado contra tools/flow_doc.json)
 - `output/results_bundle.json` - Bundle completo
 
 ### Paso 4: Verificar Reproducibilidad (GATE #3)

@@ -171,11 +171,12 @@ Se han implementado y garantizado **TODOS los 72 flujos críticos** especificado
 ### ✅ GATE #2: Orden de Flujo Canónico
 - **Verificación**: `flow_runtime.json` idéntico a `tools/flow_doc.json`
 - **Implementación**: Clase `CanonicalFlowValidator` + `RuntimeTracer`
+- **Archivo canónico**: `tools/flow_doc.json`
 - **Estado**: ✅ IMPLEMENTADO
 - **Garantías**:
   - ✅ Orden canónico de 15 stages verificado
   - ✅ Hash de flujo calculado determinísticamente
-  - ✅ Comparación con documentación canónica
+  - ✅ Comparación con documentación canónica en tools/flow_doc.json
   - ✅ Logs de missing/extra stages
 
 ### ✅ GATE #3: Hash de Evidencia Estable

@@ -4,7 +4,7 @@
 
 ## Overview
 
-This document describes the 5 critical execution paths in the system. These paths represent the most important data flows and should be thoroughly tested and monitored.
+This document describes the 5 critical execution paths in the system. These paths represent the most important data flows and should be thoroughly tested and monitored. The canonical execution order for the pipeline is defined in `tools/flow_doc.json`.
 
 ## Path 1: unified_evaluation_pipeline → miniminimoon_orchestrator → dag_validation
 

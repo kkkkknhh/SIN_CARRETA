@@ -4,7 +4,7 @@
 
 ## Overview
 
-Data contracts define the expected input/output types and invariants for each critical dependency flow.
+Data contracts define the expected input/output types and invariants for each critical dependency flow. The canonical execution order is defined in `tools/flow_doc.json`.
 
 ## verify_reproducibility → dag_validation
 
