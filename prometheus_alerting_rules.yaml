@@ -216,3 +216,183 @@ groups:
         annotations:
           summary: "No activity detected on {{ $labels.node }}"
           description: "Node {{ $labels.node }} has not processed any requests in the last 10 minutes."
+
+  # Batch Processing SLA Monitoring
+  - name: batch_processing_sla
+    interval: 30s
+    rules:
+      # Throughput SLA: 170 documents per hour
+      - alert: BatchThroughputBelowSLA
+        expr: batch_throughput_per_hour < 170
+        for: 5m
+        labels:
+          severity: critical
+          sla: throughput
+        annotations:
+          summary: "Batch throughput below 170 docs/hr SLA"
+          description: "Current batch throughput is {{ $value }} documents/hr (target: 170 docs/hr). Immediate investigation required."
+
+      - alert: BatchThroughputDegraded
+        expr: batch_throughput_per_hour < 200 and batch_throughput_per_hour >= 170
+        for: 10m
+        labels:
+          severity: warning
+          sla: throughput
+        annotations:
+          summary: "Batch throughput approaching SLA threshold"
+          description: "Current batch throughput is {{ $value }} documents/hr (target: 170 docs/hr, buffer: 200 docs/hr). Performance degradation detected."
+
+      # P95 Latency SLA: 21.2 seconds per document
+      - alert: BatchP95LatencyExceedsSLA
+        expr: batch_document_processing_latency_seconds{quantile="0.95"} > 21.2
+        for: 3m
+        labels:
+          severity: critical
+          sla: latency
+        annotations:
+          summary: "Batch p95 latency exceeds 21.2s SLA"
+          description: "Current p95 latency is {{ $value }}s (target: 21.2s). Document processing time exceeds SLA threshold."
+
+      - alert: BatchP95LatencyWarning
+        expr: batch_document_processing_latency_seconds{quantile="0.95"} > 18.0 and batch_document_processing_latency_seconds{quantile="0.95"} <= 21.2
+        for: 5m
+        labels:
+          severity: warning
+          sla: latency
+        annotations:
+          summary: "Batch p95 latency approaching SLA threshold"
+          description: "Current p95 latency is {{ $value }}s (target: 21.2s, warning: 18.0s). Monitor for further degradation."
+
+      # Worker Utilization Monitoring
+      - alert: WorkerUtilizationLow
+        expr: worker_utilization_percentage < 50
+        for: 10m
+        labels:
+          severity: warning
+          component: workers
+        annotations:
+          summary: "Worker utilization below 50%"
+          description: "Worker {{ $labels.worker_id }} utilization is {{ $value }}% (threshold: 50%). Potential resource underutilization or queue starvation."
+
+      - alert: WorkerUtilizationCriticallyLow
+        expr: worker_utilization_percentage < 25
+        for: 5m
+        labels:
+          severity: critical
+          component: workers
+        annotations:
+          summary: "Worker utilization critically low"
+          description: "Worker {{ $labels.worker_id }} utilization is {{ $value }}% (threshold: 25%). Investigation required - possible worker failure or queue issues."
+
+      - alert: WorkerUtilizationHigh
+        expr: worker_utilization_percentage > 95
+        for: 15m
+        labels:
+          severity: info
+          component: workers
+        annotations:
+          summary: "Worker utilization very high"
+          description: "Worker {{ $labels.worker_id }} utilization is {{ $value }}% (threshold: 95%). Consider scaling up worker capacity."
+
+      # Queue Depth Monitoring
+      - alert: QueueDepthHigh
+        expr: queue_depth > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: queue
+        annotations:
+          summary: "Processing queue depth exceeds 1000"
+          description: "Queue {{ $labels.queue_name }} depth is {{ $value }} documents (threshold: 1000). Backlog accumulating."
+
+      - alert: QueueDepthCritical
+        expr: queue_depth > 5000
+        for: 2m
+        labels:
+          severity: critical
+          component: queue
+        annotations:
+          summary: "Processing queue depth critically high"
+          description: "Queue {{ $labels.queue_name }} depth is {{ $value }} documents (critical: 5000). System may be overwhelmed."
+
+      - alert: QueueDepthGrowing
+        expr: rate(queue_depth[10m]) > 10
+        for: 10m
+        labels:
+          severity: warning
+          component: queue
+        annotations:
+          summary: "Processing queue growing rapidly"
+          description: "Queue {{ $labels.queue_name }} growing at {{ $value }} docs/sec. Throughput not keeping pace with ingestion."
+
+      # Error Rate Monitoring
+      - alert: BatchErrorRateHigh
+        expr: rate(batch_documents_processed_total{status="error"}[5m]) / rate(batch_documents_processed_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: batch_processor
+        annotations:
+          summary: "Batch error rate exceeds 5%"
+          description: "Current error rate is {{ $value | humanizePercentage }} (threshold: 5%). Investigate batch processing failures."
+
+      - alert: BatchErrorRateCritical
+        expr: rate(batch_documents_processed_total{status="error"}[5m]) / rate(batch_documents_processed_total[5m]) > 0.10
+        for: 2m
+        labels:
+          severity: critical
+          component: batch_processor
+        annotations:
+          summary: "Batch error rate exceeds 10%"
+          description: "Current error rate is {{ $value | humanizePercentage }} (critical: 10%). Immediate intervention required."
+
+      # Success Rate Monitoring
+      - alert: BatchSuccessRateLow
+        expr: rate(batch_documents_processed_total{status="success"}[10m]) / rate(batch_documents_processed_total[10m]) < 0.95
+        for: 10m
+        labels:
+          severity: warning
+          sla: success_rate
+        annotations:
+          summary: "Batch success rate below 95%"
+          description: "Current success rate is {{ $value | humanizePercentage }} (target: 95%). Quality degradation detected."
+
+      # Bottleneck Detection
+      - alert: BatchProcessingBottleneck
+        expr: |
+          (
+            batch_stage_processing_time_seconds{quantile="0.95"}
+            / 
+            avg(batch_stage_processing_time_seconds{quantile="0.95"})
+          ) > 3.0
+        for: 10m
+        labels:
+          severity: warning
+          component: bottleneck
+        annotations:
+          summary: "Processing bottleneck detected in {{ $labels.stage }}"
+          description: "Stage {{ $labels.stage }} p95 latency is 3x higher than average. Investigate for performance optimization."
+
+  # Document Processing Metrics
+  - name: document_processing
+    interval: 30s
+    rules:
+      - alert: DocumentProcessingStalled
+        expr: increase(batch_documents_processed_total[5m]) == 0 and queue_depth > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: batch_processor
+        annotations:
+          summary: "Document processing has stalled"
+          description: "No documents processed in last 5 minutes despite queue depth of {{ $value }}. System may be stuck."
+
+      - alert: DocumentProcessingSlowStart
+        expr: batch_throughput_per_hour < 50
+        for: 2m
+        labels:
+          severity: info
+          component: batch_processor
+        annotations:
+          summary: "Batch processing slow start detected"
+          description: "Initial throughput is {{ $value }} docs/hr (expected ramp-up period). Monitor for normal acceleration."
