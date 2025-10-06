@@ -61,6 +61,7 @@ from causal_pattern_detector import CausalPatternDetector
 from teoria_cambio import TeoriaCambioValidator
 from dag_validation import DAGValidator
 from questionnaire_engine import QuestionnaireEngine
+from answer_assembler import AnswerAssembler as ExternalAnswerAssembler
 
 
 # ============================================================================
@@ -786,15 +787,17 @@ class CanonicalDeterministicOrchestrator:
     def _init_evaluators(self):
         """Initialize evaluators (flows #13-15)"""
         rubric_path = self.config_dir / "RUBRIC_SCORING.json"
+        decalogo_path = self.config_dir / "DECALOGO_FULL.json"
 
         self.questionnaire_engine = QuestionnaireEngine(
             evidence_registry=self.evidence_registry,
             rubric_path=rubric_path
         )
 
-        self.answer_assembler = AnswerAssembler(
-            rubric_path=rubric_path,
-            evidence_registry=self.evidence_registry
+        # Use the external AnswerAssembler from answer_assembler.py
+        self.external_answer_assembler = ExternalAnswerAssembler(
+            rubric_path=str(rubric_path),
+            decalogo_path=str(decalogo_path)
         )
 
         self.logger.info("Evaluators initialized (questionnaire + assembler)")
@@ -1116,30 +1119,79 @@ class CanonicalDeterministicOrchestrator:
 
     def _assemble_answers(self, evaluation_inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Flow #15: Assemble the final answers report.
-        Placeholder for the answer assembly logic.
+        Flow #15: Assemble the final answers report using external AnswerAssembler.
+        Registers answer evidence entries in EvidenceRegistry.
         """
         self.logger.info("  Assembling final answers report...")
+        
         questionnaire_eval = evaluation_inputs.get('questionnaire_eval', {})
-        # The answer_assembler would take the evaluations and the evidence registry
-        # to create a comprehensive report with full traceability.
-        # NOTE: Assumes 'assemble_report' method exists on the assembler.
-        final_report = self.answer_assembler.assemble_report(
-            decalogo_eval=evaluation_inputs.get('decalogo_eval'),
-            questionnaire_eval=questionnaire_eval
+        decalogo_eval = evaluation_inputs.get('decalogo_eval', {})
+        
+        # Use the external AnswerAssembler's assemble method
+        # The external assembler expects a mock EvidenceRegistry-compatible object
+        # We'll create a wrapper that provides the get_evidence_for_question method
+        class RegistryAdapter:
+            def __init__(self, registry):
+                self.registry = registry
+                
+            def get_evidence_for_question(self, question_unique_id: str):
+                # Return evidence entries matching the question
+                all_evidence = self.registry._evidence.values()
+                matching = []
+                for entry in all_evidence:
+                    if entry.metadata.get("question_unique_id") == question_unique_id:
+                        # Create a mock evidence object compatible with answer_assembler
+                        from collections import namedtuple
+                        MockEvidence = namedtuple('MockEvidence', ['confidence', 'metadata'])
+                        matching.append(MockEvidence(
+                            confidence=entry.confidence,
+                            metadata=entry.metadata
+                        ))
+                return matching
+        
+        registry_adapter = RegistryAdapter(self.evidence_registry)
+        
+        # Assemble the complete report
+        final_report = self.external_answer_assembler.assemble(
+            evidence_registry=registry_adapter,
+            evaluation_results=questionnaire_eval
         )
-
+        
+        # Register answer entries as evidence in the main registry
+        for qa in final_report.get("question_answers", []):
+            answer_entry = EvidenceEntry(
+                evidence_id=f"answer_{qa['question_id']}",
+                stage=PipelineStage.ANSWER_ASSEMBLY.value,
+                content=qa,
+                source_segment_ids=[],
+                confidence=qa.get('confidence', 0.0),
+                metadata={
+                    "question_id": qa['question_id'],
+                    "dimension": qa.get('dimension', ''),
+                    "score": qa.get('raw_score', 0.0),
+                    "evidence_count": qa.get('evidence_count', 0),
+                    "question_unique_id": qa['question_id']
+                }
+            )
+            self.evidence_registry.register(answer_entry)
+        
+        self.logger.info(f"  Registered {len(final_report.get('question_answers', []))} answer entries in evidence registry")
+        
         # Gate #4 check
-        if final_report.get("summary", {}).get("total_questions", 0) < 300:
-             self.logger.warning(f"GATE #4 FAILED: Coverage is less than 300 questions.")
-
+        total_questions = final_report.get("global_summary", {}).get("answered_questions", 0)
+        if total_questions < 300:
+            self.logger.warning(f"GATE #4 FAILED: Coverage is {total_questions}/300 questions.")
+        else:
+            self.logger.info(f"✓ GATE #4 PASSED: Coverage is {total_questions}/300 questions.")
+        
         self.logger.info("  Final answers report assembled.")
         return final_report
 
-    def export_artifacts(self, output_dir: Path):
+    def export_artifacts(self, output_dir: Path, pipeline_results: Dict[str, Any] = None):
         """
         Export all artifacts per flow documentation:
         - Flow #59: artifacts/answers_report.json
+        - Flow #60: artifacts/answers_sample.json
         - Flow #57: artifacts/flow_runtime.json
         - Flow #64: artifacts/final_results.json
         - artifacts/evidence_registry.json
@@ -1150,12 +1202,59 @@ class CanonicalDeterministicOrchestrator:
         # Export evidence registry
         self.evidence_registry.export(output_dir / "evidence_registry.json")
 
-        # Export runtime trace (if validation enabled)
-        if self.enable_validation:
-            with open(output_dir / "flow_runtime.json", 'w') as f:
-                json.dump(self.runtime_tracer.export(), f, indent=2)
+        # Export answers report (Flow #59) and sample (Flow #60)
+        if pipeline_results and "evaluations" in pipeline_results:
+            answers_report = pipeline_results["evaluations"].get("answers_report")
+            if answers_report:
+                # Write answers_report.json with deterministically ordered keys
+                with open(output_dir / "answers_report.json", 'w', encoding='utf-8') as f:
+                    json.dump(answers_report, f, indent=2, ensure_ascii=False, sort_keys=True)
+                self.logger.info(f"✓ Answers report exported to: {output_dir / 'answers_report.json'}")
+                
+                # Create answers sample (first 10 questions) with deterministic ordering
+                answers_sample = {
+                    "metadata": answers_report.get("metadata", {}),
+                    "global_summary": answers_report.get("global_summary", {}),
+                    "sample_question_answers": answers_report.get("question_answers", [])[:10]
+                }
+                with open(output_dir / "answers_sample.json", 'w', encoding='utf-8') as f:
+                    json.dump(answers_sample, f, indent=2, ensure_ascii=False, sort_keys=True)
+                self.logger.info(f"✓ Answers sample exported to: {output_dir / 'answers_sample.json'}")
 
-        self.logger.info(f"✓ Artifacts exported to: {output_dir}")
+        # Export flow runtime with deterministically ordered keys (Flow #57)
+        if self.enable_validation and pipeline_results:
+            flow_runtime = self._generate_flow_runtime_metadata(pipeline_results)
+            with open(output_dir / "flow_runtime.json", 'w', encoding='utf-8') as f:
+                json.dump(flow_runtime, f, indent=2, sort_keys=True, ensure_ascii=False)
+            self.logger.info(f"✓ Flow runtime exported to: {output_dir / 'flow_runtime.json'}")
+
+        self.logger.info(f"✓ All artifacts exported to: {output_dir}")
+        
+    def _generate_flow_runtime_metadata(self, pipeline_results: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate flow_runtime.json with deterministically ordered keys capturing 
+        execution metadata including timestamps, stage order, evidence hash, 
+        and validation results.
+        """
+        runtime_data = self.runtime_tracer.export()
+        
+        # Build deterministic metadata with sorted keys
+        flow_runtime = {
+            "evidence_hash": pipeline_results.get("evidence_hash", ""),
+            "duration_seconds": runtime_data.get("duration_seconds", 0),
+            "end_time": pipeline_results.get("end_time", ""),
+            "errors": runtime_data.get("errors", {}),
+            "flow_hash": runtime_data.get("flow_hash", ""),
+            "orchestrator_version": pipeline_results.get("orchestrator_version", self.VERSION),
+            "plan_path": pipeline_results.get("plan_path", ""),
+            "stage_count": runtime_data.get("stage_count", 0),
+            "stage_timestamps": dict(sorted(runtime_data.get("stage_timestamps", {}).items())),
+            "stages": runtime_data.get("stages", []),
+            "start_time": pipeline_results.get("start_time", ""),
+            "validation": pipeline_results.get("validation", {})
+        }
+        
+        return flow_runtime
 
 
 class UnifiedEvaluationPipeline:
@@ -1211,21 +1310,11 @@ class UnifiedEvaluationPipeline:
             "bundle_timestamp": datetime.utcnow().isoformat()
         }
 
-        # Export artifacts
-        orchestrator.export_artifacts(output_dir)
+        # Export artifacts (includes answers_report.json, answers_sample.json, flow_runtime.json)
+        orchestrator.export_artifacts(output_dir, pipeline_results=results)
 
         with open(output_dir / "results_bundle.json", 'w', encoding='utf-8') as f:
-            json.dump(bundle, f, indent=2, ensure_ascii=False)
-
-        # Export answers_report separately (flow #59)
-        answers_report = results.get("evaluations", {}).get("answers_report", {})
-        with open(output_dir / "answers_report.json", 'w', encoding='utf-8') as f:
-            json.dump(answers_report, f, indent=2, ensure_ascii=False)
-
-        # Export sample (flow #60)
-        sample = {"answers": answers_report.get("answers", [])[:10]}
-        with open(output_dir / "answers_sample.json", 'w', encoding='utf-8') as f:
-            json.dump(sample, f, indent=2, ensure_ascii=False)
+            json.dump(bundle, f, indent=2, ensure_ascii=False, sort_keys=True)
 
         self.logger.info("✓ Unified evaluation complete")
 
