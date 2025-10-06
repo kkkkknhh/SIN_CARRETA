@@ -1,130 +1,86 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-test_rubric_check.py — Tests for rubric_check.py module
+Test suite for rubric_check.py validation tool.
 """
+
 import json
+import pathlib
+import subprocess
 import tempfile
-import pytest
-from pathlib import Path
-from rubric_check import verify_rubric_correspondence, load_json
+import unittest
 
 
-def test_load_json_success():
-    """Test successful JSON loading."""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-        json.dump({"test": "data"}, f)
-        temp_path = Path(f.name)
-    
-    try:
-        result = load_json(temp_path)
-        assert result == {"test": "data"}
-    finally:
-        temp_path.unlink()
+class TestRubricCheckTool(unittest.TestCase):
+    """Test suite for rubric_check.py GATE #5 validation tool."""
 
+    def setUp(self):
+        """Set up test fixtures."""
+        self.test_dir = tempfile.mkdtemp()
+        self.original_dir = pathlib.Path.cwd()
 
-def test_load_json_file_not_found():
-    """Test loading non-existent file."""
-    with pytest.raises(FileNotFoundError):
-        load_json(Path("/nonexistent/file.json"))
+    def tearDown(self):
+        """Clean up test fixtures."""
+        import shutil
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
-
-def test_verify_rubric_correspondence_perfect_match():
-    """Test perfect 1:1 correspondence."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
+    def test_validation_passes_with_real_files(self):
+        """Test that validation passes with actual project files."""
+        result = subprocess.run(
+            ['python3', 'rubric_check.py'],
+            cwd=self.original_dir,
+            capture_output=True,
+            text=True
+        )
         
-        # Create test files
-        answers = {
-            "answers": [
-                {"question_id": "q1"},
-                {"question_id": "q2"},
-                {"question_id": "q3"}
-            ]
-        }
+        self.assertEqual(result.returncode, 0, 
+                        f"Validation should pass. Output: {result.stdout}\n{result.stderr}")
+        self.assertIn("GATE #5 VALIDATION PASSED", result.stdout)
+        self.assertIn("300/300 questions have weights", result.stdout)
+
+    def test_validation_fails_with_missing_weights(self):
+        """Test that validation fails when weights are missing."""
+        # Create test files in temporary directory
         rubric = {
-            "weights": {
-                "q1": 10,
-                "q2": 20,
-                "q3": 30
-            }
+            "questions": [{"id": "D1-Q1", "scoring_modality": "TYPE_A"}],
+            "weights": {}  # Empty weights
+        }
+        decalogo = {
+            "questions": [{"id": "D1-Q1", "point_code": "P1"}]
         }
         
-        answers_path = tmpdir / "answers.json"
-        rubric_path = tmpdir / "rubric.json"
+        rubric_path = pathlib.Path(self.test_dir) / "rubric_scoring.json"
+        decalogo_path = pathlib.Path(self.test_dir) / "DECALOGO_FULL.json"
         
-        answers_path.write_text(json.dumps(answers))
-        rubric_path.write_text(json.dumps(rubric))
+        with open(rubric_path, 'w') as f:
+            json.dump(rubric, f)
+        with open(decalogo_path, 'w') as f:
+            json.dump(decalogo, f)
         
-        result = verify_rubric_correspondence(str(answers_path), str(rubric_path))
+        result = subprocess.run(
+            ['python3', str(self.original_dir / 'rubric_check.py')],
+            cwd=self.test_dir,
+            capture_output=True,
+            text=True
+        )
         
-        assert result["ok"] is True
-        assert result["missing_weights"] == []
-        assert result["extra_weights"] == []
-        assert result["total_questions"] == 3
-        assert result["total_weights"] == 3
+        self.assertEqual(result.returncode, 1, 
+                        "Validation should fail with missing weights")
+        self.assertIn("GATE #5 VALIDATION FAILED", result.stdout)
+        self.assertIn("Missing weights", result.stdout)
 
-
-def test_verify_rubric_correspondence_missing_weights():
-    """Test missing rubric weights."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
+    def test_validation_shows_alignment_info(self):
+        """Test that validation output shows weight and question counts."""
+        result = subprocess.run(
+            ['python3', 'rubric_check.py'],
+            cwd=self.original_dir,
+            capture_output=True,
+            text=True
+        )
         
-        answers = {
-            "answers": [
-                {"question_id": "q1"},
-                {"question_id": "q2"},
-                {"question_id": "q3"}
-            ]
-        }
-        rubric = {
-            "weights": {
-                "q1": 10
-            }
-        }
-        
-        answers_path = tmpdir / "answers.json"
-        rubric_path = tmpdir / "rubric.json"
-        
-        answers_path.write_text(json.dumps(answers))
-        rubric_path.write_text(json.dumps(rubric))
-        
-        result = verify_rubric_correspondence(str(answers_path), str(rubric_path))
-        
-        assert result["ok"] is False
-        assert set(result["missing_weights"]) == {"q2", "q3"}
-        assert result["extra_weights"] == []
-
-
-def test_verify_rubric_correspondence_extra_weights():
-    """Test extra rubric weights."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
-        
-        answers = {
-            "answers": [
-                {"question_id": "q1"}
-            ]
-        }
-        rubric = {
-            "weights": {
-                "q1": 10,
-                "q2": 20,
-                "q3": 30
-            }
-        }
-        
-        answers_path = tmpdir / "answers.json"
-        rubric_path = tmpdir / "rubric.json"
-        
-        answers_path.write_text(json.dumps(answers))
-        rubric_path.write_text(json.dumps(rubric))
-        
-        result = verify_rubric_correspondence(str(answers_path), str(rubric_path))
-        
-        assert result["ok"] is False
-        assert result["missing_weights"] == []
-        assert set(result["extra_weights"]) == {"q2", "q3"}
+        self.assertIn("Found 300 weights", result.stdout)
+        self.assertIn("Found 300 questions", result.stdout)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    unittest.main()
