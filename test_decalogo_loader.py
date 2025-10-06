@@ -25,47 +25,42 @@ class TestDecalogoLoader(unittest.TestCase):
     def test_load_existing_file(self):
         """Test loading from an existing file."""
         test_content = "Test DECALOGO content"
-        with patch("builtins.open", mock_open(read_data=test_content)) as mock_file:
-            with patch("os.path.exists", return_value=True):
-                content = load_decalogo_industrial("test_path.txt")
-                self.assertEqual(content, test_content)
-                mock_file.assert_called_once_with("test_path.txt", "r", encoding="utf-8")
+        with patch("builtins.open", mock_open(read_data=test_content)) as mock_file, patch("os.path.exists", return_value=True):
+            content = load_decalogo_industrial("test_path.txt")
+            self.assertEqual(content, test_content)
+            mock_file.assert_called_once_with("test_path.txt", "r", encoding="utf-8")
     
     def test_create_new_file(self):
         """Test creating a new file with template content."""
-        with patch("os.path.exists", return_value=False):
-            with patch("decalogo_loader.write_template_atomically", return_value=True) as mock_write:
-                content = load_decalogo_industrial("test_path.txt")
-                self.assertEqual(content, DECALOGO_INDUSTRIAL_TEMPLATE)
-                mock_write.assert_called_once_with("test_path.txt", DECALOGO_INDUSTRIAL_TEMPLATE)
+        with patch("os.path.exists", return_value=False), patch("decalogo_loader.write_template_atomically", return_value=True) as mock_write:
+            content = load_decalogo_industrial("test_path.txt")
+            self.assertEqual(content, DECALOGO_INDUSTRIAL_TEMPLATE)
+            mock_write.assert_called_once_with("test_path.txt", DECALOGO_INDUSTRIAL_TEMPLATE)
     
     def test_fallback_on_read_error(self):
         """Test fallback to template when file read fails."""
-        with patch("os.path.exists", return_value=True):
-            with patch("builtins.open", side_effect=IOError("Read error")):
-                content = load_decalogo_industrial("test_path.txt")
-                self.assertEqual(content, DECALOGO_INDUSTRIAL_TEMPLATE)
+        with patch("os.path.exists", return_value=True), patch("builtins.open", side_effect=IOError("Read error")):
+            content = load_decalogo_industrial("test_path.txt")
+            self.assertEqual(content, DECALOGO_INDUSTRIAL_TEMPLATE)
     
     def test_fallback_on_write_error(self):
         """Test fallback to template when file write fails."""
-        with patch("os.path.exists", return_value=False):
-            with patch("decalogo_loader.write_template_atomically", side_effect=OSError("Write error")):
-                content = load_decalogo_industrial("test_path.txt")
-                self.assertEqual(content, DECALOGO_INDUSTRIAL_TEMPLATE)
+        with patch("os.path.exists", return_value=False), patch("decalogo_loader.write_template_atomically", side_effect=OSError("Write error")):
+            content = load_decalogo_industrial("test_path.txt")
+            self.assertEqual(content, DECALOGO_INDUSTRIAL_TEMPLATE)
     
     def test_caching(self):
         """Test that template content is cached."""
         test_content = "Test DECALOGO content"
-        with patch("builtins.open", mock_open(read_data=test_content)) as mock_file:
-            with patch("os.path.exists", return_value=True):
-                # First call should read the file
-                content1 = load_decalogo_industrial("test_path.txt")
-                # Second call should use cached content
-                content2 = load_decalogo_industrial("test_path.txt")
-                
-                self.assertEqual(content1, test_content)
-                self.assertEqual(content2, test_content)
-                mock_file.assert_called_once()  # File should be read only once
+        with patch("builtins.open", mock_open(read_data=test_content)) as mock_file, patch("os.path.exists", return_value=True):
+            # First call should read the file
+            content1 = load_decalogo_industrial("test_path.txt")
+            # Second call should use cached content
+            content2 = load_decalogo_industrial("test_path.txt")
+            
+            self.assertEqual(content1, test_content)
+            self.assertEqual(content2, test_content)
+            mock_file.assert_called_once()  # File should be read only once
     
     def test_write_template_atomically(self):
         """Test atomic writing of template content."""
