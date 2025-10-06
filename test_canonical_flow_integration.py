@@ -385,9 +385,6 @@ class TestFaultInjection:
             
             # Should handle gracefully
             assert results is not None
-            
-            # Clean up
-            del large_data
         except MemoryError:
             pytest.skip("Insufficient memory for test")
     
