@@ -138,29 +138,24 @@ export class MiniMoonOrchestrator extends EventEmitter {
         options
       });
 
-      // Validar archivo de entrada
-      if (!this.audioManager!.validateAudioFile(inputPath)) {
-        throw new Error(`Invalid input audio file: ${inputPath}`);
-      }
-
-      // Cargar audio
-      const audioData = await this.audioManager!.loadAudio(inputPath);
+      // Cargar audio - Método correcto
+      const audioBuffer = await this.audioManager!.loadAudioFile(inputPath);
       this.emit('progress', { stage: 'loaded', progress: 0.2 });
 
-      // Generar voz sintética
-      const voiceData = await this.voiceEngine!.synthesize(audioData, {
-        profile: options.voiceProfile
+      // Generar voz sintética - Método correcto
+      const voiceBuffer = await this.voiceEngine!.generateVoice(audioBuffer, {
+        voiceId: options.voiceProfile
       });
       this.emit('progress', { stage: 'synthesized', progress: 0.5 });
 
-      // Aplicar augmentación
-      const augmentedData = await this.voiceAugmentation!.augment(voiceData, {
-        level: options.augmentationLevel || 0.7
+      // Aplicar augmentación - Método correcto
+      const augmentedBuffer = await this.voiceAugmentation!.applyAugmentation(voiceBuffer, {
+        intensity: options.augmentationLevel || 0.7
       });
       this.emit('progress', { stage: 'augmented', progress: 0.8 });
 
-      // Guardar resultado
-      await this.audioManager!.saveAudio(augmentedData, outputPath);
+      // Guardar resultado - Método correcto
+      await this.audioManager!.saveAudioFile(augmentedBuffer, outputPath);
       this.emit('progress', { stage: 'saved', progress: 1.0 });
 
       const duration = Date.now() - startTime;
@@ -178,7 +173,7 @@ export class MiniMoonOrchestrator extends EventEmitter {
       };
     } catch (error) {
       logger.error('MiniMoonOrchestrator: Processing failed', error);
-      this.setState(OrchestratorState.ERROR);
+      this.setState(OrchestratorState.READY); // No ERROR, volver a READY
       this.emit('error', error);
 
       return {
@@ -211,20 +206,20 @@ export class MiniMoonOrchestrator extends EventEmitter {
         options
       });
 
-      // Generar voz desde texto
-      const voiceData = await this.voiceEngine!.synthesizeFromText(text, {
-        profile: options.voiceProfile
+      // Generar voz desde texto - Método correcto
+      const voiceBuffer = await this.voiceEngine!.synthesizeFromText(text, {
+        voiceId: options.voiceProfile
       });
       this.emit('progress', { stage: 'synthesized', progress: 0.6 });
 
-      // Aplicar augmentación
-      const augmentedData = await this.voiceAugmentation!.augment(voiceData, {
-        level: options.augmentationLevel || 0.7
+      // Aplicar augmentación - Método correcto
+      const augmentedBuffer = await this.voiceAugmentation!.applyAugmentation(voiceBuffer, {
+        intensity: options.augmentationLevel || 0.7
       });
       this.emit('progress', { stage: 'augmented', progress: 0.9 });
 
-      // Guardar resultado
-      await this.audioManager!.saveAudio(augmentedData, outputPath);
+      // Guardar resultado - Método correcto
+      await this.audioManager!.saveAudioFile(augmentedBuffer, outputPath);
       this.emit('progress', { stage: 'saved', progress: 1.0 });
 
       const duration = Date.now() - startTime;
@@ -242,7 +237,7 @@ export class MiniMoonOrchestrator extends EventEmitter {
       };
     } catch (error) {
       logger.error('MiniMoonOrchestrator: Synthesis failed', error);
-      this.setState(OrchestratorState.ERROR);
+      this.setState(OrchestratorState.READY); // No ERROR, volver a READY
       this.emit('error', error);
 
       return {
@@ -317,32 +312,35 @@ export class MiniMoonOrchestrator extends EventEmitter {
       this.isShuttingDown = true;
       logger.info('MiniMoonOrchestrator: Starting shutdown');
 
-      // Esperar a que termine el procesamiento actual
+      // Esperar a que termine el procesamiento actual con timeout
       if (this.state === OrchestratorState.PROCESSING) {
         logger.info('MiniMoonOrchestrator: Waiting for current processing to finish');
-        await new Promise(resolve => {
-          const checkInterval = setInterval(() => {
-            if (this.state !== OrchestratorState.PROCESSING) {
-              clearInterval(checkInterval);
-              resolve(undefined);
-            }
-          }, 100);
-        });
+        await Promise.race([
+          new Promise<void>(resolve => {
+            const checkInterval = setInterval(() => {
+              if (this.state !== OrchestratorState.PROCESSING) {
+                clearInterval(checkInterval);
+                resolve();
+              }
+            }, 100);
+          }),
+          new Promise<void>(resolve => setTimeout(resolve, 5000)) // timeout 5s
+        ]);
       }
 
       // Limpiar componentes en orden inverso
       if (this.voiceAugmentation) {
-        await this.voiceAugmentation.cleanup();
+        await this.voiceAugmentation.dispose();
         this.voiceAugmentation = null;
       }
 
       if (this.voiceEngine) {
-        await this.voiceEngine.cleanup();
+        await this.voiceEngine.dispose();
         this.voiceEngine = null;
       }
 
       if (this.audioManager) {
-        await this.audioManager.cleanup();
+        await this.audioManager.dispose();
         this.audioManager = null;
       }
 
@@ -373,4 +371,3 @@ export class MiniMoonOrchestrator extends EventEmitter {
     };
   }
 }
-
