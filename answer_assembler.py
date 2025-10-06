@@ -3,9 +3,16 @@
 
 """
 Answer Assembler - Sistema Industrial de Ensamblaje de Respuestas
-Versión: 3.0 (Alineada con Rubric Scoring v2.0 y Flujo Canónico)
-Genera reportes granulares con trazabilidad completa de evidencia a partir de las
-fuentes de verdad: rubric_scoring.json y DECALOGO_FULL.json.
+Versión: 4.0 (Single Source of Truth: RUBRIC_SCORING.json)
+
+Genera reportes granulares con trazabilidad completa de evidencia, cargando toda
+la configuración de scoring desde RUBRIC_SCORING.json:
+- 'weights' section: per-question weight mappings
+- 'questions' section: scoring modalities and expected elements
+- 'dimensions' section: aggregation metadata
+- 'score_bands' section: thresholds and recommendations
+
+RUBRIC_SCORING.json es la única fuente de verdad para configuración de rúbrica.
 """
 
 from __future__ import annotations
@@ -177,20 +184,27 @@ class AnswerAssembler:
         self.decalogo_config = self._load_json_config(self.decalogo_path, "Decálogo de Preguntas")
         self.weights_config = self._load_json_config(self.weights_path, "DNP Standards Weights")
 
+        # Load core configuration from RUBRIC_SCORING.json (single source of truth)
         self.score_bands = self.rubric_config.get("score_bands", {})
-        self.modalities = self.rubric_config.get("scoring_modalities", {})
         self.dimensions_meta = self.rubric_config.get("dimensions", {})
-        self.question_templates = {q['id']: q for q in self.rubric_config.get("questions", [])}
+        
+        # Parse 'questions' section for scoring modalities and expected elements
+        self.question_templates = self._parse_question_templates()
+        
+        # Parse 'weights' section for per-question weight mappings
+        self.weights = self._parse_weights()
+        
+        # Organize DECALOGO questions by unique ID
         self.questions_by_unique_id = self._organize_decalogo_questions()
         
+        # Load weights from dnp-standards for dimension/point calculations
         self.weights_lookup = self._load_and_validate_weights()
-
-        # Load and validate rubric weights (GATE #5)
-        self.weights = self._load_rubric()
+        
+        # Validate strict 1:1 alignment between questions and weights (GATE #5)
         self._validate_rubric_coverage()
 
         LOGGER.info(
-            f"✅ AnswerAssembler inicializado con {len(self.question_templates)} plantillas, {len(self.questions_by_unique_id)} preguntas únicas y {len(self.weights_lookup)} pesos cargados.")
+            f"✅ AnswerAssembler inicializado con {len(self.question_templates)} plantillas, {len(self.questions_by_unique_id)} preguntas únicas, {len(self.weights)} rubric weights y {len(self.weights_lookup)} pesos cargados.")
 
     def _load_json_config(self, path: pathlib.Path, config_name: str) -> Dict[str, Any]:
         if not path.exists():
@@ -212,21 +226,47 @@ class AnswerAssembler:
             questions_map[unique_id] = q
         return questions_map
 
-    def _load_rubric(self) -> Dict[str, float]:
+    def _parse_question_templates(self) -> Dict[str, Dict[str, Any]]:
         """
-        Load and validate rubric weights from RUBRIC_SCORING.json.
+        Parse 'questions' section from RUBRIC_SCORING.json for scoring modalities and expected elements.
         
-        Validates presence of 'questions' and 'weights' keys.
-        Returns the weights dictionary for internal storage.
+        Returns a dictionary mapping question template IDs to their configuration.
         
         Raises:
-            ValueError: If 'questions' or 'weights' keys are missing from rubric.
+            ValueError: If 'questions' key is missing from rubric (GATE #5).
         """
         if "questions" not in self.rubric_config:
             raise ValueError(
-                f"GATE #5 FAILED: 'questions' key missing from rubric at {self.rubric_path}"
+                f"GATE #5 FAILED: 'questions' key missing from rubric at {self.rubric_path}. "
+                "Rubric must contain questions section with scoring modalities and expected elements."
             )
         
+        questions = self.rubric_config.get("questions", [])
+        templates = {}
+        for q in questions:
+            q_id = q.get('id')
+            if q_id:
+                templates[q_id] = {
+                    'id': q_id,
+                    'scoring_modality': q.get('scoring_modality', 'UNKNOWN'),
+                    'expected_elements': q.get('expected_elements', []),
+                    'max_score': q.get('max_score', 3.0),
+                    'dimension': q.get('dimension', 'UNKNOWN'),
+                    'question_no': q.get('question_no', 0)
+                }
+        
+        LOGGER.info(f"✓ Parsed {len(templates)} question templates from rubric")
+        return templates
+
+    def _parse_weights(self) -> Dict[str, float]:
+        """
+        Parse 'weights' section from RUBRIC_SCORING.json for per-question weight mappings.
+        
+        Returns the weights dictionary mapping question unique IDs to their weights.
+        
+        Raises:
+            ValueError: If 'weights' key is missing from rubric (GATE #5).
+        """
         if "weights" not in self.rubric_config:
             raise ValueError(
                 f"GATE #5 FAILED: 'weights' key missing from rubric at {self.rubric_path}. "
@@ -234,7 +274,7 @@ class AnswerAssembler:
             )
         
         weights = self.rubric_config.get("weights", {})
-        LOGGER.info(f"✓ Rubric loaded with {len(weights)} weight entries")
+        LOGGER.info(f"✓ Parsed {len(weights)} weight entries from rubric")
         return weights
 
     def _validate_rubric_coverage(self) -> None:
@@ -377,20 +417,22 @@ class AnswerAssembler:
             evidence_registry: EvidenceRegistry,
             raw_score: float
     ) -> QuestionAnswer:
+        # Get question metadata from DECALOGO
         q_meta = self.questions_by_unique_id.get(question_unique_id, {})
-        template_id = q_meta.get('id', 'DESCONOCIDO')
+        template_id = q_meta.get('id', 'UNKNOWN')
+        
+        # Get scoring configuration from RUBRIC_SCORING.json (single source of truth)
         q_template = self.question_templates.get(template_id, {})
-        scoring_modality = q_template.get("scoring_modality", "DESCONOCIDO")
-
-        parts = question_unique_id.split("-")
-        if len(parts) >= 3:
-            dim_id = parts[0]
-            point_code = parts[2]
-            weight_key = f"{point_code}_{dim_id}"
-            rubric_weight = self.weights_lookup.get(weight_key, 0.0)
-        else:
-            rubric_weight = 0.0
-            LOGGER.warning(f"⚠️ Could not extract dimension and point from '{question_unique_id}'")
+        scoring_modality = q_template.get("scoring_modality", "UNKNOWN")
+        max_score = q_template.get("max_score", 3.0)
+        
+        # Look up rubric weight from weights dictionary (RUBRIC_SCORING.json)
+        rubric_weight = self.weights.get(question_unique_id)
+        if rubric_weight is None:
+            raise ValueError(
+                f"VALIDATION ERROR: Question '{question_unique_id}' lacks weight entry in RUBRIC_SCORING.json. "
+                f"All questions must have corresponding weight mappings."
+            )
 
         evidences = evidence_registry.get_evidence_for_question(question_unique_id)
         ev_metrics, quality = self._analyze_evidence_quality(evidences)
@@ -405,10 +447,10 @@ class AnswerAssembler:
             point_code=q_meta.get("point_code", "N/A"),
             question_number=q_meta.get("question_no", 0),
             raw_score=round(raw_score, 2),
-            max_score=3.0,
-            score_percentage=round((raw_score / 3.0) * 100, 1),
+            max_score=max_score,
+            score_percentage=round((raw_score / max_score) * 100, 1),
             scoring_modality=scoring_modality,
-            rubric_weight=round(rubric_weight, 2),
+            rubric_weight=rubric_weight,
             evidence_ids=[ev.metadata.get("evidence_id", "N/A") for ev in evidences],
             evidence_count=len(evidences),
             evidence_metrics=ev_metrics,
@@ -488,10 +530,9 @@ class AnswerAssembler:
         scores = [qa.raw_score for qa in question_answers]
         total_score = sum(scores)
         
-        if question_answers:
-            rubric_weight = question_answers[0].rubric_weight
-        else:
-            rubric_weight = 0.0
+        # Calculate max_score from rubric configuration
+        max_score_per_question = dim_meta.get("max_score", 15) / len(question_answers) if question_answers else 3.0
+        max_score = max_score_per_question * len(question_answers)
 
         return DimensionSummary(
             dimension_id=question_answers[0].dimension,
@@ -499,8 +540,8 @@ class AnswerAssembler:
             point_code=question_answers[0].point_code,
             question_scores=scores,
             total_score=round(total_score, 2),
-            max_score=15.0,
-            percentage=round((total_score / 15.0) * 100, 1),
+            max_score=max_score,
+            percentage=round((total_score / max_score) * 100, 1) if max_score > 0 else 0.0,
             total_evidences=sum(qa.evidence_count for qa in question_answers),
             avg_confidence=round(np.mean([qa.confidence for qa in question_answers if qa.evidence_count > 0] or [0]),
                                  4),
@@ -516,6 +557,7 @@ class AnswerAssembler:
             (q['point_title'] for q in self.decalogo_config['questions'] if q['point_code'] == point_code),
             "Título Desconocido")
 
+        # Use weighted aggregation from dnp-standards configuration
         point_weights = self.weights_config.get("decalogo_dimension_mapping", {}).get(point_code, {})
         
         weighted_percentages = []
@@ -525,6 +567,9 @@ class AnswerAssembler:
             weighted_percentages.append(ds.percentage * weight)
         
         weighted_avg_percentage = sum(weighted_percentages)
+        
+        # Calculate max_score from aggregation (sum of dimension max_scores)
+        max_score = sum(ds.max_score for ds in dimension_summaries)
 
         return PointSummary(
             point_code=point_code,
@@ -532,7 +577,7 @@ class AnswerAssembler:
             dimension_summaries=dimension_summaries,
             average_percentage=round(weighted_avg_percentage, 1),
             total_score=round(sum(ds.total_score for ds in dimension_summaries), 2),
-            max_score=90.0,
+            max_score=max_score,
             critical_gaps=[f"Dimensión {ds.dimension_id} en estado crítico ({ds.percentage:.1f}%)" for ds in
                            dimension_summaries if ds.percentage < 55.0]
         )
