@@ -1,0 +1,117 @@
+name: Coverage Enforcement
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main, develop ]
+
+jobs:
+  test-and-coverage:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov coverage[toml]
+        python -m spacy download es_core_news_sm
+    
+    - name: Run tests with coverage
+      run: |
+        pytest --cov=. --cov-report=xml --cov-report=term-missing \
+          --cov-config=.coveragerc \
+          -m "not slow and not chaos" \
+          --ignore=venv --ignore=.git
+    
+    - name: Check minimum coverage
+      run: |
+        coverage report --fail-under=70
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+    
+    - name: Coverage comment
+      uses: py-cov-action/python-coverage-comment-action@v3
+      with:
+        GITHUB_TOKEN: ${{ github.token }}
+        MINIMUM_GREEN: 85
+        MINIMUM_ORANGE: 70
+
+  new-code-coverage:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov coverage[toml] diff-cover
+        python -m spacy download es_core_news_sm
+    
+    - name: Run coverage on new code
+      run: |
+        pytest --cov=. --cov-report=xml --cov-config=.coveragerc \
+          --ignore=venv --ignore=.git
+    
+    - name: Check new code coverage
+      run: |
+        diff-cover coverage.xml --compare-branch=origin/${{ github.base_ref }} --fail-under=100
+
+  contract-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest
+        python -m spacy download es_core_news_sm
+    
+    - name: Run contract tests
+      run: |
+        pytest tests/contracts/ -v --tb=short
+    
+    - name: Contract test failure blocks PR
+      if: failure()
+      run: |
+        echo "::error::Contract tests failed - PR blocked"
+        exit 1

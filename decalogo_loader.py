@@ -17,7 +17,7 @@ import os
 import tempfile
 import threading
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
