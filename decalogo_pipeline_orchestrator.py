@@ -37,25 +37,6 @@ raise RuntimeError(
     "This error is INTENTIONAL and part of the system's integrity enforcement."
 )
 
-# Everything below this line is unreachable - kept for documentation purposes only
-
-"""
-DECALOGO Pipeline Orchestrator
-
-Serves as the central coordinator for the knowledge extraction pipeline,
-ensuring that each component produces the precise evidence needed to
-answer specific DECALOGO questions.
-
-This orchestrator:
-1. Maps DECALOGO questions to specific evidence extractors
-2. Routes plan sections to appropriate analyzers
-3. Collects and standardizes evidence 
-4. Aggregates results for comprehensive evaluation
-
-The orchestrator ensures complete coverage of all DECALOGO framework questions
-through proper component alignment and evidence routing.
-"""
-
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
