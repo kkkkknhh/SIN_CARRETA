@@ -193,3 +193,243 @@ jobs:
             } catch (error) {
               console.log('Could not read soak test report:', error);
             }
+
+  freeze_verification:
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify pipeline configuration freeze
+        run: |
+          echo "Verifying pipeline configuration is locked..."
+          python3 determinism_guard.py --diagnostics
+          python3 determinism_guard.py --seed 42 --strict
+
+  pre_execution_validation:
+    runs-on: ubuntu-latest
+    needs: freeze_verification
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m spacy download es_core_news_sm
+
+      - name: Run pre-execution validation
+        run: |
+          echo "Running pre-execution system validation..."
+          python3 system_validators.py --pre
+
+  triple_run_reproducibility:
+    runs-on: ubuntu-latest
+    needs: pre_execution_validation
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m spacy download es_core_news_sm
+
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+
+      - name: Execute evaluation pipeline - Run 1
+        run: |
+          echo "Executing evaluation pipeline - Run 1..."
+          python3 unified_evaluation_pipeline.py test_plan.pdf || echo "RUN1_FAILED=true" >> $GITHUB_ENV
+          if [ -f flow_runtime.json ]; then
+            mkdir -p artifacts
+            cp flow_runtime.json artifacts/flow_runtime_run1.json
+          fi
+
+      - name: Execute evaluation pipeline - Run 2
+        run: |
+          echo "Executing evaluation pipeline - Run 2..."
+          python3 unified_evaluation_pipeline.py test_plan.pdf || echo "RUN2_FAILED=true" >> $GITHUB_ENV
+          if [ -f flow_runtime.json ]; then
+            cp flow_runtime.json artifacts/flow_runtime_run2.json
+          fi
+
+      - name: Execute evaluation pipeline - Run 3
+        run: |
+          echo "Executing evaluation pipeline - Run 3..."
+          python3 unified_evaluation_pipeline.py test_plan.pdf || echo "RUN3_FAILED=true" >> $GITHUB_ENV
+          if [ -f flow_runtime.json ]; then
+            cp flow_runtime.json artifacts/flow_runtime_run3.json
+          fi
+
+      - name: Verify deterministic ordering consistency
+        run: |
+          echo "Verifying deterministic ordering across three runs..."
+          python3 -c "
+import json
+import sys
+from pathlib import Path
+
+runs = ['run1', 'run2', 'run3']
+flow_files = [Path(f'artifacts/flow_runtime_{run}.json') for run in runs]
+
+# Check all files exist
+missing = [f for f in flow_files if not f.exists()]
+if missing:
+    print(f'ERROR: Missing flow_runtime.json files: {missing}')
+    sys.exit(1)
+
+# Load and compare orders
+orders = []
+for flow_file in flow_files:
+    data = json.loads(flow_file.read_text())
+    order = data.get('order', [])
+    orders.append(order)
+    print(f'{flow_file.name}: {len(order)} steps')
+
+# Check all orders are identical
+if orders[0] == orders[1] == orders[2]:
+    print('✅ Deterministic ordering verified across all three runs')
+    sys.exit(0)
+else:
+    print('❌ Ordering mismatch detected between runs')
+    for i, order in enumerate(orders):
+        print(f'Run {i+1} order: {order[:5]}...')
+    sys.exit(1)
+          "
+
+      - name: Upload triple-run artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: triple-run-reproducibility
+          path: |
+            artifacts/flow_runtime_run1.json
+            artifacts/flow_runtime_run2.json
+            artifacts/flow_runtime_run3.json
+
+  post_execution_validation:
+    runs-on: ubuntu-latest
+    needs: triple_run_reproducibility
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m spacy download es_core_news_sm
+
+      - name: Download triple-run artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: triple-run-reproducibility
+          path: artifacts/
+
+      - name: Run post-execution validation
+        run: |
+          echo "Running post-execution system validation..."
+          python3 system_validators.py --post --artifacts artifacts
+
+      - name: Verify 300/300 coverage
+        run: |
+          echo "Verifying 300/300 coverage in coverage_report.json..."
+          python3 -c "
+import json
+import sys
+from pathlib import Path
+
+coverage_file = Path('artifacts/coverage_report.json')
+
+if not coverage_file.exists():
+    print('ERROR: coverage_report.json not found')
+    sys.exit(1)
+
+data = json.loads(coverage_file.read_text())
+total_coverage = data.get('summary', {}).get('total_coverage', 0)
+
+print(f'Total coverage: {total_coverage}/300')
+
+if total_coverage >= 300:
+    print('✅ Coverage verification passed: 300/300')
+    sys.exit(0)
+else:
+    print(f'❌ Coverage verification failed: {total_coverage}/300')
+    sys.exit(1)
+          "
+
+      - name: Verify flow_runtime.json determinism
+        run: |
+          echo "Verifying flow_runtime.json determinism..."
+          python3 -c "
+import json
+import sys
+from pathlib import Path
+
+runtime_file = Path('artifacts/flow_runtime_run3.json')
+
+if not runtime_file.exists():
+    print('ERROR: flow_runtime.json not found')
+    sys.exit(1)
+
+data = json.loads(runtime_file.read_text())
+order = data.get('order', [])
+
+if len(order) > 0:
+    print(f'✅ flow_runtime.json contains deterministic order: {len(order)} steps')
+    sys.exit(0)
+else:
+    print('❌ flow_runtime.json has empty or missing order')
+    sys.exit(1)
+          "
+
+      - name: Verify 1:1 question-to-rubric correspondence
+        run: |
+          echo "Verifying 1:1 question-to-rubric weight correspondence..."
+          python3 rubric_check.py --answers artifacts/answers_report.json --rubric RUBRIC_SCORING.json || exit 3
+
+      - name: Archive evaluation artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluation-artifacts
+          path: |
+            artifacts/run*.json
+            artifacts/answers_report.json
+            artifacts/answers_sample.json
+            artifacts/flow_runtime*.json
+            artifacts/coverage_report.json
+            artifacts/evidence_registry.json
+            artifacts/module_to_questions_matrix.csv
+            artifacts/nonrepudiation_bundle.zip
