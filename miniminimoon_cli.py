@@ -28,11 +28,6 @@ import sys
 import traceback
 from typing import Any, Dict
 
-# Dependencias internas del proyecto
-from unified_evaluation_pipeline import UnifiedEvaluationPipeline
-from miniminimoon_immutability import EnhancedImmutabilityContract
-from system_validators import SystemHealthValidator
-
 CLI_VERSION = "1.0.0"
 
 
@@ -41,6 +36,7 @@ def _print_json(obj: Dict[str, Any]) -> None:
 
 
 def cmd_freeze(args: argparse.Namespace) -> int:
+    from miniminimoon_immutability import EnhancedImmutabilityContract
     repo = str(pathlib.Path(args.repo).resolve())
     try:
         immut = EnhancedImmutabilityContract(repo)
@@ -53,6 +49,7 @@ def cmd_freeze(args: argparse.Namespace) -> int:
 
 
 def cmd_evaluate(args: argparse.Namespace) -> int:
+    from unified_evaluation_pipeline import UnifiedEvaluationPipeline
     repo = str(pathlib.Path(args.repo).resolve())
     rubric = args.rubric
     plan_path = str(pathlib.Path(args.plan_path).resolve())
@@ -90,6 +87,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
+    from system_validators import SystemHealthValidator
     repo = str(pathlib.Path(args.repo).resolve())
     artifacts = str(pathlib.Path(repo) / "artifacts")
     try:
@@ -107,7 +105,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
         return 1
 
 
-def _run_tool(pyfile_rel: str, repo: str) -> Dict[str, Any]:
+def _run_tool(pyfile_rel: str, repo: str, tool_args: list = None) -> Dict[str, Any]:
     """
     Ejecuta un script Python del árbol del repo y retorna su salida parseada si es JSON,
     o bien incluye stdout/stderr crudos.
@@ -116,7 +114,10 @@ def _run_tool(pyfile_rel: str, repo: str) -> Dict[str, Any]:
     if not py.exists():
         return {"ok": False, "error": f"Tool not found: {py}"}
     try:
-        proc = subprocess.run([sys.executable, str(py)], capture_output=True, text=True, cwd=repo)
+        cmd = [sys.executable, str(py)]
+        if tool_args:
+            cmd.extend(tool_args)
+        proc = subprocess.run(cmd, capture_output=True, text=True, cwd=repo)
         stdout = proc.stdout.strip()
         stderr = proc.stderr.strip()
         # Intentar parsear JSON si corresponde
@@ -138,16 +139,33 @@ def _run_tool(pyfile_rel: str, repo: str) -> Dict[str, Any]:
 
 def cmd_rubric_check(args: argparse.Namespace) -> int:
     repo = str(pathlib.Path(args.repo).resolve())
-    res = _run_tool("tools/rubric_check.py", repo)
-    payload = {"action": "rubric-check", "repo": repo, **res}
+    answers_path = str(pathlib.Path(args.answers_report).resolve())
+    rubric_path = str(pathlib.Path(args.rubric_scoring).resolve())
+    
+    res = _run_tool("tools/rubric_check.py", repo, [answers_path, rubric_path])
+    
+    # Build output payload with parsed diff data if available
+    payload = {
+        "action": "rubric-check",
+        "repo": repo,
+        "answers_report": answers_path,
+        "rubric_scoring": rubric_path,
+        "ok": res.get("ok", False),
+        "returncode": res.get("returncode", 1)
+    }
+    
+    # Include parsed diff output if available
+    if res.get("parsed"):
+        payload["diff"] = res["parsed"]
+    
+    # Include stderr if present (for error messages)
+    if res.get("stderr"):
+        payload["stderr"] = res["stderr"]
+    
     _print_json(payload)
-    # rubric_check define rc=0 OK, rc=3 mismatch
-    if res.get("returncode", 1) == 0:
-        return 0
-    elif res.get("returncode", 1) == 3:
-        return 3
-    else:
-        return 1
+    
+    # Propagate exit codes: 0 (success), 1 (runtime error), 2 (file error), 3 (mismatch)
+    return res.get("returncode", 1)
 
 
 def cmd_trace_matrix(args: argparse.Namespace) -> int:
@@ -187,6 +205,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     # rubric-check
     p_rc = sub.add_parser("rubric-check", help="Run rubric 1:1 check (answers vs weights)")
+    p_rc.add_argument("answers_report", help="Path to answers_report.json")
+    p_rc.add_argument("rubric_scoring", help="Path to RUBRIC_SCORING.json")
     p_rc.add_argument("--repo", default=".", help="Repo root")
     p_rc.set_defaults(func=cmd_rubric_check)
 
