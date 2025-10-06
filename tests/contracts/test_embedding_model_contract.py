@@ -41,9 +41,9 @@ class TestEmbeddingModelContract:
         texts = ["short", "medium length text", "a very long text " * 10]
         embeddings = model.encode(texts)
         
-        for i in range(len(embeddings)):
+        for i, item in enumerate(embeddings):
             for j in range(i + 1, len(embeddings)):
-                assert len(embeddings[i]) == len(embeddings[j])
+                assert len(item) == len(embeddings[j])
     
     def test_deterministic_encoding_contract(self):
         """Contract: Same text must produce same embedding."""

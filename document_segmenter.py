@@ -338,8 +338,8 @@ class DocumentSegmenter:
         all_matches.sort(key=lambda x: x[0])
         
         # Create segments from sections
-        for i in range(len(all_matches)):
-            start_pos, header_end_pos, section_type = all_matches[i]
+        for i, item in enumerate(all_matches):
+            start_pos, header_end_pos, section_type = item
             
             # Find the end of this section (start of next section or end of text)
             if i < len(all_matches) - 1:
