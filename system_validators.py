@@ -26,7 +26,12 @@ import json
 import pathlib
 import subprocess
 import sys
-from typing import Any, Dict, List, Tuple
+import psutil
+import shutil
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Tuple, Optional
+from datetime import datetime
+import statistics
 
 # Dependencias internas
 try:
@@ -51,6 +56,30 @@ def _read_json(path: pathlib.Path) -> Tuple[Dict[str, Any], str]:
         return data, ""
     except Exception as e:
         return {}, f"Cannot parse JSON {path}: {e}"
+
+
+@dataclass
+class BatchValidationResult:
+    ok: bool
+    errors: List[str] = field(default_factory=list)
+    
+    # Pre-execution resource checks
+    memory_available_gb: Optional[float] = None
+    memory_ok: bool = False
+    disk_available_gb: Optional[float] = None
+    disk_ok: bool = False
+    redis_ok: bool = False
+    workers_available: int = 0
+    workers_ok: bool = False
+    
+    # Post-execution quality metrics
+    total_documents: int = 0
+    coverage_passed: int = 0
+    coverage_failed: int = 0
+    hash_consistency_ok: bool = False
+    error_rate_percent: float = 0.0
+    throughput_docs_per_hour: float = 0.0
+    processing_time_stats: Optional[Dict[str, float]] = None
 
 class SystemHealthValidator:
     def __init__(self, repo_root: str = ".") -> None:
@@ -252,6 +281,195 @@ class SystemHealthValidator:
             "ok_coverage": ok_coverage,
             "ok_rubric_1to1": ok_rubric_1to1
         }
+
+
+def validate_batch_pre_execution() -> BatchValidationResult:
+    errors: List[str] = []
+    
+    # Memory check (8GB threshold)
+    try:
+        mem = psutil.virtual_memory()
+        memory_available_gb = mem.available / (1024**3)
+        memory_ok = memory_available_gb >= 8.0
+        if not memory_ok:
+            errors.append(f"Insufficient memory: {memory_available_gb:.2f}GB available, 8GB required")
+    except Exception as e:
+        memory_available_gb = None
+        memory_ok = False
+        errors.append(f"Memory check failed: {e}")
+    
+    # Disk space check (10GB threshold)
+    try:
+        disk = shutil.disk_usage(".")
+        disk_available_gb = disk.free / (1024**3)
+        disk_ok = disk_available_gb >= 10.0
+        if not disk_ok:
+            errors.append(f"Insufficient disk space: {disk_available_gb:.2f}GB available, 10GB required")
+    except Exception as e:
+        disk_available_gb = None
+        disk_ok = False
+        errors.append(f"Disk space check failed: {e}")
+    
+    # Redis connectivity check
+    redis_ok = False
+    try:
+        import redis
+        r = redis.Redis(host='localhost', port=6379, socket_connect_timeout=5)
+        redis_ok = r.ping()
+        if not redis_ok:
+            errors.append("Redis ping failed")
+    except ImportError:
+        errors.append("Redis library not available")
+    except Exception as e:
+        errors.append(f"Redis connectivity check failed: {e}")
+    
+    # Celery worker availability check
+    workers_available = 0
+    workers_ok = False
+    try:
+        from celery import Celery
+        app = Celery('batch_validator')
+        app.config_from_object('celeryconfig', silent=True)
+        
+        inspect = app.control.inspect()
+        stats = inspect.stats()
+        if stats:
+            workers_available = len(stats)
+            workers_ok = workers_available > 0
+        
+        if not workers_ok:
+            errors.append("No Celery workers available")
+    except ImportError:
+        errors.append("Celery library not available")
+    except Exception as e:
+        errors.append(f"Celery worker check failed: {e}")
+    
+    ok = memory_ok and disk_ok and redis_ok and workers_ok
+    
+    return BatchValidationResult(
+        ok=ok,
+        errors=errors,
+        memory_available_gb=memory_available_gb,
+        memory_ok=memory_ok,
+        disk_available_gb=disk_available_gb,
+        disk_ok=disk_ok,
+        redis_ok=redis_ok,
+        workers_available=workers_available,
+        workers_ok=workers_ok
+    )
+
+
+def validate_batch_post_execution(batch_results: List[Dict[str, Any]], artifacts_base_dir: str = "artifacts") -> BatchValidationResult:
+    errors: List[str] = []
+    base_path = pathlib.Path(artifacts_base_dir)
+    
+    total_documents = len(batch_results)
+    coverage_passed = 0
+    coverage_failed = 0
+    processing_times: List[float] = []
+    error_count = 0
+    hashes: List[str] = []
+    
+    # Iterate through batch job results
+    for result in batch_results:
+        doc_id = result.get("document_id", "unknown")
+        
+        # Check for errors
+        if result.get("error") or result.get("status") == "failed":
+            error_count += 1
+            errors.append(f"Document {doc_id} failed: {result.get('error', 'unknown error')}")
+            continue
+        
+        # Extract processing time if available
+        if "processing_time" in result:
+            try:
+                processing_times.append(float(result["processing_time"]))
+            except (ValueError, TypeError):
+                pass
+        
+        # Check coverage_report.json for 300/300 coverage
+        doc_artifacts_dir = base_path / doc_id if doc_id != "unknown" else base_path
+        coverage_path = doc_artifacts_dir / "coverage_report.json"
+        
+        if coverage_path.exists():
+            try:
+                coverage_data = json.loads(coverage_path.read_text(encoding="utf-8"))
+                total_questions = coverage_data.get("summary", {}).get("total_questions", 0)
+                
+                if total_questions >= 300:
+                    coverage_passed += 1
+                else:
+                    coverage_failed += 1
+                    errors.append(f"Document {doc_id} has insufficient coverage: {total_questions}/300")
+            except Exception as e:
+                coverage_failed += 1
+                errors.append(f"Document {doc_id} coverage_report.json parsing failed: {e}")
+        else:
+            coverage_failed += 1
+            errors.append(f"Document {doc_id} missing coverage_report.json")
+        
+        # Extract deterministic hash from evidence_registry.json
+        evidence_path = doc_artifacts_dir / "evidence_registry.json"
+        if evidence_path.exists():
+            try:
+                evidence_data = json.loads(evidence_path.read_text(encoding="utf-8"))
+                doc_hash = evidence_data.get("deterministic_hash")
+                if doc_hash:
+                    hashes.append(doc_hash)
+            except Exception as e:
+                errors.append(f"Document {doc_id} evidence_registry.json parsing failed: {e}")
+    
+    # Validate hash consistency
+    hash_consistency_ok = True
+    if len(hashes) > 0:
+        unique_hashes = set(hashes)
+        if len(unique_hashes) > 1:
+            hash_consistency_ok = False
+            errors.append(f"Hash inconsistency detected: {len(unique_hashes)} unique hashes across {len(hashes)} documents")
+    else:
+        hash_consistency_ok = False
+        errors.append("No deterministic hashes found for validation")
+    
+    # Calculate quality metrics
+    error_rate_percent = (error_count / total_documents * 100) if total_documents > 0 else 0.0
+    
+    # Calculate throughput (documents per hour)
+    throughput_docs_per_hour = 0.0
+    if processing_times:
+        total_time_hours = sum(processing_times) / 3600.0
+        if total_time_hours > 0:
+            throughput_docs_per_hour = total_documents / total_time_hours
+    
+    # Calculate processing time statistics
+    processing_time_stats = None
+    if processing_times:
+        processing_time_stats = {
+            "mean": statistics.mean(processing_times),
+            "median": statistics.median(processing_times),
+            "stdev": statistics.stdev(processing_times) if len(processing_times) > 1 else 0.0,
+            "min": min(processing_times),
+            "max": max(processing_times),
+            "count": len(processing_times)
+        }
+    
+    ok = (
+        coverage_failed == 0 and
+        hash_consistency_ok and
+        error_count == 0 and
+        total_documents > 0
+    )
+    
+    return BatchValidationResult(
+        ok=ok,
+        errors=errors,
+        total_documents=total_documents,
+        coverage_passed=coverage_passed,
+        coverage_failed=coverage_failed,
+        hash_consistency_ok=hash_consistency_ok,
+        error_rate_percent=error_rate_percent,
+        throughput_docs_per_hour=throughput_docs_per_hour,
+        processing_time_stats=processing_time_stats
+    )
 
 
 # ---------------- CLI mínima ----------------
