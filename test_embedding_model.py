@@ -369,9 +369,8 @@ class TestEmbeddingModel(unittest.TestCase):
 
     def test_factory_function_error(self):
         """Test error handling in factory function."""
-        with patch("embedding_model.EmbeddingModel", side_effect=RuntimeError("Initialization failed")):
-            with self.assertRaises(RuntimeError):
-                create_embedding_model()
+        with patch("embedding_model.EmbeddingModel", side_effect=RuntimeError("Initialization failed")), self.assertRaises(RuntimeError):
+            create_embedding_model()
 
 
 if __name__ == "__main__":

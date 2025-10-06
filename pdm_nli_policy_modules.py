@@ -183,9 +183,9 @@ class SpanishNLIDetector:
         # Generate all pairs
         pairs = []
         indices = []
-        for i in range(len(statements)):
+        for i, item in enumerate(statements):
             for j in range(i + 1, len(statements)):
-                pairs.append((statements[i], statements[j]))
+                pairs.append((item, statements[j]))
                 indices.append((i, j))
 
         if not pairs:

@@ -105,9 +105,8 @@ class TestMemoryWatchdog:
     @staticmethod
     def test_psutil_requirement():
         """Test that watchdog requires psutil."""
-        with mock.patch("memory_watchdog.PSUTIL_AVAILABLE", False):
-            with pytest.raises(ImportError, match="psutil is required"):
-                MemoryWatchdog()
+        with mock.patch("memory_watchdog.PSUTIL_AVAILABLE", False), pytest.raises(ImportError, match="psutil is required"):
+            MemoryWatchdog()
 
     @staticmethod
     def test_process_registration(memory_watchdog, mock_psutil):
@@ -270,9 +269,8 @@ class TestPlanProcessingWatchdog:
     @staticmethod
     def test_psutil_requirement():
         """Test that plan watchdog requires psutil."""
-        with mock.patch("memory_watchdog.PSUTIL_AVAILABLE", False):
-            with pytest.raises(ImportError, match="psutil is required"):
-                PlanProcessingWatchdog()
+        with mock.patch("memory_watchdog.PSUTIL_AVAILABLE", False), pytest.raises(ImportError, match="psutil is required"):
+            PlanProcessingWatchdog()
 
     @staticmethod
     def test_worker_termination_handling(plan_watchdog):
@@ -304,12 +302,11 @@ class TestPlanProcessingWatchdog:
         """Test complete plan processing lifecycle."""
         with mock.patch.object(
             plan_watchdog.watchdog, "register_process", return_value=True
+        ), mock.patch.object(
+            plan_watchdog.watchdog, "start_monitoring", return_value=True
         ):
-            with mock.patch.object(
-                plan_watchdog.watchdog, "start_monitoring", return_value=True
-            ):
-                # Start plan processing
-                assert plan_watchdog.start_plan_processing(1234)
+            # Start plan processing
+            assert plan_watchdog.start_plan_processing(1234)
 
         # Complete plan processing
         with mock.patch.object(plan_watchdog.watchdog, "unregister_process"):
@@ -352,10 +349,9 @@ class TestPlanProcessingWatchdog:
     @staticmethod
     def test_context_manager():
         """Test plan watchdog context manager."""
-        with mock.patch("memory_watchdog.PSUTIL_AVAILABLE", True):
-            with PlanProcessingWatchdog(memory_limit_mb=100) as watchdog:
-                assert watchdog is not None
-                # Context manager should handle cleanup
+        with mock.patch("memory_watchdog.PSUTIL_AVAILABLE", True), PlanProcessingWatchdog(memory_limit_mb=100) as watchdog:
+            assert watchdog is not None
+            # Context manager should handle cleanup
 
 
 class TestMemoryUsageDataStructures:
@@ -419,7 +415,7 @@ class TestIntegrationScenarios:
         # Set up callback to track terminations
         termination_events = []
         memory_watchdog.set_termination_callback(
-            lambda event: termination_events.append(event)
+            termination_events.append
         )
 
         # Mock process with high memory usage

@@ -136,39 +136,26 @@ class TestCircuitBreakerIntegration:
     
     def test_circuit_breaker_initialization(self):
         """Test that circuit breakers are properly initialized"""
-        with patch('miniminimoon_orchestrator.PlanSanitizer'):
-            with patch('miniminimoon_orchestrator.PlanProcessor'):
-                with patch('miniminimoon_orchestrator.DocumentSegmenter'):
-                    with patch('miniminimoon_orchestrator.IndustrialEmbeddingModel'):
-                        with patch('miniminimoon_orchestrator.SpacyModelLoader'):
-                            with patch('miniminimoon_orchestrator.ResponsibilityDetector'):
-                                with patch('miniminimoon_orchestrator.ContradictionDetector'):
-                                    with patch('miniminimoon_orchestrator.MonetaryDetector'):
-                                        with patch('miniminimoon_orchestrator.FeasibilityScorer'):
-                                            with patch('miniminimoon_orchestrator.PDETCausalPatternDetector'):
-                                                with patch('miniminimoon_orchestrator.AdvancedDAGValidator'):
-                                                    with patch('miniminimoon_orchestrator.EvidenceRegistry'):
-                                                        with patch('miniminimoon_orchestrator.CanonicalFlowValidator'):
-                                                            with patch('miniminimoon_orchestrator.QuestionnaireEngine'):
-                                                                orchestrator = MINIMINIMOONOrchestrator()
-                                                                
-                                                                assert hasattr(orchestrator, 'circuit_breakers')
-                                                                assert len(orchestrator.circuit_breakers) == 6
-                                                                
-                                                                expected_circuits = [
-                                                                    "embedding",
-                                                                    "responsibility_detection",
-                                                                    "contradiction_detection",
-                                                                    "causal_detection",
-                                                                    "teoria_cambio",
-                                                                    "dag_validation"
-                                                                ]
-                                                                
-                                                                for circuit_name in expected_circuits:
-                                                                    assert circuit_name in orchestrator.circuit_breakers
-                                                                    circuit = orchestrator.circuit_breakers[circuit_name]
-                                                                    assert isinstance(circuit, CircuitBreaker)
-                                                                    assert circuit.config.recovery_time_sla_seconds == 2.0
+        with patch('miniminimoon_orchestrator.PlanSanitizer'), patch('miniminimoon_orchestrator.PlanProcessor'), patch('miniminimoon_orchestrator.DocumentSegmenter'), patch('miniminimoon_orchestrator.IndustrialEmbeddingModel'), patch('miniminimoon_orchestrator.SpacyModelLoader'), patch('miniminimoon_orchestrator.ResponsibilityDetector'), patch('miniminimoon_orchestrator.ContradictionDetector'), patch('miniminimoon_orchestrator.MonetaryDetector'), patch('miniminimoon_orchestrator.FeasibilityScorer'), patch('miniminimoon_orchestrator.PDETCausalPatternDetector'), patch('miniminimoon_orchestrator.AdvancedDAGValidator'), patch('miniminimoon_orchestrator.EvidenceRegistry'), patch('miniminimoon_orchestrator.CanonicalFlowValidator'), patch('miniminimoon_orchestrator.QuestionnaireEngine'):
+            orchestrator = MINIMINIMOONOrchestrator()
+            
+            assert hasattr(orchestrator, 'circuit_breakers')
+            assert len(orchestrator.circuit_breakers) == 6
+            
+            expected_circuits = [
+                "embedding",
+                "responsibility_detection",
+                "contradiction_detection",
+                "causal_detection",
+                "teoria_cambio",
+                "dag_validation"
+            ]
+            
+            for circuit_name in expected_circuits:
+                assert circuit_name in orchestrator.circuit_breakers
+                circuit = orchestrator.circuit_breakers[circuit_name]
+                assert isinstance(circuit, CircuitBreaker)
+                assert circuit.config.recovery_time_sla_seconds == 2.0
     
     def test_circuit_breaker_recovery_threshold(self):
         """Test that circuit breakers use 2.0s recovery threshold"""

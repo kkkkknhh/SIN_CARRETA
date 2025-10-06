@@ -130,13 +130,13 @@ class NoOpSpan:
     """No-op span for when OpenTelemetry is unavailable"""
     
     def set_attribute(self, key: str, value: Any):
-        pass
+        raise NotImplementedError()
     
     def set_status(self, status):
-        pass
+        raise NotImplementedError()
     
     def record_exception(self, exception: Exception):
-        pass
+        raise NotImplementedError()
     
     def get_span_context(self):
         return SpanContext(

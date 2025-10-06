@@ -228,7 +228,7 @@ class InMemoryBuffer:
     
     def _write_to_disk(self, data: Any):
         """Simulated disk write"""
-        pass
+        raise NotImplementedError()
     
     def flush_to_disk(self) -> int:
         """Attempt to flush in-memory buffer to disk when space available"""
