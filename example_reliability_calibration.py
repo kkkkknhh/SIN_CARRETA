@@ -34,7 +34,7 @@ def example_basic_calibration():
     y_true = np.array([1, 1, 1, 1, 0, 0, 0, 0, 1, 1])  # Ground truth
     y_pred = np.array([1, 1, 1, 0, 0, 0, 1, 0, 1, 1])  # Detector predictions
     
-    print(f"\nInitial state (uniform prior):")
+    print("\nInitial state (uniform prior):")
     print(f"  Expected Precision: {calibrator.expected_precision:.2%}")
     print(f"  Expected Recall: {calibrator.expected_recall:.2%}")
     print(f"  Expected F1: {calibrator.expected_f1:.2%}")
@@ -51,7 +51,7 @@ def example_basic_calibration():
     prec_interval = calibrator.precision_credible_interval(level=0.95)
     rec_interval = calibrator.recall_credible_interval(level=0.95)
     
-    print(f"\n95% Credible Intervals:")
+    print("\n95% Credible Intervals:")
     print(f"  Precision: [{prec_interval[0]:.2%}, {prec_interval[1]:.2%}]")
     print(f"  Recall: [{rec_interval[0]:.2%}, {rec_interval[1]:.2%}]")
     
@@ -59,7 +59,7 @@ def example_basic_calibration():
     raw_score = 0.85
     weighted_score = reliability_weighted_score(raw_score, calibrator, metric='f1')
     
-    print(f"\nScore Weighting:")
+    print("\nScore Weighting:")
     print(f"  Raw Score: {raw_score:.2%}")
     print(f"  Weighted Score: {weighted_score:.2%}")
     print(f"  Adjustment Factor: {calibrator.expected_f1:.2%}")
@@ -137,7 +137,7 @@ def example_multiple_detectors():
     simple_avg = np.mean(list(raw_scores.values()))
     weighted_avg = np.mean(list(weighted_scores.values()))
     
-    print(f"\nEnsemble Scores:")
+    print("\nEnsemble Scores:")
     print(f"  Simple Average: {simple_avg:.2%}")
     print(f"  Weighted Average: {weighted_avg:.2%}")
     print(f"  Difference: {weighted_avg - simple_avg:+.2%}")

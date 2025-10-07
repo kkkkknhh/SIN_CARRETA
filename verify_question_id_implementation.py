@@ -47,7 +47,7 @@ def main():
         "Test Department"
     )
     
-    print(f"\n4. Evaluation complete:")
+    print("\n4. Evaluation complete:")
     print(f"   - Total evaluations: {len(results['evaluation_matrix'])}")
     print(f"   - Global score: {results['global_summary']['score_percentage']:.1f}%")
     print(f"   - Classification: {results['global_summary']['classification']}")
@@ -63,7 +63,7 @@ def main():
     if format_errors:
         print(f"   ❌ Format errors found: {format_errors[:5]}")
     else:
-        print(f"   ✅ All 300 question IDs have correct D{{N}}-Q{{N}} format")
+        print("   ✅ All 300 question IDs have correct D{{N}}-Q{{N}} format")
     
     # Verify alignment with rubric
     print("\n6. Verifying alignment with RUBRIC_SCORING.json...")
@@ -74,13 +74,13 @@ def main():
     extra_in_generated = generated_ids - rubric_ids
     
     if missing_in_generated or extra_in_generated:
-        print(f"   ❌ Mismatch detected:")
+        print("   ❌ Mismatch detected:")
         if missing_in_generated:
             print(f"      Missing: {list(missing_in_generated)[:5]}")
         if extra_in_generated:
             print(f"      Extra: {list(extra_in_generated)[:5]}")
     else:
-        print(f"   ✅ Perfect match: All 300 IDs align with rubric weights")
+        print("   ✅ Perfect match: All 300 IDs align with rubric weights")
     
     # Verify uniqueness
     print("\n7. Verifying question ID uniqueness...")
@@ -91,7 +91,7 @@ def main():
         duplicates = [qid for qid in unique_ids if question_ids.count(qid) > 1]
         print(f"   ❌ Duplicates found: {duplicates[:5]}")
     else:
-        print(f"   ✅ All 300 question IDs are unique")
+        print("   ✅ All 300 question IDs are unique")
     
     # Verify dimension distribution
     print("\n8. Verifying dimension distribution...")

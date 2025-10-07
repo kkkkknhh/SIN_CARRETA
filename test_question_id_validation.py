@@ -54,7 +54,7 @@ def test_malformed_ids():
     except ValidationError as e:
         error_msg = str(e)
         if "malformed" in error_msg.lower() and ("D7-Q1" in error_msg or "4 malformed" in error_msg):
-            print(f"  ✓ PASS: Correctly detected malformed IDs")
+            print("  ✓ PASS: Correctly detected malformed IDs")
             print(f"    Error message: {error_msg[:150]}...")
             return True
         else:
@@ -80,7 +80,7 @@ def test_count_mismatch():
     except ValidationError as e:
         error_msg = str(e)
         if "count mismatch" in error_msg.lower() and "180" in error_msg and "300" in error_msg:
-            print(f"  ✓ PASS: Correctly detected count mismatch")
+            print("  ✓ PASS: Correctly detected count mismatch")
             print(f"    Error message: {error_msg[:150]}...")
             return True
         else:
@@ -103,7 +103,7 @@ def test_missing_rubric():
     except ValidationError as e:
         error_msg = str(e)
         if "missing" in error_msg.lower():
-            print(f"  ✓ PASS: Correctly detected missing rubric")
+            print("  ✓ PASS: Correctly detected missing rubric")
             print(f"    Error message: {error_msg}")
             return True
         else:
@@ -128,7 +128,7 @@ def test_empty_weights():
     except ValidationError as e:
         error_msg = str(e)
         if "empty" in error_msg.lower() and "weights" in error_msg.lower():
-            print(f"  ✓ PASS: Correctly detected empty weights")
+            print("  ✓ PASS: Correctly detected empty weights")
             print(f"    Error message: {error_msg}")
             return True
         else:
@@ -157,7 +157,7 @@ def test_pre_execution_integration():
             print(f"    Errors: {result['errors']}")
             return True
         else:
-            print(f"  ✗ FAIL: Pre-execution did not catch malformed IDs")
+            print("  ✗ FAIL: Pre-execution did not catch malformed IDs")
             print(f"    Result: {result}")
             return False
     finally:

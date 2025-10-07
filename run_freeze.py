@@ -6,7 +6,7 @@ import sys
 try:
     contract = EnhancedImmutabilityContract(config_dir=Path("."))
     snapshot = contract.freeze_configuration()
-    print(f"\n✅ Configuration frozen successfully!")
+    print("\n✅ Configuration frozen successfully!")
     print(f"   Snapshot hash: {snapshot['snapshot_hash'][:16]}...")
     print(f"   Files: {snapshot['file_count']}")
     sys.exit(0)

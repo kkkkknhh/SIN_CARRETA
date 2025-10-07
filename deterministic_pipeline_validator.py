@@ -846,7 +846,7 @@ def run_validation_tests():
 
     invalid_input = {"wrong_field": 123}
     valid, errors = contract.validate_input(invalid_input)
-    print(f"  Invalid input detected: {not valid} ✓" if not valid else f"  Failed to detect: ✗")
+    print(f"  Invalid input detected: {not valid} ✓" if not valid else "  Failed to detect: ✗")
 
     # Test 2: Runtime tracer
     print("\nTest 2: Runtime Tracer")
@@ -964,7 +964,7 @@ Examples:
             print(f"Flow hash: {report['flow_hash']}")
 
             if not report["order_validation"]["order_valid"]:
-                print(f"\n⨯ Order issues:")
+                print("\n⨯ Order issues:")
                 print(f"  Missing: {report['order_validation']['missing_stages']}")
                 print(f"  Extra: {report['order_validation']['extra_stages']}")
 

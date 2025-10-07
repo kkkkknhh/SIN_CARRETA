@@ -38,7 +38,7 @@ class QuestionnaireSystemDemo:
         with open(self.decalogo_path) as f:
             decalogo = json.load(f)
 
-        print(f"✅ Archivo cargado: decalogo_industrial.json")
+        print("✅ Archivo cargado: decalogo_industrial.json")
         print(f"✅ Total de preguntas: {decalogo['total']}")
         print(f"✅ Schema: {decalogo['schema']}")
         print(f"✅ Versión: {decalogo['version']}")
@@ -60,16 +60,16 @@ class QuestionnaireSystemDemo:
                 if hint not in hints_vocabulary[point]:
                     hints_vocabulary[point].append(hint)
 
-        print(f"\n📊 ESTRUCTURA IRRADIADA:")
+        print("\n📊 ESTRUCTURA IRRADIADA:")
         print(f"   Dimensiones: {sorted(dimensions.keys())}")
         print(f"   Puntos temáticos: {sorted(points.keys())}")
 
-        print(f"\n📊 DISTRIBUCIÓN POR DIMENSIÓN:")
+        print("\n📊 DISTRIBUCIÓN POR DIMENSIÓN:")
         for dim in sorted(dimensions.keys()):
             print(f"   {dim}: {dimensions[dim]} preguntas")
 
-        print(f"\n📚 VOCABULARIO CONTROLADO EXTRAÍDO:")
-        print(f"   Total de hints únicos por punto:")
+        print("\n📚 VOCABULARIO CONTROLADO EXTRAÍDO:")
+        print("   Total de hints únicos por punto:")
         for point in sorted(hints_vocabulary.keys())[:3]:
             print(f"   {point}: {len(hints_vocabulary[point])} keywords")
             print(f"      Ejemplos: {hints_vocabulary[point][:3]}")
@@ -395,7 +395,7 @@ class QuestionnaireSystemDemo:
             "D6-Q28": 8
         }
 
-        print(f"\n📋 EJEMPLOS DE MAPEO PREGUNTA → EVIDENCIA:")
+        print("\n📋 EJEMPLOS DE MAPEO PREGUNTA → EVIDENCIA:")
         for qid, count in simulated_mapping.items():
             print(f"   {qid}: {count} items de evidencia")
 
@@ -461,11 +461,11 @@ class QuestionnaireSystemDemo:
         print("predictions for adaptive management.\n")
 
         print("METADATOS DE RESPUESTA:")
-        print(f"   • Quality score: 0.87 (87%)")
-        print(f"   • Word count: 247 palabras")
-        print(f"   • Módulos usados: 4")
-        print(f"   • Evidencia directa: 5 items")
-        print(f"   • Pasos de extracción: [8, 9, 11]")
+        print("   • Quality score: 0.87 (87%)")
+        print("   • Word count: 247 palabras")
+        print("   • Módulos usados: 4")
+        print("   • Evidencia directa: 5 items")
+        print("   • Pasos de extracción: [8, 9, 11]")
 
         # ===================================================================
         # RESUMEN FINAL
@@ -490,7 +490,7 @@ class QuestionnaireSystemDemo:
         print("\n3. CONSTRUCCIÓN INCREMENTAL:")
         print(f"   • {len(extraction_steps)} pasos de extracción")
         print(f"   • {total_evidence} items de evidencia agregados")
-        print(f"   • Cada item TAGGED con question_ids relevantes")
+        print("   • Cada item TAGGED con question_ids relevantes")
         print("   • Trazabilidad completa: pregunta ↔ evidencia ↔ módulo ↔ paso")
 
         print("\n4. RESPUESTAS DOCTORALES:")
@@ -506,7 +506,7 @@ class QuestionnaireSystemDemo:
         print("   • D4 (RESULTADOS): ~40 preguntas con evidencia")
         print("   • D5 (IMPACTOS): ~35 preguntas con evidencia")
         print("   • D6 (CAUSALIDAD): ~42 preguntas con evidencia")
-        print(f"   • TOTAL: ~260-280 preguntas con evidencia (87-93%)")
+        print("   • TOTAL: ~260-280 preguntas con evidencia (87-93%)")
 
         # Save trace
         trace_path = self.project_root / "execution_trace_demo.json"

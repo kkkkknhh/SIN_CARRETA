@@ -36,9 +36,9 @@ def validate_rubric_weights(rubric_file='rubric_scoring.json'):
         for q in range(1, 51):
             expected_ids.add(f"D{dim}-Q{q}")
     
-    print(f"Expected weight entries: 300")
+    print("Expected weight entries: 300")
     print(f"Actual weight entries: {len(weight_ids)}")
-    print(f"All 300 weights present: {len(weight_ids) == 300 and weight_ids == expected_ids} ✓" if len(weight_ids) == 300 and weight_ids == expected_ids else f"All 300 weights present: False ✗")
+    print(f"All 300 weights present: {len(weight_ids) == 300 and weight_ids == expected_ids} ✓" if len(weight_ids) == 300 and weight_ids == expected_ids else "All 300 weights present: False ✗")
     
     # Requirement 3: Verify uniform weight value
     print("\n=== REQUIREMENT 3: Uniform Weight Values ===")
@@ -47,17 +47,17 @@ def validate_rubric_weights(rubric_file='rubric_scoring.json'):
     print(f"Expected weight (1/300): {expected_weight}")
     print(f"Unique weight values: {unique_weights}")
     all_correct = len(unique_weights) == 1 and abs(list(unique_weights)[0] - expected_weight) < 1e-15
-    print(f"All weights = 0.0033333333333333335: {all_correct} ✓" if all_correct else f"All weights uniform: False ✗")
+    print(f"All weights = 0.0033333333333333335: {all_correct} ✓" if all_correct else "All weights uniform: False ✗")
     
     # Requirement 4: Verify sum equals 1.0
     print("\n=== REQUIREMENT 4: Weight Sum ===")
     total_weight = sum(weights.values())
     print(f"Sum of all weights: {total_weight}")
-    print(f"Expected sum: 1.0")
+    print("Expected sum: 1.0")
     difference = abs(total_weight - 1.0)
     print(f"Difference: {difference}")
     within_tolerance = difference < 1e-10
-    print(f"Within tolerance (<1e-10): {within_tolerance} ✓" if within_tolerance else f"Within tolerance: False ✗")
+    print(f"Within tolerance (<1e-10): {within_tolerance} ✓" if within_tolerance else "Within tolerance: False ✗")
     
     # Requirement 5: Check alignment with questions section
     print("\n=== REQUIREMENT 5: Questions Section Alignment ===")
@@ -70,7 +70,7 @@ def validate_rubric_weights(rubric_file='rubric_scoring.json'):
     # while weights has 300 (all combinations for thematic points)
     base_question_ids = {f"D{d}-Q{q}" for d in range(1, 7) for q in range(1, 31)}
     questions_match_base = question_ids == base_question_ids
-    print(f"Questions section contains base 30 questions: {questions_match_base} ✓" if questions_match_base else f"Questions structure differs ℹ")
+    print(f"Questions section contains base 30 questions: {questions_match_base} ✓" if questions_match_base else "Questions structure differs ℹ")
     
     # Sample verification
     print(f"\nSample weight IDs: {sorted(list(weight_ids))[:5]}")

@@ -197,10 +197,10 @@ Verifies pipeline output integrity and acceptance criteria.
     failed_gates = output_quality.get("failed_gates", [])
     
     # Determinism
-    section += f"### Determinism Verification\n"
+    section += "### Determinism Verification\n"
     section += f"**Status:** {'✓ PASS' if determinism else '✗ FAIL'}\n\n"
     if determinism_runs:
-        section += f"Multiple runs produced identical outputs:\n"
+        section += "Multiple runs produced identical outputs:\n"
         for run_id, hash_val in determinism_runs.items():
             section += f"- {run_id}: `{hash_val}`\n"
     else:
@@ -208,11 +208,11 @@ Verifies pipeline output integrity and acceptance criteria.
     section += "\n"
     
     # Coverage
-    section += f"### Question Coverage\n"
+    section += "### Question Coverage\n"
     section += f"**Status:** {coverage}/300 questions {'✓ COMPLETE' if coverage == 300 else '⚠ PARTIAL'}\n\n"
     
     # Rubric alignment
-    section += f"### Rubric Alignment\n"
+    section += "### Rubric Alignment\n"
     section += f"**Status:** {'✓ PASS' if rubric_aligned else '✗ FAIL'}\n"
     if rubric_status is not None:
         section += f"**Exit Code:** {rubric_status} (tools/rubric_check.py)\n"
@@ -225,7 +225,7 @@ Verifies pipeline output integrity and acceptance criteria.
     section += "\n"
     
     # Gate passage
-    section += f"### Acceptance Gates\n"
+    section += "### Acceptance Gates\n"
     section += f"**Status:** {'✓ ALL GATES PASSED' if gates_passed else '✗ GATES FAILED'}\n\n"
     if not gates_passed and failed_gates:
         section += "Failed gates:\n"
@@ -339,44 +339,44 @@ Actionable recommendations to address identified risks.
         if "Error Rate" in risk_type:
             section += "**Recommended Actions:**\n"
             section += f"- Review error logs for {location} to identify root cause\n"
-            section += f"- Add circuit breaker pattern with 3-retry limit and exponential backoff\n"
-            section += f"- Implement input validation to catch malformed data upstream\n"
-            section += f"- Add health check endpoint with automatic failover\n"
+            section += "- Add circuit breaker pattern with 3-retry limit and exponential backoff\n"
+            section += "- Implement input validation to catch malformed data upstream\n"
+            section += "- Add health check endpoint with automatic failover\n"
         
         elif "Latency" in risk_type:
             section += "**Recommended Actions:**\n"
             section += f"- Profile {location} to identify bottleneck operations\n"
-            section += f"- Implement caching layer for repeated computations (LRU cache, TTL=1800s)\n"
-            section += f"- Consider batching/parallelization for independent operations\n"
-            section += f"- Add timeout enforcement (e.g., 5s timeout with graceful degradation)\n"
+            section += "- Implement caching layer for repeated computations (LRU cache, TTL=1800s)\n"
+            section += "- Consider batching/parallelization for independent operations\n"
+            section += "- Add timeout enforcement (e.g., 5s timeout with graceful degradation)\n"
         
         elif "Memory" in risk_type:
             section += "**Recommended Actions:**\n"
             section += f"- Implement streaming/chunked processing in {location}\n"
-            section += f"- Add memory profiling to identify leak sources\n"
-            section += f"- Set memory limits via resource constraints (e.g., 1GB soft limit, 2GB hard limit)\n"
-            section += f"- Consider offloading large data structures to disk/cache\n"
+            section += "- Add memory profiling to identify leak sources\n"
+            section += "- Set memory limits via resource constraints (e.g., 1GB soft limit, 2GB hard limit)\n"
+            section += "- Consider offloading large data structures to disk/cache\n"
         
         elif "Unstable Data Flow" in risk_type:
             section += "**Recommended Actions:**\n"
             section += f"- Add retry logic with exponential backoff for {location}\n"
-            section += f"- Implement message queue (e.g., Celery/RabbitMQ) for reliable delivery\n"
-            section += f"- Add dead letter queue for failed messages\n"
-            section += f"- Monitor connection health with automatic reconnection\n"
+            section += "- Implement message queue (e.g., Celery/RabbitMQ) for reliable delivery\n"
+            section += "- Add dead letter queue for failed messages\n"
+            section += "- Monitor connection health with automatic reconnection\n"
         
         elif "Type Contract" in risk_type:
             section += "**Recommended Actions:**\n"
             section += f"- Enforce strict schema validation at {location} input/output\n"
-            section += f"- Add Pydantic models or dataclass contracts\n"
-            section += f"- Implement type checking in CI/CD pipeline (mypy --strict)\n"
-            section += f"- Add contract tests to catch mismatches early\n"
+            section += "- Add Pydantic models or dataclass contracts\n"
+            section += "- Implement type checking in CI/CD pipeline (mypy --strict)\n"
+            section += "- Add contract tests to catch mismatches early\n"
         
         else:
             section += "**Recommended Actions:**\n"
             section += f"- Investigate {location} performance metrics\n"
-            section += f"- Add monitoring and alerting for threshold violations\n"
-            section += f"- Review component configuration and scaling parameters\n"
-            section += f"- Implement graceful degradation fallback\n"
+            section += "- Add monitoring and alerting for threshold violations\n"
+            section += "- Review component configuration and scaling parameters\n"
+            section += "- Implement graceful degradation fallback\n"
         
         section += "\n"
     

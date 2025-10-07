@@ -1509,7 +1509,7 @@ def production_deployment_example():
         print("INDUSTRIAL EMBEDDING MODEL DEMONSTRATION")
         print(f"{'=' * 80}")
 
-        print(f"\nModel Configuration:")
+        print("\nModel Configuration:")
         diagnostics = model.get_comprehensive_diagnostics()
         model_info = diagnostics['model_info']
         for key, value in model_info.items():
@@ -1602,7 +1602,7 @@ def production_deployment_example():
                 f"  Confusion Potential: {'⚠️  YES' if analysis['risk_assessment']['confusion_potential'] else '✅ NO'}")
 
             if analysis['risk_assessment']['risk_indicators']:
-                print(f"  Risk Details:")
+                print("  Risk Details:")
                 for risk in analysis['risk_assessment']['risk_indicators']:
                     print(f"    - {risk['type']}: Max Relative Diff = {risk['max_relative_diff']:.3f}")
 
@@ -1632,7 +1632,7 @@ def production_deployment_example():
 
         # Performance metrics
         perf_metrics = final_diagnostics['performance_metrics']
-        print(f"Performance Metrics:")
+        print("Performance Metrics:")
         print(f"  Total Embeddings Generated: {perf_metrics['total_embeddings']}")
         print(f"  Cache Hit Rate: {perf_metrics['cache_hit_rate']:.1%}")
         print(f"  Error Rate: {perf_metrics['error_rate']:.1%}")
@@ -1640,21 +1640,21 @@ def production_deployment_example():
 
         # System status
         system_status = final_diagnostics['system_status']
-        print(f"\nSystem Status:")
+        print("\nSystem Status:")
         for key, value in system_status.items():
             status_symbol = "✅" if value else "❌"
             print(f"  {status_symbol} {key.replace('_', ' ').title()}: {value}")
 
         # Resource utilization
         resources = final_diagnostics['resource_utilization']
-        print(f"\nResource Utilization:")
+        print("\nResource Utilization:")
         for key, value in resources.items():
             print(f"  {key.replace('_', ' ').title()}: {value}")
 
         # Cache diagnostics
         if 'cache_diagnostics' in final_diagnostics:
             cache_stats = final_diagnostics['cache_diagnostics']
-            print(f"\nCache Performance:")
+            print("\nCache Performance:")
             print(f"  Cache Size: {cache_stats['size']}/{cache_stats['max_size']}")
             print(f"  Total Accesses: {cache_stats['total_accesses']}")
             print(f"  Unique Keys: {cache_stats['unique_keys']}")
@@ -1662,7 +1662,7 @@ def production_deployment_example():
         # Instruction learning results
         if 'instruction_learning' in final_diagnostics:
             learning_stats = final_diagnostics['instruction_learning']
-            print(f"\nInstruction Learning:")
+            print("\nInstruction Learning:")
             print(f"  Learned Profiles: {learning_stats['total_profiles']}")
             print(f"  Average Usage: {learning_stats['average_usage_count']:.1f}")
             print(f"  Average Effectiveness: {learning_stats['average_effectiveness']:.3f}")
@@ -1671,7 +1671,7 @@ def production_deployment_example():
         # Logger metrics
         logger_metrics = final_diagnostics['logger_metrics']
         if logger_metrics:
-            print(f"\nSystem Performance (Live Metrics):")
+            print("\nSystem Performance (Live Metrics):")
             for metric_name, value in logger_metrics.items():
                 if 'ms' in metric_name:
                     print(f"  {metric_name}: {value:.2f} ms")
@@ -2158,7 +2158,7 @@ class EmbeddingModelBenchmark:
 
         # Model information
         model_info = self.benchmark_results['model_info']
-        report_lines.append(f"\nModel Configuration:")
+        report_lines.append("\nModel Configuration:")
         report_lines.append(f"  Name: {model_info['name']}")
         report_lines.append(f"  Dimension: {model_info['dimension']}")
         report_lines.append(f"  Quality Tier: {model_info['quality_tier']}")
@@ -2166,20 +2166,20 @@ class EmbeddingModelBenchmark:
 
         # Test configuration
         test_config = self.benchmark_results['test_configuration']
-        report_lines.append(f"\nTest Configuration:")
+        report_lines.append("\nTest Configuration:")
         report_lines.append(f"  Corpus Size: {test_config['corpus_size']}")
         report_lines.append(f"  Batch Size Range: {test_config['batch_size_range']}")
         report_lines.append(f"  Instruction Complexity Levels: {test_config['instruction_levels']}")
 
         # Throughput results
         throughput = self.benchmark_results['benchmark_results']['throughput']
-        report_lines.append(f"\nThroughput Performance:")
+        report_lines.append("\nThroughput Performance:")
         report_lines.append(f"  Optimal Batch Size: {throughput['optimal_batch_size']}")
         report_lines.append(f"  Peak Throughput: {throughput['peak_throughput_texts_per_second']:.1f} texts/second")
 
         # Quality results
         quality = self.benchmark_results['benchmark_results']['quality']
-        report_lines.append(f"\nEmbedding Quality:")
+        report_lines.append("\nEmbedding Quality:")
         report_lines.append(f"  Norm Consistency (CV): {quality['norm_statistics']['coefficient_of_variation']:.4f}")
         report_lines.append(f"  Diversity Score: {quality['diversity_metrics']['diversity_score']:.4f}")
         report_lines.append(f"  Numerically Stable: {quality['numerical_stability']['is_numerically_stable']}")
@@ -2190,13 +2190,13 @@ class EmbeddingModelBenchmark:
 
         # Instruction effectiveness
         instruction = self.benchmark_results['benchmark_results']['instruction_effectiveness']
-        report_lines.append(f"\nInstruction Effectiveness:")
+        report_lines.append("\nInstruction Effectiveness:")
         for level, result in instruction.items():
             report_lines.append(f"  {level}: Effectiveness = {result['effectiveness_score']:.3f}")
 
         # MMR comparison
         mmr = self.benchmark_results['benchmark_results']['mmr_comparison']
-        report_lines.append(f"\nMMR Algorithm Performance:")
+        report_lines.append("\nMMR Algorithm Performance:")
         for algorithm, result in mmr.items():
             if 'error' not in result:
                 report_lines.append(
@@ -2204,14 +2204,14 @@ class EmbeddingModelBenchmark:
 
         # Numerical analysis
         numeric = self.benchmark_results['benchmark_results']['numerical_analysis']
-        report_lines.append(f"\nNumerical Analysis:")
+        report_lines.append("\nNumerical Analysis:")
         report_lines.append(f"  Test Cases: {numeric['test_cases_analyzed']}")
         report_lines.append(f"  Confusion Detection Rate: {numeric['confusion_detection_rate']:.1%}")
         report_lines.append(f"  High Risk Detection Rate: {numeric['high_risk_detection_rate']:.1%}")
 
         # Resource utilization
         resources = self.benchmark_results['benchmark_results']['resource_utilization']
-        report_lines.append(f"\nResource Utilization:")
+        report_lines.append("\nResource Utilization:")
         report_lines.append(
             f"  Memory Efficiency: {resources['memory_efficiency_mb_per_1000_texts']:.2f} MB per 1000 texts")
         report_lines.append(f"  Overall Throughput: {resources['throughput_texts_per_second']:.1f} texts/second")

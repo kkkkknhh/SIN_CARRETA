@@ -302,7 +302,7 @@ def cmd_diagnostic(args: argparse.Namespace) -> int:
         print(f"\n❌ Diagnostic run failed: {e}", file=sys.stderr)
         print("\nStack trace:", file=sys.stderr)
         print(traceback.format_exc(), file=sys.stderr)
-        print(f"\nContext:", file=sys.stderr)
+        print("\nContext:", file=sys.stderr)
         print(f"  Plan: {plan_path}", file=sys.stderr)
         print(f"  Repo: {repo}", file=sys.stderr)
         print(f"  Log: {diagnostic_log_path}", file=sys.stderr)

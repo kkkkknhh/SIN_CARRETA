@@ -12,7 +12,7 @@ print(f"✅ Total answers: {len(answers)}")
 
 # Check IDs
 ids = [a['question_id'] for a in answers]
-print(f"\n📋 Question ID samples:")
+print("\n📋 Question ID samples:")
 print(f"   First 10: {ids[:10]}")
 print(f"   Last 10: {ids[-10:]}")
 
@@ -25,7 +25,7 @@ print(f"\n✅ All IDs match D{{N}}-Q{{N}} format: {valid_format}")
 from collections import Counter
 dimensions = [id.split('-')[0] for id in ids]
 dim_counts = Counter(dimensions)
-print(f"\n📊 Questions per dimension:")
+print("\n📊 Questions per dimension:")
 for dim in sorted(dim_counts.keys()):
     print(f"   {dim}: {dim_counts[dim]} questions")
 
@@ -36,12 +36,12 @@ print(f"\n✅ All dimensions D1-D6 present: {all_dims_present}")
 
 # Total validation
 if len(answers) == 300 and valid_format and all_dims_present:
-    print(f"\n✅ VALIDATION PASSED: 300 questions with standardized D{{N}}-Q{{N}} format")
+    print("\n✅ VALIDATION PASSED: 300 questions with standardized D{{N}}-Q{{N}} format")
 else:
-    print(f"\n❌ VALIDATION FAILED")
+    print("\n❌ VALIDATION FAILED")
     if len(answers) != 300:
         print(f"   - Expected 300 answers, got {len(answers)}")
     if not valid_format:
-        print(f"   - ID format validation failed")
+        print("   - ID format validation failed")
     if not all_dims_present:
-        print(f"   - Not all dimensions D1-D6 present")
+        print("   - Not all dimensions D1-D6 present")

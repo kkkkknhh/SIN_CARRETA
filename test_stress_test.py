@@ -131,12 +131,12 @@ class TestStressTest:
         with open("worker_resource_utilization.json", "w") as f:
             json.dump(worker_util, f, indent=2)
         
-        print(f"\n=== Stress Test Results ===")
+        print("\n=== Stress Test Results ===")
         print(f"Documents processed: {len(stress_documents)}")
         print(f"Initial memory: {initial_memory_mb:.2f} MB")
         print(f"Final memory: {final_memory_mb:.2f} MB")
         print(f"Memory growth: {memory_growth_mb:.2f} MB ({memory_growth_percent:.2f}%)")
-        print(f"Threshold: 20%")
+        print("Threshold: 20%")
         print(f"Status: {'✅ PASSED' if memory_growth_percent <= 20.0 else '❌ FAILED'}")
         
         # Assert memory growth within threshold

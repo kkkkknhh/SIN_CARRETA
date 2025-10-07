@@ -139,7 +139,7 @@ def example_advanced_usage():
     runner.export_metrics_json(output_dir / "metrics_advanced.json")
     
     print("\n✓ Advanced diagnostic completed")
-    print(f"  Report generated")
+    print("  Report generated")
     print(f"  Metrics exported to: {output_dir / 'metrics_advanced.json'}")
 
 
@@ -197,7 +197,7 @@ def example_contract_validation():
     metrics = results['diagnostic_metrics']
     violations = metrics['contract_violations']
     
-    print(f"\nContract Validation Summary:")
+    print("\nContract Validation Summary:")
     print(f"  Total Stages: {metrics['stages_passed'] + metrics['stages_failed']}")
     print(f"  Stages Passed: {metrics['stages_passed']}")
     print(f"  Contract Violations: {violations}")

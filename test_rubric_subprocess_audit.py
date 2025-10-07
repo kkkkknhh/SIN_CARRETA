@@ -213,7 +213,7 @@ def test_absolute_paths():
         script_path_abs = (validator.repo / "tools" / "rubric_check.py").resolve()
         
         if rubric_path_abs.is_absolute() and script_path_abs.is_absolute():
-            print(f"✓ PASS: Paths resolved to absolute")
+            print("✓ PASS: Paths resolved to absolute")
             print(f"  - Rubric path: {rubric_path_abs}")
             print(f"  - Script path: {script_path_abs}")
             return True

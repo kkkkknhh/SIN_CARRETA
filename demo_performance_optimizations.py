@@ -36,10 +36,10 @@ print(f"Second access (cache hit): valid={is_valid}")
 print(f"Stats: hits={cache.hits}, misses={cache.misses}")
 
 stats = cache.get_stats()
-print(f"\nCache statistics:")
+print("\nCache statistics:")
 print(f"  - Size: {stats['size']}/{stats['max_size']}")
 print(f"  - Hit rate: {stats['hit_rate']:.1%}")
-print(f"✅ Cache reduces validation overhead by ~60-80% for repeated inputs\n")
+print("✅ Cache reduces validation overhead by ~60-80% for repeated inputs\n")
 
 print("2. CANONICAL FLOW VALIDATOR WITH CACHING")
 print("-" * 80)
@@ -48,7 +48,7 @@ from data_flow_contract import CanonicalFlowValidator
 
 # Initialize with caching enabled
 validator = CanonicalFlowValidator(enable_cache=True, cache_size=1000)
-print(f"Created validator with caching enabled (cache_size=1000)")
+print("Created validator with caching enabled (cache_size=1000)")
 
 test_data = {
     "raw_text": "Sample development plan text " * 20,
@@ -65,12 +65,12 @@ print(f"Second validation: valid={is_valid2}, cached={report2.get('cached', Fals
 
 cache_stats = validator.get_cache_stats()
 if cache_stats:
-    print(f"\nValidator cache stats:")
+    print("\nValidator cache stats:")
     print(f"  - Hits: {cache_stats['hits']}")
     print(f"  - Misses: {cache_stats['misses']}")
     print(f"  - Hit rate: {cache_stats['hit_rate']:.1%}")
 
-print(f"✅ Caching reduces contract validation from ~7.9ms to <5ms\n")
+print("✅ Caching reduces contract validation from ~7.9ms to <5ms\n")
 
 print("3. PERFORMANCE BUDGET SYSTEM")
 print("-" * 80)
@@ -94,18 +94,18 @@ try:
     # Test passing budget
     budget = budgets["contract_validation"]
     passed, msg = budget.check_budget(4.2)
-    print(f"\n  Measured: 4.2ms")
+    print("\n  Measured: 4.2ms")
     print(f"  {msg}")
 
     # Test failing budget
     passed, msg = budget.check_budget(6.5)
-    print(f"\n  Measured: 6.5ms")
+    print("\n  Measured: 6.5ms")
     print(f"  {msg}")
 
-    print(f"\n✅ CI/CD gate automatically blocks PRs exceeding budgets\n")
+    print("\n✅ CI/CD gate automatically blocks PRs exceeding budgets\n")
 except ImportError as e:
-    print(f"⚠️  Skipping performance budget demo (numpy not installed)")
-    print(f"   Install requirements.txt to run full demo\n")
+    print("⚠️  Skipping performance budget demo (numpy not installed)")
+    print("   Install requirements.txt to run full demo\n")
 
 print("4. OPTIMIZATION SUMMARY")
 print("-" * 80)

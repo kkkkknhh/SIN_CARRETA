@@ -320,7 +320,7 @@ class SystemHealthValidator:
             if exit_code == 3:
                 # Mismatch error: missing_weights and extra_weights diff
                 ok_rubric_1to1 = False
-                error_msg = f"Rubric mismatch (exit code 3): Questions in answers_report.json do not align with RUBRIC_SCORING.json weights"
+                error_msg = "Rubric mismatch (exit code 3): Questions in answers_report.json do not align with RUBRIC_SCORING.json weights"
                 if stdout_output:
                     error_msg += f"\nDiff output: {stdout_output}"
                 if stderr_output:
@@ -330,7 +330,7 @@ class SystemHealthValidator:
             elif exit_code == 2:
                 # Missing input files
                 ok_rubric_1to1 = False
-                error_msg = f"Rubric check failed (exit code 2): Missing input file(s) - artifacts/answers_report.json or RUBRIC_SCORING.json not found"
+                error_msg = "Rubric check failed (exit code 2): Missing input file(s) - artifacts/answers_report.json or RUBRIC_SCORING.json not found"
                 if stdout_output:
                     error_msg += f"\nDetails: {stdout_output}"
                 if stderr_output:
@@ -365,7 +365,7 @@ class SystemHealthValidator:
                 if result.returncode == 2:
                     # Missing input files
                     ok_trace_matrix = False
-                    error_msg = f"Trace matrix generation failed (exit code 2): Missing input files (answers_report.json)"
+                    error_msg = "Trace matrix generation failed (exit code 2): Missing input files (answers_report.json)"
                     if result.stdout.strip():
                         error_msg += f"\n{result.stdout.strip()}"
                     if result.stderr.strip():
@@ -374,7 +374,7 @@ class SystemHealthValidator:
                 elif result.returncode == 3:
                     # Malformed data
                     ok_trace_matrix = False
-                    error_msg = f"Trace matrix generation failed (exit code 3): Malformed data in answers_report.json"
+                    error_msg = "Trace matrix generation failed (exit code 3): Malformed data in answers_report.json"
                     if result.stdout.strip():
                         error_msg += f"\n{result.stdout.strip()}"
                     if result.stderr.strip():
@@ -394,7 +394,7 @@ class SystemHealthValidator:
             except FileNotFoundError:
                 # Handle missing trace_matrix.py script gracefully
                 ok_trace_matrix = False
-                errors.append(f"Trace matrix validation failed: tools/trace_matrix.py not found")
+                errors.append("Trace matrix validation failed: tools/trace_matrix.py not found")
             except subprocess.TimeoutExpired:
                 ok_trace_matrix = False
                 errors.append("Trace matrix generation timed out after 60 seconds")

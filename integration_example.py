@@ -21,7 +21,7 @@ def run_decatalogo_evaluation(pdm_path: str, municipality: str = "", department:
     # Get the singleton engine instance
     engine = get_questionnaire_engine()
     
-    print(f"🚀 Starting Decatalogo Evaluation")
+    print("🚀 Starting Decatalogo Evaluation")
     print(f"📄 PDM Document: {pdm_path}")
     print(f"🏛️ Municipality: {municipality}")
     print(f"🗺️ Department: {department}")

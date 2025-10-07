@@ -140,7 +140,7 @@ def main():
             # Show sample content from coverage_report
             with open(output_dir / "coverage_report.json", 'r') as f:
                 coverage = json.load(f)
-            print(f"\nSample coverage_report.json content:")
+            print("\nSample coverage_report.json content:")
             print(json.dumps(coverage, indent=2))
             
             return 0

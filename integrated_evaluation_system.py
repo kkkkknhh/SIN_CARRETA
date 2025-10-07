@@ -408,9 +408,9 @@ if __name__ == "__main__":
     print("="*80)
     print(f"Score Combinado: {summary.get('combined_score', 0):.1f}%")
     print(f"Clasificación: {summary.get('classification', 'N/A')}")
-    print(f"\nRecomendación:")
+    print("\nRecomendación:")
     print(f"  {summary.get('recommendation', 'N/A')}")
-    print(f"\nAcciones Prioritarias:")
+    print("\nAcciones Prioritarias:")
     for action in summary.get('priority_actions', []):
         print(f"  • {action}")
     print("="*80 + "\n")

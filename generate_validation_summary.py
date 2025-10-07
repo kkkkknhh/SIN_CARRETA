@@ -14,8 +14,8 @@ with open('artifacts/answers_report.json', 'r') as f:
     data = json.load(f)
     answers = data.get('answers', [])
     print(f"   Total questions: {len(answers)}")
-    print(f"   Format: D{{N}}-Q{{N}} ✅")
-    print(f"   Range: D1-Q1 through D6-Q50 ✅")
+    print("   Format: D{{N}}-Q{{N}} ✅")
+    print("   Range: D1-Q1 through D6-Q50 ✅")
 print()
 
 # 2. Rubric alignment

@@ -36,5 +36,5 @@ with open('RUBRIC_SCORING.json', 'w') as f:
 print('Updated RUBRIC_SCORING.json')
 print(f'Total entries: {len(weights)}')
 print(f'Sum: {sum(weights.values()):.15f}')
-print(f'Weight: 0.003333333333333333')
+print('Weight: 0.003333333333333333')
 print(f'Sample: {list(weights.keys())[:3]} ... {list(sorted(weights.keys()))[-3:]}')
