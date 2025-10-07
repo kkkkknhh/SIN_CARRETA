@@ -77,10 +77,8 @@ from causal_pattern_detector import CausalPatternDetector
 from teoria_cambio import TeoriaCambioValidator
 from dag_validation import DAGValidator
 from questionnaire_engine import QuestionnaireEngine
-try:
-    from answer_assembler import AnswerAssembler as ExternalAnswerAssembler
-except ImportError:
-    ExternalAnswerAssembler = None
+# from answer_assembler import AnswerAssembler as ExternalAnswerAssembler
+# Note: ExternalAnswerAssembler is not used; internal AnswerAssembler class is used instead
 
 
 # ============================================================================
@@ -467,12 +465,176 @@ class AnswerAssembler:
 
     def assemble(
         self,
+        evidence_registry: Any,
+        evaluation_results: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Main assembly method that processes all question scores and generates
+        QuestionAnswer objects with standardized D{N}-Q{N} question IDs and
+        rubric weights from RUBRIC_SCORING.json['weights'].
+        
+        Args:
+            evidence_registry: Registry adapter with get_evidence_for_question method
+            evaluation_results: Dict with 'question_scores' list containing
+                               {'question_unique_id': str, 'score': float}
+        
+        Returns:
+            Dict with 'question_answers' list and 'global_summary' dict
+        """
+        question_scores = evaluation_results.get("question_scores", [])
+        question_answers = []
+        
+        self.logger.info(f"Assembling answers for {len(question_scores)} questions")
+        
+        for qs in question_scores:
+            question_unique_id = qs.get("question_unique_id", "")
+            score = qs.get("score", 0.0)
+            
+            # Extract dimension from standardized D{N}-Q{N} format
+            dimension = ""
+            if question_unique_id.startswith("D") and "-" in question_unique_id:
+                dimension = question_unique_id.split("-")[0]  # e.g., "D1"
+            
+            # Get evidence for this question
+            evidence_list = evidence_registry.get_evidence_for_question(question_unique_id)
+            evidence_ids = [
+                e.metadata.get("evidence_id", "") 
+                for e in evidence_list 
+                if hasattr(e, "metadata")
+            ]
+            
+            # Get rubric weight using standardized question ID
+            weight = self.weights.get(question_unique_id, 0.0)
+            
+            if weight == 0.0 and question_unique_id:
+                self.logger.warning(
+                    f"No rubric weight found for question '{question_unique_id}' "
+                    f"in RUBRIC_SCORING.json['weights']"
+                )
+            
+            # Calculate confidence based on evidence
+            confidence = self._calculate_confidence_from_evidence(evidence_list, score)
+            
+            # Generate reasoning
+            reasoning = self._generate_reasoning(dimension, evidence_list, score)
+            
+            # Identify caveats
+            caveats = self._identify_caveats_from_evidence(evidence_list, score)
+            
+            # Extract quotes
+            quotes = self._extract_quotes_from_evidence(evidence_list)
+            
+            # Create QuestionAnswer dict (using standardized D{N}-Q{N} format)
+            question_answer = {
+                "question_id": question_unique_id,  # Standardized D{N}-Q{N} format
+                "dimension": dimension,
+                "raw_score": score,
+                "rubric_weight": weight,  # From RUBRIC_SCORING.json['weights']
+                "confidence": confidence,
+                "evidence_ids": evidence_ids,
+                "evidence_count": len(evidence_ids),
+                "rationale": reasoning,
+                "supporting_quotes": quotes,
+                "caveats": caveats,
+                "scoring_modality": self._get_scoring_modality(question_unique_id)
+            }
+            
+            question_answers.append(question_answer)
+        
+        # Generate global summary
+        total_weight = sum(qa["rubric_weight"] for qa in question_answers)
+        weighted_score = sum(
+            qa["raw_score"] * qa["rubric_weight"] 
+            for qa in question_answers
+        )
+        
+        global_summary = {
+            "answered_questions": len(question_answers),
+            "total_questions": 300,
+            "total_weight": total_weight,
+            "weighted_score": weighted_score,
+            "average_confidence": (
+                sum(qa["confidence"] for qa in question_answers) / len(question_answers)
+                if question_answers else 0.0
+            )
+        }
+        
+        return {
+            "question_answers": question_answers,
+            "global_summary": global_summary
+        }
+    
+    def _get_scoring_modality(self, question_unique_id: str) -> str:
+        """Get scoring modality for a question from rubric."""
+        if isinstance(self.questions, list):
+            for q in self.questions:
+                if q.get("id") == question_unique_id:
+                    return q.get("scoring_modality", "UNKNOWN")
+        elif isinstance(self.questions, dict):
+            q = self.questions.get(question_unique_id, {})
+            return q.get("scoring_modality", "UNKNOWN")
+        return "UNKNOWN"
+    
+    def _calculate_confidence_from_evidence(self, evidence_list: List[Any], score: float) -> float:
+        """Calculate confidence from evidence list."""
+        if not evidence_list:
+            return 0.3
+        
+        avg_evidence_conf = sum(
+            e.confidence if hasattr(e, "confidence") else 0.5 
+            for e in evidence_list
+        ) / len(evidence_list)
+        
+        evidence_factor = min(len(evidence_list) / 3.0, 1.0)
+        extremity = abs(score - 0.5) * 2
+        extremity_penalty = 0.85 if (extremity > 0.7 and len(evidence_list) < 2) else 1.0
+        confidence = avg_evidence_conf * evidence_factor * extremity_penalty
+        return round(min(confidence, 1.0), 2)
+    
+    def _extract_quotes_from_evidence(self, evidence_list: List[Any], max_quotes: int = 3) -> List[str]:
+        """Extract supporting quotes from evidence."""
+        quotes = []
+        for e in evidence_list[:max_quotes]:
+            if hasattr(e, "metadata"):
+                text = e.metadata.get("text", "")
+                if text:
+                    if len(text) > 150:
+                        text = text[:147] + "..."
+                    quotes.append(text)
+        return quotes
+    
+    def _identify_caveats_from_evidence(self, evidence_list: List[Any], score: float) -> List[str]:
+        """Identify caveats based on evidence and score."""
+        caveats = []
+        if len(evidence_list) == 0:
+            caveats.append("No supporting evidence found")
+        elif len(evidence_list) == 1:
+            caveats.append("Based on single evidence source")
+        
+        low_conf_evidence = [
+            e for e in evidence_list 
+            if hasattr(e, "confidence") and e.confidence < 0.5
+        ]
+        if low_conf_evidence:
+            caveats.append(f"{len(low_conf_evidence)} low-confidence evidence pieces")
+        
+        if score > 0.8 and len(evidence_list) < 2:
+            caveats.append("High score with limited evidence—verify manually")
+        
+        return caveats
+
+    def assemble_single(
+        self,
         question_id: str,
         dimension: str,
         relevant_evidence_ids: List[str],
         raw_score: float,
         reasoning: str = ""
     ) -> Answer:
+        """
+        Legacy single-question assembly method for backward compatibility.
+        Uses standardized D{N}-Q{N} question ID format and applies rubric weights.
+        """
         weight = self.weights.get(question_id)
         if weight is None:
             raise KeyError(f"Question {question_id} has no rubric weight (gate #5 failure)")
@@ -519,11 +681,23 @@ class AnswerAssembler:
             quotes.append(text)
         return quotes
 
-    def _generate_reasoning(self, dimension: str, evidence: List[EvidenceEntry], score: float) -> str:
+    def _generate_reasoning(self, dimension: str, evidence: Union[List[EvidenceEntry], List[Any]], score: float) -> str:
+        """Generate reasoning text from evidence (handles both EvidenceEntry and evidence_list)."""
         if not evidence:
             return f"No evidence found for {dimension}. Score reflects absence of required information."
-        evidence_types = sorted(set(e.stage for e in evidence))
-        evidence_summary = ", ".join(evidence_types[:3])
+        
+        # Handle both EvidenceEntry objects and generic evidence objects
+        evidence_types = []
+        for e in evidence:
+            if hasattr(e, 'stage'):
+                evidence_types.append(e.stage)
+            elif hasattr(e, 'metadata') and isinstance(e.metadata, dict):
+                stage = e.metadata.get('stage', 'unknown')
+                evidence_types.append(stage)
+        
+        evidence_types = sorted(set(evidence_types))
+        evidence_summary = ", ".join(evidence_types[:3]) if evidence_types else "mixed sources"
+        
         if score > 0.7:
             return f"Strong evidence from {evidence_summary} supports high compliance in {dimension}. Multiple sources confirm alignment with requirements."
         elif score > 0.4:
@@ -876,9 +1050,10 @@ class CanonicalDeterministicOrchestrator:
             evidence_registry=self.evidence_registry,
             rubric_path=rubric_path
         )
-        self.external_answer_assembler = ExternalAnswerAssembler(
-            rubric_path=str(rubric_path),
-            decalogo_path=str(decalogo_path)
+        # Internal AnswerAssembler (defined in this module) instead of external
+        self.external_answer_assembler = AnswerAssembler(
+            rubric_path=rubric_path,
+            evidence_registry=self.evidence_registry
         )
         self.logger.info("Evaluators initialized (questionnaire + assembler)")
 
@@ -1040,18 +1215,65 @@ class CanonicalDeterministicOrchestrator:
         self.logger.info("  Assembling final answers report using AnswerAssembler...")
         questionnaire_eval = evaluation_inputs.get('questionnaire_eval', {})
         
-        # Load rubric to get weights section
+        # Load rubric to get weights section from RUBRIC_SCORING.json
         rubric_path = self.config_dir / "RUBRIC_SCORING.json"
         with open(rubric_path, 'r', encoding='utf-8') as f:
             rubric = json.load(f)
         weights = rubric.get("weights", {})
         
+        self.logger.info(f"  Loaded {len(weights)} rubric weights from RUBRIC_SCORING.json['weights']")
+        
+        # Helper function to standardize question IDs to D{N}-Q{N} format
+        def standardize_question_id(raw_id: str) -> str:
+            """
+            Ensures question IDs follow the standardized D{N}-Q{N} format
+            that aligns with RUBRIC_SCORING.json weights.
+            
+            Examples:
+                "D1-Q1-P1" -> "D1-Q1"
+                "D2-Q5" -> "D2-Q5"
+                "Q1-D1" -> "D1-Q1"
+                "dimension_1_question_1" -> "D1-Q1"
+            """
+            if not raw_id:
+                return raw_id
+            
+            # Already in correct format D{N}-Q{N}
+            if re.match(r'^D\d+-Q\d+$', raw_id):
+                return raw_id
+            
+            # Extract dimension and question numbers
+            dim_match = re.search(r'D(\d+)', raw_id, re.IGNORECASE)
+            q_match = re.search(r'Q(\d+)', raw_id, re.IGNORECASE)
+            
+            if dim_match and q_match:
+                dim_num = dim_match.group(1)
+                q_num = q_match.group(1)
+                standardized = f"D{dim_num}-Q{q_num}"
+                if raw_id != standardized:
+                    self.logger.debug(f"  Standardized question ID: {raw_id} -> {standardized}")
+                return standardized
+            
+            # Fallback: return original if pattern not recognized
+            return raw_id
+        
         # Convert questionnaire_eval to the format expected by ExternalAnswerAssembler.assemble()
+        # Ensure all question IDs use standardized D{N}-Q{N} format
         question_scores = []
         if "question_results" in questionnaire_eval:
             for result in questionnaire_eval["question_results"]:
+                raw_id = result.get("question_id", "")
+                standardized_id = standardize_question_id(raw_id)
+                
+                # Validate that standardized ID exists in rubric weights
+                if standardized_id not in weights:
+                    self.logger.warning(
+                        f"  Question ID '{standardized_id}' (from '{raw_id}') not found in "
+                        f"RUBRIC_SCORING.json weights. Available weights: {sorted(weights.keys())[:10]}..."
+                    )
+                
                 question_scores.append({
-                    "question_unique_id": result.get("question_id", ""),
+                    "question_unique_id": standardized_id,
                     "score": result.get("score", 0.0)
                 })
         
@@ -1059,15 +1281,26 @@ class CanonicalDeterministicOrchestrator:
             "question_scores": question_scores
         }
         
+        self.logger.info(
+            f"  Standardized {len(question_scores)} question IDs to D{{N}}-Q{{N}} format "
+            f"for rubric weight alignment"
+        )
+        
         # Create adapter for evidence registry to match external assembler interface
+        # Adapter uses standardized question_unique_id for lookups
         class RegistryAdapter:
-            def __init__(self, registry: EvidenceRegistry):
+            def __init__(self, registry: EvidenceRegistry, standardizer: Callable[[str], str]):
                 self.registry = registry
+                self.standardizer = standardizer
             
             def get_evidence_for_question(self, question_unique_id: str):
+                # Ensure question_unique_id is standardized
+                standardized_id = self.standardizer(question_unique_id)
                 matching = []
                 for entry in self.registry._evidence.values():
-                    if entry.metadata.get("question_unique_id") == question_unique_id:
+                    # Standardize stored question_unique_id for comparison
+                    stored_id = entry.metadata.get("question_unique_id", "")
+                    if self.standardizer(stored_id) == standardized_id:
                         from collections import namedtuple
                         MockEvidence = namedtuple('MockEvidence', ['confidence', 'metadata'])
                         matching.append(MockEvidence(
@@ -1076,30 +1309,50 @@ class CanonicalDeterministicOrchestrator:
                         ))
                 return matching
 
-        registry_adapter = RegistryAdapter(self.evidence_registry)
+        registry_adapter = RegistryAdapter(self.evidence_registry, standardize_question_id)
         
         # Call ExternalAnswerAssembler.assemble() with populated EvidenceRegistry and RUBRIC_SCORING.json weights section
-        self.logger.info(f"  Passing populated EvidenceRegistry ({len(self.evidence_registry._evidence)} entries) and {len(weights)} weights to AnswerAssembler")
+        self.logger.info(
+            f"  Invoking ExternalAnswerAssembler.assemble() with:"
+            f"\n    - EvidenceRegistry: {len(self.evidence_registry._evidence)} entries"
+            f"\n    - Rubric weights: {len(weights)} from RUBRIC_SCORING.json['weights']"
+            f"\n    - Question IDs: Standardized D{{N}}-Q{{N}} format"
+        )
         final_report = self.external_answer_assembler.assemble(
             evidence_registry=registry_adapter,
             evaluation_results=evaluation_results
         )
 
         # Register each assembled answer back into EvidenceRegistry with provenance metadata
+        # Ensure all question_unique_id fields use standardized D{N}-Q{N} format
         self.logger.info("  Registering assembled answers back into EvidenceRegistry with provenance metadata...")
         for qa in final_report.get("question_answers", []):
+            # Standardize the question ID from the assembled answer
+            raw_qa_id = qa.get('question_id', '')
+            standardized_qa_id = standardize_question_id(raw_qa_id)
+            
             # Extract evidence_ids from the question answer
             evidence_ids = qa.get('evidence_ids', [])
             
+            # Retrieve rubric weight using standardized ID
+            rubric_weight = weights.get(standardized_qa_id, 0.0)
+            
+            if rubric_weight == 0.0 and standardized_qa_id:
+                self.logger.warning(
+                    f"  No rubric weight found for question '{standardized_qa_id}' "
+                    f"(original: '{raw_qa_id}') in RUBRIC_SCORING.json['weights']"
+                )
+            
             # Create metadata linking to source evidence_ids
+            # All question_unique_id fields use standardized D{N}-Q{N} format
             answer_metadata = {
-                "question_id": qa['question_id'],
+                "question_id": standardized_qa_id,  # Standardized format
                 "dimension": qa.get('dimension', ''),
                 "score": qa.get('raw_score', 0.0),
                 "evidence_count": qa.get('evidence_count', 0),
-                "question_unique_id": qa['question_id'],
+                "question_unique_id": standardized_qa_id,  # Standardized format
                 "source_evidence_ids": evidence_ids,
-                "rubric_weight": weights.get(qa['question_id'], 0.0),
+                "rubric_weight": rubric_weight,  # Applied from RUBRIC_SCORING.json['weights']
                 "confidence": qa.get('confidence', 0.0),
                 "rationale": qa.get('rationale', ''),
                 "scoring_modality": qa.get('scoring_modality', 'UNKNOWN'),
@@ -1109,12 +1362,14 @@ class CanonicalDeterministicOrchestrator:
                     "stage": PipelineStage.ANSWER_ASSEMBLY.value,
                     "linked_evidence_ids": evidence_ids,
                     "question_engine_score": qa.get('raw_score', 0.0),
-                    "final_confidence": qa.get('confidence', 0.0)
+                    "final_confidence": qa.get('confidence', 0.0),
+                    "original_question_id": raw_qa_id,  # Preserve original for traceability
+                    "standardized_question_id": standardized_qa_id
                 }
             }
             
             answer_entry = EvidenceEntry(
-                evidence_id=f"answer_{qa['question_id']}",
+                evidence_id=f"answer_{standardized_qa_id}",  # Use standardized ID
                 stage=PipelineStage.ANSWER_ASSEMBLY.value,
                 content=qa,
                 source_segment_ids=evidence_ids,
@@ -1130,7 +1385,10 @@ class CanonicalDeterministicOrchestrator:
         else:
             self.logger.info(f"✓ GATE #4 PASSED: Coverage is {total_questions}/300 questions.")
         
-        self.logger.info(f"  Final answers report assembled with {assembled_count} answers, all registered with provenance.")
+        self.logger.info(
+            f"  Final answers report assembled with {assembled_count} answers, "
+            f"all using standardized D{{N}}-Q{{N}} question IDs and rubric weights from RUBRIC_SCORING.json"
+        )
         return final_report
 
     # ------------------------ Main Processing ------------------------
