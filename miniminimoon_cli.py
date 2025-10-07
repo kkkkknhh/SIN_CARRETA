@@ -138,34 +138,27 @@ def _run_tool(pyfile_rel: str, repo: str, tool_args: list = None) -> Dict[str, A
 
 
 def cmd_rubric_check(args: argparse.Namespace) -> int:
-    repo = str(pathlib.Path(args.repo).resolve())
     answers_path = str(pathlib.Path(args.answers_report).resolve())
     rubric_path = str(pathlib.Path(args.rubric_scoring).resolve())
     
-    res = _run_tool("tools/rubric_check.py", repo, [answers_path, rubric_path])
+    tool_path = pathlib.Path(__file__).parent / "tools" / "rubric_check.py"
+    if not tool_path.exists():
+        print(f"Error: rubric_check.py not found at {tool_path}", file=sys.stderr)
+        return 1
     
-    # Build output payload with parsed diff data if available
-    payload = {
-        "action": "rubric-check",
-        "repo": repo,
-        "answers_report": answers_path,
-        "rubric_scoring": rubric_path,
-        "ok": res.get("ok", False),
-        "returncode": res.get("returncode", 1)
-    }
-    
-    # Include parsed diff output if available
-    if res.get("parsed"):
-        payload["diff"] = res["parsed"]
-    
-    # Include stderr if present (for error messages)
-    if res.get("stderr"):
-        payload["stderr"] = res["stderr"]
-    
-    _print_json(payload)
-    
-    # Propagate exit codes: 0 (success), 1 (runtime error), 2 (file error), 3 (mismatch)
-    return res.get("returncode", 1)
+    try:
+        cmd = [sys.executable, str(tool_path), answers_path, rubric_path]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if proc.stdout:
+            print(proc.stdout, end='')
+        if proc.stderr:
+            print(proc.stderr, end='', file=sys.stderr)
+        
+        return proc.returncode
+    except Exception as e:
+        print(f"Error executing rubric-check: {e}", file=sys.stderr)
+        return 1
 
 
 def cmd_trace_matrix(args: argparse.Namespace) -> int:
