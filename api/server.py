@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import time
 import uuid
 from datetime import datetime, timedelta
@@ -28,6 +29,16 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, validator
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from batch_optimizer import (
+    DocumentScheduler,
+    DocumentPreValidator,
+    ResourceMonitor,
+    CircuitBreakerWrapper,
+    ResultStreamer,
+    ValidationError as BatchValidationError
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -52,6 +63,19 @@ TASK_QUEUE_NAME = "pdm_evaluation_queue"
 
 STAGING_DIR.mkdir(parents=True, exist_ok=True)
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+document_scheduler = DocumentScheduler()
+document_validator = DocumentPreValidator(max_size_mb=MAX_FILE_SIZE_MB)
+resource_monitor = ResourceMonitor()
+circuit_breaker_wrapper = CircuitBreakerWrapper()
+result_streamer = ResultStreamer(redis_host=REDIS_HOST, redis_port=REDIS_PORT, redis_db=REDIS_DB)
+
+resource_monitor.start_monitoring(interval=10.0)
+
+circuit_breaker_wrapper.register_stage("sanitization")
+circuit_breaker_wrapper.register_stage("segmentation")
+circuit_breaker_wrapper.register_stage("embedding")
+circuit_breaker_wrapper.register_stage("evaluation")
 
 
 def get_redis_client() -> redis.Redis:
@@ -380,10 +404,32 @@ async def upload_documents(
             with open(file_path, "wb") as f:
                 f.write(file_content)
             
+            valid, validation_error = document_validator.validate(str(file_path))
+            if not valid:
+                file_path.unlink()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"File {file.filename} failed validation: {validation_error.message}",
+                )
+            
             stored_filenames.append(deterministic_filename)
             logger.info(f"Stored file {file.filename} as {deterministic_filename}")
         
         redis_client = get_redis_client()
+        
+        document_paths = [str(job_dir / fname) for fname in stored_filenames]
+        batches = document_scheduler.group_by_complexity(document_paths, batch_size=10)
+        
+        batch_schedule = []
+        for batch in batches:
+            batch_schedule.append({
+                "complexity": batch.complexity.value,
+                "document_count": len(batch.documents),
+                "estimated_time": batch.estimated_time,
+                "priority": batch.priority
+            })
+        
+        current_concurrency = resource_monitor.adapt_concurrency()
         
         store_job_metadata(
             redis_client=redis_client,
@@ -394,7 +440,15 @@ async def upload_documents(
             config=config,
         )
         
+        job_key = f"job:{job_id}"
+        job_data = json.loads(redis_client.get(job_key))
+        job_data["batch_schedule"] = batch_schedule
+        job_data["concurrency"] = current_concurrency
+        redis_client.setex(job_key, JOB_TTL_SECONDS, json.dumps(job_data))
+        
         enqueue_job(redis_client, job_id)
+        
+        logger.info(f"Job {job_id} scheduled with {len(batches)} batches, concurrency={current_concurrency}")
         
         submission_time = datetime.utcnow()
         estimated_completion = submission_time + timedelta(minutes=len(files) * 2)
@@ -551,6 +605,24 @@ async def get_job_results(job_id: str, format: str = "json") -> FileResponse:
         media_type=media_type,
         filename=filename,
     )
+
+
+@app.get("/circuit-breakers")
+async def get_circuit_breaker_status() -> Dict[str, Any]:
+    """
+    Get circuit breaker health status for all pipeline stages.
+    
+    Returns:
+        Circuit breaker status for each stage
+    """
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "stages": circuit_breaker_wrapper.get_all_stage_health(),
+        "resource_metrics": {
+            "current_concurrency": resource_monitor.current_concurrency,
+            "metrics": resource_monitor.get_current_metrics().__dict__ if resource_monitor.metrics_history else {}
+        }
+    }
 
 
 @app.get("/health", response_model=HealthResponse)
