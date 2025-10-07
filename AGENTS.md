@@ -30,6 +30,8 @@ python3 -m py_compile decalogo_loader.py
 python3 -m py_compile spacy_loader.py
 # Deployment infrastructure components
 python3 -m py_compile canary_deployment.py opentelemetry_instrumentation.py slo_monitoring.py
+# Determinism verifier components
+python3 -m py_compile determinism_verifier.py
 ```
 
 ### Lint
@@ -50,6 +52,8 @@ python3 -m py_compile spacy_loader.py test_spacy_loader.py
 # Deployment infrastructure components
 python3 -m py_compile canary_deployment.py opentelemetry_instrumentation.py slo_monitoring.py
 python3 -m py_compile test_canary_deployment.py test_opentelemetry_instrumentation.py test_slo_monitoring.py
+# Determinism verifier components
+python3 -m py_compile determinism_verifier.py test_determinism_verifier.py test_determinism_verifier_integration.py
 ```
 
 ### Test
@@ -67,6 +71,8 @@ python3 -m pytest test_spacy_loader.py -v
 python3 -m pytest test_canary_deployment.py -v
 python3 -m pytest test_opentelemetry_instrumentation.py -v
 python3 -m pytest test_slo_monitoring.py -v
+# Determinism verifier tests
+python3 test_determinism_verifier_integration.py
 # Additional tests if available
 python3 test_unicode_normalization.py 2>/dev/null || echo "Text processing tests not available"
 python3 test_dag_validation.py 2>/dev/null || echo "DAG validation tests not available"
@@ -87,6 +93,10 @@ python3 spacy_loader.py
 # Deployment infrastructure demos
 python3 deployment_example.py
 python3 test_deployment_integration.py
+# Determinism verifier demo
+# NOTE: Requires an actual PDF input file - replace with your test PDF
+# python3 determinism_verifier.py test_fixtures/sample_plan.pdf
+echo "Determinism verifier requires PDF input: python3 determinism_verifier.py <input_pdf>"
 # Additional demos if available
 python3 demo_unicode_comparison.py 2>/dev/null || echo "Text processing demo not available"
 python3 dag_validation.py 2>/dev/null || echo "DAG validation demo not available"
@@ -206,6 +216,22 @@ test_slo_monitoring.py         # Comprehensive test suite for SLO monitoring
 # Integration Components
 test_deployment_integration.py # Integration test for canary + tracing + monitoring
 deployment_example.py          # Example deployment with monitoring
+
+# Determinism Verifier Components
+determinism_verifier.py        # Standalone utility for reproducibility verification
+├── DeterminismVerifier        # Main verifier class with dual-run orchestration
+├── ArtifactComparison         # Comparison result for single artifact
+├── DeterminismReport          # Complete verification report
+├── JSON normalization         # Sorted key normalization with non-deterministic field removal
+├── SHA-256 hashing            # Artifact and evidence state hashing
+├── Byte-level comparison      # Precise artifact matching
+├── Line-level diffs           # Human-readable discrepancy reports
+├── Exit codes                 # 0=perfect, 4=violations, 1=errors
+└── Forensic preservation      # Both run outputs saved for analysis
+
+test_determinism_verifier.py   # Comprehensive test suite for verifier
+test_determinism_verifier_integration.py # Integration tests with mock orchestrator
+example_determinism_check.sh   # Example shell script for CI/CD integration
 ```
 
 ## Code Style
