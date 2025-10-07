@@ -30,6 +30,129 @@ from typing import Any, Dict, List, Optional, Tuple
 
 class TestE2EUnifiedPipeline(unittest.TestCase):
     """End-to-end integration tests for unified evaluation pipeline"""
+    
+    def test_pre_execution_validation(self):
+        """Test system validators pre-execution gates"""
+        if self.system_validator is None:
+            self.skipTest("system_validators not available")
+        
+        result = self.system_validator.validate_pre_execution()
+        
+        self.assertTrue(result.get("ok"), 
+                        f"Pre-execution validation failed: {result.get('errors')}")
+        
+        # Check specific gates
+        checks = result.get("checks", {})
+        self.assertTrue(checks.get("immutability_ok"), 
+                        "Frozen config validation failed")
+        self.assertTrue(checks.get("rubric_present"), 
+                        "RUBRIC_SCORING.json not found")
+        self.assertTrue(checks.get("flow_doc_present"), 
+                        "tools/flow_doc.json not found")
+    
+    def test_rubric_scoring_validation(self):
+        """Test RUBRIC_SCORING.json exists and has required structure"""
+        self.assertTrue(self.rubric_path.exists(), 
+                        "RUBRIC_SCORING.json not found")
+        
+        with open(self.rubric_path) as f:
+            rubric = json.load(f)
+        
+        # Verify required keys
+        self.assertIn("questions", rubric)
+        self.assertIn("weights", rubric)
+        self.assertIn("metadata", rubric)
+        
+        # Verify 300 questions
+        questions = rubric["questions"]
+        weights = rubric["weights"]
+        
+        self.assertEqual(len(questions), 300, 
+                         f"Expected 300 questions, got {len(questions)}")
+        self.assertEqual(len(weights), 300, 
+                         f"Expected 300 weights, got {len(weights)}")
+        
+        # Verify 1:1 alignment
+        question_ids = {q["id"] for q in questions}
+        weight_ids = set(weights.keys())
+        
+        self.assertEqual(question_ids, weight_ids,
+                         "Question IDs and weight keys don't match 1:1")
+    
+    def test_answer_assembler_integration(self):
+        """Test AnswerAssembler produces correct output structure"""
+        answers_path = self.artifacts_dir / "answers_report.json"
+        
+        if not answers_path.exists():
+            self.skipTest("answers_report.json not found - run full pipeline first")
+        
+        with open(answers_path) as f:
+            report = json.load(f)
+        
+        # Verify structure
+        self.assertIn("answers", report)
+        self.assertIn("summary", report)
+        self.assertIn("metadata", report)
+        
+        # Check answers have required fields from AnswerAssembler
+        answers = report["answers"]
+        if len(answers) > 0:
+            first_answer = answers[0]
+            required_fields = ["question_id", "evidence_ids", "confidence", 
+                               "reasoning", "score"]
+            for field in required_fields:
+                self.assertIn(field, first_answer,
+                              f"AnswerAssembler output missing field: {field}")
+    
+    def test_deterministic_hash_reproducibility(self):
+        """Test that deterministic hashes are reproducible across 3 runs"""
+        if len(self.run_results) < 3:
+            self.skipTest("Insufficient runs for reproducibility test")
+        
+        # Extract hashes from all runs
+        hashes = []
+        for i, result in enumerate(self.run_results[:3]):
+            hash_val = result.get("deterministic_hash")
+            self.assertIsNotNone(hash_val, 
+                                 f"Run {i} missing deterministic_hash")
+            hashes.append(hash_val)
+        
+        # All hashes must be identical
+        self.assertEqual(len(set(hashes)), 1, 
+                         f"Non-deterministic hashes across runs: {hashes}")
+    
+    def test_evidence_id_consistency(self):
+        """Test that evidence_ids are consistent across multiple runs"""
+        if len(self.run_results) < 2:
+            self.skipTest("Insufficient runs for evidence_id consistency test")
+        
+        # Extract evidence_ids from first two runs
+        ids1 = set(self.run_results[0].get("evidence_ids", []))
+        ids2 = set(self.run_results[1].get("evidence_ids", []))
+        
+        self.assertEqual(ids1, ids2,
+                         "evidence_ids not consistent across runs")
+    
+    def test_post_execution_validation(self):
+        """Test system validators post-execution gates"""
+        if self.system_validator is None:
+            self.skipTest("system_validators not available")
+        
+        result = self.system_validator.validate_post_execution(
+            artifacts_dir="artifacts",
+            check_rubric_strict=True
+        )
+        
+        self.assertTrue(result.get("ok"), 
+                        f"Post-execution validation failed: {result.get('errors')}")
+        
+        # Check specific gates
+        self.assertTrue(result.get("ok_rubric_1to1"), 
+                        "Rubric 1:1 alignment failed")
+        self.assertTrue(result.get("ok_order"), 
+                        "Flow order validation failed")
+        self.assertTrue(result.get("ok_coverage"), 
+                        "Coverage validation failed")
 
     @classmethod
     def setUpClass(cls):
@@ -43,6 +166,13 @@ class TestE2EUnifiedPipeline(unittest.TestCase):
         
         # Store results from multiple runs for reproducibility testing
         cls.run_results: List[Dict[str, Any]] = []
+        
+        # Import system validators for pre/post execution checks
+        try:
+            from system_validators import SystemHealthValidator
+            cls.system_validator = SystemHealthValidator(str(cls.repo_root))
+        except ImportError:
+            cls.system_validator = None
         
         # Ensure tools directory exists for rubric_check.py
         cls.tools_dir = cls.repo_root / "tools"
