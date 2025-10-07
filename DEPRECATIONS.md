@@ -67,7 +67,7 @@ raise RuntimeError(
 Todos los sistemas de CI/CD deben verificar:
 
 1. **Gate #1:** `verify_frozen_config() == True` antes de ejecución
-2. **Gate #2:** `flow_runtime.json` idéntico a `flow_doc.json` + contratos OK
+2. **Gate #2:** `flow_runtime.json` idéntico a `tools/flow_doc.json` + contratos OK
 3. **Gate #3:** `evidence_hash` estable con mismo input
 4. **Gate #4:** Cobertura `answers_report.summary.total_questions ≥ 300`
 5. **Gate #5:** `rubric_check.py` sin missing/extra
@@ -92,7 +92,7 @@ from miniminimoon_orchestrator import CanonicalDeterministicOrchestrator
 orchestrator = CanonicalDeterministicOrchestrator(
     config_dir=".",
     enable_validation=True,
-    flow_doc_path="flow_doc.json"
+    flow_doc_path="tools/flow_doc.json"
 )
 results = orchestrator.process_plan_deterministic(plan_path)
 ```
@@ -115,7 +115,7 @@ results = orchestrator.process_plan_deterministic(plan_path)
 - **Flujos críticos:** Ver `FLUJOS_CRITICOS_GARANTIZADOS.md`
 - **Arquitectura:** Ver `ARCHITECTURE.md`
 - **Deployment:** Ver `DEPLOYMENT_INFRASTRUCTURE.md`
-- **Orden canónico:** Ver `flow_doc.json`
+- **Orden canónico:** Ver `tools/flow_doc.json`
 - **Verificación:** Ejecutar `rubric_check.py` y `verify_critical_flows.py`
 
 ---

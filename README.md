@@ -29,7 +29,7 @@ from miniminimoon_orchestrator import CanonicalDeterministicOrchestrator
 orchestrator = CanonicalDeterministicOrchestrator(
     config_dir=".",
     enable_validation=True,
-    flow_doc_path="flow_doc.json"
+    flow_doc_path="tools/flow_doc.json"
 )
 
 results = orchestrator.process_plan_deterministic(plan_path)
@@ -134,7 +134,7 @@ python miniminimoon_cli.py freeze
 - **Bloqueo:** Pipeline no ejecuta sin snapshot válido
 
 ### Gate #2: Validación de Flujo ✅
-- Compara: `flow_runtime.json` vs `flow_doc.json`
+- Compara: `flow_runtime.json` vs `tools/flow_doc.json`
 - Verifica: Orden canónico + contratos I/O
 - **Bloqueo:** Falla si orden o contratos divergen
 
@@ -208,7 +208,7 @@ questionnaire_engine.py            # Motor de 300 preguntas
 miniminimoon_cli.py                # CLI: freeze, evaluate, verify
 rubric_check.py                    # Verificación 1:1 preguntas↔rúbrica
 trace_matrix.py                    # Matriz módulo→pregunta→evidencia
-flow_doc.json                      # Orden canónico documentado
+tools/flow_doc.json                # Orden canónico documentado
 determinism_guard.py               # Fijación de seeds deterministas
 ```
 
@@ -260,7 +260,7 @@ from miniminimoon_orchestrator import CanonicalDeterministicOrchestrator
 orchestrator = CanonicalDeterministicOrchestrator(
     config_dir=".",
     enable_validation=True,
-    flow_doc_path="flow_doc.json",
+    flow_doc_path="tools/flow_doc.json",
     log_level="INFO"
 )
 
@@ -734,7 +734,7 @@ python miniminimoon_cli.py freeze
 
 **Causa:** Modificación del orden de ejecución en el orquestador
 
-**Solución:** Revisar que el orden en `miniminimoon_orchestrator.py` coincida con `flow_doc.json`
+**Solución:** Revisar que el orden en `miniminimoon_orchestrator.py` coincida con `tools/flow_doc.json`
 
 ### Error: "Rubric validation FAILED"
 
@@ -770,7 +770,7 @@ python rubric_check.py  # Ver missing/extra
 
 ### Reglas para PRs
 
-1. **Nunca** modificar el orden canónico de flujos sin actualizar `flow_doc.json`
+1. **Nunca** modificar el orden canónico de flujos sin actualizar `tools/flow_doc.json`
 2. **Siempre** ejecutar `verify_critical_flows.py` antes de commit
 3. **Siempre** verificar que `rubric_check.py` pase
 4. **Nunca** importar módulos deprecados
