@@ -27,6 +27,7 @@ import pathlib
 import subprocess
 import sys
 import shutil
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Tuple, Optional
 from datetime import datetime
@@ -110,9 +111,58 @@ class SystemHealthValidator:
                 self.contracts = {}
                 self.order = []
 
+    def validate_question_id_format(self) -> None:
+        rubric_path = self.repo / "rubric_scoring.json"
+        
+        if not rubric_path.exists():
+            raise ValidationError("RUBRIC_SCORING.json missing - cannot validate question ID format")
+        
+        try:
+            rubric_data = json.loads(rubric_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            raise ValidationError(f"Failed to parse rubric_scoring.json: {e}")
+        
+        weights = rubric_data.get("weights", {})
+        if not weights:
+            raise ValidationError("rubric_scoring.json 'weights' section is empty or missing")
+        
+        question_id_pattern = re.compile(r"^D[1-6]-Q([1-9]|[1-9][0-9]|[1-2][0-9][0-9]|300)$")
+        
+        malformed_ids: List[str] = []
+        for question_id in weights.keys():
+            if not question_id_pattern.match(question_id):
+                malformed_ids.append(question_id)
+        
+        total_count = len(weights)
+        
+        error_messages: List[str] = []
+        if malformed_ids:
+            error_messages.append(
+                f"Found {len(malformed_ids)} malformed question ID(s) in rubric_scoring.json weights section. "
+                f"Expected format: D[1-6]-Q[1-300]. Malformed IDs: {malformed_ids[:10]}" +
+                (f" (showing first 10 of {len(malformed_ids)})" if len(malformed_ids) > 10 else "")
+            )
+        
+        if total_count != 300:
+            error_messages.append(
+                f"Question count mismatch in rubric_scoring.json: found {total_count} questions, expected exactly 300"
+            )
+        
+        if error_messages:
+            raise ValidationError(
+                "Rubric structure validation failed:\n" +
+                "\n".join(f"  - {msg}" for msg in error_messages)
+            )
+
     # ---------- PRE ----------
     def validate_pre_execution(self) -> Dict[str, Any]:
         errors: List[str] = []
+
+        # 0) Validate question ID format in RUBRIC_SCORING.json
+        try:
+            self.validate_question_id_format()
+        except ValidationError as e:
+            errors.append(str(e))
 
         # 1) Freeze/inmutabilidad
         if EnhancedImmutabilityContract is None:
@@ -129,9 +179,9 @@ class SystemHealthValidator:
                 errors.append(f"immutability check failed: {e}")
 
         # 2) Rúbrica presente
-        rubric_path = self.repo / "RUBRIC_SCORING.json"
+        rubric_path = self.repo / "rubric_scoring.json"
         if not rubric_path.exists():
-            errors.append("RUBRIC_SCORING.json missing")
+            errors.append("rubric_scoring.json missing")
 
         # 3) Doc de flujo canónico presente
         flow_doc_path = self.repo / "tools" / "flow_doc.json"

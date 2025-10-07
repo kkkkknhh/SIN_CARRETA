@@ -9,6 +9,7 @@ Tests pre/post execution validation including batch validation functions.
 import json
 import pytest
 import tempfile
+import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
@@ -29,15 +30,15 @@ class TestSystemHealthValidator:
         """Create temporary repository structure"""
         temp_dir = Path(tempfile.mkdtemp(prefix="validator_test_"))
         
-        # Create required files
-        (temp_dir / "RUBRIC_SCORING.json").write_text('{"weights": {}}')
+        # Create required files with valid 300-question structure
+        weights = {f"D{d}-Q{q}": 0.0033333333 for d in range(1, 7) for q in range(1, 51)}
+        (temp_dir / "rubric_scoring.json").write_text(json.dumps({"weights": weights}))
         (temp_dir / "tools").mkdir(exist_ok=True)
         (temp_dir / "tools" / "flow_doc.json").write_text('{"canonical_order": ["node1", "node2"]}')
         
         yield temp_dir
         
         # Cleanup
-        import shutil
         shutil.rmtree(temp_dir, ignore_errors=True)
     
     def test_pre_execution_validation_success(self, temp_repo):
@@ -59,10 +60,97 @@ class TestSystemHealthValidator:
         result = validator.validate_pre_execution()
         
         assert result["ok"] is False
-        assert any("RUBRIC_SCORING.json" in err for err in result["errors"])
+        assert any("rubric_scoring.json" in err for err in result["errors"])
         
-        import shutil
         shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def test_validate_question_id_format_valid(self, temp_repo):
+        """Test question ID format validation with valid rubric"""
+        validator = SystemHealthValidator(str(temp_repo))
+        validator.validate_question_id_format()
+    
+    def test_validate_question_id_format_malformed_ids(self):
+        """Test detection of malformed question IDs"""
+        temp_dir = Path(tempfile.mkdtemp(prefix="validator_test_"))
+        
+        weights = {
+            "D1-Q1": 0.0033,
+            "D7-Q1": 0.0033,
+            "D1-Q301": 0.0033,
+            "D1-Q0": 0.0033,
+            "invalid-id": 0.0033
+        }
+        (temp_dir / "rubric_scoring.json").write_text(json.dumps({"weights": weights}))
+        
+        validator = SystemHealthValidator(str(temp_dir))
+        
+        with pytest.raises(ValidationError) as exc_info:
+            validator.validate_question_id_format()
+        
+        error_msg = str(exc_info.value)
+        assert "malformed question ID" in error_msg.lower()
+        assert "D7-Q1" in error_msg or "4 malformed" in error_msg
+        
+        shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def test_validate_question_id_format_count_mismatch(self):
+        """Test detection of question count mismatch"""
+        temp_dir = Path(tempfile.mkdtemp(prefix="validator_test_"))
+        
+        weights = {f"D{d}-Q{q}": 0.005 for d in range(1, 7) for q in range(1, 31)}
+        (temp_dir / "rubric_scoring.json").write_text(json.dumps({"weights": weights}))
+        
+        validator = SystemHealthValidator(str(temp_dir))
+        
+        with pytest.raises(ValidationError) as exc_info:
+            validator.validate_question_id_format()
+        
+        error_msg = str(exc_info.value)
+        assert "count mismatch" in error_msg.lower()
+        assert "180" in error_msg
+        assert "300" in error_msg
+        
+        shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def test_validate_question_id_format_missing_rubric(self):
+        """Test validation with missing rubric file"""
+        temp_dir = Path(tempfile.mkdtemp(prefix="validator_test_"))
+        
+        validator = SystemHealthValidator(str(temp_dir))
+        
+        with pytest.raises(ValidationError) as exc_info:
+            validator.validate_question_id_format()
+        
+        assert "RUBRIC_SCORING.json missing" in str(exc_info.value)
+        
+        shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def test_validate_question_id_format_empty_weights(self):
+        """Test validation with empty weights section"""
+        temp_dir = Path(tempfile.mkdtemp(prefix="validator_test_"))
+        
+        (temp_dir / "rubric_scoring.json").write_text(json.dumps({"weights": {}}))
+        
+        validator = SystemHealthValidator(str(temp_dir))
+        
+        with pytest.raises(ValidationError) as exc_info:
+            validator.validate_question_id_format()
+        
+        assert "weights" in str(exc_info.value).lower()
+        assert "empty" in str(exc_info.value).lower()
+        
+        shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def test_pre_execution_validates_question_ids(self, temp_repo):
+        """Test that pre-execution includes question ID validation"""
+        weights = {"D1-Q1": 0.005, "invalid-id": 0.005}
+        (temp_repo / "rubric_scoring.json").write_text(json.dumps({"weights": weights}))
+        
+        validator = SystemHealthValidator(str(temp_repo))
+        result = validator.validate_pre_execution()
+        
+        assert result["ok"] is False
+        assert any("malformed" in err.lower() for err in result["errors"])
     
     def test_post_execution_validation_success(self, temp_repo):
         """Test post-execution validation with valid artifacts"""
