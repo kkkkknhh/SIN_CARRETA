@@ -1,279 +1,508 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Tests for batch_processor module."""
+"""
+Tests for Batch Job Manager with Redis and Celery
+=================================================
+
+Tests:
+- BatchJobManager initialization with/without Redis
+- Job lifecycle state transitions (queued → processing → completed/failed)
+- Redis connection pooling and graceful degradation
+- File system artifact storage
+- Job creation, status queries, result retrieval
+- Celery task execution (mocked)
+- Compatibility with unified_evaluation_pipeline interface
+"""
 
 import json
 import os
-import queue
 import tempfile
-import threading
 import time
-import unittest
+import uuid
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest import mock
+
+import pytest
 
 from batch_processor import (
-    BatchMetrics,
-    BatchProcessor,
-    BatchWorker,
+    BatchJobManager,
+    JobState,
+    _process_pdm_document_impl,
+    REDIS_AVAILABLE,
+    CELERY_AVAILABLE
 )
 
 
-class TestBatchMetrics(unittest.TestCase):
-    """Test BatchMetrics class."""
-    
-    def setUp(self):
-        self.metrics = BatchMetrics()
-    
-    def test_record_document_success(self):
-        """Test recording successful document processing."""
-        self.metrics.record_document("success", 10.5, trace_id="test-trace-1")
-        
-        self.assertEqual(self.metrics.documents_processed_total, 1)
-        self.assertEqual(self.metrics.documents_success, 1)
-        self.assertEqual(self.metrics.documents_error, 0)
-        self.assertEqual(len(self.metrics.processing_times), 1)
-        self.assertEqual(self.metrics.processing_times[0], 10.5)
-    
-    def test_record_document_error(self):
-        """Test recording failed document processing."""
-        self.metrics.record_document("error", 5.0, "TimeoutError", "test-trace-2")
-        
-        self.assertEqual(self.metrics.documents_processed_total, 1)
-        self.assertEqual(self.metrics.documents_success, 0)
-        self.assertEqual(self.metrics.documents_error, 1)
-        self.assertEqual(self.metrics.error_counts_by_category["TimeoutError"], 1)
-    
-    def test_record_stage_time(self):
-        """Test recording stage processing time."""
-        self.metrics.record_stage_time("embedding", 0.05, "trace-1")
-        self.metrics.record_stage_time("embedding", 0.06, "trace-2")
-        
-        self.assertIn("embedding", self.metrics.stage_processing_times)
-        self.assertEqual(len(self.metrics.stage_processing_times["embedding"]), 2)
-    
-    def test_record_worker_activity(self):
-        """Test recording worker utilization."""
-        self.metrics.record_worker_activity("worker-0", 50.0, 100.0)
-        
-        self.assertEqual(self.metrics.worker_busy_time["worker-0"], 50.0)
-        self.assertEqual(self.metrics.worker_total_time["worker-0"], 100.0)
-    
-    def test_get_throughput_per_hour(self):
-        """Test throughput calculation."""
-        # Simulate processing documents over time
-        self.metrics.start_time = time.time() - 3600  # 1 hour ago
-        for i in range(170):
-            self.metrics.record_document("success", 10.0, trace_id=f"trace-{i}")
-        
-        throughput = self.metrics.get_throughput_per_hour()
-        self.assertGreaterEqual(throughput, 160)  # Allow some variance
-    
-    def test_get_p95_latency(self):
-        """Test p95 latency calculation."""
-        # Add latencies from 1 to 100 seconds
-        for i in range(1, 101):
-            self.metrics.record_document("success", float(i), trace_id=f"trace-{i}")
-        
-        p95 = self.metrics.get_p95_latency()
-        self.assertAlmostEqual(p95, 95.0, delta=1.0)
-    
-    def test_get_worker_utilization(self):
-        """Test worker utilization calculation."""
-        self.metrics.record_worker_activity("worker-0", 75.0, 100.0)
-        
-        utilization = self.metrics.get_worker_utilization("worker-0")
-        self.assertEqual(utilization, 75.0)
-    
-    def test_prometheus_metrics_export(self):
-        """Test Prometheus metrics format."""
-        self.metrics.record_document("success", 15.0, trace_id="trace-1")
-        self.metrics.record_document("error", 20.0, "ValueError", "trace-2")
-        self.metrics.record_worker_activity("worker-0", 50.0, 100.0)
-        self.metrics.record_queue_depth(42)
-        
-        metrics_text = self.metrics.get_prometheus_metrics()
-        
-        # Verify format
-        self.assertIn("batch_documents_processed_total", metrics_text)
-        self.assertIn("batch_throughput_per_hour", metrics_text)
-        self.assertIn("worker_utilization_percentage", metrics_text)
-        self.assertIn("queue_depth", metrics_text)
-        self.assertIn('status="success"', metrics_text)
-        self.assertIn('status="error"', metrics_text)
-        self.assertIn('error_category="ValueError"', metrics_text)
+# ============================================================================
+# Fixtures
+# ============================================================================
+
+@pytest.fixture
+def temp_artifact_dir():
+    """Create temporary artifact directory"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield tmpdir
 
 
-class TestBatchWorker(unittest.TestCase):
-    """Test BatchWorker class."""
+@pytest.fixture
+def mock_redis():
+    """Mock Redis client"""
+    if not REDIS_AVAILABLE:
+        pytest.skip("Redis not available")
     
-    def setUp(self):
-        self.metrics = BatchMetrics()
-        self.worker = BatchWorker("test-worker", self.metrics)
-    
-    def test_worker_initialization(self):
-        """Test worker initialization."""
-        self.assertEqual(self.worker.worker_id, "test-worker")
-        self.assertFalse(self.worker.is_running)
-        self.assertEqual(self.worker.busy_time, 0.0)
-    
-    @patch("subprocess.run")
-    def test_process_document_success(self, mock_subprocess):
-        """Test successful document processing."""
-        mock_subprocess.return_value = MagicMock(
-            returncode=0,
-            stdout='{"success": true, "data": {}}',
-            stderr=""
-        )
-        
-        work_item = {
-            "document_path": "/tmp/test.txt",
-            "trace_id": "test-trace"
+    with mock.patch('batch_processor.redis.Redis') as mock_redis_class:
+        mock_client = mock.MagicMock()
+        mock_client.ping.return_value = True
+        mock_client.get.return_value = None
+        mock_client.set.return_value = True
+        mock_redis_class.return_value = mock_client
+        yield mock_client
+
+
+@pytest.fixture
+def job_manager_degraded(temp_artifact_dir):
+    """Job manager in degraded mode (no Redis)"""
+    manager = BatchJobManager(
+        redis_url="redis://invalid:9999/0",
+        artifact_storage_dir=temp_artifact_dir,
+        enable_degraded_mode=True
+    )
+    yield manager
+    manager.close()
+
+
+@pytest.fixture
+def mock_unified_pipeline():
+    """Mock UnifiedEvaluationPipeline"""
+    with mock.patch('batch_processor.UnifiedEvaluationPipeline') as mock_pipeline_class:
+        mock_pipeline = mock.MagicMock()
+        mock_pipeline.evaluate.return_value = {
+            "status": "success",
+            "metadata": {
+                "pdm_path": "/test/doc.pdf",
+                "execution_time_seconds": 10.5
+            },
+            "evidence_registry": {
+                "deterministic_hash": "abc123",
+                "statistics": {"total_evidence": 42}
+            },
+            "evaluations": {
+                "decalogo": {"score": 85.5},
+                "questionnaire": {"score": 90.0}
+            }
         }
-        
-        result = self.worker._process_document(work_item)
-        
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["trace_id"], "test-trace")
-        self.assertIn("latency", result)
+        mock_pipeline_class.return_value = mock_pipeline
+        yield mock_pipeline
+
+
+# ============================================================================
+# BatchJobManager Tests
+# ============================================================================
+
+def test_batch_job_manager_initialization_degraded(temp_artifact_dir):
+    """Test BatchJobManager initialization in degraded mode"""
+    manager = BatchJobManager(
+        redis_url="redis://invalid:9999/0",
+        artifact_storage_dir=temp_artifact_dir,
+        enable_degraded_mode=True
+    )
     
-    @patch("subprocess.run")
-    def test_process_document_error(self, mock_subprocess):
-        """Test failed document processing."""
-        mock_subprocess.return_value = MagicMock(
-            returncode=1,
-            stdout="",
-            stderr="Pipeline error"
+    assert manager.artifact_storage_dir == Path(temp_artifact_dir)
+    assert manager.enable_degraded_mode is True
+    assert manager.redis_available is False
+    assert manager.fallback_storage == {}
+    
+    manager.close()
+
+
+def test_batch_job_manager_artifact_dir_creation(temp_artifact_dir):
+    """Test artifact directory creation"""
+    artifact_dir = Path(temp_artifact_dir) / "custom_artifacts"
+    assert not artifact_dir.exists()
+    
+    manager = BatchJobManager(
+        artifact_storage_dir=str(artifact_dir),
+        enable_degraded_mode=True
+    )
+    
+    assert artifact_dir.exists()
+    manager.close()
+
+
+def test_create_job_degraded_mode(job_manager_degraded):
+    """Test job creation in degraded mode"""
+    # Mock Celery to avoid submission
+    with mock.patch('batch_processor.CELERY_AVAILABLE', False):
+        with pytest.raises(RuntimeError, match="Celery not available"):
+            job_manager_degraded.create_job(
+                pdm_path="/test/document.pdf",
+                municipality="TestCity",
+                department="TestDept"
+            )
+
+
+def test_job_lifecycle_state_transitions(job_manager_degraded):
+    """Test job state transitions: queued → processing → completed"""
+    job_id = str(uuid.uuid4())
+    
+    # Create initial job data
+    job_data = {
+        "job_id": job_id,
+        "pdm_path": "/test/doc.pdf",
+        "state": JobState.QUEUED.value,
+        "created_at": "2024-01-01T00:00:00"
+    }
+    job_manager_degraded._set_job_data(job_id, job_data)
+    
+    # Transition to PROCESSING
+    job_manager_degraded.update_job_status(job_id, JobState.PROCESSING)
+    status = job_manager_degraded.get_job_status(job_id)
+    assert status["state"] == JobState.PROCESSING.value
+    
+    # Transition to COMPLETED
+    result_data = {"test": "result"}
+    job_manager_degraded.update_job_status(
+        job_id,
+        JobState.COMPLETED,
+        result_data=result_data
+    )
+    status = job_manager_degraded.get_job_status(job_id)
+    assert status["state"] == JobState.COMPLETED.value
+    
+    # Verify artifact was created
+    result_file = Path(job_manager_degraded.artifact_storage_dir) / f"{job_id}_result.json"
+    assert result_file.exists()
+    
+    with open(result_file, 'r') as f:
+        stored_result = json.load(f)
+    assert stored_result == result_data
+
+
+def test_job_lifecycle_with_failure(job_manager_degraded):
+    """Test job state transition to FAILED"""
+    job_id = str(uuid.uuid4())
+    
+    # Create initial job data
+    job_data = {
+        "job_id": job_id,
+        "pdm_path": "/test/doc.pdf",
+        "state": JobState.QUEUED.value
+    }
+    job_manager_degraded._set_job_data(job_id, job_data)
+    
+    # Transition to PROCESSING
+    job_manager_degraded.update_job_status(job_id, JobState.PROCESSING)
+    
+    # Transition to FAILED
+    error_msg = "Pipeline execution failed"
+    job_manager_degraded.update_job_status(
+        job_id,
+        JobState.FAILED,
+        error=error_msg
+    )
+    
+    status = job_manager_degraded.get_job_status(job_id)
+    assert status["state"] == JobState.FAILED.value
+    assert status["error"] == error_msg
+
+
+def test_get_job_status_not_found(job_manager_degraded):
+    """Test getting status for non-existent job"""
+    status = job_manager_degraded.get_job_status("nonexistent-job-id")
+    assert status["state"] == "not_found"
+    assert "error" in status
+
+
+def test_get_job_result_not_completed(job_manager_degraded):
+    """Test getting result for non-completed job"""
+    job_id = str(uuid.uuid4())
+    
+    job_data = {
+        "job_id": job_id,
+        "state": JobState.PROCESSING.value
+    }
+    job_manager_degraded._set_job_data(job_id, job_data)
+    
+    result = job_manager_degraded.get_job_result(job_id)
+    assert result["state"] == JobState.PROCESSING.value
+    assert result["message"] == "Job not completed"
+
+
+def test_get_job_result_completed(job_manager_degraded):
+    """Test getting result for completed job"""
+    job_id = str(uuid.uuid4())
+    
+    # Create completed job with result
+    result_data = {
+        "status": "success",
+        "score": 95.0
+    }
+    
+    job_data = {
+        "job_id": job_id,
+        "state": JobState.COMPLETED.value,
+        "created_at": "2024-01-01T00:00:00",
+        "updated_at": "2024-01-01T00:10:00"
+    }
+    job_manager_degraded._set_job_data(job_id, job_data)
+    job_manager_degraded.update_job_status(
+        job_id,
+        JobState.COMPLETED,
+        result_data=result_data
+    )
+    
+    result = job_manager_degraded.get_job_result(job_id)
+    assert result["state"] == JobState.COMPLETED.value
+    assert result["result"] == result_data
+    assert "artifacts" in result
+    assert "result_file" in result["artifacts"]
+
+
+def test_fallback_storage_operations(job_manager_degraded):
+    """Test in-memory fallback storage get/set operations"""
+    job_id = str(uuid.uuid4())
+    job_data = {
+        "job_id": job_id,
+        "test_key": "test_value"
+    }
+    
+    # Set data
+    job_manager_degraded._set_job_data(job_id, job_data)
+    assert job_id in job_manager_degraded.fallback_storage
+    
+    # Get data
+    retrieved = job_manager_degraded._get_job_data(job_id)
+    assert retrieved == job_data
+    
+    # Get non-existent data
+    retrieved = job_manager_degraded._get_job_data("nonexistent")
+    assert retrieved is None
+
+
+def test_artifact_storage_path_generation(job_manager_degraded):
+    """Test artifact file path generation"""
+    job_id = "test-job-123"
+    
+    result_path = job_manager_degraded.artifact_storage_dir / f"{job_id}_result.json"
+    evidence_path = job_manager_degraded.artifact_storage_dir / f"{job_id}_evidence.json"
+    output_dir = job_manager_degraded.artifact_storage_dir / job_id
+    
+    assert result_path.name == f"{job_id}_result.json"
+    assert evidence_path.name == f"{job_id}_evidence.json"
+    assert output_dir.name == job_id
+
+
+# ============================================================================
+# Celery Task Tests
+# ============================================================================
+
+def test_process_pdm_document_success(mock_unified_pipeline, temp_artifact_dir):
+    """Test successful PDM document processing"""
+    job_id = str(uuid.uuid4())
+    pdm_path = "/test/document.pdf"
+    
+    with mock.patch('batch_processor.BatchJobManager') as mock_manager_class:
+        mock_manager = mock.MagicMock()
+        mock_manager.artifact_storage_dir = Path(temp_artifact_dir)
+        mock_manager_class.return_value = mock_manager
+        
+        result = _process_pdm_document_impl(
+            job_id=job_id,
+            pdm_path=pdm_path,
+            municipality="TestCity",
+            department="TestDept"
         )
         
-        work_item = {
-            "document_path": "/tmp/test.txt",
-            "trace_id": "test-trace-error"
-        }
+        assert result["status"] == "completed"
+        assert result["job_id"] == job_id
+        assert "results" in result
+        assert "artifacts" in result
         
-        result = self.worker._process_document(work_item)
+        # Verify pipeline was called with correct parameters
+        mock_unified_pipeline.evaluate.assert_called_once()
+        call_kwargs = mock_unified_pipeline.evaluate.call_args[1]
+        assert call_kwargs["pdm_path"] == pdm_path
+        assert call_kwargs["municipality"] == "TestCity"
+        assert call_kwargs["department"] == "TestDept"
+        assert call_kwargs["export_json"] is True
         
-        self.assertEqual(result["status"], "error")
-        self.assertIn("error", result)
+        # Verify state transitions
+        assert mock_manager.update_job_status.call_count >= 2
 
 
-class TestBatchProcessor(unittest.TestCase):
-    """Test BatchProcessor class."""
+def test_process_pdm_document_pipeline_error(mock_unified_pipeline, temp_artifact_dir):
+    """Test PDM processing with pipeline error"""
+    job_id = str(uuid.uuid4())
     
-    def setUp(self):
-        self.temp_dir = tempfile.mkdtemp()
-        self.metrics_path = os.path.join(self.temp_dir, "metrics.prom")
-        self.processor = BatchProcessor(num_workers=2, metrics_export_path=self.metrics_path)
+    # Mock pipeline to return error
+    mock_unified_pipeline.evaluate.return_value = {
+        "status": "pipeline_error",
+        "error": "Failed to parse document"
+    }
     
-    def tearDown(self):
-        if self.processor.is_running:
-            self.processor.stop()
+    with mock.patch('batch_processor.BatchJobManager') as mock_manager_class:
+        mock_manager = mock.MagicMock()
+        mock_manager.artifact_storage_dir = Path(temp_artifact_dir)
+        mock_manager_class.return_value = mock_manager
         
-        # Cleanup temp files
-        import shutil
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
-    
-    def test_processor_initialization(self):
-        """Test processor initialization."""
-        self.assertEqual(self.processor.num_workers, 2)
-        self.assertIsInstance(self.processor.metrics, BatchMetrics)
-        self.assertIsInstance(self.processor.work_queue, queue.Queue)
-        self.assertIsInstance(self.processor.results_queue, queue.Queue)
-    
-    def test_start_stop(self):
-        """Test processor start and stop."""
-        self.processor.start()
-        self.assertTrue(self.processor.is_running)
-        self.assertEqual(len(self.processor.workers), 2)
-        
-        time.sleep(0.5)  # Let workers initialize
-        
-        self.processor.stop()
-        self.assertFalse(self.processor.is_running)
-    
-    def test_submit_document(self):
-        """Test document submission."""
-        self.processor.start()
-        
-        trace_id = self.processor.submit_document("/tmp/test.txt")
-        
-        self.assertIsNotNone(trace_id)
-        self.assertEqual(len(trace_id), 36)  # UUID length
-        self.assertFalse(self.processor.work_queue.empty())
-        
-        self.processor.stop()
-    
-    def test_submit_batch(self):
-        """Test batch submission."""
-        self.processor.start()
-        
-        documents = ["/tmp/test1.txt", "/tmp/test2.txt", "/tmp/test3.txt"]
-        trace_ids = self.processor.submit_batch(documents)
-        
-        self.assertEqual(len(trace_ids), 3)
-        self.assertEqual(self.processor.work_queue.qsize(), 3)
-        
-        self.processor.stop()
-    
-    def test_metrics_export(self):
-        """Test metrics file export."""
-        self.processor.start()
-        time.sleep(1.0)  # Wait for metrics export
-        
-        self.processor.submit_document("/tmp/test.txt")
-        time.sleep(11.0)  # Wait for next export cycle
-        
-        self.processor.stop()
-        
-        # Check metrics file exists
-        self.assertTrue(Path(self.metrics_path).exists())
-        
-        # Verify metrics content
-        with open(self.metrics_path, 'r') as f:
-            content = f.read()
-            self.assertIn("batch_throughput_per_hour", content)
-
-
-class TestIntegration(unittest.TestCase):
-    """Integration tests for batch processing."""
-    
-    @patch("subprocess.run")
-    def test_end_to_end_processing(self, mock_subprocess):
-        """Test end-to-end document processing."""
-        mock_subprocess.return_value = MagicMock(
-            returncode=0,
-            stdout='{"success": true, "data": {"score": 0.85}}',
-            stderr=""
+        result = _process_pdm_document_impl(
+            job_id=job_id,
+            pdm_path="/test/doc.pdf"
         )
         
-        temp_dir = tempfile.mkdtemp()
-        metrics_path = os.path.join(temp_dir, "metrics.prom")
+        assert result["status"] == "failed"
+        assert "error" in result
         
-        processor = BatchProcessor(num_workers=2, metrics_export_path=metrics_path)
-        processor.start()
+        # Verify job was marked as FAILED
+        mock_manager.update_job_status.assert_any_call(
+            job_id,
+            JobState.FAILED,
+            error=mock.ANY
+        )
+
+
+def test_process_pdm_document_exception(mock_unified_pipeline, temp_artifact_dir):
+    """Test PDM processing with exception"""
+    job_id = str(uuid.uuid4())
+    
+    # Mock pipeline to raise exception
+    mock_unified_pipeline.evaluate.side_effect = RuntimeError("Unexpected error")
+    
+    with mock.patch('batch_processor.BatchJobManager') as mock_manager_class:
+        mock_manager = mock.MagicMock()
+        mock_manager.artifact_storage_dir = Path(temp_artifact_dir)
+        mock_manager_class.return_value = mock_manager
         
-        try:
-            # Submit documents
-            documents = [f"/tmp/test{i}.txt" for i in range(10)]
-            trace_ids = processor.submit_batch(documents)
-            
-            # Wait for completion
-            processor.wait_for_completion(timeout=30)
-            
-            # Check results
-            results = processor.get_results(timeout=5)
-            
-            self.assertEqual(len(results), 10)
-            self.assertEqual(len(trace_ids), 10)
-            
-            # Verify metrics
-            self.assertGreater(processor.metrics.documents_processed_total, 0)
-            
-        finally:
-            processor.stop()
-            import shutil
-            shutil.rmtree(temp_dir, ignore_errors=True)
+        result = _process_pdm_document_impl(
+            job_id=job_id,
+            pdm_path="/test/doc.pdf"
+        )
+        
+        assert result["status"] == "failed"
+        assert "error" in result
+        assert result["error_type"] == "RuntimeError"
+        
+        # Verify job was marked as FAILED
+        mock_manager.update_job_status.assert_any_call(
+            job_id,
+            JobState.FAILED,
+            error=mock.ANY
+        )
+
+
+def test_process_pdm_document_creates_output_directory(mock_unified_pipeline, temp_artifact_dir):
+    """Test that processing creates job-specific output directory"""
+    job_id = str(uuid.uuid4())
+    
+    with mock.patch('batch_processor.BatchJobManager') as mock_manager_class:
+        mock_manager = mock.MagicMock()
+        mock_manager.artifact_storage_dir = Path(temp_artifact_dir)
+        mock_manager_class.return_value = mock_manager
+        
+        _process_pdm_document_impl(
+            job_id=job_id,
+            pdm_path="/test/doc.pdf"
+        )
+        
+        # Verify output directory was created
+        output_dir = Path(temp_artifact_dir) / job_id
+        assert output_dir.exists()
+        assert output_dir.is_dir()
+
+
+def test_pipeline_compatibility_all_parameters(mock_unified_pipeline, temp_artifact_dir):
+    """Test full parameter compatibility with unified_evaluation_pipeline"""
+    job_id = str(uuid.uuid4())
+    
+    with mock.patch('batch_processor.BatchJobManager') as mock_manager_class:
+        mock_manager = mock.MagicMock()
+        mock_manager.artifact_storage_dir = Path(temp_artifact_dir)
+        mock_manager_class.return_value = mock_manager
+        
+        _process_pdm_document_impl(
+            job_id=job_id,
+            pdm_path="/test/plan.pdf",
+            municipality="Bogotá",
+            department="Cundinamarca"
+        )
+        
+        # Verify all parameters were passed correctly
+        call_kwargs = mock_unified_pipeline.evaluate.call_args[1]
+        assert call_kwargs["pdm_path"] == "/test/plan.pdf"
+        assert call_kwargs["municipality"] == "Bogotá"
+        assert call_kwargs["department"] == "Cundinamarca"
+        assert call_kwargs["export_json"] is True
+        assert "output_dir" in call_kwargs
+
+
+# ============================================================================
+# Integration Tests
+# ============================================================================
+
+def test_end_to_end_job_workflow_degraded(job_manager_degraded, mock_unified_pipeline):
+    """Test end-to-end job workflow in degraded mode"""
+    job_id = str(uuid.uuid4())
+    
+    # Manually create job (skipping Celery submission)
+    job_data = {
+        "job_id": job_id,
+        "pdm_path": "/test/doc.pdf",
+        "municipality": "TestCity",
+        "department": "TestDept",
+        "state": JobState.QUEUED.value,
+        "created_at": "2024-01-01T00:00:00"
+    }
+    job_manager_degraded._set_job_data(job_id, job_data)
+    
+    # Verify queued state
+    status = job_manager_degraded.get_job_status(job_id)
+    assert status["state"] == JobState.QUEUED.value
+    
+    # Simulate processing
+    job_manager_degraded.update_job_status(job_id, JobState.PROCESSING)
+    status = job_manager_degraded.get_job_status(job_id)
+    assert status["state"] == JobState.PROCESSING.value
+    
+    # Simulate completion
+    result_data = {"test": "success"}
+    job_manager_degraded.update_job_status(
+        job_id,
+        JobState.COMPLETED,
+        result_data=result_data
+    )
+    
+    # Verify completed state and result retrieval
+    status = job_manager_degraded.get_job_status(job_id)
+    assert status["state"] == JobState.COMPLETED.value
+    
+    result = job_manager_degraded.get_job_result(job_id)
+    assert result["state"] == JobState.COMPLETED.value
+    assert result["result"] == result_data
+
+
+def test_graceful_degradation_redis_unavailable():
+    """Test graceful degradation when Redis is unavailable"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create manager with invalid Redis URL but degraded mode enabled
+        manager = BatchJobManager(
+            redis_url="redis://invalid.host:9999/0",
+            artifact_storage_dir=tmpdir,
+            enable_degraded_mode=True
+        )
+        
+        assert manager.redis_available is False
+        assert manager.fallback_storage == {}
+        
+        # Should be able to store/retrieve data using fallback
+        job_id = str(uuid.uuid4())
+        job_data = {"test": "data"}
+        manager._set_job_data(job_id, job_data)
+        
+        retrieved = manager._get_job_data(job_id)
+        assert retrieved == job_data
+        
+        manager.close()
 
 
 if __name__ == "__main__":
-    unittest.main()
+    pytest.main([__file__, "-v"])
