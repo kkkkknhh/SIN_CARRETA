@@ -26,9 +26,12 @@ from fastapi import (
     HTTPException,
     UploadFile,
     status,
+    BackgroundTasks,
 )
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, validator
+from prometheus_client import Counter, Gauge, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from fastapi.responses import Response
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from batch_optimizer import (
@@ -38,6 +41,34 @@ from batch_optimizer import (
     CircuitBreakerWrapper,
     ResultStreamer,
     ValidationError as BatchValidationError
+)
+from batch_processor import BatchJobManager, JobState as BatchJobState
+from celery_tasks import process_document_task, aggregate_batch_results_task
+
+# Prometheus metrics
+documents_processed_total = Counter(
+    'documents_processed_total',
+    'Total number of documents processed',
+    ['status']
+)
+batch_throughput_per_hour = Gauge(
+    'batch_throughput_per_hour',
+    'Current batch throughput in documents per hour'
+)
+worker_utilization = Gauge(
+    'worker_utilization',
+    'Worker utilization percentage',
+    ['worker_id']
+)
+queue_depth = Gauge(
+    'queue_depth',
+    'Number of documents in processing queue',
+    ['queue_name']
+)
+batch_document_processing_latency_seconds = Histogram(
+    'batch_document_processing_latency_seconds',
+    'Document processing latency in seconds',
+    buckets=[1, 5, 10, 15, 20, 25, 30, 40, 50, 60, 90, 120]
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -69,6 +100,14 @@ document_validator = DocumentPreValidator(max_size_mb=MAX_FILE_SIZE_MB)
 resource_monitor = ResourceMonitor()
 circuit_breaker_wrapper = CircuitBreakerWrapper()
 result_streamer = ResultStreamer(redis_host=REDIS_HOST, redis_port=REDIS_PORT, redis_db=REDIS_DB)
+batch_manager = BatchJobManager(
+    redis_host=REDIS_HOST,
+    redis_port=REDIS_PORT,
+    redis_db=REDIS_DB,
+    redis_password=REDIS_PASSWORD,
+    job_ttl_seconds=JOB_TTL_SECONDS,
+    artifacts_base_dir=str(RESULTS_DIR)
+)
 
 resource_monitor.start_monitoring(interval=10.0)
 
@@ -273,22 +312,42 @@ def store_job_metadata(
     logger.info(f"Stored metadata for job {job_id} with TTL {JOB_TTL_SECONDS}s")
 
 
-def enqueue_job(redis_client: redis.Redis, job_id: str) -> None:
+def enqueue_job(job_id: str, job_data: Dict[str, Any]) -> None:
     """
     Enqueue job to Redis-backed task queue for Celery workers.
     
     Args:
-        redis_client: Redis client instance
         job_id: Unique job identifier to enqueue
+        job_data: Job metadata dictionary
     """
-    task_data = {
-        "job_id": job_id,
-        "enqueued_at": datetime.utcnow().isoformat(),
-        "task_type": "evaluate_pdm_documents",
-    }
+    from celery import group
     
-    redis_client.lpush(TASK_QUEUE_NAME, json.dumps(task_data))
-    logger.info(f"Enqueued job {job_id} to task queue {TASK_QUEUE_NAME}")
+    filenames = job_data.get("filenames", [])
+    config = job_data.get("config", {})
+    
+    staging_dir = STAGING_DIR / job_id
+    
+    # Create Celery task group for parallel document processing
+    job_tasks = group(
+        process_document_task.s(
+            job_id=job_id,
+            document_path=str(staging_dir / fname),
+            document_index=idx,
+            config=config
+        )
+        for idx, fname in enumerate(filenames)
+    )
+    
+    # Chain with aggregation task
+    workflow = (job_tasks | aggregate_batch_results_task.s(job_id))
+    
+    # Execute workflow asynchronously
+    workflow.apply_async()
+    
+    # Update queue depth metric
+    queue_depth.labels(queue_name=TASK_QUEUE_NAME).set(batch_manager.get_queue_depth(TASK_QUEUE_NAME))
+    
+    logger.info(f"Enqueued job {job_id} with {len(filenames)} documents to Celery")
 
 
 def get_worker_count(redis_client: redis.Redis) -> int:
@@ -446,7 +505,7 @@ async def upload_documents(
         job_data["concurrency"] = current_concurrency
         redis_client.setex(job_key, JOB_TTL_SECONDS, json.dumps(job_data))
         
-        enqueue_job(redis_client, job_id)
+        enqueue_job(job_id, job_data)
         
         logger.info(f"Job {job_id} scheduled with {len(batches)} batches, concurrency={current_concurrency}")
         
@@ -688,6 +747,58 @@ async def health_check() -> HealthResponse:
         and staging_dir_writable
         and results_dir_writable
     )
+    
+    return HealthResponse(
+        status="healthy" if overall_healthy else "unhealthy",
+        timestamp=timestamp,
+        redis_connected=redis_connected,
+        workers_available=workers_available,
+        queue_size=queue_size,
+        staging_dir_writable=staging_dir_writable,
+        results_dir_writable=results_dir_writable,
+    )
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    """
+    Prometheus metrics endpoint.
+    
+    Exposes metrics:
+    - documents_processed_total: Total documents processed (by status)
+    - batch_throughput_per_hour: Current throughput in docs/hour
+    - worker_utilization: Worker utilization percentage
+    - queue_depth: Queue depth for task queue
+    - batch_document_processing_latency_seconds: Document processing latency histogram
+    
+    Returns:
+        Prometheus metrics in text format
+    """
+    # Update queue depth metric
+    try:
+        redis_client = get_redis_client()
+        current_queue_depth = redis_client.llen(TASK_QUEUE_NAME)
+        queue_depth.labels(queue_name=TASK_QUEUE_NAME).set(current_queue_depth)
+    except Exception as e:
+        logger.warning(f"Failed to update queue depth metric: {e}")
+    
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Startup initialization"""
+    logger.info("Starting PDM Evaluation API server")
+    logger.info(f"Redis: {REDIS_HOST}:{REDIS_PORT}")
+    logger.info(f"Staging directory: {STAGING_DIR}")
+    logger.info(f"Results directory: {RESULTS_DIR}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Shutdown cleanup"""
+    logger.info("Shutting down PDM Evaluation API server")
+    resource_monitor.stop_monitoring()
     
     return HealthResponse(
         status="healthy" if overall_healthy else "degraded",

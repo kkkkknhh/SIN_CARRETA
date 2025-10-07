@@ -1,507 +1,186 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Tests for Batch Job Manager with Redis and Celery
-=================================================
+test_batch_processor.py — Unit Tests for BatchJobManager
 
-Tests:
-- BatchJobManager initialization with/without Redis
-- Job lifecycle state transitions (queued → processing → completed/failed)
-- Redis connection pooling and graceful degradation
-- File system artifact storage
-- Job creation, status queries, result retrieval
-- Celery task execution (mocked)
-- Compatibility with unified_evaluation_pipeline interface
+Tests job lifecycle management, state transitions, and Redis integration.
 """
 
 import json
-import os
-import tempfile
-import time
-import uuid
-from pathlib import Path
-from unittest import mock
-
 import pytest
+import time
+from pathlib import Path
+from unittest.mock import Mock, MagicMock, patch
+import tempfile
 
-from batch_processor import (
-    BatchJobManager,
-    JobState,
-    _process_pdm_document_impl,
-    REDIS_AVAILABLE,
-    CELERY_AVAILABLE
-)
+from batch_processor import BatchJobManager, JobState
 
 
-# ============================================================================
-# Fixtures
-# ============================================================================
-
-@pytest.fixture
-def temp_artifact_dir():
-    """Create temporary artifact directory"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        yield tmpdir
-
-
-@pytest.fixture
-def mock_redis():
-    """Mock Redis client"""
-    if not REDIS_AVAILABLE:
-        pytest.skip("Redis not available")
+class TestBatchJobManager:
+    """Unit tests for BatchJobManager"""
     
-    with mock.patch('batch_processor.redis.Redis') as mock_redis_class:
-        mock_client = mock.MagicMock()
-        mock_client.ping.return_value = True
+    @pytest.fixture
+    def mock_redis(self):
+        """Mock Redis client"""
+        mock_client = MagicMock()
         mock_client.get.return_value = None
-        mock_client.set.return_value = True
-        mock_redis_class.return_value = mock_client
-        yield mock_client
-
-
-@pytest.fixture
-def job_manager_degraded(temp_artifact_dir):
-    """Job manager in degraded mode (no Redis)"""
-    manager = BatchJobManager(
-        redis_url="redis://invalid:9999/0",
-        artifact_storage_dir=temp_artifact_dir,
-        enable_degraded_mode=True
-    )
-    yield manager
-    manager.close()
-
-
-@pytest.fixture
-def mock_unified_pipeline():
-    """Mock UnifiedEvaluationPipeline"""
-    with mock.patch('batch_processor.UnifiedEvaluationPipeline') as mock_pipeline_class:
-        mock_pipeline = mock.MagicMock()
-        mock_pipeline.evaluate.return_value = {
-            "status": "success",
-            "metadata": {
-                "pdm_path": "/test/doc.pdf",
-                "execution_time_seconds": 10.5
-            },
-            "evidence_registry": {
-                "deterministic_hash": "abc123",
-                "statistics": {"total_evidence": 42}
-            },
-            "evaluations": {
-                "decalogo": {"score": 85.5},
-                "questionnaire": {"score": 90.0}
-            }
+        mock_client.setex.return_value = True
+        mock_client.llen.return_value = 0
+        mock_client.scan_iter.return_value = []
+        return mock_client
+    
+    @pytest.fixture
+    def manager(self, mock_redis):
+        """Create BatchJobManager with mock Redis"""
+        with patch('batch_processor.redis.Redis', return_value=mock_redis):
+            temp_dir = tempfile.mkdtemp(prefix="batch_test_")
+            manager = BatchJobManager(artifacts_base_dir=temp_dir)
+            manager.redis_client = mock_redis
+            yield manager
+            
+            # Cleanup
+            import shutil
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def test_get_job_key(self, manager):
+        """Test job key generation"""
+        job_id = "test-job-123"
+        key = manager.get_job_key(job_id)
+        assert key == "job:test-job-123"
+    
+    def test_get_job_data_not_found(self, manager, mock_redis):
+        """Test retrieving non-existent job"""
+        mock_redis.get.return_value = None
+        
+        result = manager.get_job_data("nonexistent-job")
+        assert result is None
+    
+    def test_get_job_data_success(self, manager, mock_redis):
+        """Test retrieving existing job"""
+        job_data = {
+            "job_id": "test-job",
+            "status": JobState.QUEUED.value,
+            "document_count": 5
         }
-        mock_pipeline_class.return_value = mock_pipeline
-        yield mock_pipeline
-
-
-# ============================================================================
-# BatchJobManager Tests
-# ============================================================================
-
-def test_batch_job_manager_initialization_degraded(temp_artifact_dir):
-    """Test BatchJobManager initialization in degraded mode"""
-    manager = BatchJobManager(
-        redis_url="redis://invalid:9999/0",
-        artifact_storage_dir=temp_artifact_dir,
-        enable_degraded_mode=True
-    )
-    
-    assert manager.artifact_storage_dir == Path(temp_artifact_dir)
-    assert manager.enable_degraded_mode is True
-    assert manager.redis_available is False
-    assert manager.fallback_storage == {}
-    
-    manager.close()
-
-
-def test_batch_job_manager_artifact_dir_creation(temp_artifact_dir):
-    """Test artifact directory creation"""
-    artifact_dir = Path(temp_artifact_dir) / "custom_artifacts"
-    assert not artifact_dir.exists()
-    
-    manager = BatchJobManager(
-        artifact_storage_dir=str(artifact_dir),
-        enable_degraded_mode=True
-    )
-    
-    assert artifact_dir.exists()
-    manager.close()
-
-
-def test_create_job_degraded_mode(job_manager_degraded):
-    """Test job creation in degraded mode"""
-    # Mock Celery to avoid submission
-    with mock.patch('batch_processor.CELERY_AVAILABLE', False):
-        with pytest.raises(RuntimeError, match="Celery not available"):
-            job_manager_degraded.create_job(
-                pdm_path="/test/document.pdf",
-                municipality="TestCity",
-                department="TestDept"
-            )
-
-
-def test_job_lifecycle_state_transitions(job_manager_degraded):
-    """Test job state transitions: queued → processing → completed"""
-    job_id = str(uuid.uuid4())
-    
-    # Create initial job data
-    job_data = {
-        "job_id": job_id,
-        "pdm_path": "/test/doc.pdf",
-        "state": JobState.QUEUED.value,
-        "created_at": "2024-01-01T00:00:00"
-    }
-    job_manager_degraded._set_job_data(job_id, job_data)
-    
-    # Transition to PROCESSING
-    job_manager_degraded.update_job_status(job_id, JobState.PROCESSING)
-    status = job_manager_degraded.get_job_status(job_id)
-    assert status["state"] == JobState.PROCESSING.value
-    
-    # Transition to COMPLETED
-    result_data = {"test": "result"}
-    job_manager_degraded.update_job_status(
-        job_id,
-        JobState.COMPLETED,
-        result_data=result_data
-    )
-    status = job_manager_degraded.get_job_status(job_id)
-    assert status["state"] == JobState.COMPLETED.value
-    
-    # Verify artifact was created
-    result_file = Path(job_manager_degraded.artifact_storage_dir) / f"{job_id}_result.json"
-    assert result_file.exists()
-    
-    with open(result_file, 'r') as f:
-        stored_result = json.load(f)
-    assert stored_result == result_data
-
-
-def test_job_lifecycle_with_failure(job_manager_degraded):
-    """Test job state transition to FAILED"""
-    job_id = str(uuid.uuid4())
-    
-    # Create initial job data
-    job_data = {
-        "job_id": job_id,
-        "pdm_path": "/test/doc.pdf",
-        "state": JobState.QUEUED.value
-    }
-    job_manager_degraded._set_job_data(job_id, job_data)
-    
-    # Transition to PROCESSING
-    job_manager_degraded.update_job_status(job_id, JobState.PROCESSING)
-    
-    # Transition to FAILED
-    error_msg = "Pipeline execution failed"
-    job_manager_degraded.update_job_status(
-        job_id,
-        JobState.FAILED,
-        error=error_msg
-    )
-    
-    status = job_manager_degraded.get_job_status(job_id)
-    assert status["state"] == JobState.FAILED.value
-    assert status["error"] == error_msg
-
-
-def test_get_job_status_not_found(job_manager_degraded):
-    """Test getting status for non-existent job"""
-    status = job_manager_degraded.get_job_status("nonexistent-job-id")
-    assert status["state"] == "not_found"
-    assert "error" in status
-
-
-def test_get_job_result_not_completed(job_manager_degraded):
-    """Test getting result for non-completed job"""
-    job_id = str(uuid.uuid4())
-    
-    job_data = {
-        "job_id": job_id,
-        "state": JobState.PROCESSING.value
-    }
-    job_manager_degraded._set_job_data(job_id, job_data)
-    
-    result = job_manager_degraded.get_job_result(job_id)
-    assert result["state"] == JobState.PROCESSING.value
-    assert result["message"] == "Job not completed"
-
-
-def test_get_job_result_completed(job_manager_degraded):
-    """Test getting result for completed job"""
-    job_id = str(uuid.uuid4())
-    
-    # Create completed job with result
-    result_data = {
-        "status": "success",
-        "score": 95.0
-    }
-    
-    job_data = {
-        "job_id": job_id,
-        "state": JobState.COMPLETED.value,
-        "created_at": "2024-01-01T00:00:00",
-        "updated_at": "2024-01-01T00:10:00"
-    }
-    job_manager_degraded._set_job_data(job_id, job_data)
-    job_manager_degraded.update_job_status(
-        job_id,
-        JobState.COMPLETED,
-        result_data=result_data
-    )
-    
-    result = job_manager_degraded.get_job_result(job_id)
-    assert result["state"] == JobState.COMPLETED.value
-    assert result["result"] == result_data
-    assert "artifacts" in result
-    assert "result_file" in result["artifacts"]
-
-
-def test_fallback_storage_operations(job_manager_degraded):
-    """Test in-memory fallback storage get/set operations"""
-    job_id = str(uuid.uuid4())
-    job_data = {
-        "job_id": job_id,
-        "test_key": "test_value"
-    }
-    
-    # Set data
-    job_manager_degraded._set_job_data(job_id, job_data)
-    assert job_id in job_manager_degraded.fallback_storage
-    
-    # Get data
-    retrieved = job_manager_degraded._get_job_data(job_id)
-    assert retrieved == job_data
-    
-    # Get non-existent data
-    retrieved = job_manager_degraded._get_job_data("nonexistent")
-    assert retrieved is None
-
-
-def test_artifact_storage_path_generation(job_manager_degraded):
-    """Test artifact file path generation"""
-    job_id = "test-job-123"
-    
-    result_path = job_manager_degraded.artifact_storage_dir / f"{job_id}_result.json"
-    evidence_path = job_manager_degraded.artifact_storage_dir / f"{job_id}_evidence.json"
-    output_dir = job_manager_degraded.artifact_storage_dir / job_id
-    
-    assert result_path.name == f"{job_id}_result.json"
-    assert evidence_path.name == f"{job_id}_evidence.json"
-    assert output_dir.name == job_id
-
-
-# ============================================================================
-# Celery Task Tests
-# ============================================================================
-
-def test_process_pdm_document_success(mock_unified_pipeline, temp_artifact_dir):
-    """Test successful PDM document processing"""
-    job_id = str(uuid.uuid4())
-    pdm_path = "/test/document.pdf"
-    
-    with mock.patch('batch_processor.BatchJobManager') as mock_manager_class:
-        mock_manager = mock.MagicMock()
-        mock_manager.artifact_storage_dir = Path(temp_artifact_dir)
-        mock_manager_class.return_value = mock_manager
+        mock_redis.get.return_value = json.dumps(job_data)
         
-        result = _process_pdm_document_impl(
-            job_id=job_id,
-            pdm_path=pdm_path,
-            municipality="TestCity",
-            department="TestDept"
+        result = manager.get_job_data("test-job")
+        assert result is not None
+        assert result["job_id"] == "test-job"
+        assert result["status"] == JobState.QUEUED.value
+    
+    def test_update_job_data(self, manager, mock_redis):
+        """Test updating job data"""
+        existing_job = {
+            "job_id": "test-job",
+            "status": JobState.QUEUED.value,
+            "document_count": 5
+        }
+        mock_redis.get.return_value = json.dumps(existing_job)
+        
+        updates = {"status": JobState.PROCESSING.value}
+        success = manager.update_job_data("test-job", updates)
+        
+        assert success is True
+        mock_redis.setex.assert_called_once()
+    
+    def test_transition_to_processing(self, manager, mock_redis):
+        """Test QUEUED → PROCESSING transition"""
+        job_data = {
+            "job_id": "test-job",
+            "status": JobState.QUEUED.value
+        }
+        mock_redis.get.return_value = json.dumps(job_data)
+        
+        success = manager.transition_to_processing("test-job")
+        assert success is True
+    
+    def test_transition_to_completed(self, manager, mock_redis):
+        """Test PROCESSING → COMPLETED transition"""
+        job_data = {
+            "job_id": "test-job",
+            "status": JobState.PROCESSING.value
+        }
+        mock_redis.get.return_value = json.dumps(job_data)
+        
+        results = {"documents_processed": 5, "coverage": 300}
+        success = manager.transition_to_completed("test-job", results)
+        assert success is True
+    
+    def test_transition_to_failed(self, manager, mock_redis):
+        """Test transition to FAILED state"""
+        job_data = {
+            "job_id": "test-job",
+            "status": JobState.PROCESSING.value
+        }
+        mock_redis.get.return_value = json.dumps(job_data)
+        
+        error_msg = "Processing failed"
+        success = manager.transition_to_failed("test-job", error_msg)
+        assert success is True
+    
+    def test_update_progress(self, manager, mock_redis):
+        """Test progress updates"""
+        job_data = {
+            "job_id": "test-job",
+            "status": JobState.PROCESSING.value,
+            "progress": {}
+        }
+        mock_redis.get.return_value = json.dumps(job_data)
+        
+        success = manager.update_progress(
+            job_id="test-job",
+            current_step="processing documents",
+            completed_steps=3,
+            total_steps=10
         )
-        
-        assert result["status"] == "completed"
-        assert result["job_id"] == job_id
-        assert "results" in result
-        assert "artifacts" in result
-        
-        # Verify pipeline was called with correct parameters
-        mock_unified_pipeline.evaluate.assert_called_once()
-        call_kwargs = mock_unified_pipeline.evaluate.call_args[1]
-        assert call_kwargs["pdm_path"] == pdm_path
-        assert call_kwargs["municipality"] == "TestCity"
-        assert call_kwargs["department"] == "TestDept"
-        assert call_kwargs["export_json"] is True
-        
-        # Verify state transitions
-        assert mock_manager.update_job_status.call_count >= 2
-
-
-def test_process_pdm_document_pipeline_error(mock_unified_pipeline, temp_artifact_dir):
-    """Test PDM processing with pipeline error"""
-    job_id = str(uuid.uuid4())
+        assert success is True
     
-    # Mock pipeline to return error
-    mock_unified_pipeline.evaluate.return_value = {
-        "status": "pipeline_error",
-        "error": "Failed to parse document"
-    }
+    def test_store_artifacts(self, manager):
+        """Test artifact storage to filesystem"""
+        artifacts = {
+            "job_id": "test-job",
+            "results": {"score": 85}
+        }
+        
+        artifacts_dir = manager.store_artifacts("test-job", artifacts)
+        assert artifacts_dir.exists()
+        
+        results_file = artifacts_dir / "evaluation_results.json"
+        assert results_file.exists()
+        
+        with open(results_file, "r") as f:
+            stored_data = json.load(f)
+        assert stored_data == artifacts
     
-    with mock.patch('batch_processor.BatchJobManager') as mock_manager_class:
-        mock_manager = mock.MagicMock()
-        mock_manager.artifact_storage_dir = Path(temp_artifact_dir)
-        mock_manager_class.return_value = mock_manager
+    def test_get_queue_depth(self, manager, mock_redis):
+        """Test queue depth retrieval"""
+        mock_redis.llen.return_value = 42
         
-        result = _process_pdm_document_impl(
-            job_id=job_id,
-            pdm_path="/test/doc.pdf"
-        )
-        
-        assert result["status"] == "failed"
-        assert "error" in result
-        
-        # Verify job was marked as FAILED
-        mock_manager.update_job_status.assert_any_call(
-            job_id,
-            JobState.FAILED,
-            error=mock.ANY
-        )
-
-
-def test_process_pdm_document_exception(mock_unified_pipeline, temp_artifact_dir):
-    """Test PDM processing with exception"""
-    job_id = str(uuid.uuid4())
+        depth = manager.get_queue_depth("pdm_evaluation_queue")
+        assert depth == 42
+        mock_redis.llen.assert_called_once_with("pdm_evaluation_queue")
     
-    # Mock pipeline to raise exception
-    mock_unified_pipeline.evaluate.side_effect = RuntimeError("Unexpected error")
-    
-    with mock.patch('batch_processor.BatchJobManager') as mock_manager_class:
-        mock_manager = mock.MagicMock()
-        mock_manager.artifact_storage_dir = Path(temp_artifact_dir)
-        mock_manager_class.return_value = mock_manager
+    def test_get_active_jobs(self, manager, mock_redis):
+        """Test active job retrieval"""
+        job_keys = ["job:test-1", "job:test-2", "job:test-3"]
+        mock_redis.scan_iter.return_value = job_keys
         
-        result = _process_pdm_document_impl(
-            job_id=job_id,
-            pdm_path="/test/doc.pdf"
-        )
+        job_1 = {"job_id": "test-1", "status": JobState.QUEUED.value}
+        job_2 = {"job_id": "test-2", "status": JobState.PROCESSING.value}
+        job_3 = {"job_id": "test-3", "status": JobState.COMPLETED.value}
         
-        assert result["status"] == "failed"
-        assert "error" in result
-        assert result["error_type"] == "RuntimeError"
+        mock_redis.get.side_effect = [
+            json.dumps(job_1),
+            json.dumps(job_2),
+            json.dumps(job_3)
+        ]
         
-        # Verify job was marked as FAILED
-        mock_manager.update_job_status.assert_any_call(
-            job_id,
-            JobState.FAILED,
-            error=mock.ANY
-        )
-
-
-def test_process_pdm_document_creates_output_directory(mock_unified_pipeline, temp_artifact_dir):
-    """Test that processing creates job-specific output directory"""
-    job_id = str(uuid.uuid4())
-    
-    with mock.patch('batch_processor.BatchJobManager') as mock_manager_class:
-        mock_manager = mock.MagicMock()
-        mock_manager.artifact_storage_dir = Path(temp_artifact_dir)
-        mock_manager_class.return_value = mock_manager
-        
-        _process_pdm_document_impl(
-            job_id=job_id,
-            pdm_path="/test/doc.pdf"
-        )
-        
-        # Verify output directory was created
-        output_dir = Path(temp_artifact_dir) / job_id
-        assert output_dir.exists()
-        assert output_dir.is_dir()
-
-
-def test_pipeline_compatibility_all_parameters(mock_unified_pipeline, temp_artifact_dir):
-    """Test full parameter compatibility with unified_evaluation_pipeline"""
-    job_id = str(uuid.uuid4())
-    
-    with mock.patch('batch_processor.BatchJobManager') as mock_manager_class:
-        mock_manager = mock.MagicMock()
-        mock_manager.artifact_storage_dir = Path(temp_artifact_dir)
-        mock_manager_class.return_value = mock_manager
-        
-        _process_pdm_document_impl(
-            job_id=job_id,
-            pdm_path="/test/plan.pdf",
-            municipality="Bogotá",
-            department="Cundinamarca"
-        )
-        
-        # Verify all parameters were passed correctly
-        call_kwargs = mock_unified_pipeline.evaluate.call_args[1]
-        assert call_kwargs["pdm_path"] == "/test/plan.pdf"
-        assert call_kwargs["municipality"] == "Bogotá"
-        assert call_kwargs["department"] == "Cundinamarca"
-        assert call_kwargs["export_json"] is True
-        assert "output_dir" in call_kwargs
-
-
-# ============================================================================
-# Integration Tests
-# ============================================================================
-
-def test_end_to_end_job_workflow_degraded(job_manager_degraded, mock_unified_pipeline):
-    """Test end-to-end job workflow in degraded mode"""
-    job_id = str(uuid.uuid4())
-    
-    # Manually create job (skipping Celery submission)
-    job_data = {
-        "job_id": job_id,
-        "pdm_path": "/test/doc.pdf",
-        "municipality": "TestCity",
-        "department": "TestDept",
-        "state": JobState.QUEUED.value,
-        "created_at": "2024-01-01T00:00:00"
-    }
-    job_manager_degraded._set_job_data(job_id, job_data)
-    
-    # Verify queued state
-    status = job_manager_degraded.get_job_status(job_id)
-    assert status["state"] == JobState.QUEUED.value
-    
-    # Simulate processing
-    job_manager_degraded.update_job_status(job_id, JobState.PROCESSING)
-    status = job_manager_degraded.get_job_status(job_id)
-    assert status["state"] == JobState.PROCESSING.value
-    
-    # Simulate completion
-    result_data = {"test": "success"}
-    job_manager_degraded.update_job_status(
-        job_id,
-        JobState.COMPLETED,
-        result_data=result_data
-    )
-    
-    # Verify completed state and result retrieval
-    status = job_manager_degraded.get_job_status(job_id)
-    assert status["state"] == JobState.COMPLETED.value
-    
-    result = job_manager_degraded.get_job_result(job_id)
-    assert result["state"] == JobState.COMPLETED.value
-    assert result["result"] == result_data
-
-
-def test_graceful_degradation_redis_unavailable():
-    """Test graceful degradation when Redis is unavailable"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Create manager with invalid Redis URL but degraded mode enabled
-        manager = BatchJobManager(
-            redis_url="redis://invalid.host:9999/0",
-            artifact_storage_dir=tmpdir,
-            enable_degraded_mode=True
-        )
-        
-        assert manager.redis_available is False
-        assert manager.fallback_storage == {}
-        
-        # Should be able to store/retrieve data using fallback
-        job_id = str(uuid.uuid4())
-        job_data = {"test": "data"}
-        manager._set_job_data(job_id, job_data)
-        
-        retrieved = manager._get_job_data(job_id)
-        assert retrieved == job_data
-        
-        manager.close()
+        active_jobs = manager.get_active_jobs()
+        assert len(active_jobs) == 2
+        assert "test-1" in active_jobs
+        assert "test-2" in active_jobs
+        assert "test-3" not in active_jobs
 
 
 if __name__ == "__main__":

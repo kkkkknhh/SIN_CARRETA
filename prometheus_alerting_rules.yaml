@@ -6,34 +6,30 @@ groups:
   - name: batch_processing_recording_rules
     interval: 15s
     rules:
-      # Counter: Successful document completions
+      # Counter: Total document completions (all statuses)
       - record: documents_processed_total
-        expr: sum(batch_documents_processed_total{status="success"})
+        expr: sum(documents_processed_total) by (status)
         labels:
-          aggregation: total
+          aggregation: by_status
       
       # Rate-based throughput calculation (documents per hour)
+      # Uses 5-minute rate window multiplied by 3600 for hourly projection
       - record: batch_throughput_per_hour
-        expr: rate(documents_processed_total[5m]) * 3600
+        expr: rate(documents_processed_total{status="success"}[5m]) * 3600
         labels:
           calculation: rate_5m_to_hourly
       
-      # Worker utilization gauge from Celery metrics
-      # Assumes Celery exports metrics: celery_worker_tasks_active, celery_worker_tasks_total
-      - record: worker_utilization_percentage
-        expr: |
-          (
-            celery_worker_tasks_active
-            / 
-            (celery_worker_tasks_active + celery_worker_tasks_idle)
-          ) * 100
+      # Worker utilization gauge
+      # Calculated as percentage of active worker capacity
+      - record: worker_utilization
+        expr: worker_utilization
         labels:
           metric_type: gauge
       
-      # Queue depth from Redis queue length
-      # Assumes Redis exporter provides redis_list_length metric
+      # Queue depth from Redis-backed Celery queue
+      # Exported directly from API server /metrics endpoint
       - record: queue_depth
-        expr: redis_list_length{list=~"celery.*"}
+        expr: queue_depth
         labels:
           metric_type: gauge
           source: redis
