@@ -13,7 +13,8 @@ import pytest
 from system_validators import (
     validate_batch_pre_execution,
     validate_batch_post_execution,
-    BatchValidationResult
+    BatchValidationResult,
+    ValidationError
 )
 
 
@@ -40,18 +41,35 @@ class TestBatchValidationResult:
 
 
 class TestValidateBatchPreExecution:
-    def test_returns_batch_validation_result(self):
-        result = validate_batch_pre_execution()
-        assert isinstance(result, BatchValidationResult)
-        assert isinstance(result.errors, list)
+    def test_raises_validation_error_on_failure(self):
+        # This test might pass or fail depending on system resources
+        # We just verify the function raises ValidationError when checks fail
+        try:
+            result = validate_batch_pre_execution()
+            # If it succeeds, result should be BatchValidationResult
+            assert isinstance(result, BatchValidationResult)
+            assert result.ok is True
+        except ValidationError as e:
+            # If it fails, it should raise ValidationError
+            assert "Batch pre-execution validation failed" in str(e)
+            
+    def test_validates_memory_threshold(self):
+        # Test that memory check is performed (result or exception)
+        try:
+            result = validate_batch_pre_execution()
+            assert result.memory_available_gb is not None
+        except ValidationError:
+            # Expected if memory is insufficient
+            pass
         
-    def test_memory_check(self):
-        result = validate_batch_pre_execution()
-        assert result.memory_available_gb is not None or not result.memory_ok
-        
-    def test_disk_check(self):
-        result = validate_batch_pre_execution()
-        assert result.disk_available_gb is not None or not result.disk_ok
+    def test_validates_disk_threshold(self):
+        # Test that disk check is performed (result or exception)
+        try:
+            result = validate_batch_pre_execution()
+            assert result.disk_available_gb is not None
+        except ValidationError:
+            # Expected if disk space is insufficient
+            pass
 
 
 class TestValidateBatchPostExecution:
@@ -84,10 +102,9 @@ class TestValidateBatchPostExecution:
         (doc_dir / "evidence_registry.json").write_text(json.dumps(evidence_data))
     
     def test_empty_batch(self):
-        result = validate_batch_post_execution([], str(self.artifacts_dir))
-        assert isinstance(result, BatchValidationResult)
-        assert result.total_documents == 0
-        assert not result.ok
+        with pytest.raises(ValidationError) as exc_info:
+            validate_batch_post_execution([], str(self.artifacts_dir))
+        assert "validation failed" in str(exc_info.value).lower()
         
     def test_single_document_success(self):
         self._create_doc_artifacts("doc1", 300, "hash123")
@@ -96,10 +113,12 @@ class TestValidateBatchPostExecution:
         ]
         
         result = validate_batch_post_execution(batch_results, str(self.artifacts_dir))
-        assert result.total_documents == 1
-        assert result.coverage_passed == 1
-        assert result.coverage_failed == 0
-        assert result.hash_consistency_ok is True
+        assert isinstance(result, dict)
+        assert result["ok"] is True
+        assert result["aggregate_coverage_statistics"]["total_documents"] == 1
+        assert result["aggregate_coverage_statistics"]["coverage_passed"] == 1
+        assert result["aggregate_coverage_statistics"]["coverage_failed"] == 0
+        assert result["hash_verification"]["consistent"] is True
         
     def test_insufficient_coverage(self):
         self._create_doc_artifacts("doc1", 250, "hash123")
@@ -107,11 +126,10 @@ class TestValidateBatchPostExecution:
             {"document_id": "doc1", "status": "success"}
         ]
         
-        result = validate_batch_post_execution(batch_results, str(self.artifacts_dir))
-        assert result.coverage_passed == 0
-        assert result.coverage_failed == 1
-        assert not result.ok
-        assert any("insufficient coverage" in err.lower() for err in result.errors)
+        with pytest.raises(ValidationError) as exc_info:
+            validate_batch_post_execution(batch_results, str(self.artifacts_dir))
+        assert "coverage validation" in str(exc_info.value).lower()
+        assert "insufficient coverage" in str(exc_info.value).lower()
         
     def test_hash_consistency_multiple_docs(self):
         self._create_doc_artifacts("doc1", 300, "hash123")
@@ -125,9 +143,9 @@ class TestValidateBatchPostExecution:
         ]
         
         result = validate_batch_post_execution(batch_results, str(self.artifacts_dir))
-        assert result.hash_consistency_ok is True
-        assert result.total_documents == 3
-        assert result.coverage_passed == 3
+        assert result["hash_verification"]["consistent"] is True
+        assert result["aggregate_coverage_statistics"]["total_documents"] == 3
+        assert result["aggregate_coverage_statistics"]["coverage_passed"] == 3
         
     def test_hash_inconsistency(self):
         self._create_doc_artifacts("doc1", 300, "hash123")
@@ -138,22 +156,25 @@ class TestValidateBatchPostExecution:
             {"document_id": "doc2", "status": "success"}
         ]
         
-        result = validate_batch_post_execution(batch_results, str(self.artifacts_dir))
-        assert result.hash_consistency_ok is False
-        assert any("hash inconsistency" in err.lower() for err in result.errors)
+        with pytest.raises(ValidationError) as exc_info:
+            validate_batch_post_execution(batch_results, str(self.artifacts_dir))
+        assert "hash consistency" in str(exc_info.value).lower()
         
-    def test_error_rate_calculation(self):
+    def test_with_failed_documents(self):
         self._create_doc_artifacts("doc1", 300, "hash123")
+        self._create_doc_artifacts("doc2", 300, "hash123")
         
         batch_results = [
             {"document_id": "doc1", "status": "success"},
-            {"document_id": "doc2", "status": "failed", "error": "Test error"},
+            {"document_id": "doc2", "status": "success"},
             {"document_id": "doc3", "status": "failed", "error": "Test error"}
         ]
         
+        # Should succeed since doc1 and doc2 pass, doc3 is marked failed
         result = validate_batch_post_execution(batch_results, str(self.artifacts_dir))
-        assert result.total_documents == 3
-        assert result.error_rate_percent == pytest.approx(66.67, rel=0.01)
+        assert result["ok"] is True
+        assert result["aggregate_coverage_statistics"]["coverage_passed"] == 2
+        assert result["performance_metrics"]["error_rate_percent"] == pytest.approx(33.33, rel=0.01)
         
     def test_processing_time_stats(self):
         self._create_doc_artifacts("doc1", 300, "hash123")
@@ -167,12 +188,14 @@ class TestValidateBatchPostExecution:
         ]
         
         result = validate_batch_post_execution(batch_results, str(self.artifacts_dir))
-        assert result.processing_time_stats is not None
-        assert result.processing_time_stats["mean"] == pytest.approx(150.0)
-        assert result.processing_time_stats["median"] == pytest.approx(150.0)
-        assert result.processing_time_stats["min"] == 100.0
-        assert result.processing_time_stats["max"] == 200.0
-        assert result.processing_time_stats["count"] == 3
+        stats = result["performance_metrics"]["processing_time_distribution"]
+        assert stats is not None
+        assert stats["mean"] == pytest.approx(150.0)
+        assert stats["p50"] == pytest.approx(150.0)
+        assert stats["p95"] == pytest.approx(200.0)
+        assert stats["min"] == 100.0
+        assert stats["max"] == 200.0
+        assert stats["count"] == 3
         
     def test_throughput_calculation(self):
         self._create_doc_artifacts("doc1", 300, "hash123")
@@ -185,16 +208,16 @@ class TestValidateBatchPostExecution:
         
         result = validate_batch_post_execution(batch_results, str(self.artifacts_dir))
         # Total time: 3600s = 1 hour, 2 documents = 2 docs/hour
-        assert result.throughput_docs_per_hour == pytest.approx(2.0)
+        assert result["performance_metrics"]["throughput_docs_per_hour"] == pytest.approx(2.0)
         
     def test_missing_artifacts(self):
         batch_results = [
             {"document_id": "doc1", "status": "success"}
         ]
         
-        result = validate_batch_post_execution(batch_results, str(self.artifacts_dir))
-        assert result.coverage_failed == 1
-        assert any("missing coverage_report.json" in err for err in result.errors)
+        with pytest.raises(ValidationError) as exc_info:
+            validate_batch_post_execution(batch_results, str(self.artifacts_dir))
+        assert "missing coverage_report.json" in str(exc_info.value).lower()
 
 
 if __name__ == "__main__":

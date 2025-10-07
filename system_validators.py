@@ -33,6 +33,10 @@ from typing import Any, Dict, List, Tuple, Optional
 from datetime import datetime
 import statistics
 
+# Custom exception for validation failures
+class ValidationError(Exception):
+    pass
+
 # Dependencias internas
 try:
     from miniminimoon_immutability import EnhancedImmutabilityContract
@@ -346,7 +350,7 @@ def validate_batch_pre_execution() -> BatchValidationResult:
     
     ok = memory_ok and disk_ok and redis_ok and workers_ok
     
-    return BatchValidationResult(
+    result = BatchValidationResult(
         ok=ok,
         errors=errors,
         memory_available_gb=memory_available_gb,
@@ -357,9 +361,16 @@ def validate_batch_pre_execution() -> BatchValidationResult:
         workers_available=workers_available,
         workers_ok=workers_ok
     )
+    
+    # Raise ValidationError if any check fails
+    if not ok:
+        error_msg = "Batch pre-execution validation failed:\n" + "\n".join(f"  - {err}" for err in errors)
+        raise ValidationError(error_msg)
+    
+    return result
 
 
-def validate_batch_post_execution(batch_results: List[Dict[str, Any]], artifacts_base_dir: str = "artifacts") -> BatchValidationResult:
+def validate_batch_post_execution(batch_results: List[Dict[str, Any]], artifacts_base_dir: str = "artifacts") -> Dict[str, Any]:
     errors: List[str] = []
     base_path = pathlib.Path(artifacts_base_dir)
     
@@ -369,21 +380,38 @@ def validate_batch_post_execution(batch_results: List[Dict[str, Any]], artifacts
     processing_times: List[float] = []
     error_count = 0
     hashes: List[str] = []
+    per_document_status: List[Dict[str, Any]] = []
     
     # Iterate through batch job results
     for result in batch_results:
         doc_id = result.get("document_id", "unknown")
+        doc_status: Dict[str, Any] = {
+            "document_id": doc_id,
+            "status": "unknown",
+            "coverage_passed": False,
+            "hash_verified": False,
+            "processing_time": None,
+            "errors": []
+        }
         
         # Check for errors
         if result.get("error") or result.get("status") == "failed":
             error_count += 1
-            errors.append(f"Document {doc_id} failed: {result.get('error', 'unknown error')}")
+            error_msg = result.get("error", "unknown error")
+            errors.append(f"Document {doc_id} failed: {error_msg}")
+            doc_status["status"] = "failed"
+            doc_status["errors"].append(error_msg)
+            per_document_status.append(doc_status)
             continue
+        
+        doc_status["status"] = "processing"
         
         # Extract processing time if available
         if "processing_time" in result:
             try:
-                processing_times.append(float(result["processing_time"]))
+                proc_time = float(result["processing_time"])
+                processing_times.append(proc_time)
+                doc_status["processing_time"] = proc_time
             except (ValueError, TypeError):
                 pass
         
@@ -398,15 +426,24 @@ def validate_batch_post_execution(batch_results: List[Dict[str, Any]], artifacts
                 
                 if total_questions >= 300:
                     coverage_passed += 1
+                    doc_status["coverage_passed"] = True
+                    doc_status["coverage_count"] = total_questions
                 else:
                     coverage_failed += 1
-                    errors.append(f"Document {doc_id} has insufficient coverage: {total_questions}/300")
+                    err_msg = f"Document {doc_id} has insufficient coverage: {total_questions}/300"
+                    errors.append(err_msg)
+                    doc_status["errors"].append(err_msg)
+                    doc_status["coverage_count"] = total_questions
             except Exception as e:
                 coverage_failed += 1
-                errors.append(f"Document {doc_id} coverage_report.json parsing failed: {e}")
+                err_msg = f"Document {doc_id} coverage_report.json parsing failed: {e}"
+                errors.append(err_msg)
+                doc_status["errors"].append(str(e))
         else:
             coverage_failed += 1
-            errors.append(f"Document {doc_id} missing coverage_report.json")
+            err_msg = f"Document {doc_id} missing coverage_report.json"
+            errors.append(err_msg)
+            doc_status["errors"].append("Missing coverage_report.json")
         
         # Extract deterministic hash from evidence_registry.json
         evidence_path = doc_artifacts_dir / "evidence_registry.json"
@@ -416,19 +453,45 @@ def validate_batch_post_execution(batch_results: List[Dict[str, Any]], artifacts
                 doc_hash = evidence_data.get("deterministic_hash")
                 if doc_hash:
                     hashes.append(doc_hash)
+                    doc_status["hash"] = doc_hash
+                    doc_status["hash_verified"] = True
             except Exception as e:
-                errors.append(f"Document {doc_id} evidence_registry.json parsing failed: {e}")
+                err_msg = f"Document {doc_id} evidence_registry.json parsing failed: {e}"
+                errors.append(err_msg)
+                doc_status["errors"].append(str(e))
+        
+        # Update document status
+        if doc_status["coverage_passed"] and doc_status["hash_verified"]:
+            doc_status["status"] = "success"
+        elif len(doc_status["errors"]) == 0:
+            doc_status["status"] = "partial"
+        else:
+            doc_status["status"] = "failed"
+            
+        per_document_status.append(doc_status)
     
     # Validate hash consistency
     hash_consistency_ok = True
+    hash_verification_details: Dict[str, Any] = {
+        "total_hashes": len(hashes),
+        "unique_hashes": 0,
+        "consistent": False
+    }
+    
     if len(hashes) > 0:
         unique_hashes = set(hashes)
+        hash_verification_details["unique_hashes"] = len(unique_hashes)
         if len(unique_hashes) > 1:
             hash_consistency_ok = False
-            errors.append(f"Hash inconsistency detected: {len(unique_hashes)} unique hashes across {len(hashes)} documents")
+            err_msg = f"Hash inconsistency detected: {len(unique_hashes)} unique hashes across {len(hashes)} documents"
+            errors.append(err_msg)
+            hash_verification_details["consistent"] = False
+        else:
+            hash_verification_details["consistent"] = True
     else:
         hash_consistency_ok = False
         errors.append("No deterministic hashes found for validation")
+        hash_verification_details["consistent"] = False
     
     # Calculate quality metrics
     error_rate_percent = (error_count / total_documents * 100) if total_documents > 0 else 0.0
@@ -440,36 +503,60 @@ def validate_batch_post_execution(batch_results: List[Dict[str, Any]], artifacts
         if total_time_hours > 0:
             throughput_docs_per_hour = total_documents / total_time_hours
     
-    # Calculate processing time statistics
-    processing_time_stats = None
+    # Calculate processing time statistics (mean, p50, p95)
+    processing_time_stats: Dict[str, float] = {}
     if processing_times:
+        sorted_times = sorted(processing_times)
         processing_time_stats = {
             "mean": statistics.mean(processing_times),
-            "median": statistics.median(processing_times),
-            "stdev": statistics.stdev(processing_times) if len(processing_times) > 1 else 0.0,
+            "p50": statistics.median(processing_times),
+            "p95": sorted_times[int(len(sorted_times) * 0.95)] if len(sorted_times) > 0 else 0.0,
             "min": min(processing_times),
             "max": max(processing_times),
             "count": len(processing_times)
         }
     
-    ok = (
-        coverage_failed == 0 and
-        hash_consistency_ok and
-        error_count == 0 and
-        total_documents > 0
-    )
+    # Aggregate coverage statistics
+    aggregate_coverage_stats = {
+        "total_documents": total_documents,
+        "coverage_passed": coverage_passed,
+        "coverage_failed": coverage_failed,
+        "pass_rate_percent": (coverage_passed / total_documents * 100) if total_documents > 0 else 0.0
+    }
     
-    return BatchValidationResult(
-        ok=ok,
-        errors=errors,
-        total_documents=total_documents,
-        coverage_passed=coverage_passed,
-        coverage_failed=coverage_failed,
-        hash_consistency_ok=hash_consistency_ok,
-        error_rate_percent=error_rate_percent,
-        throughput_docs_per_hour=throughput_docs_per_hour,
-        processing_time_stats=processing_time_stats
-    )
+    # Performance metrics
+    performance_metrics = {
+        "error_rate_percent": error_rate_percent,
+        "throughput_docs_per_hour": throughput_docs_per_hour,
+        "processing_time_distribution": processing_time_stats
+    }
+    
+    # Structured report
+    ok = (coverage_failed == 0 and hash_consistency_ok and total_documents > 0)
+    
+    report = {
+        "ok": ok,
+        "errors": errors,
+        "per_document_status": per_document_status,
+        "aggregate_coverage_statistics": aggregate_coverage_stats,
+        "hash_verification": hash_verification_details,
+        "performance_metrics": performance_metrics
+    }
+    
+    # Raise ValidationError if any document fails coverage or hash consistency checks
+    if coverage_failed > 0 or not hash_consistency_ok:
+        failure_details = []
+        if coverage_failed > 0:
+            failure_details.append(f"{coverage_failed} document(s) failed coverage validation (300/300 required)")
+        if not hash_consistency_ok:
+            failure_details.append("Hash consistency check failed")
+        
+        error_msg = "Batch post-execution validation failed:\n" + "\n".join(f"  - {detail}" for detail in failure_details)
+        if errors:
+            error_msg += "\n\nDetailed errors:\n" + "\n".join(f"  - {err}" for err in errors[:10])
+        raise ValidationError(error_msg)
+    
+    return report
 
 
 # ---------------- CLI mínima ----------------
