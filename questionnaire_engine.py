@@ -1231,6 +1231,15 @@ class QuestionnaireEngine:
 
         logger.info(f"🚀 Starting FULL evaluation: 30 questions × 10 points = 300 evaluations")
 
+        # Load RUBRIC_SCORING.json weights for validation
+        rubric_path = Path(__file__).parent / "RUBRIC_SCORING.json"
+        try:
+            with open(rubric_path, 'r', encoding='utf-8') as f:
+                rubric_data = json.load(f)
+                rubric_weights = rubric_data.get("weights", {})
+        except Exception as e:
+            raise RuntimeError(f"Failed to load RUBRIC_SCORING.json for validation: {e}")
+
         evaluation_id = str(uuid.uuid4())
         start_time = datetime.now()
 
@@ -1260,9 +1269,14 @@ class QuestionnaireEngine:
 
         evaluation_count = 0
         all_point_scores = []
+        generated_question_ids = set()
 
         # Execute evaluation for each thematic point
-        for point in self.thematic_points:
+        # Structure: 10 thematic points × 30 base questions = 300 evaluations
+        # ID format: D{dimension_no}-Q{sequential_no} where sequential_no expands across 10 points
+        # Each dimension has 5 base questions, expanded to 50 questions across 10 points
+        
+        for point_idx, point in enumerate(self.thematic_points):
             logger.info(f"📋 Evaluating {point.id}: {point.title}")
 
             point_results = {
@@ -1280,8 +1294,42 @@ class QuestionnaireEngine:
                 # Parametrize question for this thematic point
                 parametrized_question = question.template.replace("{PUNTO_TEMATICO}", point.title)
 
-                # Generate unique ID for this question-point combination
-                question_point_id = f"{point.id}-{question.id}"
+                # Generate standardized D{N}-Q{N} format ID
+                # Each dimension (D1-D6) has 5 base questions expanded to 50 questions across 10 points
+                # D1: base Q1-5 → Q1-50 (5 questions × 10 points)
+                # D2: base Q6-10 → Q1-50 (5 questions × 10 points)
+                # etc.
+                
+                # Extract dimension number (1-6)
+                dimension_match = re.match(r'D(\d+)', question.dimension)
+                if not dimension_match:
+                    raise RuntimeError(f"Invalid dimension format: {question.dimension}")
+                dimension_no = int(dimension_match.group(1))
+                
+                # Calculate sequential question number within dimension (1-50)
+                # question.question_no is 1-30 across all dimensions
+                # Within a dimension, we have 5 questions (question_no % 5 gives position 1-5 or 0)
+                base_question_position = ((question.question_no - 1) % 5) + 1  # 1-5
+                sequential_question_no = (base_question_position - 1) * 10 + (point_idx + 1)  # Expands to 1-50
+                
+                # Generate ID in D{N}-Q{N} format
+                question_id = f"D{dimension_no}-Q{sequential_question_no}"
+                
+                # Validate question_id exists in RUBRIC_SCORING.json weights
+                if question_id not in rubric_weights:
+                    raise ValueError(
+                        f"VALIDATION FAILED: Generated question_id '{question_id}' not found in RUBRIC_SCORING.json weights. "
+                        f"Point: {point.id}, Base Question: {question.id}, Point Index: {point_idx}, "
+                        f"Dimension: {dimension_no}, Sequential Q#: {sequential_question_no}"
+                    )
+                
+                # Check for duplicate IDs (should never happen with correct logic)
+                if question_id in generated_question_ids:
+                    raise ValueError(
+                        f"VALIDATION FAILED: Duplicate question_id '{question_id}' generated. "
+                        f"Point: {point.id}, Base Question: {question.id}"
+                    )
+                generated_question_ids.add(question_id)
 
                 # ✅ CAMBIO: pasar orchestrator_results en lugar de pdf_document
                 evaluation_result = self._evaluate_single_question(
@@ -1291,7 +1339,7 @@ class QuestionnaireEngine:
                     parametrized_question=parametrized_question
                 )
 
-                evaluation_result.question_id = question_point_id
+                evaluation_result.question_id = question_id
                 evaluation_result.point_code = point.id
                 evaluation_result.point_title = point.title
                 evaluation_result.prompt = parametrized_question
@@ -1301,7 +1349,7 @@ class QuestionnaireEngine:
 
                 evaluation_count += 1
 
-                logger.debug(f"  ✓ {question_point_id}: Score {evaluation_result.score:.2f}/{evaluation_result.max_score}")
+                logger.debug(f"  ✓ {question_id}: Score {evaluation_result.score:.2f}/{evaluation_result.max_score}")
 
             # Calculate dimension scores for this point
             for dim in ["D1", "D2", "D3", "D4", "D5", "D6"]:
@@ -1323,6 +1371,25 @@ class QuestionnaireEngine:
         # Final validation
         if evaluation_count != self.structure.TOTAL_QUESTIONS:
             raise RuntimeError(f"CRITICAL: Expected {self.structure.TOTAL_QUESTIONS} evaluations, executed {evaluation_count}")
+        
+        # Validate all 300 question IDs were generated
+        if len(generated_question_ids) != 300:
+            raise RuntimeError(
+                f"CRITICAL: Expected 300 unique question IDs, generated {len(generated_question_ids)}. "
+                f"Missing IDs: {set(rubric_weights.keys()) - generated_question_ids}"
+            )
+        
+        # Validate all generated IDs match rubric weights keys
+        rubric_weight_keys = set(rubric_weights.keys())
+        if generated_question_ids != rubric_weight_keys:
+            missing_in_generated = rubric_weight_keys - generated_question_ids
+            extra_in_generated = generated_question_ids - rubric_weight_keys
+            raise RuntimeError(
+                f"CRITICAL: Question ID mismatch with RUBRIC_SCORING.json. "
+                f"Missing in generated: {missing_in_generated}. Extra in generated: {extra_in_generated}"
+            )
+        
+        logger.info(f"✅ VALIDATION PASSED: All 300 question IDs match RUBRIC_SCORING.json weights")
 
         # Calculate dimension summary (average across all points)
         for dim in ["D1", "D2", "D3", "D4", "D5", "D6"]:
@@ -1467,7 +1534,7 @@ class QuestionnaireEngine:
             elements_found["Unidad"] = len(detailed) > 0
 
             responsibilities = orchestrator_results.get("responsibilities", [])
-            elements_found["Responsable"] = len(responsabilities) > 0
+            elements_found["Responsable"] = len(responsibilities) > 0
 
         # D2-Q7: Población diana
         elif question.id == "D2-Q7":
