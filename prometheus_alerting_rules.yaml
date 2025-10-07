@@ -2,6 +2,41 @@
 # ====================================================================
 
 groups:
+  # Recording Rules for Batch Processing Metrics
+  - name: batch_processing_recording_rules
+    interval: 15s
+    rules:
+      # Counter: Successful document completions
+      - record: documents_processed_total
+        expr: sum(batch_documents_processed_total{status="success"})
+        labels:
+          aggregation: total
+      
+      # Rate-based throughput calculation (documents per hour)
+      - record: batch_throughput_per_hour
+        expr: rate(documents_processed_total[5m]) * 3600
+        labels:
+          calculation: rate_5m_to_hourly
+      
+      # Worker utilization gauge from Celery metrics
+      # Assumes Celery exports metrics: celery_worker_tasks_active, celery_worker_tasks_total
+      - record: worker_utilization_percentage
+        expr: |
+          (
+            celery_worker_tasks_active
+            / 
+            (celery_worker_tasks_active + celery_worker_tasks_idle)
+          ) * 100
+        labels:
+          metric_type: gauge
+      
+      # Queue depth from Redis queue length
+      # Assumes Redis exporter provides redis_list_length metric
+      - record: queue_depth
+        expr: redis_list_length{list=~"celery.*"}
+        labels:
+          metric_type: gauge
+          source: redis
   - name: miniminimoon_performance
     interval: 10s
     rules:
@@ -221,16 +256,27 @@ groups:
   - name: batch_processing_sla
     interval: 30s
     rules:
-      # Throughput SLA: 170 documents per hour
+      # PRIMARY ALERT: Throughput below 170 docs/hr for 10 minutes
       - alert: BatchThroughputBelowSLA
         expr: batch_throughput_per_hour < 170
-        for: 5m
+        for: 10m
         labels:
           severity: critical
           sla: throughput
         annotations:
           summary: "Batch throughput below 170 docs/hr SLA"
-          description: "Current batch throughput is {{ $value }} documents/hr (target: 170 docs/hr). Immediate investigation required."
+          description: "Current batch throughput is {{ $value }} documents/hr (target: 170 docs/hr). Sustained performance degradation for 10+ minutes. Immediate investigation required."
+
+      # PRIMARY ALERT: Queue depth exceeding 100 for 5 minutes
+      - alert: QueueDepthExceedsThreshold
+        expr: queue_depth > 100
+        for: 5m
+        labels:
+          severity: critical
+          sla: queue_capacity
+        annotations:
+          summary: "Queue depth exceeds 100 documents"
+          description: "Queue {{ $labels.queue_name }} depth is {{ $value }} documents (threshold: 100). Sustained backlog for 5+ minutes. Scale workers or investigate processing bottlenecks."
 
       - alert: BatchThroughputDegraded
         expr: batch_throughput_per_hour < 200 and batch_throughput_per_hour >= 170

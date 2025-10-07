@@ -1,549 +1,630 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Batch Performance Report Generator
-===================================
 
-Queries Prometheus metrics and parses structured logs to generate
-comprehensive SLA compliance reports for batch processing:
+Queries Prometheus HTTP API for batch processing metrics over a configurable 
+time window, calculates SLA compliance, and generates comprehensive reports 
+with trace IDs from structured logs.
 
-- Throughput: Actual docs/hr vs 170 target
-- Latency: p95 measurements vs 21.2s threshold
-- Success rate: Overall and by stage
-- Failure categorization
-- Worker utilization statistics
-- Queue depth analysis
+SLA Targets:
+- Throughput: 170 documents/hour
+- P95 Latency: 21.2 seconds
 """
 
 import json
 import logging
-import re
-from collections import defaultdict
-from dataclasses import asdict, dataclass, field
+import os
 from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from urllib.parse import urlencode
-from urllib.request import urlopen
+
+import requests
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class SLAThresholds:
-    """SLA threshold configuration."""
-    throughput_target: float = 170.0  # docs/hr
-    throughput_warning: float = 200.0  # docs/hr (buffer)
-    p95_latency_target: float = 21.2  # seconds
-    p95_latency_warning: float = 18.0  # seconds
-    success_rate_target: float = 0.95  # 95%
-    error_rate_threshold: float = 0.05  # 5%
-    worker_utilization_min: float = 50.0  # %
-    worker_utilization_max: float = 95.0  # %
-    queue_depth_warning: int = 1000
-    queue_depth_critical: int = 5000
-
-
-@dataclass
-class ThroughputMetrics:
-    """Throughput measurement and SLA compliance."""
-    current_docs_per_hour: float = 0.0
-    target_docs_per_hour: float = 170.0
-    sla_compliant: bool = False
-    compliance_percentage: float = 0.0
-    trend_last_hour: float = 0.0
-    
-    def calculate_compliance(self):
-        """Calculate SLA compliance."""
-        self.compliance_percentage = (self.current_docs_per_hour / self.target_docs_per_hour) * 100.0
-        self.sla_compliant = self.current_docs_per_hour >= self.target_docs_per_hour
-
-
-@dataclass
-class LatencyMetrics:
-    """Latency measurement and SLA compliance."""
-    p50_seconds: float = 0.0
-    p95_seconds: float = 0.0
-    p99_seconds: float = 0.0
-    target_p95_seconds: float = 21.2
-    sla_compliant: bool = False
-    margin_seconds: float = 0.0
-    
-    def calculate_compliance(self):
-        """Calculate SLA compliance."""
-        self.margin_seconds = self.target_p95_seconds - self.p95_seconds
-        self.sla_compliant = self.p95_seconds <= self.target_p95_seconds
-
-
-@dataclass
-class SuccessRateMetrics:
-    """Success rate measurement and failure categorization."""
-    total_documents: int = 0
-    successful_documents: int = 0
-    failed_documents: int = 0
-    success_rate: float = 0.0
-    error_rate: float = 0.0
-    failure_categories: Dict[str, int] = field(default_factory=dict)
-    failure_percentages: Dict[str, float] = field(default_factory=dict)
-    sla_compliant: bool = False
-    
-    def calculate_metrics(self):
-        """Calculate success/error rates and categorization."""
-        if self.total_documents > 0:
-            self.success_rate = self.successful_documents / self.total_documents
-            self.error_rate = self.failed_documents / self.total_documents
-            self.sla_compliant = self.success_rate >= 0.95
-            
-            # Calculate failure category percentages
-            for category, count in self.failure_categories.items():
-                self.failure_percentages[category] = (count / self.total_documents) * 100.0
-
-
-@dataclass
-class WorkerMetrics:
-    """Worker utilization statistics."""
-    worker_id: str = ""
-    utilization_percentage: float = 0.0
-    busy_time_seconds: float = 0.0
-    total_time_seconds: float = 0.0
-    documents_processed: int = 0
-    healthy: bool = True
-
-
-@dataclass
-class QueueMetrics:
-    """Queue depth analysis."""
-    current_depth: int = 0
-    max_depth: int = 0
-    avg_depth: float = 0.0
-    growth_rate_per_minute: float = 0.0
-    warning_threshold: int = 1000
-    critical_threshold: int = 5000
-    status: str = "healthy"  # healthy, warning, critical
-    
-    def calculate_status(self):
-        """Determine queue health status."""
-        if self.current_depth >= self.critical_threshold:
-            self.status = "critical"
-        elif self.current_depth >= self.warning_threshold:
-            self.status = "warning"
-        else:
-            self.status = "healthy"
-
-
-@dataclass
-class BatchPerformanceReport:
-    """Complete batch processing performance report."""
-    report_timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-    report_period_hours: float = 1.0
-    sla_thresholds: SLAThresholds = field(default_factory=SLAThresholds)
-    throughput: ThroughputMetrics = field(default_factory=ThroughputMetrics)
-    latency: LatencyMetrics = field(default_factory=LatencyMetrics)
-    success_rate: SuccessRateMetrics = field(default_factory=SuccessRateMetrics)
-    workers: List[WorkerMetrics] = field(default_factory=list)
-    queue: QueueMetrics = field(default_factory=QueueMetrics)
-    overall_sla_compliant: bool = False
-    sla_violations: List[str] = field(default_factory=list)
-    
-    def calculate_overall_sla(self):
-        """Calculate overall SLA compliance and identify violations."""
-        self.sla_violations = []
-        
-        if not self.throughput.sla_compliant:
-            self.sla_violations.append(
-                f"Throughput below target: {self.throughput.current_docs_per_hour:.1f} < {self.throughput.target_docs_per_hour} docs/hr"
-            )
-        
-        if not self.latency.sla_compliant:
-            self.sla_violations.append(
-                f"P95 latency exceeds target: {self.latency.p95_seconds:.2f}s > {self.latency.target_p95_seconds}s"
-            )
-        
-        if not self.success_rate.sla_compliant:
-            self.sla_violations.append(
-                f"Success rate below target: {self.success_rate.success_rate:.1%} < 95%"
-            )
-        
-        if self.queue.status == "critical":
-            self.sla_violations.append(
-                f"Queue depth critical: {self.queue.current_depth} >= {self.queue.critical_threshold}"
-            )
-        
-        self.overall_sla_compliant = len(self.sla_violations) == 0
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert report to dictionary."""
-        return {
-            "report_timestamp": self.report_timestamp,
-            "report_period_hours": self.report_period_hours,
-            "sla_thresholds": asdict(self.sla_thresholds),
-            "throughput": asdict(self.throughput),
-            "latency": asdict(self.latency),
-            "success_rate": asdict(self.success_rate),
-            "workers": [asdict(w) for w in self.workers],
-            "queue": asdict(self.queue),
-            "overall_sla_compliant": self.overall_sla_compliant,
-            "sla_violations": self.sla_violations
-        }
-    
-    def to_json(self) -> str:
-        """Export report as JSON."""
-        return json.dumps(self.to_dict(), indent=2)
-
-
-class PrometheusClient:
-    """Client for querying Prometheus metrics."""
-    
-    def __init__(self, prometheus_url: str = "http://localhost:9090"):
-        self.prometheus_url = prometheus_url.rstrip("/")
-    
-    def query(self, query: str) -> Optional[Dict[str, Any]]:
-        """Execute instant query against Prometheus."""
-        try:
-            params = urlencode({"query": query})
-            url = f"{self.prometheus_url}/api/v1/query?{params}"
-            
-            with urlopen(url, timeout=10) as response:
-                data = json.loads(response.read().decode())
-                if data["status"] == "success":
-                    return data["data"]
-                else:
-                    logger.error(f"Prometheus query failed: {data}")
-                    return None
-        except Exception as e:
-            logger.error(f"Prometheus query error: {e}")
-            return None
-    
-    def query_range(self, query: str, start: datetime, end: datetime, step: str = "1m") -> Optional[Dict[str, Any]]:
-        """Execute range query against Prometheus."""
-        try:
-            params = urlencode({
-                "query": query,
-                "start": int(start.timestamp()),
-                "end": int(end.timestamp()),
-                "step": step
-            })
-            url = f"{self.prometheus_url}/api/v1/query_range?{params}"
-            
-            with urlopen(url, timeout=30) as response:
-                data = json.loads(response.read().decode())
-                if data["status"] == "success":
-                    return data["data"]
-                else:
-                    logger.error(f"Prometheus range query failed: {data}")
-                    return None
-        except Exception as e:
-            logger.error(f"Prometheus range query error: {e}")
-            return None
-    
-    def get_metric_value(self, query: str) -> Optional[float]:
-        """Get single metric value."""
-        result = self.query(query)
-        if result and result["result"]:
-            return float(result["result"][0]["value"][1])
-        return None
-
-
-class LogParser:
-    """Parser for structured JSON logs."""
-    
-    def __init__(self, log_file_path: str):
-        self.log_file_path = Path(log_file_path)
-    
-    def parse_logs(self, since: Optional[datetime] = None) -> List[Dict[str, Any]]:
-        """Parse structured logs and extract events."""
-        events = []
-        
-        if not self.log_file_path.exists():
-            logger.warning(f"Log file not found: {self.log_file_path}")
-            return events
-        
-        with open(self.log_file_path, 'r') as f:
-            for line in f:
-                try:
-                    event = json.loads(line.strip())
-                    
-                    # Filter by timestamp if provided
-                    if since:
-                        event_time = datetime.fromisoformat(event.get("timestamp", ""))
-                        if event_time < since:
-                            continue
-                    
-                    events.append(event)
-                except json.JSONDecodeError:
-                    continue
-        
-        return events
-    
-    def aggregate_document_processing(self, events: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Aggregate document processing metrics from logs."""
-        total_docs = 0
-        success_docs = 0
-        error_docs = 0
-        error_categories = defaultdict(int)
-        latencies = []
-        trace_ids = set()
-        
-        for event in events:
-            if event.get("event") == "document_processing_completed":
-                trace_id = event.get("trace_id")
-                if trace_id:
-                    trace_ids.add(trace_id)
-                
-                total_docs += 1
-                status = event.get("status")
-                if status == "success":
-                    success_docs += 1
-                elif status == "error":
-                    error_docs += 1
-                    category = event.get("error_category", "Unknown")
-                    error_categories[category] += 1
-                
-                latency = event.get("latency_seconds")
-                if latency:
-                    latencies.append(latency)
-        
-        return {
-            "total_documents": total_docs,
-            "successful_documents": success_docs,
-            "failed_documents": error_docs,
-            "error_categories": dict(error_categories),
-            "latencies": latencies,
-            "unique_trace_ids": len(trace_ids)
-        }
+class PrometheusQueryError(Exception):
+    """Raised when Prometheus query fails"""
+    pass
 
 
 class BatchPerformanceReportGenerator:
-    """Main report generator."""
+    """
+    Generates comprehensive batch performance reports by querying Prometheus
+    and correlating with structured logs for trace IDs.
+    """
+    
+    SLA_THROUGHPUT_TARGET = 170.0
+    SLA_P95_LATENCY_TARGET = 21.2
     
     def __init__(
         self,
         prometheus_url: str = "http://localhost:9090",
-        log_file_path: str = "/var/log/batch_processor.log",
-        sla_thresholds: Optional[SLAThresholds] = None
+        artifacts_dir: str = "artifacts",
+        log_file: Optional[str] = None
     ):
-        self.prometheus = PrometheusClient(prometheus_url)
-        self.log_parser = LogParser(log_file_path)
-        self.sla_thresholds = sla_thresholds or SLAThresholds()
+        """
+        Initialize report generator.
+        
+        Args:
+            prometheus_url: Base URL for Prometheus API
+            artifacts_dir: Directory to write report artifacts
+            log_file: Optional path to structured log file for trace ID extraction
+        """
+        self.prometheus_url = prometheus_url.rstrip('/')
+        self.artifacts_dir = Path(artifacts_dir)
+        self.artifacts_dir.mkdir(exist_ok=True)
+        self.log_file = Path(log_file) if log_file else None
+    
+    def query_prometheus(
+        self,
+        query: str,
+        start_time: datetime,
+        end_time: datetime,
+        step: str = "15s"
+    ) -> Dict:
+        """
+        Query Prometheus HTTP API for range data.
+        
+        Args:
+            query: PromQL query expression
+            start_time: Query start timestamp
+            end_time: Query end timestamp
+            step: Query resolution step
+            
+        Returns:
+            Query result dictionary
+            
+        Raises:
+            PrometheusQueryError: If query fails
+        """
+        url = f"{self.prometheus_url}/api/v1/query_range"
+        params = {
+            "query": query,
+            "start": start_time.timestamp(),
+            "end": end_time.timestamp(),
+            "step": step
+        }
+        
+        try:
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get("status") != "success":
+                raise PrometheusQueryError(
+                    f"Query failed: {data.get('error', 'Unknown error')}"
+                )
+            
+            return data["data"]["result"]
+        except requests.RequestException as e:
+            raise PrometheusQueryError(f"Prometheus request failed: {e}")
+    
+    def query_prometheus_instant(self, query: str, timestamp: datetime) -> Dict:
+        """
+        Query Prometheus HTTP API for instant data.
+        
+        Args:
+            query: PromQL query expression
+            timestamp: Query timestamp
+            
+        Returns:
+            Query result dictionary
+            
+        Raises:
+            PrometheusQueryError: If query fails
+        """
+        url = f"{self.prometheus_url}/api/v1/query"
+        params = {
+            "query": query,
+            "time": timestamp.timestamp()
+        }
+        
+        try:
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get("status") != "success":
+                raise PrometheusQueryError(
+                    f"Query failed: {data.get('error', 'Unknown error')}"
+                )
+            
+            return data["data"]["result"]
+        except requests.RequestException as e:
+            raise PrometheusQueryError(f"Prometheus request failed: {e}")
+    
+    def calculate_sla_compliance(
+        self,
+        throughput_data: List[Tuple[datetime, float]],
+        latency_data: List[Tuple[datetime, float]]
+    ) -> Dict[str, float]:
+        """
+        Calculate SLA compliance percentage for throughput and latency.
+        
+        Args:
+            throughput_data: List of (timestamp, throughput) tuples
+            latency_data: List of (timestamp, p95_latency) tuples
+            
+        Returns:
+            Dictionary with compliance percentages
+        """
+        total_throughput_samples = len(throughput_data)
+        total_latency_samples = len(latency_data)
+        
+        if total_throughput_samples == 0 or total_latency_samples == 0:
+            return {
+                "throughput_compliance_pct": 0.0,
+                "latency_compliance_pct": 0.0,
+                "overall_compliance_pct": 0.0
+            }
+        
+        throughput_compliant = sum(
+            1 for _, value in throughput_data 
+            if value >= self.SLA_THROUGHPUT_TARGET
+        )
+        latency_compliant = sum(
+            1 for _, value in latency_data 
+            if value <= self.SLA_P95_LATENCY_TARGET
+        )
+        
+        throughput_compliance_pct = (
+            throughput_compliant / total_throughput_samples * 100
+        )
+        latency_compliance_pct = (
+            latency_compliant / total_latency_samples * 100
+        )
+        overall_compliance_pct = (
+            throughput_compliance_pct + latency_compliance_pct
+        ) / 2
+        
+        return {
+            "throughput_compliance_pct": round(throughput_compliance_pct, 2),
+            "latency_compliance_pct": round(latency_compliance_pct, 2),
+            "overall_compliance_pct": round(overall_compliance_pct, 2),
+            "throughput_samples": total_throughput_samples,
+            "latency_samples": total_latency_samples
+        }
+    
+    def extract_trace_ids_from_logs(
+        self,
+        start_time: datetime,
+        end_time: datetime
+    ) -> List[Dict[str, str]]:
+        """
+        Extract per-document trace IDs from structured logs.
+        
+        Args:
+            start_time: Start of time window
+            end_time: End of time window
+            
+        Returns:
+            List of dictionaries with trace_id, timestamp, status
+        """
+        if not self.log_file or not self.log_file.exists():
+            logger.warning(
+                f"Log file not found: {self.log_file}. Trace IDs not available."
+            )
+            return []
+        
+        trace_entries = []
+        
+        try:
+            with open(self.log_file, 'r') as f:
+                for line in f:
+                    try:
+                        log_entry = json.loads(line.strip())
+                        log_timestamp = datetime.fromisoformat(
+                            log_entry.get("timestamp", "")
+                        )
+                        
+                        if start_time <= log_timestamp <= end_time:
+                            trace_id = log_entry.get("trace_id")
+                            if trace_id:
+                                trace_entries.append({
+                                    "trace_id": trace_id,
+                                    "timestamp": log_entry["timestamp"],
+                                    "status": log_entry.get("status", "unknown"),
+                                    "document_id": log_entry.get("document_id")
+                                })
+                    except (json.JSONDecodeError, ValueError, KeyError):
+                        continue
+        except IOError as e:
+            logger.error(f"Failed to read log file: {e}")
+        
+        return trace_entries
+    
+    def detect_performance_degradation_incidents(
+        self,
+        throughput_data: List[Tuple[datetime, float]],
+        latency_data: List[Tuple[datetime, float]]
+    ) -> List[Dict]:
+        """
+        Detect performance degradation incidents from time series data.
+        
+        Args:
+            throughput_data: List of (timestamp, throughput) tuples
+            latency_data: List of (timestamp, p95_latency) tuples
+            
+        Returns:
+            List of incident dictionaries with start, end, type, severity
+        """
+        incidents = []
+        
+        # Throughput degradation: below SLA for 10+ minutes
+        throughput_incident_start = None
+        for timestamp, value in throughput_data:
+            if value < self.SLA_THROUGHPUT_TARGET:
+                if throughput_incident_start is None:
+                    throughput_incident_start = timestamp
+            else:
+                if throughput_incident_start is not None:
+                    duration = (timestamp - throughput_incident_start).total_seconds()
+                    if duration >= 600:  # 10 minutes
+                        incidents.append({
+                            "type": "throughput_degradation",
+                            "severity": "critical",
+                            "start": throughput_incident_start.isoformat(),
+                            "end": timestamp.isoformat(),
+                            "duration_seconds": duration,
+                            "min_throughput": min(
+                                v for t, v in throughput_data 
+                                if throughput_incident_start <= t < timestamp
+                            )
+                        })
+                    throughput_incident_start = None
+        
+        # Latency degradation: above SLA threshold
+        latency_incident_start = None
+        for timestamp, value in latency_data:
+            if value > self.SLA_P95_LATENCY_TARGET:
+                if latency_incident_start is None:
+                    latency_incident_start = timestamp
+            else:
+                if latency_incident_start is not None:
+                    duration = (timestamp - latency_incident_start).total_seconds()
+                    if duration >= 180:  # 3 minutes
+                        incidents.append({
+                            "type": "latency_degradation",
+                            "severity": "critical",
+                            "start": latency_incident_start.isoformat(),
+                            "end": timestamp.isoformat(),
+                            "duration_seconds": duration,
+                            "max_latency": max(
+                                v for t, v in latency_data 
+                                if latency_incident_start <= t < timestamp
+                            )
+                        })
+                    latency_incident_start = None
+        
+        return incidents
     
     def generate_report(
         self,
-        period_hours: float = 1.0,
-        use_prometheus: bool = True,
-        use_logs: bool = True
-    ) -> BatchPerformanceReport:
-        """Generate comprehensive performance report."""
-        report = BatchPerformanceReport(
-            report_period_hours=period_hours,
-            sla_thresholds=self.sla_thresholds
+        time_window_hours: int = 1,
+        end_time: Optional[datetime] = None
+    ) -> Dict:
+        """
+        Generate comprehensive batch performance report.
+        
+        Args:
+            time_window_hours: Hours to look back from end_time
+            end_time: End of report window (default: now)
+            
+        Returns:
+            Complete report dictionary
+            
+        Raises:
+            PrometheusQueryError: If queries fail
+        """
+        if end_time is None:
+            end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=time_window_hours)
+        
+        logger.info(
+            f"Generating batch performance report for "
+            f"{start_time.isoformat()} to {end_time.isoformat()}"
         )
         
-        # Query Prometheus metrics
-        if use_prometheus:
-            self._collect_prometheus_metrics(report)
+        # Query Prometheus for metrics
+        throughput_result = self.query_prometheus(
+            "batch_throughput_per_hour",
+            start_time,
+            end_time
+        )
         
-        # Parse structured logs
-        if use_logs:
-            since = datetime.utcnow() - timedelta(hours=period_hours)
-            self._collect_log_metrics(report, since)
+        latency_result = self.query_prometheus(
+            'histogram_quantile(0.95, rate(batch_document_processing_latency_seconds_bucket[5m]))',
+            start_time,
+            end_time
+        )
+        
+        queue_depth_result = self.query_prometheus(
+            "queue_depth",
+            start_time,
+            end_time
+        )
+        
+        worker_utilization_result = self.query_prometheus(
+            "worker_utilization_percentage",
+            start_time,
+            end_time
+        )
+        
+        # Query for total documents processed
+        docs_processed_result = self.query_prometheus_instant(
+            f'sum(increase(documents_processed_total[{time_window_hours}h]))',
+            end_time
+        )
+        
+        # Query for error rate
+        error_rate_result = self.query_prometheus(
+            'rate(batch_documents_processed_total{status="error"}[5m]) / rate(batch_documents_processed_total[5m])',
+            start_time,
+            end_time
+        )
+        
+        # Parse time series data
+        throughput_data = [
+            (datetime.fromtimestamp(float(ts)), float(val))
+            for result in throughput_result
+            for ts, val in result.get("values", [])
+        ]
+        
+        latency_data = [
+            (datetime.fromtimestamp(float(ts)), float(val))
+            for result in latency_result
+            for ts, val in result.get("values", [])
+        ]
+        
+        queue_depth_data = [
+            (datetime.fromtimestamp(float(ts)), float(val))
+            for result in queue_depth_result
+            for ts, val in result.get("values", [])
+        ]
+        
+        worker_util_data = [
+            (datetime.fromtimestamp(float(ts)), float(val))
+            for result in worker_utilization_result
+            for ts, val in result.get("values", [])
+        ]
+        
+        error_rate_data = [
+            (datetime.fromtimestamp(float(ts)), float(val))
+            for result in error_rate_result
+            for ts, val in result.get("values", [])
+        ]
+        
+        # Calculate statistics
+        total_docs_processed = 0
+        if docs_processed_result:
+            total_docs_processed = float(
+                docs_processed_result[0].get("value", [0, "0"])[1]
+            )
         
         # Calculate SLA compliance
-        report.throughput.calculate_compliance()
-        report.latency.calculate_compliance()
-        report.success_rate.calculate_metrics()
-        report.queue.calculate_status()
-        report.calculate_overall_sla()
+        sla_compliance = self.calculate_sla_compliance(
+            throughput_data,
+            latency_data
+        )
+        
+        # Calculate batch success rate
+        avg_error_rate = (
+            sum(val for _, val in error_rate_data) / len(error_rate_data)
+            if error_rate_data else 0.0
+        )
+        batch_success_rate = (1.0 - avg_error_rate) * 100
+        
+        # Detect performance degradation incidents
+        incidents = self.detect_performance_degradation_incidents(
+            throughput_data,
+            latency_data
+        )
+        
+        # Extract trace IDs from logs
+        trace_ids = self.extract_trace_ids_from_logs(start_time, end_time)
+        
+        # Calculate summary statistics
+        avg_throughput = (
+            sum(val for _, val in throughput_data) / len(throughput_data)
+            if throughput_data else 0.0
+        )
+        avg_p95_latency = (
+            sum(val for _, val in latency_data) / len(latency_data)
+            if latency_data else 0.0
+        )
+        max_queue_depth = (
+            max(val for _, val in queue_depth_data)
+            if queue_depth_data else 0.0
+        )
+        avg_worker_utilization = (
+            sum(val for _, val in worker_util_data) / len(worker_util_data)
+            if worker_util_data else 0.0
+        )
+        
+        # Assemble complete report
+        report = {
+            "metadata": {
+                "generated_at": datetime.utcnow().isoformat(),
+                "time_window": {
+                    "start": start_time.isoformat(),
+                    "end": end_time.isoformat(),
+                    "duration_hours": time_window_hours
+                },
+                "prometheus_url": self.prometheus_url
+            },
+            "sla_targets": {
+                "throughput_docs_per_hour": self.SLA_THROUGHPUT_TARGET,
+                "p95_latency_seconds": self.SLA_P95_LATENCY_TARGET
+            },
+            "sla_compliance": sla_compliance,
+            "summary_statistics": {
+                "total_documents_processed": int(total_docs_processed),
+                "avg_throughput_docs_per_hour": round(avg_throughput, 2),
+                "avg_p95_latency_seconds": round(avg_p95_latency, 2),
+                "max_queue_depth": int(max_queue_depth),
+                "avg_worker_utilization_pct": round(avg_worker_utilization, 2),
+                "batch_success_rate_pct": round(batch_success_rate, 2),
+                "avg_error_rate_pct": round(avg_error_rate * 100, 2)
+            },
+            "performance_degradation_incidents": {
+                "count": len(incidents),
+                "incidents": incidents
+            },
+            "trace_correlation": {
+                "total_traces": len(trace_ids),
+                "sample_traces": trace_ids[:100]
+            },
+            "time_series_data": {
+                "throughput": [
+                    {"timestamp": ts.isoformat(), "value": val}
+                    for ts, val in throughput_data
+                ],
+                "p95_latency": [
+                    {"timestamp": ts.isoformat(), "value": val}
+                    for ts, val in latency_data
+                ],
+                "queue_depth": [
+                    {"timestamp": ts.isoformat(), "value": val}
+                    for ts, val in queue_depth_data
+                ],
+                "worker_utilization": [
+                    {"timestamp": ts.isoformat(), "value": val}
+                    for ts, val in worker_util_data
+                ],
+                "error_rate": [
+                    {"timestamp": ts.isoformat(), "value": val}
+                    for ts, val in error_rate_data
+                ]
+            }
+        }
         
         return report
     
-    def _collect_prometheus_metrics(self, report: BatchPerformanceReport):
-        """Collect metrics from Prometheus."""
-        # Throughput
-        throughput = self.prometheus.get_metric_value("batch_throughput_per_hour")
-        if throughput is not None:
-            report.throughput.current_docs_per_hour = throughput
+    def write_report(
+        self,
+        report: Dict,
+        filename_prefix: str = "batch_performance_report"
+    ) -> Path:
+        """
+        Write report to artifacts directory with timestamp.
         
-        # Latency
-        p50 = self.prometheus.get_metric_value('batch_document_processing_latency_seconds{quantile="0.5"}')
-        p95 = self.prometheus.get_metric_value('batch_document_processing_latency_seconds{quantile="0.95"}')
-        p99 = self.prometheus.get_metric_value('batch_document_processing_latency_seconds{quantile="0.99"}')
-        
-        if p50 is not None:
-            report.latency.p50_seconds = p50
-        if p95 is not None:
-            report.latency.p95_seconds = p95
-        if p99 is not None:
-            report.latency.p99_seconds = p99
-        
-        # Success/Error counts
-        success_count = self.prometheus.get_metric_value('batch_documents_processed_total{status="success"}')
-        error_count = self.prometheus.get_metric_value('batch_documents_processed_total{status="error"}')
-        
-        if success_count is not None:
-            report.success_rate.successful_documents = int(success_count)
-        if error_count is not None:
-            report.success_rate.failed_documents = int(error_count)
-        
-        report.success_rate.total_documents = report.success_rate.successful_documents + report.success_rate.failed_documents
-        
-        # Worker utilization
-        worker_result = self.prometheus.query("worker_utilization_percentage")
-        if worker_result and worker_result["result"]:
-            for result in worker_result["result"]:
-                worker_id = result["metric"].get("worker_id", "unknown")
-                utilization = float(result["value"][1])
-                
-                worker_metrics = WorkerMetrics(
-                    worker_id=worker_id,
-                    utilization_percentage=utilization,
-                    healthy=utilization >= self.sla_thresholds.worker_utilization_min
-                )
-                report.workers.append(worker_metrics)
-        
-        # Queue depth
-        queue_depth = self.prometheus.get_metric_value("queue_depth")
-        if queue_depth is not None:
-            report.queue.current_depth = int(queue_depth)
-    
-    def _collect_log_metrics(self, report: BatchPerformanceReport, since: datetime):
-        """Collect metrics from structured logs."""
-        events = self.log_parser.parse_logs(since)
-        aggregated = self.log_parser.aggregate_document_processing(events)
-        
-        # Update success rate metrics
-        if aggregated["total_documents"] > 0:
-            report.success_rate.total_documents = aggregated["total_documents"]
-            report.success_rate.successful_documents = aggregated["successful_documents"]
-            report.success_rate.failed_documents = aggregated["failed_documents"]
-            report.success_rate.failure_categories = aggregated["error_categories"]
-        
-        # Update latency metrics from logs if Prometheus unavailable
-        if aggregated["latencies"] and report.latency.p95_seconds == 0:
-            sorted_latencies = sorted(aggregated["latencies"])
-            count = len(sorted_latencies)
+        Args:
+            report: Report dictionary from generate_report()
+            filename_prefix: Prefix for report filename
             
-            report.latency.p50_seconds = sorted_latencies[int(count * 0.50)]
-            report.latency.p95_seconds = sorted_latencies[int(count * 0.95)]
-            report.latency.p99_seconds = sorted_latencies[int(count * 0.99)]
+        Returns:
+            Path to written report file
+        """
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"{filename_prefix}_{timestamp}.json"
+        filepath = self.artifacts_dir / filename
+        
+        with open(filepath, 'w') as f:
+            json.dump(report, f, indent=2)
+        
+        logger.info(f"Batch performance report written to {filepath}")
+        return filepath
     
-    def export_report(self, report: BatchPerformanceReport, output_path: str):
-        """Export report to JSON file."""
-        output_file = Path(output_path)
-        output_file.parent.mkdir(parents=True, exist_ok=True)
+    def generate_and_write_report(
+        self,
+        time_window_hours: int = 1,
+        end_time: Optional[datetime] = None,
+        filename_prefix: str = "batch_performance_report"
+    ) -> Tuple[Dict, Path]:
+        """
+        Generate report and write to artifacts directory.
         
-        with open(output_file, 'w') as f:
-            f.write(report.to_json())
-        
-        logger.info(f"Report exported to {output_path}")
-    
-    def print_summary(self, report: BatchPerformanceReport):
-        """Print human-readable report summary."""
-        print("=" * 80)
-        print("BATCH PROCESSING PERFORMANCE REPORT")
-        print("=" * 80)
-        print(f"Generated: {report.report_timestamp}")
-        print(f"Period: {report.report_period_hours:.1f} hours")
-        print()
-        
-        # SLA Status
-        status_emoji = "✅" if report.overall_sla_compliant else "❌"
-        print(f"{status_emoji} Overall SLA Status: {'COMPLIANT' if report.overall_sla_compliant else 'VIOLATION'}")
-        print()
-        
-        # Throughput
-        print("📊 THROUGHPUT")
-        print(f"  Current: {report.throughput.current_docs_per_hour:.1f} docs/hr")
-        print(f"  Target:  {report.throughput.target_docs_per_hour:.1f} docs/hr")
-        print(f"  Status:  {'✅ Compliant' if report.throughput.sla_compliant else '❌ Below target'}")
-        print(f"  Compliance: {report.throughput.compliance_percentage:.1f}%")
-        print()
-        
-        # Latency
-        print("⏱️  LATENCY")
-        print(f"  P50: {report.latency.p50_seconds:.2f}s")
-        print(f"  P95: {report.latency.p95_seconds:.2f}s (target: {report.latency.target_p95_seconds}s)")
-        print(f"  P99: {report.latency.p99_seconds:.2f}s")
-        print(f"  Status: {'✅ Compliant' if report.latency.sla_compliant else '❌ Exceeds target'}")
-        print(f"  Margin: {report.latency.margin_seconds:+.2f}s")
-        print()
-        
-        # Success Rate
-        print("✔️  SUCCESS RATE")
-        print(f"  Total Documents: {report.success_rate.total_documents}")
-        print(f"  Successful: {report.success_rate.successful_documents} ({report.success_rate.success_rate:.1%})")
-        print(f"  Failed: {report.success_rate.failed_documents} ({report.success_rate.error_rate:.1%})")
-        print(f"  Status: {'✅ Compliant' if report.success_rate.sla_compliant else '❌ Below 95%'}")
-        
-        if report.success_rate.failure_categories:
-            print("  Failure Categories:")
-            for category, count in sorted(report.success_rate.failure_categories.items(), key=lambda x: x[1], reverse=True):
-                percentage = report.success_rate.failure_percentages.get(category, 0)
-                print(f"    - {category}: {count} ({percentage:.2f}%)")
-        print()
-        
-        # Workers
-        print("👷 WORKERS")
-        for worker in report.workers:
-            status = "✅" if worker.healthy else "⚠️"
-            print(f"  {status} {worker.worker_id}: {worker.utilization_percentage:.1f}% utilization")
-        print()
-        
-        # Queue
-        print("📥 QUEUE")
-        print(f"  Current Depth: {report.queue.current_depth}")
-        print(f"  Status: {report.queue.status.upper()}")
-        print()
-        
-        # Violations
-        if report.sla_violations:
-            print("⚠️  SLA VIOLATIONS")
-            for violation in report.sla_violations:
-                print(f"  - {violation}")
-            print()
-        
-        print("=" * 80)
+        Args:
+            time_window_hours: Hours to look back from end_time
+            end_time: End of report window (default: now)
+            filename_prefix: Prefix for report filename
+            
+        Returns:
+            Tuple of (report_dict, filepath)
+        """
+        report = self.generate_report(time_window_hours, end_time)
+        filepath = self.write_report(report, filename_prefix)
+        return report, filepath
 
 
-def main():
-    """CLI entry point."""
-    import argparse
+def create_batch_performance_report(
+    prometheus_url: str = "http://localhost:9090",
+    time_window_hours: int = 1,
+    artifacts_dir: str = "artifacts",
+    log_file: Optional[str] = None
+) -> Tuple[Dict, Path]:
+    """
+    Convenience function to create batch performance report.
     
-    parser = argparse.ArgumentParser(description="Generate batch performance report")
-    parser.add_argument("--prometheus-url", default="http://localhost:9090", help="Prometheus URL")
-    parser.add_argument("--log-file", default="/var/log/batch_processor.log", help="Log file path")
-    parser.add_argument("--period", type=float, default=1.0, help="Report period in hours")
-    parser.add_argument("--output", default="batch_performance_report.json", help="Output JSON file")
-    parser.add_argument("--no-prometheus", action="store_true", help="Skip Prometheus queries")
-    parser.add_argument("--no-logs", action="store_true", help="Skip log parsing")
-    args = parser.parse_args()
-    
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    
-    # Generate report
+    Args:
+        prometheus_url: Base URL for Prometheus API
+        time_window_hours: Hours to look back
+        artifacts_dir: Directory to write report artifacts
+        log_file: Optional path to structured log file for trace ID extraction
+        
+    Returns:
+        Tuple of (report_dict, filepath)
+        
+    Example:
+        >>> report, path = create_batch_performance_report(
+        ...     prometheus_url="http://prometheus:9090",
+        ...     time_window_hours=6,
+        ...     log_file="/var/log/batch_processing.log"
+        ... )
+        >>> print(f"SLA compliance: {report['sla_compliance']['overall_compliance_pct']}%")
+        >>> print(f"Report saved to: {path}")
+    """
     generator = BatchPerformanceReportGenerator(
-        prometheus_url=args.prometheus_url,
-        log_file_path=args.log_file
+        prometheus_url=prometheus_url,
+        artifacts_dir=artifacts_dir,
+        log_file=log_file
     )
-    
-    report = generator.generate_report(
-        period_hours=args.period,
-        use_prometheus=not args.no_prometheus,
-        use_logs=not args.no_logs
-    )
-    
-    # Print summary
-    generator.print_summary(report)
-    
-    # Export to JSON
-    generator.export_report(report, args.output)
-    
-    # Exit with error code if SLA violated
-    return 0 if report.overall_sla_compliant else 1
+    return generator.generate_and_write_report(time_window_hours)
 
 
 if __name__ == "__main__":
-    exit(main())
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    try:
+        report, filepath = create_batch_performance_report(
+            prometheus_url=os.getenv("PROMETHEUS_URL", "http://localhost:9090"),
+            time_window_hours=int(os.getenv("TIME_WINDOW_HOURS", "1")),
+            log_file=os.getenv("LOG_FILE")
+        )
+        
+        print(f"\n{'='*80}")
+        print("BATCH PERFORMANCE REPORT SUMMARY")
+        print(f"{'='*80}\n")
+        
+        print(f"Report Period: {report['metadata']['time_window']['start']} to "
+              f"{report['metadata']['time_window']['end']}")
+        print(f"\nSLA Compliance:")
+        print(f"  Throughput: {report['sla_compliance']['throughput_compliance_pct']}%")
+        print(f"  Latency: {report['sla_compliance']['latency_compliance_pct']}%")
+        print(f"  Overall: {report['sla_compliance']['overall_compliance_pct']}%")
+        
+        print(f"\nSummary Statistics:")
+        stats = report['summary_statistics']
+        print(f"  Total Documents: {stats['total_documents_processed']}")
+        print(f"  Avg Throughput: {stats['avg_throughput_docs_per_hour']} docs/hr")
+        print(f"  Avg p95 Latency: {stats['avg_p95_latency_seconds']}s")
+        print(f"  Max Queue Depth: {stats['max_queue_depth']}")
+        print(f"  Avg Worker Util: {stats['avg_worker_utilization_pct']}%")
+        print(f"  Success Rate: {stats['batch_success_rate_pct']}%")
+        
+        incident_count = report['performance_degradation_incidents']['count']
+        print(f"\nPerformance Incidents: {incident_count}")
+        if incident_count > 0:
+            for incident in report['performance_degradation_incidents']['incidents']:
+                print(f"  - {incident['type']} ({incident['severity']}): "
+                      f"{incident['duration_seconds']}s")
+        
+        print(f"\nReport saved to: {filepath}")
+        print(f"\n{'='*80}\n")
+        
+    except PrometheusQueryError as e:
+        logger.error(f"Failed to generate report: {e}")
+        exit(1)
