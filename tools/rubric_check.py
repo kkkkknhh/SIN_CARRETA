@@ -1,77 +1,127 @@
 #!/usr/bin/env python3
 """
-Standalone CLI script for validating consistency between answers_report.json and RUBRIC_SCORING.json.
+rubric_check.py - Standalone CLI tool for validating question-weight mapping consistency.
 
-Usage:
-    python rubric_check.py <answers_report.json> <RUBRIC_SCORING.json>
+Compares question IDs from answers_report.json against weights in RUBRIC_SCORING.json.
+Outputs minimal diff report suitable for CI/CD pipelines and system_validators.py.
 
 Exit codes:
-    0 - Sets match perfectly
-    1 - Runtime error during execution
-    2 - File not found
-    3 - Mismatch detected between question sets
+  0 - Question sets match exactly
+  3 - Missing or extra weights detected
+  2 - Missing input files
+  1 - Runtime errors
 """
 
 import json
 import sys
 from pathlib import Path
+from typing import Dict, Set, Tuple, Any
 
 
-def main():
-    if len(sys.argv) != 3:
-        print("Usage: rubric_check.py <answers_report.json> <RUBRIC_SCORING.json>", file=sys.stderr)
-        sys.exit(1)
-    
-    answers_path = Path(sys.argv[1])
-    rubric_path = Path(sys.argv[2])
-    
-    # Validate file existence
-    if not answers_path.exists():
-        print(f"Error: File not found: {answers_path}", file=sys.stderr)
-        sys.exit(2)
-    
-    if not rubric_path.exists():
-        print(f"Error: File not found: {rubric_path}", file=sys.stderr)
-        sys.exit(2)
-    
+def load_json(file_path: Path) -> Tuple[Dict[str, Any], str]:
+    """Load JSON file, return (data, error_message)."""
+    if not file_path.exists():
+        return {}, f"File not found: {file_path}"
     try:
-        # Load and parse JSON files
-        with open(answers_path, 'r', encoding='utf-8') as f:
-            answers_data = json.load(f)
-        
-        with open(rubric_path, 'r', encoding='utf-8') as f:
-            rubric_data = json.load(f)
-        
-        # Extract question ID sets
-        answers_questions = set(answers_data.keys())
-        rubric_weights = set(rubric_data.get('weights', {}).keys())
-        
-        # Perform set comparison
-        missing_weights = answers_questions - rubric_weights
-        extra_weights = rubric_weights - answers_questions
-        
-        # Output results with deterministic ordering
-        missing_weights_sorted = sorted(missing_weights)
-        extra_weights_sorted = sorted(extra_weights)
-        
-        print(f"missing_weights: {len(missing_weights_sorted)}")
-        for qid in missing_weights_sorted:
-            print(f"  {qid}")
-        
-        print(f"extra_weights: {len(extra_weights_sorted)}")
-        for qid in extra_weights_sorted:
-            print(f"  {qid}")
-        
-        # Exit with appropriate code
-        if missing_weights or extra_weights:
-            sys.exit(3)
-        else:
-            sys.exit(0)
-    
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f), ""
+    except json.JSONDecodeError as e:
+        return {}, f"JSON decode error in {file_path}: {e}"
     except Exception as e:
-        print(f"Runtime error: {e}", file=sys.stderr)
+        return {}, f"Error reading {file_path}: {e}"
+
+
+def extract_answers_questions(data: Dict[str, Any]) -> Set[str]:
+    """Extract question IDs from answers_report.json."""
+    questions = set()
+    for answer in data.get("answers", []):
+        qid = answer.get("question_id")
+        if qid:
+            questions.add(str(qid))
+    return questions
+
+
+def extract_rubric_weights(data: Dict[str, Any]) -> Set[str]:
+    """Extract question IDs from RUBRIC_SCORING.json weights section."""
+    weights = data.get("weights", {})
+    return set(str(k) for k in weights.keys())
+
+
+def format_diff_report(missing: Set[str], extra: Set[str]) -> str:
+    """Generate minimal diff report suitable for human reading and programmatic parsing."""
+    lines = []
+    lines.append("=" * 80)
+    lines.append("RUBRIC WEIGHT MISMATCH")
+    lines.append("=" * 80)
+    
+    if missing:
+        lines.append(f"\nMISSING_WEIGHTS: {len(missing)}")
+        for qid in sorted(missing):
+            lines.append(f"  - {qid}")
+    
+    if extra:
+        lines.append(f"\nEXTRA_WEIGHTS: {len(extra)}")
+        for qid in sorted(extra):
+            lines.append(f"  + {qid}")
+    
+    lines.append("\n" + "=" * 80)
+    lines.append(f"TOTAL_MISMATCHES: {len(missing) + len(extra)}")
+    lines.append("=" * 80)
+    
+    return "\n".join(lines)
+
+
+def main(argv: list = None) -> int:
+    """Main entry point for CLI."""
+    if argv is None:
+        argv = sys.argv[1:]
+    
+    # Parse arguments
+    if len(argv) < 2:
+        print("Usage: rubric_check.py <answers_report.json> <RUBRIC_SCORING.json>", file=sys.stderr)
+        return 1
+    
+    answers_path = Path(argv[0])
+    rubric_path = Path(argv[1])
+    
+    # Load files
+    answers_data, answers_error = load_json(answers_path)
+    rubric_data, rubric_error = load_json(rubric_path)
+    
+    # Check for missing files
+    if answers_error or rubric_error:
+        if answers_error:
+            print(answers_error, file=sys.stderr)
+        if rubric_error:
+            print(rubric_error, file=sys.stderr)
+        return 2
+    
+    # Extract question sets
+    try:
+        answers_questions = extract_answers_questions(answers_data)
+        rubric_weights = extract_rubric_weights(rubric_data)
+    except Exception as e:
+        print(f"Runtime error during extraction: {e}", file=sys.stderr)
+        return 1
+    
+    # Perform set comparison
+    missing_weights = answers_questions - rubric_weights
+    extra_weights = rubric_weights - answers_questions
+    
+    # Output results
+    if not missing_weights and not extra_weights:
+        print(f"OK: All {len(answers_questions)} question weights match exactly")
+        return 0
+    
+    # Generate and print diff report
+    report = format_diff_report(missing_weights, extra_weights)
+    print(report)
+    return 3
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception as e:
+        print(f"Fatal error: {e}", file=sys.stderr)
         sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()
