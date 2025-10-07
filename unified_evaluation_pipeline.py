@@ -75,6 +75,10 @@ class UnifiedEvaluationPipeline:
         # Initialize evaluators (lazy loading)
         self.decalogo_evaluator = None
         self.questionnaire_evaluator = None
+        
+        # Warm-up flag for thread-safe one-time initialization
+        self._warmup_done = False
+        self._warmup_lock = __import__('threading').Lock()
 
         logger.info("✅ Unified Evaluation Pipeline initialized")
 
@@ -100,6 +104,49 @@ class UnifiedEvaluationPipeline:
         except Exception as e:
             logger.error(f"Error loading config: {e}")
             return {}
+
+    def _ensure_warmup(self):
+        """
+        Thread-safe warm-up of models before batch processing.
+        Ensures embedding model and questionnaire engine are preloaded.
+        Called once before processing the first document in a batch.
+        
+        Thread-safety: Uses double-checked locking pattern with _warmup_lock
+        to ensure warm-up executes exactly once across parallel workers.
+        
+        Validates:
+        - Orchestrator warm_up() method is invoked
+        - Embedding model connection pool is accessible
+        - Singleton model instance is loaded into memory
+        """
+        if self._warmup_done:
+            return
+            
+        with self._warmup_lock:
+            if self._warmup_done:  # Double-check pattern
+                return
+                
+            logger.info("🔥 Warming up models (embedding + questionnaire)...")
+            try:
+                # Invoke orchestrator warm_up() method
+                if hasattr(self.orchestrator, 'warm_up'):
+                    self.orchestrator.warm_up()
+                elif hasattr(self.orchestrator, 'warmup_models'):
+                    # Fallback for compatibility
+                    self.orchestrator.warmup_models()
+                    
+                # Verify connection pool state
+                if hasattr(self.orchestrator, '_get_shared_embedding_model'):
+                    model = self.orchestrator._get_shared_embedding_model()
+                    logger.info(f"✅ Embedding model connection pool validated: {type(model).__name__}")
+                
+                self._warmup_done = True
+                logger.info("✅ Warm-up complete - ready for parallel batch processing")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Warm-up encountered issue (non-fatal): {e}")
+                # Still mark as done to avoid repeated failures
+                self._warmup_done = True
 
     def evaluate(
         self,
@@ -127,6 +174,9 @@ class UnifiedEvaluationPipeline:
         logger.info("="*80)
 
         start_time = datetime.now()
+
+        # WARM-UP: Preload models before batch processing (thread-safe, one-time)
+        self._ensure_warmup()
 
         # PRE-EXECUTION VALIDATION
         logger.info("→ Running pre-execution validation...")
