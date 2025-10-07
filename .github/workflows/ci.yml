@@ -222,6 +222,11 @@ jobs:
           pip install -r requirements.txt
           python -m spacy download es_core_news_sm
 
+      - name: Initialize batch metrics directory
+        run: |
+          mkdir -p batch_metrics
+          echo "Batch metrics directory created for artifact archival"
+
       - name: Start mock API server (background)
         run: |
           echo "Mock API server initialization (no actual server needed for mock tests)"
@@ -244,16 +249,16 @@ jobs:
         id: batch_load
         run: |
           echo "Running batch load test with 10 concurrent documents..."
+          echo "Target: >= 170 documents/hour (max 21.2 seconds per document)"
           pytest test_batch_load.py -v --tb=short || echo "BATCH_LOAD_FAILED=true" >> $GITHUB_ENV
 
-      - name: Archive batch metrics
-        uses: actions/upload-artifact@v4
+      - name: Copy batch load metrics to batch_metrics directory
         if: always()
-        with:
-          name: batch-metrics
-          path: |
-            processing_times.json
-            throughput_report.json
+        run: |
+          cp -f processing_times.json batch_metrics/ 2>/dev/null || echo "No processing_times.json"
+          cp -f throughput_report.json batch_metrics/ 2>/dev/null || echo "No throughput_report.json"
+          cp -f latency_distribution.json batch_metrics/ 2>/dev/null || echo "No latency_distribution.json"
+          cp -f queue_depth.json batch_metrics/ 2>/dev/null || echo "No queue_depth.json"
 
       - name: Check batch load performance
         run: |
@@ -267,99 +272,19 @@ jobs:
             fi
           fi
 
-      - name: Comment PR with batch load results
-        if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            try {
-              const throughput = JSON.parse(fs.readFileSync('throughput_report.json', 'utf8'));
-              const metrics = throughput.metrics;
-              
-              let comment = '## ⚡ Batch Load Test Results (10 concurrent)\n\n';
-              comment += `- **Throughput**: ${metrics.throughput.toFixed(2)} docs/hour\n`;
-              comment += `- **Threshold**: ${metrics.threshold} docs/hour\n`;
-              comment += `- **Status**: ${metrics.passed ? '✅ PASSED' : '❌ FAILED'}\n\n`;
-              
-              comment += '### Performance Summary\n';
-              comment += `- **Avg Time/Doc**: ${throughput.performance_summary.avg_ms_per_doc.toFixed(2)}ms\n`;
-              comment += `- **Total Time**: ${throughput.performance_summary.total_time_seconds.toFixed(2)}s\n`;
-              comment += `- **Documents**: ${throughput.performance_summary.documents_processed}\n`;
-              
-              if (!metrics.passed) {
-                comment += '\n⚠️ **Throughput below threshold - performance regression detected**\n';
-              }
-              
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: comment
-              });
-            } catch (error) {
-              console.log('Could not read throughput report:', error);
-            }
-
-  stress_test:
-    runs-on: ubuntu-latest
-    needs: performance
-    services:
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          python -m spacy download es_core_news_sm
-
-      - name: Start mock API server (background)
-        run: |
-          echo "Mock API server initialization (no actual server needed for mock tests)"
-          echo "API_READY=true" >> $GITHUB_ENV
-
-      - name: Initialize mock Celery worker (background)
-        run: |
-          echo "Mock Celery worker initialization (no actual worker needed for mock tests)"
-          echo "WORKER_READY=true" >> $GITHUB_ENV
-
-      - name: Wait for services to be ready
-        run: |
-          echo "Checking Redis availability..."
-          timeout 30 bash -c 'until redis-cli -h localhost ping; do sleep 1; done'
-          echo "✅ Redis is ready"
-          echo "✅ API server ready: $API_READY"
-          echo "✅ Celery worker ready: $WORKER_READY"
-
       - name: Run stress test (50 concurrent uploads)
         id: stress_test
         run: |
           echo "Running stress test with 50 concurrent uploads..."
+          echo "Monitoring worker memory usage for leak detection"
+          echo "Threshold: Memory growth <= 20% of baseline"
           pytest test_stress_test.py -v --tb=short || echo "STRESS_TEST_FAILED=true" >> $GITHUB_ENV
 
-      - name: Archive stress test metrics
-        uses: actions/upload-artifact@v4
+      - name: Copy stress test metrics to batch_metrics directory
         if: always()
-        with:
-          name: stress-test-metrics
-          path: |
-            memory_profile.json
+        run: |
+          cp -f memory_profile.json batch_metrics/ 2>/dev/null || echo "No memory_profile.json"
+          cp -f worker_resource_utilization.json batch_metrics/ 2>/dev/null || echo "No worker_resource_utilization.json"
 
       - name: Check stress test results
         run: |
@@ -367,30 +292,63 @@ jobs:
             echo "❌ Stress test failed - memory growth exceeds 20%"
             exit 1
           else
-            echo "✅ Stress test passed"
+            echo "✅ Stress test passed - no memory leaks detected"
             if [ -f memory_profile.json ]; then
               cat memory_profile.json
             fi
           fi
 
-      - name: Comment PR with stress test results
+      - name: Archive batch processing metrics
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: batch-metrics
+          path: |
+            batch_metrics/
+
+      - name: Comment PR with combined test results
         if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
+            let comment = '## 🔥 Batch Load & Stress Test Results\n\n';
+            
+            // Batch Load Test Results
+            try {
+              const throughput = JSON.parse(fs.readFileSync('throughput_report.json', 'utf8'));
+              const metrics = throughput.metrics;
+              
+              comment += '### ⚡ Batch Load Test (10 concurrent)\n\n';
+              comment += `- **Throughput**: ${metrics.throughput.toFixed(2)} docs/hour\n`;
+              comment += `- **Threshold**: ${metrics.threshold} docs/hour\n`;
+              comment += `- **Status**: ${metrics.passed ? '✅ PASSED' : '❌ FAILED'}\n\n`;
+              
+              comment += '#### Performance Summary\n';
+              comment += `- **Avg Time/Doc**: ${throughput.performance_summary.avg_ms_per_doc.toFixed(2)}ms\n`;
+              comment += `- **Total Time**: ${throughput.performance_summary.total_time_seconds.toFixed(2)}s\n`;
+              comment += `- **Documents**: ${throughput.performance_summary.documents_processed}\n\n`;
+              
+              if (!metrics.passed) {
+                comment += '⚠️ **Throughput below threshold - performance regression detected**\n\n';
+              }
+            } catch (error) {
+              comment += '### ⚡ Batch Load Test\n\n❌ Could not read throughput report\n\n';
+            }
+            
+            // Stress Test Results
             try {
               const profile = JSON.parse(fs.readFileSync('memory_profile.json', 'utf8'));
               const stats = profile.memory_stats;
               
-              let comment = '## 💪 Stress Test Results (50 concurrent)\n\n';
+              comment += '### 💪 Stress Test (50 concurrent)\n\n';
               comment += `- **Initial Memory**: ${stats.initial_memory_mb.toFixed(2)} MB\n`;
               comment += `- **Final Memory**: ${stats.final_memory_mb.toFixed(2)} MB\n`;
               comment += `- **Memory Growth**: ${stats.memory_growth_mb.toFixed(2)} MB (${stats.memory_growth_percent.toFixed(2)}%)\n`;
               comment += `- **Threshold**: ${stats.threshold_percent}%\n`;
               comment += `- **Status**: ${stats.memory_growth_percent <= stats.threshold_percent ? '✅ PASSED' : '❌ FAILED'}\n\n`;
               
-              comment += '### Memory Profile Over Time\n';
+              comment += '#### Memory Profile Over Time\n';
               comment += '| Batch | Documents | Memory (MB) |\n';
               comment += '|-------|-----------|-------------|\n';
               
@@ -401,16 +359,19 @@ jobs:
               if (stats.memory_growth_percent > stats.threshold_percent) {
                 comment += '\n⚠️ **Memory leak detected - memory growth exceeds threshold**\n';
               }
-              
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: comment
-              });
             } catch (error) {
-              console.log('Could not read memory profile:', error);
+              comment += '### 💪 Stress Test\n\n❌ Could not read memory profile\n';
             }
+            
+            comment += '\n📦 **Batch metrics archived as CI artifacts in `batch_metrics/` directory**\n';
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          
 
   rubric-validation:
     runs-on: ubuntu-latest

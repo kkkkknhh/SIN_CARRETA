@@ -128,6 +128,41 @@ async def test_stress_test_50_concurrent():
     # Analyze memory differences
     top_stats = final_snapshot.compare_to(initial_snapshot, 'lineno')
     
+    # Calculate worker resource utilization
+    process = psutil.Process()
+    cpu_percent = process.cpu_percent(interval=1.0)
+    
+    worker_resource_utilization = {
+        "test_type": "stress_test_50_concurrent",
+        "num_documents": num_documents,
+        "total_time_seconds": total_time_seconds,
+        "cpu_utilization": {
+            "cpu_percent": cpu_percent,
+            "num_threads": process.num_threads(),
+            "cpu_times": {
+                "user": process.cpu_times().user,
+                "system": process.cpu_times().system
+            }
+        },
+        "memory_utilization": {
+            "rss_mb": final_memory_mb,
+            "vms_mb": process.memory_info().vms / 1024 / 1024,
+            "memory_percent": process.memory_percent()
+        },
+        "io_stats": {
+            "read_count": process.io_counters().read_count if hasattr(process, 'io_counters') else 0,
+            "write_count": process.io_counters().write_count if hasattr(process, 'io_counters') else 0
+        } if hasattr(process, 'io_counters') else {},
+        "resource_efficiency": {
+            "docs_per_second": num_documents / total_time_seconds,
+            "mb_per_doc": memory_growth_mb / num_documents if num_documents > 0 else 0,
+            "cpu_seconds_per_doc": (process.cpu_times().user + process.cpu_times().system) / num_documents if num_documents > 0 else 0
+        }
+    }
+    
+    # Save worker resource utilization
+    Path("worker_resource_utilization.json").write_text(json.dumps(worker_resource_utilization, indent=2))
+    
     # Save memory profile
     memory_profile = {
         "test_type": "stress_test_50_concurrent",
@@ -138,7 +173,10 @@ async def test_stress_test_50_concurrent():
             "final_memory_mb": final_memory_mb,
             "memory_growth_mb": memory_growth_mb,
             "memory_growth_percent": memory_growth_percent,
-            "threshold_percent": 20
+            "threshold_percent": 20,
+            "baseline_mb": initial_memory_mb,
+            "peak_mb": max(s["memory_mb"] for s in memory_samples),
+            "memory_leak_detected": memory_growth_percent > 20
         },
         "memory_samples_over_time": memory_samples,
         "top_memory_allocations": [
