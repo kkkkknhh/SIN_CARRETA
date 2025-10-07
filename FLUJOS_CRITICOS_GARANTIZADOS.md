@@ -412,6 +412,71 @@ Control flows para orquestación, validación pre/post, y verificación de aline
   - Resultados integrados en `post_validation` section de `results_bundle.json`
   - Blocking gate para deployment - fallo aquí detiene el release
 
+### ✅ FLOW #19: Matriz de Trazabilidad de Provenance (tools/trace_matrix.py)
+- **Ruta**: `system_validators → tools/trace_matrix.py`
+- **Tipo**: QA (provenance traceability auditing)
+- **Contrato I/O**: 
+  - **Input**: 
+    - `artifacts/answers_report.json` (con campos `evidence_ids` por pregunta)
+    - `artifacts/evidence_registry.json` (provenance completa de evidencias)
+    - `RUBRIC_SCORING.json` (pesos por pregunta - referencia)
+  - **Output**: 
+    - `artifacts/module_to_questions_matrix.csv` (matriz módulo→pregunta cruda)
+    - **Exit Code 0**: Success (matriz generada correctamente)
+    - **Exit Code 2**: Missing input (answers_report.json no existe)
+    - **Exit Code 3**: Malformed data (schema inválido)
+- **Cardinalidad**: 1:1 (generación de artifact único)
+- **Estado**: ✅ IMPLEMENTADO
+- **Archivo**: `tools/trace_matrix.py`
+- **Generación de Matriz (provenance expansion)**:
+  - ✅ Parsea `evidence_ids` de cada answer en `answers_report.json`
+  - ✅ Extrae módulo detector de cada `evidence_id` usando convención `{detector}::{type}::{hash}`
+  - ✅ Genera fila CSV por cada tupla `(module, question_id, evidence_id, confidence, score)`
+  - ✅ Preserva orden de inserción (refleja orden de procesamiento)
+  - ✅ Output CSV con encoding UTF-8 y header canónico
+- **Schema CSV Output**:
+  ```csv
+  module,question_id,evidence_id,confidence,score
+  responsibility_detector,DE-1.1,responsibility_detector::assignment::a3f9c2e1,0.95,2.5
+  monetary_detector,DE-2.3,monetary_detector::currency::b8d4e2f3,0.87,1.8
+  ```
+- **Casos de Uso**:
+  - ✅ Auditoría externa: verificar que cada pregunta tiene evidencia trazable
+  - ✅ Análisis de cobertura: identificar módulos sub/sobre-utilizados
+  - ✅ Debugging de provenance: rastrear qué detector generó qué evidence_id
+  - ✅ Compliance: demostrar cadena de custodia desde raw_text → answer
+- **Integración en CI**:
+  - Llamado por `SystemValidators.validate_post_execution()` después de rubric_check
+  - Script CI: `python tools/trace_matrix.py` (lee paths canónicos desde cwd)
+  - CI Pipeline: Ejecutado en `deterministic-pipeline-validation` job
+  - Exit code non-zero causa fallo de post-validation gate
+  - Matriz archivada como artifact CI para auditoría posterior
+- **Integración en Post-Execution Validation**:
+  - Invocado como subprocess por `SystemValidators` (step 6)
+  - Exit code capturado y tratado como validation failure si non-zero
+  - Error messages propagados a caller via `errors` list
+  - Resultado integrado en `ok_trace_matrix` flag de validation result
+- **Uso Manual**:
+  ```bash
+  # Generar matriz de trazabilidad después de evaluación
+  cd project_root
+  python tools/trace_matrix.py
+  # Output: artifacts/module_to_questions_matrix.csv
+  echo $?  # 0 = success, 2 = missing input, 3 = malformed data
+  ```
+- **Garantías**:
+  - ✅ Parseo determinista de evidence_id → module (convención estricta)
+  - ✅ Preservación total de provenance (cada tupla es inmutable)
+  - ✅ Exit codes semánticos para CI integration (0/2/3)
+  - ✅ Idempotente (same input = same output)
+  - ✅ Sin side-effects excepto creación de CSV
+- **Integración con otros flujos**:
+  - ⬆️ **Upstream**: FLOW #15 (answers_report.json con evidence_ids), FLOW #12 (evidence_registry.json)
+  - ⬇️ **Downstream**: CI artifact archival, auditoría externa, análisis de cobertura
+  - Invocado como subprocess por `SystemValidators.validate_post_execution()`
+  - Resultados integrados en `post_validation` section con flag `ok_trace_matrix`
+  - Blocking validation en post-execution gate - fallo detiene CI pipeline
+
 ---
 
 ## 2. GATES DE ACEPTACIÓN (6 Gates Obligatorios)

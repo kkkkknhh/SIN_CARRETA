@@ -299,13 +299,68 @@ class SystemHealthValidator:
                 errors.append(error_msg)
             # Exit code 0 means success, ok_rubric_1to1 remains True
 
-        ok_all = (ok_order_doc and ok_order_contracts and ok_coverage and ok_rubric_1to1 and len(errors) == 0)
+        # 6) Trace matrix generation: validate provenance traceability
+        ok_trace_matrix = True
+        trace_matrix_script = self.repo / "tools" / "trace_matrix.py"
+        if trace_matrix_script.exists():
+            try:
+                result = subprocess.run(
+                    [sys.executable, str(trace_matrix_script)],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    cwd=str(self.repo)
+                )
+                
+                # Handle exit codes (per trace_matrix.py spec)
+                if result.returncode == 2:
+                    # Missing input files
+                    ok_trace_matrix = False
+                    error_msg = f"Trace matrix generation failed (exit code 2): Missing input files (answers_report.json)"
+                    if result.stdout.strip():
+                        error_msg += f"\n{result.stdout.strip()}"
+                    if result.stderr.strip():
+                        error_msg += f"\n{result.stderr.strip()}"
+                    errors.append(error_msg)
+                elif result.returncode == 3:
+                    # Malformed data
+                    ok_trace_matrix = False
+                    error_msg = f"Trace matrix generation failed (exit code 3): Malformed data in answers_report.json"
+                    if result.stdout.strip():
+                        error_msg += f"\n{result.stdout.strip()}"
+                    if result.stderr.strip():
+                        error_msg += f"\n{result.stderr.strip()}"
+                    errors.append(error_msg)
+                elif result.returncode != 0:
+                    # Other non-zero exit codes (runtime errors)
+                    ok_trace_matrix = False
+                    error_msg = f"Trace matrix generation failed with exit code {result.returncode}"
+                    if result.stdout.strip():
+                        error_msg += f"\n{result.stdout.strip()}"
+                    if result.stderr.strip():
+                        error_msg += f"\n{result.stderr.strip()}"
+                    errors.append(error_msg)
+                # Exit code 0 means success, ok_trace_matrix remains True
+                    
+            except FileNotFoundError:
+                # Handle missing trace_matrix.py script gracefully
+                ok_trace_matrix = False
+                errors.append(f"Trace matrix validation failed: tools/trace_matrix.py not found")
+            except subprocess.TimeoutExpired:
+                ok_trace_matrix = False
+                errors.append("Trace matrix generation timed out after 60 seconds")
+            except Exception as e:
+                ok_trace_matrix = False
+                errors.append(f"Trace matrix generation error: {e}")
+
+        ok_all = (ok_order_doc and ok_order_contracts and ok_coverage and ok_rubric_1to1 and ok_trace_matrix and len(errors) == 0)
         return {
             "ok": ok_all,
             "errors": errors,
             "ok_order": ok_order_doc and ok_order_contracts,
             "ok_coverage": ok_coverage,
-            "ok_rubric_1to1": ok_rubric_1to1
+            "ok_rubric_1to1": ok_rubric_1to1,
+            "ok_trace_matrix": ok_trace_matrix
         }
 
 

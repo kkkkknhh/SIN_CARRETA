@@ -579,23 +579,63 @@ jobs:
             exit 1
           fi
 
+      - name: Run trace matrix generation and validation
+        run: |
+          echo "🔍 Generating provenance traceability matrix..."
+          cd validation_run_1
+          python3 ../tools/trace_matrix.py
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -eq 2 ]; then
+            echo "❌ Trace matrix generation failed: Missing input files (answers_report.json)"
+            exit 1
+          elif [ $EXIT_CODE -eq 3 ]; then
+            echo "❌ Trace matrix generation failed: Malformed data in answers_report.json"
+            exit 1
+          elif [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ Trace matrix generated successfully"
+            if [ -f ../artifacts/module_to_questions_matrix.csv ]; then
+              echo "✅ Output artifact verified: artifacts/module_to_questions_matrix.csv"
+            else
+              echo "❌ Expected output artifact not found: artifacts/module_to_questions_matrix.csv"
+              exit 1
+            fi
+          else
+            echo "❌ Trace matrix generation failed with unexpected exit code: $EXIT_CODE"
+            exit 1
+          fi
+          cd ..
+
+      - name: Archive trace matrix artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trace-matrix-validation
+          path: |
+            artifacts/module_to_questions_matrix.csv
+
       - name: Run post-execution validation
         run: |
           echo "🔍 Running post-execution validation (coverage 300/300)..."
           python3 -c "
-          from system_validators import SystemValidator
+          from system_validators import SystemHealthValidator
           import json
-          validator = SystemValidator()
+          validator = SystemHealthValidator()
           result = validator.validate_post_execution(artifacts_dir='validation_run_1', check_rubric_strict=True)
           print(json.dumps(result, indent=2))
-          if not result.get('valid', False):
+          if not result.get('ok', False):
               print('❌ Post-execution validation failed')
+              for error in result.get('errors', []):
+                  print(f'  - {error}')
               exit(1)
           
           # Check for 300/300 coverage
-          coverage = result.get('coverage', {})
-          if coverage.get('covered') != 300 or coverage.get('total') != 300:
-              print(f'❌ Coverage validation failed: {coverage.get(\"covered\", 0)}/{coverage.get(\"total\", 0)} (expected 300/300)')
+          if not result.get('ok_coverage', False):
+              print('❌ Coverage validation failed: expected ≥300 questions')
+              exit(1)
+          
+          # Check trace matrix validation
+          if not result.get('ok_trace_matrix', True):
+              print('❌ Trace matrix validation failed')
               exit(1)
           
           print('✅ Post-execution validation passed with 300/300 coverage')
