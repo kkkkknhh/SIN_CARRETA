@@ -15,9 +15,7 @@ Comprehensive tests for determinism_verifier.py covering:
 
 import pytest
 import json
-import tempfile
 import hashlib
-from pathlib import Path
 from determinism_verifier import (
     DeterminismVerifier,
     ArtifactComparison,

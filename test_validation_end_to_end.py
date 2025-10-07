@@ -5,7 +5,7 @@ import json
 import tempfile
 import shutil
 from pathlib import Path
-from system_validators import SystemHealthValidator, ValidationError
+from system_validators import SystemHealthValidator
 
 
 def demo_validation_flow():

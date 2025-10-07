@@ -2,7 +2,6 @@
 Test suite for SpaCy model loader components.
 """
 import logging
-import threading
 import unittest
 from unittest.mock import MagicMock, patch
 

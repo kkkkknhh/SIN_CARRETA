@@ -3,8 +3,7 @@ Test suite for responsibility detection.
 """
 
 import unittest
-from unittest.mock import patch, MagicMock
-import pytest
+from unittest.mock import MagicMock
 from responsibility_detector import ResponsibilityDetector, ResponsibilityEntity, EntityType
 
 

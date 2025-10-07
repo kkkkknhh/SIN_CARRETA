@@ -5,9 +5,6 @@ Coverage Metric Verification
 Manually traces through 10 representative test flows to verify the 65% coverage
 metric is accurate by comparing actual code execution paths against reported coverage data.
 """
-
-import ast
-import inspect
 import sys
 from pathlib import Path
 from typing import Dict, List, Set, Any

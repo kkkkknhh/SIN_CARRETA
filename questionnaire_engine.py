@@ -1630,7 +1630,6 @@ class QuestionnaireEngine:
             Complete evaluation with 300 questions, deterministic results
         """
         import random
-        from concurrent.futures import ProcessPoolExecutor, as_completed
 
         logger.info(f"🚀 Starting PARALLEL evaluation with EvidenceRegistry")
         logger.info(f"   Evidence available: {len(evidence_registry)} items")

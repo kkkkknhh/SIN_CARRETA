@@ -16,7 +16,7 @@ import time
 import tempfile
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import sys
 import os
@@ -28,8 +28,7 @@ from miniminimoon_orchestrator import (
     ThreadSafeLRUCache,
     EmbeddingModelPool,
     CanonicalDeterministicOrchestrator,
-    MINIMINIMOONOrchestrator,
-)
+    )
 
 
 class TestThreadSafeLRUCache(unittest.TestCase):

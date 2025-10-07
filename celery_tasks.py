@@ -11,7 +11,6 @@ import json
 import logging
 import time
 import traceback
-from pathlib import Path
 from typing import Dict, Any
 from celery import Celery, Task
 from prometheus_client import Counter, Histogram

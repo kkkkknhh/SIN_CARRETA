@@ -20,12 +20,9 @@ import re
 import argparse
 import datetime
 import gzip
-import hashlib
 import io
 import json
 import uuid
-import statistics
-from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path

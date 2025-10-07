@@ -1,11 +1,7 @@
 """
 Test suite for DECALOGO_INDUSTRIAL template loader.
 """
-import os
-import tempfile
 import unittest
-from unittest.mock import patch, mock_open
-import pytest
 from decalogo_loader import (
     load_decalogo_industrial,
     get_decalogo_industrial,
@@ -13,8 +9,7 @@ from decalogo_loader import (
     ensure_aligned_templates,
     get_question_by_id,
     get_dimension_weight,
-    DECALOGO_INDUSTRIAL_TEMPLATE,
-    _atomic_write_json
+    DECALOGO_INDUSTRIAL_TEMPLATE
 )
 
 

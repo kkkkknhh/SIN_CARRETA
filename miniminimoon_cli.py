@@ -22,7 +22,6 @@ Salida: JSON imprimible en stdout (salvo comandos auxiliares que también devuel
 from __future__ import annotations
 import argparse
 import json
-import os
 import pathlib
 import subprocess
 import sys
@@ -173,7 +172,6 @@ def cmd_trace_matrix(args: argparse.Namespace) -> int:
 def cmd_diagnostic(args: argparse.Namespace) -> int:
     import logging
     import time
-    from pathlib import Path
     from diagnostic_runner import run_diagnostic, generate_reports
     
     repo = str(pathlib.Path(args.repo).resolve())

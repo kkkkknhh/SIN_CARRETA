@@ -3,7 +3,6 @@ Chaos Engineering: Network Failure Resilience
 Tests system behavior under simulated network failures
 """
 import pytest
-from unittest.mock import patch, Mock
 from embedding_model import create_industrial_embedding_model
 
 

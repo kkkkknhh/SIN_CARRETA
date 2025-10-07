@@ -8,7 +8,6 @@ worker memory usage for leak detection (threshold: ≤20% growth).
 """
 
 import json
-import os
 import pytest
 import time
 from pathlib import Path

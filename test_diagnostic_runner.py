@@ -18,7 +18,7 @@ import json
 import time
 import threading
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from diagnostic_runner import (
     NodeMetrics,
@@ -31,7 +31,6 @@ from diagnostic_runner import (
 )
 from miniminimoon_orchestrator import (
     PipelineStage,
-    SanitizationIO,
     MiniMinimoonOrchestrator,
 )
 

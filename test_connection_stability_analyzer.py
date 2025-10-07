@@ -5,14 +5,10 @@ Test suite for Connection Stability Analyzer
 
 import pytest
 import json
-import time
-from pathlib import Path
 from connection_stability_analyzer import (
     ConnectionStabilityAnalyzer,
     ConnectionMetrics,
-    SchemaMismatch,
     FlowSpecification,
-    ConnectionVerdict,
     DataType,
     create_connection_stability_analyzer
 )

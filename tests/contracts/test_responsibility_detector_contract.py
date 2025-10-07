@@ -3,7 +3,7 @@ Contract Test: Responsibility Detector Interface
 Validates that responsibility detector adheres to expected interface contract
 """
 import pytest
-from responsibility_detector import ResponsibilityDetector, ResponsibilityEntity, EntityType
+from responsibility_detector import ResponsibilityDetector, EntityType
 
 
 @pytest.mark.contract

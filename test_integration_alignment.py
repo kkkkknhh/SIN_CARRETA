@@ -35,8 +35,6 @@ GATE #5: CI/CD Validation Job Definitions
 
 import json
 import pathlib
-import subprocess
-import sys
 import unittest
 from typing import Any, Dict, List, Optional
 import ast

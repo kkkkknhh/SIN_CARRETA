@@ -13,9 +13,7 @@ Features:
 """
 
 import logging
-import os
 import re
-import unicodedata
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Union, Any
 
@@ -23,10 +21,7 @@ from typing import Dict, List, Optional, Set, Tuple, Union, Any
 from text_processor import (
     normalize_text,
     clean_policy_text,
-    remove_unwanted_characters,
-    extract_paragraphs,
-    standardize_accents,
-)
+    )
 
 # Configure logging
 logging.basicConfig(

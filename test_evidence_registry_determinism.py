@@ -14,8 +14,6 @@ Tests cover:
 """
 
 import unittest
-import hashlib
-import json
 from evidence_registry import EvidenceRegistry, CanonicalEvidence
 
 

@@ -4,8 +4,6 @@ FastAPI server for PDM document evaluation system.
 Provides REST API endpoints for document upload, job status tracking,
 results retrieval, and system health monitoring.
 """
-
-import hashlib
 import json
 import logging
 import os
@@ -26,9 +24,8 @@ from fastapi import (
     HTTPException,
     UploadFile,
     status,
-    BackgroundTasks,
-)
-from fastapi.responses import FileResponse, JSONResponse
+    )
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, validator
 from prometheus_client import Counter, Gauge, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
@@ -39,10 +36,9 @@ from batch_optimizer import (
     DocumentPreValidator,
     ResourceMonitor,
     CircuitBreakerWrapper,
-    ResultStreamer,
-    ValidationError as BatchValidationError
+    ResultStreamer
 )
-from batch_processor import BatchJobManager, JobState as BatchJobState
+from batch_processor import BatchJobManager
 from celery_tasks import process_document_task, aggregate_batch_results_task
 
 # Prometheus metrics
