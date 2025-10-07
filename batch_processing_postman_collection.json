@@ -1,0 +1,397 @@
+{
+  "info": {
+    "name": "DECALOGO Batch Processing API",
+    "description": "Complete API collection for the DECALOGO batch processing system. Includes all endpoints with pre-configured requests for upload, status checking, results retrieval, and health monitoring.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{api_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://batch.decalogo.example.com/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "api_token",
+      "value": "your_token_here",
+      "type": "string"
+    },
+    {
+      "key": "job_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Upload Batch Job",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 202\", function () {",
+              "    pm.response.to.have.status(202);",
+              "});",
+              "",
+              "pm.test(\"Response has job_id\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('job_id');",
+              "    pm.collectionVariables.set('job_id', jsonData.job_id);",
+              "});",
+              "",
+              "pm.test(\"Status is queued\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.status).to.eql('queued');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"documents\": [\n    {\n      \"id\": \"doc-001\",\n      \"title\": \"Plan de Desarrollo Municipal Florencia 2024\",\n      \"content\": \"VISIÓN: Florencia será en 2027 una ciudad próspera y equitativa...\\n\\nDIAGNÓSTICO: El municipio de Florencia enfrenta desafíos en educación, salud, e infraestructura...\\n\\nOBJETIVOS ESTRATÉGICOS:\\n1. Mejorar la calidad educativa en un 20%\\n2. Ampliar cobertura de salud al 95% de la población\\n3. Construir 50km de vías terciarias\\n\\nPROGRAMAS Y PROYECTOS:\\n- Programa 1: Educación de calidad\\n  * Proyecto: Dotación de 100 aulas con tecnología\\n  * Presupuesto: $5.000.000.000\\n  * Responsable: Secretaría de Educación\\n\\nINDICADORES:\\n- Tasa de alfabetización: Meta 98%\\n- Cobertura educativa primaria: Meta 100%\\n\\nFINANCIACIÓN:\\nRecursos propios: $20.000 millones\\nTransferencias SGP: $50.000 millones\\nCofinanciación departamental: $15.000 millones\",\n      \"metadata\": {\n        \"municipality\": \"Florencia\",\n        \"department\": \"Caquetá\",\n        \"year\": 2024,\n        \"population\": 180000\n      }\n    },\n    {\n      \"id\": \"doc-002\",\n      \"title\": \"Plan de Desarrollo Municipal Mocoa 2024\",\n      \"content\": \"VISIÓN: Mocoa será en 2027 un territorio sostenible...\\n\\nDIAGNÓSTICO: Desafíos en conectividad vial, agua potable y educación...\\n\\nOBJETIVOS:\\n1. Mejorar infraestructura vial\\n2. Ampliar cobertura de agua potable\\n\\nPROGRAMAS:\\n- Vías para el desarrollo\\n  * Pavimentación 30km\\n  * Presupuesto: $8.000 millones\\n  * Responsable: Secretaría de Obras\",\n      \"metadata\": {\n        \"municipality\": \"Mocoa\",\n        \"department\": \"Putumayo\",\n        \"year\": 2024\n      }\n    }\n  ],\n  \"options\": {\n    \"priority\": \"normal\",\n    \"include_evidence\": true,\n    \"include_questionnaire\": true,\n    \"webhook_url\": \"https://your-app.com/webhook/batch-complete\",\n    \"timeout_seconds\": 600\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/batch/upload",
+          "host": ["{{base_url}}"],
+          "path": ["batch", "upload"]
+        },
+        "description": "Upload a batch of documents for evaluation. Supports 1-100 documents per batch.\n\n**Request Schema:**\n- documents: Array of document objects (required)\n  - id: Unique identifier (required)\n  - title: Document title (required)\n  - content: Full document text (required, max 1MB)\n  - metadata: Additional metadata (optional)\n- options: Processing options (optional)\n  - priority: high/normal/low (default: normal)\n  - include_evidence: boolean (default: true)\n  - include_questionnaire: boolean (default: true)\n  - webhook_url: Callback URL (optional)\n  - timeout_seconds: Max processing time (default: 600)\n\n**Response:** 202 Accepted with job_id"
+      },
+      "response": []
+    },
+    {
+      "name": "Upload Single Document",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 202\", function () {",
+              "    pm.response.to.have.status(202);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "pm.collectionVariables.set('job_id', jsonData.job_id);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"documents\": [\n    {\n      \"id\": \"doc-single-001\",\n      \"title\": \"Plan de Desarrollo Departamental Caquetá 2024-2027\",\n      \"content\": \"PARTE I: DIAGNÓSTICO ESTRATÉGICO\\n\\nEl departamento del Caquetá presenta indicadores socioeconómicos que requieren intervención prioritaria. La tasa de pobreza multidimensional alcanza el 45%, mientras que la cobertura educativa en secundaria es del 78%.\\n\\nPARTE II: OBJETIVOS ESTRATÉGICOS\\n\\n1. Reducir la pobreza multidimensional al 35% en 2027\\n2. Aumentar la cobertura educativa secundaria al 90%\\n3. Mejorar la conectividad vial departamental\\n\\nPARTE III: PROGRAMAS Y PROYECTOS\\n\\nPrograma 1: Educación Incluyente\\nProyecto 1.1: Construcción de 20 nuevas instituciones educativas\\n- Presupuesto: $15.000 millones\\n- Responsable: Secretaría de Educación Departamental\\n- Indicador: Número de nuevas IE construidas\\n- Meta: 20 IE\\n\\nPrograma 2: Vías para la Prosperidad\\nProyecto 2.1: Pavimentación corredor vial Florencia-Belén\\n- Presupuesto: $50.000 millones\\n- Responsable: Secretaría de Infraestructura\\n- Indicador: Kilómetros pavimentados\\n- Meta: 80 km\\n\\nPARTE IV: MODELO CAUSAL\\n\\nLa mejora en conectividad vial (causa) permitirá reducir tiempos de transporte (efecto intermedio), lo cual facilitará el acceso a mercados (efecto) y aumentará ingresos rurales (impacto).\\n\\nPARTE V: FINANCIACIÓN\\n\\nRecursos propios: $80.000 millones\\nSGP Educación: $120.000 millones\\nSGP Salud: $100.000 millones\\nRegalías: $200.000 millones\\nCofinanciación nación: $150.000 millones\\nTotal: $650.000 millones\\n\\nPARTE VI: INDICADORES Y METAS\\n\\n| Indicador | Línea Base | Meta 2027 | Fuente |\\n|-----------|------------|-----------|--------|\\n| Pobreza multidimensional | 45% | 35% | DANE |\\n| Cobertura educativa | 78% | 90% | MEN |\\n| Km vías pavimentadas | 120 km | 200 km | Gobernación |\",\n      \"metadata\": {\n        \"entity_type\": \"departamento\",\n        \"entity_name\": \"Caquetá\",\n        \"year\": 2024,\n        \"period\": \"2024-2027\",\n        \"population\": 420000\n      }\n    }\n  ],\n  \"options\": {\n    \"priority\": \"high\",\n    \"include_evidence\": true,\n    \"include_questionnaire\": true,\n    \"timeout_seconds\": 600\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/batch/upload",
+          "host": ["{{base_url}}"],
+          "path": ["batch", "upload"]
+        },
+        "description": "Upload a single document with high priority. This example includes a comprehensive departmental development plan with all required sections."
+      },
+      "response": []
+    },
+    {
+      "name": "Check Job Status",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has status field\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('status');",
+              "});",
+              "",
+              "pm.test(\"Response has progress information\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('progress');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/batch/status/{{job_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["batch", "status", "{{job_id}}"]
+        },
+        "description": "Check the status of a batch processing job.\n\n**Path Parameters:**\n- job_id: UUID of the job (automatically set from upload response)\n\n**Response Fields:**\n- status: queued | processing | completed | failed | cancelled | timeout\n- progress: Object with completion information\n  - total_documents: Total number of documents\n  - completed_documents: Number completed\n  - failed_documents: Number failed\n  - percent_complete: Percentage complete\n- worker_id: ID of worker processing the job\n- current_phase: Current processing phase\n- estimated_completion: ISO timestamp"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Job Results",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 or 202\", function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 202]);",
+              "});",
+              "",
+              "if (pm.response.code === 200) {",
+              "    pm.test(\"Response has documents array\", function () {",
+              "        var jsonData = pm.response.json();",
+              "        pm.expect(jsonData).to.have.property('documents');",
+              "        pm.expect(jsonData.documents).to.be.an('array');",
+              "    });",
+              "    ",
+              "    pm.test(\"Response has summary\", function () {",
+              "        var jsonData = pm.response.json();",
+              "        pm.expect(jsonData).to.have.property('summary');",
+              "    });",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/batch/results/{{job_id}}?include_evidence=true&format=json",
+          "host": ["{{base_url}}"],
+          "path": ["batch", "results", "{{job_id}}"],
+          "query": [
+            {
+              "key": "include_evidence",
+              "value": "true",
+              "description": "Include detailed evidence in response"
+            },
+            {
+              "key": "format",
+              "value": "json",
+              "description": "Response format: json or csv"
+            }
+          ]
+        },
+        "description": "Retrieve the results of a completed batch job.\n\n**Path Parameters:**\n- job_id: UUID of the job\n\n**Query Parameters:**\n- include_evidence: Include detailed evidence (default: true)\n- format: Response format - json or csv (default: json)\n\n**Response (200 OK):**\n- job_id: Job identifier\n- status: completed\n- documents: Array of document results with scores and evidence\n- summary: Aggregated statistics\n- artifacts: URLs to full results and logs\n\n**Response (202 Accepted):**\n- Job is still processing, check status endpoint"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Results (CSV Format)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Content-Type is text/csv\", function () {",
+              "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/csv');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/batch/results/{{job_id}}?format=csv&include_evidence=false",
+          "host": ["{{base_url}}"],
+          "path": ["batch", "results", "{{job_id}}"],
+          "query": [
+            {
+              "key": "format",
+              "value": "csv"
+            },
+            {
+              "key": "include_evidence",
+              "value": "false"
+            }
+          ]
+        },
+        "description": "Retrieve results in CSV format for easy import into Excel or data analysis tools.\n\n**CSV Columns:**\n- document_id\n- document_title\n- status\n- processing_time_seconds\n- decalogo_total_score\n- decalogo_p1_diagnostic\n- decalogo_p2_objectives\n- ...(all 10 principles)\n- questionnaire_total_score\n- questionnaire_d1_score\n- ...(all 6 dimensions)\n- violations_count\n- warnings_count"
+      },
+      "response": []
+    },
+    {
+      "name": "Cancel Job",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 or 409\", function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 409]);",
+              "});",
+              "",
+              "if (pm.response.code === 200) {",
+              "    pm.test(\"Status is cancelled\", function () {",
+              "        var jsonData = pm.response.json();",
+              "        pm.expect(jsonData.status).to.eql('cancelled');",
+              "    });",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/batch/{{job_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["batch", "{{job_id}}"]
+        },
+        "description": "Cancel a queued or processing job.\n\n**Path Parameters:**\n- job_id: UUID of the job to cancel\n\n**Response (200 OK):**\n- job_id: Job identifier\n- status: cancelled\n- documents_completed: Number of documents already completed\n- documents_cancelled: Number of documents cancelled\n\n**Response (409 Conflict):**\n- Job already completed or failed, cannot be cancelled"
+      },
+      "response": []
+    },
+    {
+      "name": "Health Check",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 or 503\", function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 503]);",
+              "});",
+              "",
+              "pm.test(\"Response has status field\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('status');",
+              "});",
+              "",
+              "pm.test(\"Response has components\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('components');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        },
+        "description": "Check the health status of the batch processing system.\n\n**Authentication:** Not required\n\n**Response (200 OK - Healthy):**\n- status: healthy\n- components: Status of each component (api, redis, workers, storage)\n- metrics: Current system metrics\n\n**Response (503 Service Unavailable - Degraded):**\n- status: degraded\n- components: Status with error details\n\n**Use Case:** Monitor system health in production, integrate with monitoring tools"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Metrics (Prometheus)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Content-Type is text/plain\", function () {",
+              "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/plain');",
+              "});",
+              "",
+              "pm.test(\"Response contains metrics\", function () {",
+              "    pm.expect(pm.response.text()).to.include('decalogo_batch');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/metrics",
+          "host": ["{{base_url}}"],
+          "path": ["metrics"]
+        },
+        "description": "Get Prometheus-formatted metrics for monitoring and alerting.\n\n**Metrics Exposed:**\n- decalogo_batch_jobs_total: Total number of jobs by status\n- decalogo_batch_processing_time_seconds: Histogram of processing times\n- decalogo_batch_queue_length: Current queue depth\n- decalogo_batch_active_workers: Number of active workers\n\n**Integration:** Configure Prometheus to scrape this endpoint every 15 seconds\n\n**Example Prometheus Config:**\n```yaml\nscrape_configs:\n  - job_name: 'decalogo_batch'\n    scrape_interval: 15s\n    static_configs:\n      - targets: ['batch.decalogo.example.com']\n    metrics_path: '/api/v1/metrics'\n    bearer_token: 'your_token_here'\n```"
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Pre-request script for all requests",
+          "console.log('Sending request to:', pm.request.url.toString());"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test script",
+          "pm.test(\"Response time is less than 5000ms\", function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});"
+        ]
+      }
+    }
+  ]
+}

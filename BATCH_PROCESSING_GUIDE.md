@@ -908,6 +908,766 @@ if __name__ == "__main__":
 
 ---
 
+## API Usage Examples
+
+### Python Client Examples
+
+#### Example 1: Single Document Upload with Status Tracking
+
+```python
+#!/usr/bin/env python3
+"""
+Single document upload with polling for completion.
+"""
+import requests
+import time
+import json
+from typing import Dict, Any
+
+API_BASE_URL = "https://batch.decalogo.example.com/api/v1"
+AUTH_TOKEN = "your_token_here"
+
+def upload_document(document: Dict[str, Any]) -> str:
+    """Upload a single document and return job_id"""
+    headers = {
+        "Authorization": f"Bearer {AUTH_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "documents": [document],
+        "options": {
+            "priority": "normal",
+            "include_evidence": True,
+            "include_questionnaire": True
+        }
+    }
+    
+    response = requests.post(
+        f"{API_BASE_URL}/batch/upload",
+        headers=headers,
+        json=payload,
+        timeout=30
+    )
+    
+    if response.status_code == 202:
+        job_data = response.json()
+        print(f"✓ Job submitted: {job_data['job_id']}")
+        return job_data['job_id']
+    elif response.status_code == 401:
+        raise Exception("Authentication failed. Check your token.")
+    elif response.status_code == 429:
+        retry_after = response.headers.get('Retry-After', 60)
+        raise Exception(f"Rate limit exceeded. Retry after {retry_after} seconds.")
+    else:
+        raise Exception(f"Upload failed: {response.status_code} - {response.text}")
+
+def check_status(job_id: str) -> Dict[str, Any]:
+    """Check job status"""
+    headers = {"Authorization": f"Bearer {AUTH_TOKEN}"}
+    
+    response = requests.get(
+        f"{API_BASE_URL}/batch/status/{job_id}",
+        headers=headers,
+        timeout=10
+    )
+    
+    if response.status_code == 200:
+        return response.json()
+    elif response.status_code == 404:
+        raise Exception(f"Job {job_id} not found or expired")
+    else:
+        raise Exception(f"Status check failed: {response.status_code}")
+
+def get_results(job_id: str) -> Dict[str, Any]:
+    """Retrieve job results"""
+    headers = {"Authorization": f"Bearer {AUTH_TOKEN}"}
+    
+    response = requests.get(
+        f"{API_BASE_URL}/batch/results/{job_id}",
+        headers=headers,
+        params={"include_evidence": True, "format": "json"},
+        timeout=30
+    )
+    
+    if response.status_code == 200:
+        return response.json()
+    elif response.status_code == 202:
+        status_data = response.json()
+        print(f"Job still processing: {status_data['progress']}%")
+        return None
+    else:
+        raise Exception(f"Failed to get results: {response.status_code}")
+
+def wait_for_completion(job_id: str, poll_interval: int = 10, timeout: int = 3600) -> Dict[str, Any]:
+    """Poll job status until completion"""
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        status = check_status(job_id)
+        
+        if status['status'] == 'completed':
+            print(f"✓ Job completed in {time.time() - start_time:.1f} seconds")
+            return get_results(job_id)
+        elif status['status'] == 'failed':
+            raise Exception(f"Job failed: {status.get('error', 'Unknown error')}")
+        elif status['status'] == 'cancelled':
+            raise Exception("Job was cancelled")
+        else:
+            progress = status.get('progress', {}).get('percent_complete', 0)
+            print(f"Processing... {progress:.1f}% complete")
+            time.sleep(poll_interval)
+    
+    raise Exception(f"Job timed out after {timeout} seconds")
+
+def main():
+    # Sample document
+    document = {
+        "id": "doc-001",
+        "title": "Plan de Desarrollo Municipal Florencia 2024",
+        "content": open("plan_florencia.txt", "r", encoding="utf-8").read(),
+        "metadata": {
+            "municipality": "Florencia",
+            "department": "Caquetá",
+            "year": 2024
+        }
+    }
+    
+    print("Uploading document...")
+    job_id = upload_document(document)
+    
+    print("Waiting for completion...")
+    results = wait_for_completion(job_id, poll_interval=5)
+    
+    print("\n=== Results ===")
+    doc_result = results['documents'][0]
+    print(f"Document: {doc_result['title']}")
+    print(f"Status: {doc_result['status']}")
+    print(f"Processing time: {doc_result['processing_time_seconds']:.1f}s")
+    print(f"\nDecálogo score: {doc_result['scores']['decalogo']['total_score']:.1f}/100")
+    print(f"Questionnaire score: {doc_result['scores']['questionnaire']['total_score']:.1f}/60")
+    
+    # Save results
+    with open(f"results_{job_id}.json", "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"\n✓ Results saved to results_{job_id}.json")
+
+if __name__ == "__main__":
+    main()
+```
+
+#### Example 2: Batch Upload with Progress Tracking
+
+```python
+#!/usr/bin/env python3
+"""
+Batch document upload with real-time progress tracking.
+"""
+import requests
+import time
+import json
+import glob
+from typing import List, Dict, Any
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+API_BASE_URL = "https://batch.decalogo.example.com/api/v1"
+AUTH_TOKEN = "your_token_here"
+
+def upload_batch(documents: List[Dict[str, Any]], priority: str = "normal") -> str:
+    """Upload multiple documents as a batch"""
+    headers = {
+        "Authorization": f"Bearer {AUTH_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "documents": documents,
+        "options": {
+            "priority": priority,
+            "include_evidence": True,
+            "include_questionnaire": True,
+            "webhook_url": "https://your-app.com/webhook/batch-complete"
+        }
+    }
+    
+    response = requests.post(
+        f"{API_BASE_URL}/batch/upload",
+        headers=headers,
+        json=payload,
+        timeout=60
+    )
+    
+    if response.status_code == 202:
+        return response.json()['job_id']
+    else:
+        raise Exception(f"Batch upload failed: {response.status_code} - {response.text}")
+
+def track_progress(job_id: str, update_interval: int = 10):
+    """Track and display job progress"""
+    headers = {"Authorization": f"Bearer {AUTH_TOKEN}"}
+    
+    print(f"Tracking job: {job_id}")
+    print("=" * 60)
+    
+    while True:
+        response = requests.get(
+            f"{API_BASE_URL}/batch/status/{job_id}",
+            headers=headers,
+            timeout=10
+        )
+        
+        if response.status_code != 200:
+            print(f"Error checking status: {response.status_code}")
+            break
+        
+        status = response.json()
+        
+        if status['status'] == 'completed':
+            print("\n✓ Batch processing completed!")
+            break
+        elif status['status'] in ['failed', 'cancelled']:
+            print(f"\n✗ Job {status['status']}")
+            break
+        
+        progress = status['progress']
+        percent = progress['percent_complete']
+        completed = progress['completed_documents']
+        total = progress['total_documents']
+        failed = progress['failed_documents']
+        
+        bar_length = 40
+        filled = int(bar_length * percent / 100)
+        bar = '█' * filled + '░' * (bar_length - filled)
+        
+        print(f"\r[{bar}] {percent:.1f}% | {completed}/{total} docs | {failed} failed", end='')
+        
+        if status['status'] == 'processing':
+            time.sleep(update_interval)
+        else:
+            time.sleep(update_interval)
+    
+    print("\n" + "=" * 60)
+
+def load_documents_from_directory(directory: str, max_docs: int = 100) -> List[Dict[str, Any]]:
+    """Load documents from text files in a directory"""
+    documents = []
+    
+    for i, filepath in enumerate(glob.glob(f"{directory}/*.txt")[:max_docs]):
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        filename = filepath.split('/')[-1].replace('.txt', '')
+        documents.append({
+            "id": f"doc-{i+1:03d}",
+            "title": filename.replace('_', ' ').title(),
+            "content": content,
+            "metadata": {
+                "source_file": filepath
+            }
+        })
+    
+    return documents
+
+def main():
+    # Load documents
+    print("Loading documents from directory...")
+    documents = load_documents_from_directory("./plans", max_docs=50)
+    print(f"Loaded {len(documents)} documents")
+    
+    # Upload batch
+    print("Uploading batch...")
+    job_id = upload_batch(documents, priority="high")
+    print(f"Job ID: {job_id}")
+    
+    # Track progress
+    track_progress(job_id, update_interval=5)
+    
+    # Get results
+    print("Fetching results...")
+    headers = {"Authorization": f"Bearer {AUTH_TOKEN}"}
+    response = requests.get(
+        f"{API_BASE_URL}/batch/results/{job_id}",
+        headers=headers,
+        timeout=30
+    )
+    
+    if response.status_code == 200:
+        results = response.json()
+        
+        print("\n=== Summary ===")
+        summary = results['summary']
+        print(f"Average Decálogo score: {summary['avg_decalogo_score']:.1f}")
+        print(f"Average Questionnaire score: {summary['avg_questionnaire_score']:.1f}")
+        print(f"Total violations: {summary['total_violations']}")
+        print(f"Documents with warnings: {summary['documents_with_warnings']}")
+        
+        # Save results
+        output_file = f"batch_results_{job_id}.json"
+        with open(output_file, 'w') as f:
+            json.dump(results, f, indent=2)
+        print(f"\n✓ Results saved to {output_file}")
+    else:
+        print(f"Failed to retrieve results: {response.status_code}")
+
+if __name__ == "__main__":
+    main()
+```
+
+#### Example 3: Async Batch Processing with Webhook
+
+```python
+#!/usr/bin/env python3
+"""
+Asynchronous batch processing with webhook callback.
+"""
+import requests
+import json
+from flask import Flask, request, jsonify
+
+API_BASE_URL = "https://batch.decalogo.example.com/api/v1"
+AUTH_TOKEN = "your_token_here"
+
+# Flask app to receive webhook callbacks
+app = Flask(__name__)
+
+def upload_batch_async(documents, webhook_url):
+    """Upload batch with webhook callback"""
+    headers = {
+        "Authorization": f"Bearer {AUTH_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "documents": documents,
+        "options": {
+            "priority": "normal",
+            "include_evidence": True,
+            "include_questionnaire": True,
+            "webhook_url": webhook_url
+        }
+    }
+    
+    response = requests.post(
+        f"{API_BASE_URL}/batch/upload",
+        headers=headers,
+        json=payload
+    )
+    
+    if response.status_code == 202:
+        job_data = response.json()
+        print(f"Job submitted: {job_data['job_id']}")
+        print(f"Webhook will be called at: {webhook_url}")
+        return job_data['job_id']
+    else:
+        raise Exception(f"Upload failed: {response.status_code}")
+
+@app.route('/webhook/batch-complete', methods=['POST'])
+def webhook_handler():
+    """Handle batch completion webhook"""
+    data = request.json
+    
+    job_id = data.get('job_id')
+    status = data.get('status')
+    
+    print(f"\n=== Webhook Received ===")
+    print(f"Job ID: {job_id}")
+    print(f"Status: {status}")
+    
+    if status == 'completed':
+        # Fetch full results
+        headers = {"Authorization": f"Bearer {AUTH_TOKEN}"}
+        response = requests.get(
+            f"{API_BASE_URL}/batch/results/{job_id}",
+            headers=headers
+        )
+        
+        if response.status_code == 200:
+            results = response.json()
+            
+            # Process results (e.g., store in database, send notifications)
+            print(f"Documents processed: {results['document_count']}")
+            print(f"Average score: {results['summary']['avg_decalogo_score']:.1f}")
+            
+            # Save to file
+            with open(f"results_{job_id}.json", 'w') as f:
+                json.dump(results, f, indent=2)
+            
+            print(f"Results saved to results_{job_id}.json")
+    
+    return jsonify({"status": "received"}), 200
+
+if __name__ == "__main__":
+    # Start Flask server to receive webhooks
+    print("Starting webhook server on port 5000...")
+    print("Make sure to configure your public webhook URL")
+    app.run(host='0.0.0.0', port=5000)
+```
+
+### cURL Examples
+
+#### Upload Single Document
+
+```bash
+#!/bin/bash
+# upload_document.sh
+
+API_BASE="https://batch.decalogo.example.com/api/v1"
+TOKEN="your_token_here"
+
+curl -X POST "${API_BASE}/batch/upload" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "documents": [
+      {
+        "id": "doc-001",
+        "title": "Plan de Desarrollo Municipal 2024",
+        "content": "Contenido del plan...",
+        "metadata": {
+          "municipality": "Florencia",
+          "department": "Caquetá",
+          "year": 2024
+        }
+      }
+    ],
+    "options": {
+      "priority": "normal",
+      "include_evidence": true,
+      "include_questionnaire": true
+    }
+  }' \
+  | jq '.'
+
+# Save job_id
+JOB_ID=$(curl -s -X POST "${API_BASE}/batch/upload" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d @document.json \
+  | jq -r '.job_id')
+
+echo "Job ID: ${JOB_ID}"
+```
+
+#### Check Job Status
+
+```bash
+#!/bin/bash
+# check_status.sh
+
+API_BASE="https://batch.decalogo.example.com/api/v1"
+TOKEN="your_token_here"
+JOB_ID="$1"
+
+if [ -z "$JOB_ID" ]; then
+  echo "Usage: $0 <job_id>"
+  exit 1
+fi
+
+curl -X GET "${API_BASE}/batch/status/${JOB_ID}" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  | jq '{
+      status: .status,
+      progress: .progress.percent_complete,
+      completed: .progress.completed_documents,
+      total: .progress.total_documents
+    }'
+```
+
+#### Get Results
+
+```bash
+#!/bin/bash
+# get_results.sh
+
+API_BASE="https://batch.decalogo.example.com/api/v1"
+TOKEN="your_token_here"
+JOB_ID="$1"
+
+if [ -z "$JOB_ID" ]; then
+  echo "Usage: $0 <job_id>"
+  exit 1
+fi
+
+curl -X GET "${API_BASE}/batch/results/${JOB_ID}?include_evidence=true&format=json" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -o "results_${JOB_ID}.json"
+
+echo "Results saved to results_${JOB_ID}.json"
+
+# Display summary
+jq '.summary' "results_${JOB_ID}.json"
+```
+
+#### Cancel Job
+
+```bash
+#!/bin/bash
+# cancel_job.sh
+
+API_BASE="https://batch.decalogo.example.com/api/v1"
+TOKEN="your_token_here"
+JOB_ID="$1"
+
+if [ -z "$JOB_ID" ]; then
+  echo "Usage: $0 <job_id>"
+  exit 1
+fi
+
+curl -X DELETE "${API_BASE}/batch/${JOB_ID}" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  | jq '.'
+```
+
+#### Health Check
+
+```bash
+#!/bin/bash
+# health_check.sh
+
+API_BASE="https://batch.decalogo.example.com/api/v1"
+
+curl -X GET "${API_BASE}/health" | jq '{
+  status: .status,
+  components: .components | to_entries | map({name: .key, status: .value.status}),
+  queue_length: .metrics.jobs_in_queue,
+  throughput: .metrics.throughput_docs_per_hour
+}'
+```
+
+#### Get Metrics
+
+```bash
+#!/bin/bash
+# get_metrics.sh
+
+API_BASE="https://batch.decalogo.example.com/api/v1"
+TOKEN="your_token_here"
+
+curl -X GET "${API_BASE}/metrics" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  | grep -E "^(decalogo_batch_|# HELP|# TYPE)"
+```
+
+#### Complete Workflow Script
+
+```bash
+#!/bin/bash
+# complete_workflow.sh - Upload, track, and download results
+
+set -e
+
+API_BASE="https://batch.decalogo.example.com/api/v1"
+TOKEN="your_token_here"
+DOCUMENT_FILE="$1"
+
+if [ -z "$DOCUMENT_FILE" ]; then
+  echo "Usage: $0 <document.json>"
+  exit 1
+fi
+
+echo "=== Uploading document ==="
+JOB_ID=$(curl -s -X POST "${API_BASE}/batch/upload" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d @"${DOCUMENT_FILE}" \
+  | jq -r '.job_id')
+
+echo "Job ID: ${JOB_ID}"
+
+echo -e "\n=== Tracking progress ==="
+while true; do
+  STATUS=$(curl -s -X GET "${API_BASE}/batch/status/${JOB_ID}" \
+    -H "Authorization: Bearer ${TOKEN}")
+  
+  STATE=$(echo "$STATUS" | jq -r '.status')
+  PROGRESS=$(echo "$STATUS" | jq -r '.progress.percent_complete // 0')
+  
+  echo -ne "\rStatus: ${STATE} | Progress: ${PROGRESS}%"
+  
+  if [ "$STATE" == "completed" ]; then
+    echo -e "\n✓ Job completed!"
+    break
+  elif [ "$STATE" == "failed" ] || [ "$STATE" == "cancelled" ]; then
+    echo -e "\n✗ Job ${STATE}"
+    exit 1
+  fi
+  
+  sleep 5
+done
+
+echo -e "\n=== Downloading results ==="
+curl -s -X GET "${API_BASE}/batch/results/${JOB_ID}" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -o "results_${JOB_ID}.json"
+
+echo "Results saved to: results_${JOB_ID}.json"
+
+echo -e "\n=== Summary ==="
+jq '.summary' "results_${JOB_ID}.json"
+```
+
+## Advanced Troubleshooting
+
+### Worker Memory Leaks
+
+**Symptoms:**
+- Worker memory usage gradually increasing over time
+- OOM kills after hours/days of operation
+- Degraded performance after processing many documents
+
+**Investigation:**
+
+```bash
+# Track memory usage over time
+while true; do
+  date >> worker_memory.log
+  ps aux | grep celery | grep -v grep >> worker_memory.log
+  sleep 300  # Every 5 minutes
+done
+
+# Analyze memory growth
+awk '{if ($6 ~ /^[0-9]+$/) print $6}' worker_memory.log | \
+  awk '{sum+=$1; count++} END {print "Avg RSS:", sum/count/1024, "MB"}'
+```
+
+**Solutions:**
+
+1. **Reduce max_tasks_per_child:**
+```python
+app.conf.worker_max_tasks_per_child = 50  # Restart worker after 50 tasks
+```
+
+2. **Enable memory profiling:**
+```python
+import tracemalloc
+
+@app.task(bind=True)
+def process_document(self, doc_id, doc_content):
+    tracemalloc.start()
+    
+    try:
+        result = evaluate_document(doc_content)
+        return result
+    finally:
+        current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        logger.info(f"Memory usage: current={current/1024/1024:.1f}MB, peak={peak/1024/1024:.1f}MB")
+```
+
+3. **Explicit garbage collection:**
+```python
+import gc
+
+@app.task
+def process_document(doc_id, doc_content):
+    result = evaluate_document(doc_content)
+    gc.collect()  # Force garbage collection
+    return result
+```
+
+### Redis Connection Pool Exhaustion
+
+**Symptoms:**
+- `ConnectionError: Too many connections`
+- Tasks failing to enqueue
+- Slow Redis operations
+
+**Investigation:**
+
+```bash
+# Check current connections
+redis-cli -a your_password CLIENT LIST | wc -l
+
+# Monitor connection count
+watch -n 2 'redis-cli -a your_password CLIENT LIST | wc -l'
+
+# Check connection pool settings
+redis-cli -a your_password CONFIG GET maxclients
+```
+
+**Solutions:**
+
+1. **Increase Redis max clients:**
+```bash
+redis-cli -a your_password CONFIG SET maxclients 10000
+```
+
+Edit `/etc/redis/redis.conf`:
+```conf
+maxclients 10000
+```
+
+2. **Configure Celery connection pool:**
+```python
+app.conf.broker_pool_limit = 50  # Increase pool size
+app.conf.broker_connection_max_retries = 3
+app.conf.broker_connection_retry_on_startup = True
+```
+
+3. **Enable connection reuse:**
+```python
+from kombu import Connection
+
+# Reuse connections
+app.conf.broker_transport_options = {
+    'max_connections': 100,
+    'socket_timeout': 10,
+    'socket_connect_timeout': 10,
+}
+```
+
+### Task Result Loss
+
+**Symptoms:**
+- Results not available when querying
+- `KeyError` when accessing result.get()
+- Inconsistent result retrieval
+
+**Investigation:**
+
+```bash
+# Check result backend keys
+redis-cli -a your_password KEYS "celery-task-meta-*" | wc -l
+
+# Check TTL on results
+redis-cli -a your_password TTL "celery-task-meta-<task_id>"
+
+# Monitor result expirations
+redis-cli -a your_password --scan --pattern "celery-task-meta-*" | \
+  while read key; do
+    ttl=$(redis-cli -a your_password TTL "$key")
+    echo "$key: $ttl seconds"
+  done
+```
+
+**Solutions:**
+
+1. **Increase result expiration:**
+```python
+app.conf.result_expires = 2592000  # 30 days instead of default 24 hours
+```
+
+2. **Store results in persistent storage:**
+```python
+import json
+
+@app.task(bind=True)
+def process_document(self, doc_id, doc_content):
+    result = evaluate_document(doc_content)
+    
+    # Store in persistent storage (S3, database, etc.)
+    with open(f"/var/results/{self.request.id}.json", 'w') as f:
+        json.dump(result, f)
+    
+    return result
+```
+
+3. **Use result backend with persistence:**
+```python
+# Use database backend instead of Redis
+app.conf.result_backend = 'db+postgresql://user:pass@localhost/celery_results'
+```
+
 ## Additional Resources
 
 - [Celery Documentation](https://docs.celeryq.dev/)
@@ -915,5 +1675,6 @@ if __name__ == "__main__":
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Nginx Documentation](https://nginx.org/en/docs/)
 - [DEPLOYMENT_INFRASTRUCTURE.md](./DEPLOYMENT_INFRASTRUCTURE.md) - Architecture details
+- [Postman Collection](./batch_processing_postman_collection.json) - Pre-configured API requests
 
 For issues and questions, see the Troubleshooting section above or file an issue on GitHub.
