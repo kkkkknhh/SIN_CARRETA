@@ -425,4 +425,214 @@ jobs:
           name: rubric-validation-report
           path: |
             artifacts/answers_report.json
-            mock_rubric.json
+            rubric_scoring.json
+
+  deterministic-pipeline-validation:
+    runs-on: ubuntu-latest
+    needs: rubric-validation
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m spacy download es_core_news_sm
+
+      - name: Create validation directories
+        run: |
+          mkdir -p artifacts
+          mkdir -p validation_run_1
+          mkdir -p validation_run_2
+          mkdir -p validation_run_3
+
+      - name: Execute freeze verification
+        run: |
+          echo "🔒 Freezing configuration snapshot..."
+          python3 miniminimoon_cli.py freeze --repo .
+          if [ $? -ne 0 ]; then
+            echo "❌ Freeze verification failed"
+            exit 1
+          fi
+          echo "✅ Freeze verification passed"
+
+      - name: Run pre-execution validation
+        run: |
+          echo "🔍 Running pre-execution contract and wiring validation..."
+          python3 -c "
+          from system_validators import SystemValidator
+          validator = SystemValidator()
+          result = validator.validate_pre_execution()
+          import json
+          print(json.dumps(result, indent=2))
+          if not result.get('valid', False):
+              print('❌ Pre-execution validation failed')
+              exit(1)
+          print('✅ Pre-execution validation passed')
+          "
+          if [ $? -ne 0 ]; then
+            echo "❌ Pre-execution validation failed"
+            exit 1
+          fi
+
+      - name: Execute evaluation pipeline - Run 1
+        run: |
+          echo "🚀 Executing evaluation pipeline - Run 1 of 3..."
+          python3 miniminimoon_cli.py evaluate --repo . --output validation_run_1
+          if [ $? -ne 0 ]; then
+            echo "❌ Evaluation pipeline Run 1 failed"
+            exit 1
+          fi
+          if [ ! -f validation_run_1/flow_runtime.json ]; then
+            echo "❌ flow_runtime.json not generated in Run 1"
+            exit 1
+          fi
+          echo "✅ Evaluation pipeline Run 1 completed"
+
+      - name: Execute evaluation pipeline - Run 2
+        run: |
+          echo "🚀 Executing evaluation pipeline - Run 2 of 3..."
+          python3 miniminimoon_cli.py evaluate --repo . --output validation_run_2
+          if [ $? -ne 0 ]; then
+            echo "❌ Evaluation pipeline Run 2 failed"
+            exit 1
+          fi
+          if [ ! -f validation_run_2/flow_runtime.json ]; then
+            echo "❌ flow_runtime.json not generated in Run 2"
+            exit 1
+          fi
+          echo "✅ Evaluation pipeline Run 2 completed"
+
+      - name: Execute evaluation pipeline - Run 3
+        run: |
+          echo "🚀 Executing evaluation pipeline - Run 3 of 3..."
+          python3 miniminimoon_cli.py evaluate --repo . --output validation_run_3
+          if [ $? -ne 0 ]; then
+            echo "❌ Evaluation pipeline Run 3 failed"
+            exit 1
+          fi
+          if [ ! -f validation_run_3/flow_runtime.json ]; then
+            echo "❌ flow_runtime.json not generated in Run 3"
+            exit 1
+          fi
+          echo "✅ Evaluation pipeline Run 3 completed"
+
+      - name: Compare flow_runtime.json outputs for determinism
+        run: |
+          echo "🔬 Comparing flow_runtime.json outputs for deterministic ordering and evidence hashes..."
+          python3 -c "
+          import json
+          import sys
+          
+          def load_flow_runtime(path):
+              with open(path, 'r') as f:
+                  return json.load(f)
+          
+          run1 = load_flow_runtime('validation_run_1/flow_runtime.json')
+          run2 = load_flow_runtime('validation_run_2/flow_runtime.json')
+          run3 = load_flow_runtime('validation_run_3/flow_runtime.json')
+          
+          # Compare ordering
+          def get_execution_order(data):
+              if 'flows' in data:
+                  return [f.get('flow_id', f.get('name', '')) for f in data['flows']]
+              return []
+          
+          order1 = get_execution_order(run1)
+          order2 = get_execution_order(run2)
+          order3 = get_execution_order(run3)
+          
+          if order1 != order2 or order1 != order3:
+              print('❌ Flow ordering not deterministic across runs')
+              print(f'Run 1: {order1}')
+              print(f'Run 2: {order2}')
+              print(f'Run 3: {order3}')
+              sys.exit(1)
+          
+          # Compare evidence hashes if available
+          def get_evidence_hashes(data):
+              hashes = []
+              if 'flows' in data:
+                  for flow in data['flows']:
+                      if 'evidence_hash' in flow:
+                          hashes.append(flow['evidence_hash'])
+              return hashes
+          
+          hashes1 = get_evidence_hashes(run1)
+          hashes2 = get_evidence_hashes(run2)
+          hashes3 = get_evidence_hashes(run3)
+          
+          if hashes1 and (hashes1 != hashes2 or hashes1 != hashes3):
+              print('❌ Evidence hashes not deterministic across runs')
+              sys.exit(1)
+          
+          print('✅ Flow ordering and evidence hashes are deterministic across all runs')
+          "
+          if [ $? -ne 0 ]; then
+            echo "❌ Determinism check failed"
+            exit 1
+          fi
+
+      - name: Run post-execution validation
+        run: |
+          echo "🔍 Running post-execution validation (coverage 300/300)..."
+          python3 -c "
+          from system_validators import SystemValidator
+          import json
+          validator = SystemValidator()
+          result = validator.validate_post_execution(artifacts_dir='validation_run_1', check_rubric_strict=True)
+          print(json.dumps(result, indent=2))
+          if not result.get('valid', False):
+              print('❌ Post-execution validation failed')
+              exit(1)
+          
+          # Check for 300/300 coverage
+          coverage = result.get('coverage', {})
+          if coverage.get('covered') != 300 or coverage.get('total') != 300:
+              print(f'❌ Coverage validation failed: {coverage.get(\"covered\", 0)}/{coverage.get(\"total\", 0)} (expected 300/300)')
+              exit(1)
+          
+          print('✅ Post-execution validation passed with 300/300 coverage')
+          "
+          if [ $? -ne 0 ]; then
+            echo "❌ Post-execution validation failed"
+            exit 1
+          fi
+
+      - name: Run rubric alignment check
+        run: |
+          echo "📋 Running rubric check for 1:1 question-to-rubric alignment..."
+          python3 tools/rubric_check.py --answers validation_run_1/answers_report.json --rubric rubric_scoring.json --output-dir artifacts
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -eq 3 ]; then
+            echo "❌ Rubric check failed: Question-weight mismatch detected (exit code 3)"
+            exit 1
+          elif [ $EXIT_CODE -eq 2 ]; then
+            echo "❌ Rubric check failed: Missing input files (exit code 2)"
+            exit 1
+          elif [ $EXIT_CODE -ne 0 ]; then
+            echo "❌ Rubric check failed with exit code: $EXIT_CODE"
+            exit 1
+          fi
+          echo "✅ Rubric alignment check passed (exit code 0)"
+
+      - name: Archive validation artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deterministic-validation-artifacts
+          path: |
+            validation_run_1/flow_runtime.json
+            validation_run_2/flow_runtime.json
+            validation_run_3/flow_runtime.json
+            validation_run_1/coverage_report.json
+            validation_run_1/answers_report.json
+            artifacts/rubric_weight_diff.txt
+            artifacts/validation_*.json
+            .immutability_snapshot.json
