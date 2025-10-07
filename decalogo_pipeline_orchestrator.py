@@ -40,7 +40,6 @@ raise RuntimeError(
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Union, Any, Callable
 
 # Import knowledge extractors

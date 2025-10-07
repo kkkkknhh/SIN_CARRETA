@@ -21,8 +21,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Union, Any
 
-import numpy as np
-
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

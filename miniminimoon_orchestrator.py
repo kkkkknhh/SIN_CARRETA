@@ -43,7 +43,6 @@ from enum import Enum
 import sys
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import lru_cache
 
 try:
     import numpy as np

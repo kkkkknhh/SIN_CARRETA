@@ -9,7 +9,6 @@ Tests end-to-end workflow with mock orchestrator execution.
 
 import json
 import tempfile
-import subprocess
 import sys
 from pathlib import Path
 

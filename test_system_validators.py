@@ -11,14 +11,13 @@ import pytest
 import tempfile
 import shutil
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from system_validators import (
     SystemHealthValidator,
     validate_batch_pre_execution,
     validate_batch_post_execution,
-    ValidationError,
-    BatchValidationResult
+    ValidationError
 )
 
 

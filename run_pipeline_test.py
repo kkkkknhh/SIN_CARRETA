@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Simple pipeline execution test"""
-import json
 import logging
-from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 

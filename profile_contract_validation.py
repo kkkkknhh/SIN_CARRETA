@@ -10,7 +10,6 @@ import cProfile
 import pstats
 import io
 import time
-import sys
 from typing import Dict, Any
 from deterministic_pipeline_validator import (
     DeterministicPipelineValidator, ContractType

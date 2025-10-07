@@ -15,7 +15,7 @@ produced by MINIMINIMOON pipeline components. Ensures:
 import hashlib
 import json
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 from threading import Lock
 import logging

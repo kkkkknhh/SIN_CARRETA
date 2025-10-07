@@ -9,8 +9,7 @@ to identify timing delays and partial recovery causes.
 import time
 import logging
 from circuit_breaker import (
-    CircuitBreaker, CircuitBreakerConfig, CircuitState, 
-    FaultRecoveryManager
+    CircuitBreaker, CircuitBreakerConfig, CircuitState
 )
 from typing import Dict, Any, List
 from dataclasses import dataclass

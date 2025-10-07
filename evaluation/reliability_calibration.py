@@ -19,7 +19,7 @@ Usage:
 
 import numpy as np
 from scipy.stats import beta
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Tuple, Dict, List, Optional
 import json
 import logging

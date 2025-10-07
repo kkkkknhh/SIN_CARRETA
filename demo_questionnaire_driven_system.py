@@ -10,7 +10,6 @@ irradia todo el sistema y cómo cada módulo construye conocimiento incremental.
 import json
 from pathlib import Path
 from collections import defaultdict
-from datetime import datetime
 
 
 class QuestionnaireSystemDemo:

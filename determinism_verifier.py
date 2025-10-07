@@ -45,7 +45,6 @@ import sys
 import json
 import hashlib
 import logging
-import shutil
 import difflib
 import subprocess
 from pathlib import Path
