@@ -46,14 +46,22 @@ class UnifiedEvaluationPipeline:
     - Post-execution validation
     """
 
-    def __init__(self, config_path: Optional[str] = "system_configuration.json"):
+    def __init__(self, 
+                 repo_root: Optional[str] = None,
+                 rubric_path: Optional[str] = None,
+                 config_path: Optional[str] = "system_configuration.json"):
         """
         Initialize unified pipeline.
 
         Args:
+            repo_root: Repository root directory
+            rubric_path: Path to rubric scoring JSON file
             config_path: Path to system configuration file
         """
         logger.info("Initializing Unified Evaluation Pipeline...")
+
+        self.repo_root = repo_root if repo_root else "."
+        self.rubric_path = rubric_path if rubric_path else "RUBRIC_SCORING.json"
 
         # Load configuration
         self.config = self._load_config(config_path)
@@ -62,7 +70,7 @@ class UnifiedEvaluationPipeline:
         self.orchestrator = MINIMINIMOONOrchestrator(config_path)
 
         # Initialize system validator
-        self.system_validator = SystemHealthValidator(config_path)
+        self.system_validator = SystemHealthValidator(self.repo_root)
 
         # Initialize evaluators (lazy loading)
         self.decalogo_evaluator = None

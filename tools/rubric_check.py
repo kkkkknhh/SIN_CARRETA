@@ -6,12 +6,17 @@ from pathlib import Path
 def check_rubric_alignment(answers_path=None, rubric_path=None):
     """Check 1:1 alignment between answers and rubric"""
     try:
-        if answers_path is None or rubric_path is None:
-            repo_root = Path(__file__).parent.parent
+        repo_root = Path(__file__).parent.parent
+        
+        # Use provided paths or default to repo locations
+        if answers_path is None:
             answers_path = repo_root / "artifacts" / "answers_report.json"
-            rubric_path = repo_root / "RUBRIC_SCORING.json"
         else:
             answers_path = Path(answers_path)
+            
+        if rubric_path is None:
+            rubric_path = repo_root / "RUBRIC_SCORING.json"
+        else:
             rubric_path = Path(rubric_path)
         
         if not answers_path.exists():
@@ -51,7 +56,10 @@ def check_rubric_alignment(answers_path=None, rubric_path=None):
         return 1
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3:
-        sys.exit(check_rubric_alignment(sys.argv[1], sys.argv[2]))
+    # Parse command line arguments
+    if len(sys.argv) >= 3:
+        answers_arg = sys.argv[1]
+        rubric_arg = sys.argv[2]
+        sys.exit(check_rubric_alignment(answers_arg, rubric_arg))
     else:
         sys.exit(check_rubric_alignment())

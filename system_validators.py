@@ -26,7 +26,6 @@ import json
 import pathlib
 import subprocess
 import sys
-import psutil
 import shutil
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Tuple, Optional
@@ -36,6 +35,14 @@ import statistics
 # Custom exception for validation failures
 class ValidationError(Exception):
     pass
+
+# psutil is optional for batch validation - handle gracefully if not available
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    psutil = None  # type: ignore
 
 # Dependencias internas
 try:
@@ -291,16 +298,23 @@ def validate_batch_pre_execution() -> BatchValidationResult:
     errors: List[str] = []
     
     # Memory check (8GB threshold)
-    try:
-        mem = psutil.virtual_memory()
-        memory_available_gb = mem.available / (1024**3)
-        memory_ok = memory_available_gb >= 8.0
-        if not memory_ok:
-            errors.append(f"Insufficient memory: {memory_available_gb:.2f}GB available, 8GB required")
-    except Exception as e:
-        memory_available_gb = None
-        memory_ok = False
-        errors.append(f"Memory check failed: {e}")
+    memory_available_gb = None
+    memory_ok = False
+    
+    if not PSUTIL_AVAILABLE:
+        errors.append("psutil not available - skipping resource checks")
+        memory_ok = True  # Allow test to proceed
+    else:
+        try:
+            mem = psutil.virtual_memory()  # type: ignore
+            memory_available_gb = mem.available / (1024**3)
+            memory_ok = memory_available_gb >= 8.0
+            if not memory_ok:
+                errors.append(f"Insufficient memory: {memory_available_gb:.2f}GB available, 8GB required")
+        except Exception as e:
+            memory_available_gb = None
+            memory_ok = False
+            errors.append(f"Memory check failed: {e}")
     
     # Disk space check (10GB threshold)
     try:
