@@ -403,108 +403,52 @@ class CanonicalFlowValidator:
 
 class AnswerAssembler:
     def __init__(self, rubric_path: Path, evidence_registry: EvidenceRegistry):
+        self.rubric = self._load_rubric(rubric_path)
         self.registry = evidence_registry
         self.logger = logging.getLogger(__name__)
-        self.questions, self.weights = self._load_rubric(rubric_path)
+        self.questions = self.rubric.get("questions", {})
+        self.weights = self.rubric.get("weights", {})
         self._validate_rubric_coverage()
 
-    def _load_rubric(self, path: Path) -> Tuple[Dict[str, Any], Dict[str, float]]:
-        """
-        Load both questions and weights sections from RUBRIC_SCORING.json.
-        RUBRIC_SCORING.json is the single source of truth for all scoring configuration.
-        
-        The questions section is an array of question objects with 'id' fields.
-        The weights section is a dictionary keyed by question unique IDs (e.g., 'D1-Q1-P1').
-        
-        Returns:
-            Tuple of (questions_dict, weights_dict) where questions_dict maps unique IDs to question objects
-        
-        Raises:
-            ValueError: If 'questions' or 'weights' sections are missing
-        """
+    def _load_rubric(self, path: Path) -> Dict[str, Any]:
         with open(path, 'r', encoding='utf-8') as f:
             rubric = json.load(f)
-        
         if "questions" not in rubric:
-            raise ValueError(f"Rubric missing 'questions' key at {path}. Questions section is required.")
+            raise ValueError(f"Rubric missing 'questions' section: {path}")
         if "weights" not in rubric:
-            raise ValueError(f"Rubric missing 'weights' key at {path}. Weights section is required.")
-        
-        # Parse questions array into dictionary keyed by 'id'
-        questions = rubric.get("questions", [])
-        if not isinstance(questions, list):
-            raise ValueError(f"'questions' must be an array in {path}")
-        
-        questions_dict = {}
-        for q in questions:
-            if isinstance(q, dict) and "id" in q:
-                questions_dict[q["id"]] = q
-        
-        # Get weights dictionary directly
-        weights_dict = rubric.get("weights", {})
-        if not isinstance(weights_dict, dict):
-            raise ValueError(f"'weights' must be a dictionary in {path}")
-        
-        self.logger.info(
-            f"✓ Loaded RUBRIC_SCORING.json: {len(questions_dict)} question templates, {len(weights_dict)} weights"
-        )
-        
-        return questions_dict, weights_dict
+            raise ValueError(f"Rubric missing 'weights' section: {path}")
+        return rubric
 
     def _validate_rubric_coverage(self):
-        """
-        Validate strict 1:1 alignment between questions section and weights section.
+        if isinstance(self.questions, list):
+            questions = set(q.get("id") for q in self.questions if "id" in q)
+        else:
+            questions = set(self.questions.keys())
         
-        The questions section in RUBRIC_SCORING.json contains question templates (e.g., 'D1-Q1').
-        The weights section contains per-instantiation weights (e.g., 'D1-Q1-P1', 'D1-Q1-P2', etc.)
-        for all 300 questions across 10 thematic points.
+        weights = set(self.weights.keys())
         
-        This validates that:
-        1. Every question template has weight entries for all 10 points
-        2. Every weight entry corresponds to a valid question template
+        missing = questions - weights
+        extra = weights - questions
         
-        Raises:
-            ValueError: If alignment check fails with specific missing/extra question IDs
-        """
-        question_template_ids = set(self.questions.keys())  # e.g., {'D1-Q1', 'D1-Q2', ...}
-        weight_ids = set(self.weights.keys())  # e.g., {'D1-Q1-P1', 'D1-Q1-P2', ...}
-        
-        # Extract base question IDs from weights (strip point codes)
-        weight_base_ids = set()
-        for wid in weight_ids:
-            # Format: D1-Q1-P1 -> D1-Q1
-            parts = wid.split('-')
-            if len(parts) >= 3:
-                base_id = '-'.join(parts[:2])  # D1-Q1
-                weight_base_ids.add(base_id)
-        
-        missing_weight_templates = question_template_ids - weight_base_ids
-        extra_weight_templates = weight_base_ids - question_template_ids
-        
-        if missing_weight_templates or extra_weight_templates:
+        if missing or extra:
             error_parts = []
-            if missing_weight_templates:
-                sample_missing = sorted(missing_weight_templates)[:10]
+            if missing:
+                sample = sorted(missing)[:10]
                 error_parts.append(
-                    f"Missing weights for {len(missing_weight_templates)} question templates: {sample_missing}"
-                    + (" ..." if len(missing_weight_templates) > 10 else "")
+                    f"missing weights for {len(missing)} questions: {sample}"
+                    + (" ..." if len(missing) > 10 else "")
                 )
-            if extra_weight_templates:
-                sample_extra = sorted(extra_weight_templates)[:10]
+            if extra:
+                sample = sorted(extra)[:10]
                 error_parts.append(
-                    f"Extra weights for {len(extra_weight_templates)} non-existent templates: {sample_extra}"
-                    + (" ..." if len(extra_weight_templates) > 10 else "")
+                    f"extra weights for {len(extra)} non-existent questions: {sample}"
+                    + (" ..." if len(extra) > 10 else "")
                 )
-            
             raise ValueError(
-                f"Rubric validation FAILED (gate #5): 1:1 alignment check failed. " 
-                + "; ".join(error_parts)
+                f"Rubric validation FAILED (gate #5): " + "; ".join(error_parts)
             )
         
-        self.logger.info(
-            f"✓ Rubric validated (gate #5): {len(question_template_ids)} question templates "
-            f"with {len(weight_ids)} instantiated weights (1:1 alignment confirmed)"
-        )
+        self.logger.info(f"✓ Rubric validated (gate #5): {len(questions)} questions with {len(weights)} weights (1:1 alignment verified)")
 
     def assemble(
         self,
@@ -514,19 +458,9 @@ class AnswerAssembler:
         raw_score: float,
         reasoning: str = ""
     ) -> Answer:
-        """
-        Construct QuestionAnswer with weight retrieved directly from loaded weights dictionary.
-        No external weight parameters accepted - weights come exclusively from RUBRIC_SCORING.json.
-        
-        Raises:
-            KeyError: If question_id not found in weights (gate #5 enforcement)
-        """
         weight = self.weights.get(question_id)
         if weight is None:
-            raise KeyError(
-                f"Question {question_id} has no rubric weight (gate #5 failure). "
-                f"All questions must have corresponding weights in RUBRIC_SCORING.json."
-            )
+            raise KeyError(f"Question {question_id} has no rubric weight (gate #5 failure)")
         evidence_entries = [self.registry.get(eid) for eid in relevant_evidence_ids]
         evidence_entries = [e for e in evidence_entries if e is not None]
         confidence = self._calculate_confidence(evidence_entries, raw_score)
