@@ -9,11 +9,22 @@ Arquitecto: GitHub Copilot
 
 ## RESUMEN EJECUTIVO
 
-Se han implementado y garantizado **TODOS los 72 flujos críticos** especificados, con énfasis en los 15 flujos fundamentales del pipeline canónico. El sistema cumple con los 6 gates de aceptación obligatorios.
+Se han implementado y garantizado **TODOS los 72 flujos críticos** especificados, con énfasis en los 18 flujos fundamentales del pipeline canónico (FLOW #1-15 pipeline core + FLOW #16-18 validation/orchestration). El sistema cumple con los 6 gates de aceptación obligatorios.
+
+**CANONICAL JSON FILES (3 critical artifacts)**:
+- `decalogo_industrial.json`: 300 questions for evaluation (FLOW #13, #14, #15)
+- `DNP_STANDARDS.json`: dimension mapping and weights (FLOW #13, #14)
+- `RUBRIC_SCORING.json`: scoring modalities (FLOW #15, #18)
 
 ---
 
-## 1. FLUJOS CRÍTICOS PRINCIPALES (15 Flujos Fundamentales)
+## 1. FLUJOS CRÍTICOS PRINCIPALES (18 Flujos Fundamentales)
+
+### Pipeline Core (FLOW #1-15)
+Procesamiento secuencial desde ingesta hasta ensamblaje de respuestas.
+
+### Validation & Orchestration (FLOW #16-18)
+Control flows para orquestación, validación pre/post, y verificación de alineación.
 
 ### ✅ FLOW #1: Sanitización
 - **Ruta**: `miniminimoon_orchestrator → plan_sanitizer`
@@ -141,12 +152,13 @@ Se han implementado y garantizado **TODOS los 72 flujos críticos** especificado
 - **Archivo**: `questionnaire_engine.py`
 - **Relevancia**: 300 preguntas sobre la misma evidencia
 
-### ✅ FLOW #15: Ensamblaje de Respuestas
+### ✅ FLOW #15: Ensamblaje de Respuestas (AnswerAssembler)
 - **Ruta**: `miniminimoon_orchestrator → AnswerAssembler`
+- **Tipo**: Data (N:1 fan-in)
 - **Contrato I/O**: 
-  - **Input**: `{evidence_store:EvidenceRegistry, rubric:dict, decalogo_eval:dict, questionnaire_eval:dict}`
+  - **Input**: `{evidence_registry:EvidenceRegistry, RUBRIC_SCORING.json:dict, decalogo_eval:dict, questionnaire_eval:dict}`
   - **Output**: `{answers_report.json:dict, answers_sample.json:dict}`
-- **Cardinalidad**: N:1 (fan-in from decalogo_eval + questionnaire_eval)
+- **Cardinalidad**: N:1 (fan-in from FLOW #13 + FLOW #14)
 - **Estado**: ✅ IMPLEMENTADO
 - **Archivo**: `miniminimoon_orchestrator.py` (clase `AnswerAssembler`)
 - **Garantías de I/O**:
@@ -171,10 +183,12 @@ Se han implementado y garantizado **TODOS los 72 flujos críticos** especificado
   - ✅ Validación de cobertura de rubric (GATE #5): 300/300 match obligatorio
   - ✅ Campo `evidence_ids` con array no vacío para trazabilidad
   - ✅ Campo `score` alineado con pesos de `RUBRIC_SCORING.json`
-- **Integración**:
+- **Integración con otros flujos**:
+  - ⬆️ **Upstream**: FLOW #12 (evidence_registry), FLOW #13 (decalogo_eval), FLOW #14 (questionnaire_eval)
+  - ⬇️ **Downstream**: FLOW #17 (post-validation), FLOW #18 (rubric_check)
   - Llamado desde `miniminimoon_orchestrator.execute()` después de FLOW #13 y #14
   - Usa `EvidenceRegistry` para provenance completa
-  - Aplica pesos de rubric a cada respuesta
+  - Aplica pesos de `RUBRIC_SCORING.json` a cada respuesta
   - Exporta a `artifacts/answers_report.json` y `artifacts/answers_sample.json`
 
 ### ✅ FLOW #16: Pipeline de Evaluación Unificado (Facade)
@@ -255,8 +269,99 @@ Se han implementado y garantizado **TODOS los 72 flujos críticos** especificado
   - Post-checks: Inmediato después de exportar artefactos
   - Escribe resultados en `results_bundle.json`
 
+### ✅ FLOW #16: Pipeline de Evaluación Unificado (UnifiedEvaluationPipeline - Facade)
+- **Ruta**: `unified_evaluation_pipeline → system_validators + miniminimoon_orchestrator`
+- **Tipo**: Control (1:1 facade orchestration)
+- **Contrato I/O**: 
+  - **Input**: `{config_dir:Path, plan_path:Path, output_dir:Path}`
+  - **Output**: `{results_bundle.json:dict}` con estructura:
+    ```json
+    {
+      "pre_validation": {"gates_passed": ["gate_1", "gate_6"], "status": "PASS"},
+      "pipeline_results": {
+        "evidence_hash": "sha256:...",
+        "flow_hash": "sha256:...",
+        "answers_report": {...}
+      },
+      "post_validation": {"gates_passed": ["gate_4", "gate_5"], "status": "PASS"}
+    }
+    ```
+- **Cardinalidad**: 1:1 (facade pattern - single entry point)
+- **Estado**: ✅ IMPLEMENTADO
+- **Archivo**: `miniminimoon_orchestrator.py` (clase `UnifiedEvaluationPipeline`)
+- **Orquestación (3-phase pattern)**:
+  1. **Pre-Execution**: Llama `SystemValidators.run_pre_checks()` → GATE #1 (freeze), GATE #6 (no deprecated imports)
+  2. **Execution**: Llama `CanonicalDeterministicOrchestrator.execute()` → FLOW #1-15 (complete pipeline)
+  3. **Post-Execution**: Llama `SystemValidators.run_post_checks()` → GATE #2 (flow order), GATE #4 (300 coverage), GATE #5 (rubric alignment)
+- **Garantías**:
+  - ✅ Punto de entrada único para evaluación completa (facade pattern)
+  - ✅ Gestión de errores centralizada con rollback en fallo de pre-checks
+  - ✅ Logs estructurados de cada fase (`[PRE] → [EXEC] → [POST]`)
+  - ✅ Validación pre/post obligatoria (no bypass posible)
+  - ✅ Exporta bundle consolidado con resultados + validaciones en `artifacts/results_bundle.json`
+- **Integración con otros flujos**:
+  - ⬆️ **Upstream**: Ninguno (entry point del sistema)
+  - ⬇️ **Downstream**: FLOW #17 (pre/post validators), FLOW #1-15 (orchestrator), FLOW #18 (rubric_check)
+  - CLI: `python miniminimoon_orchestrator.py evaluate <config> <plan> <output>`
+  - CI Pipeline: Script principal en `validate.py`
+  - Invoca `miniminimoon_orchestrator` entre gates de validación
+  - Escribe `artifacts/results_bundle.json` con status completo de 3 fases
+
+### ✅ FLOW #17: Validadores del Sistema (SystemValidators - Pre/Post Gates)
+- **Ruta**: `unified_evaluation_pipeline → system_validators`
+- **Tipo**: Control (gate enforcement)
+- **Contrato I/O**: 
+  - **Pre-Execution Input**: `{config_dir:Path}`
+  - **Pre-Execution Output**: `{pre_gate_results:List[dict]}` con gates #1, #6
+  - **Post-Execution Input**: `{output_dir:Path, answers_report:dict, flow_runtime:dict}`
+  - **Post-Execution Output**: `{post_gate_results:List[dict]}` con gates #2, #4, #5
+- **Cardinalidad**: 1:N (control flow - multiple gate checks)
+- **Estado**: ✅ IMPLEMENTADO
+- **Archivo**: `miniminimoon_orchestrator.py` (clase `SystemValidators`)
+- **Gates Pre-Execution**:
+  - ✅ **GATE #1**: Verifica freeze state con `.immutability_snapshot.json`
+    - Input: `config_dir/.immutability_snapshot.json`
+    - Validación: SHA-256 match de `decalogo_industrial.json`, `DNP_STANDARDS.json`, `RUBRIC_SCORING.json`
+    - Falla: `RuntimeError` si no hay snapshot o hay mismatch
+    - Output: `{"gate_id": 1, "status": "PASS|FAIL", "files_verified": 3}`
+  - ✅ **GATE #6**: Verifica no-import de orquestador deprecado
+    - Test: `import decalogo_pipeline_orchestrator` debe fallar
+    - Pass: Si `ImportError` o `RuntimeError` (deprecado/no existe)
+    - Fail: Si import exitoso (orquestador deprecado aún activo)
+    - Output: `{"gate_id": 6, "status": "PASS|FAIL", "deprecated_modules": []}`
+- **Gates Post-Execution**:
+  - ✅ **GATE #2**: Valida determinismo de `flow_runtime.json`
+    - Input: `artifacts/flow_runtime.json`, `tools/flow_doc.json`
+    - Validación: Orden canónico + hash match (15 stages en orden correcto)
+    - Compara stages ejecutados vs documentación canónica
+    - Output: `{"gate_id": 2, "status": "PASS|FAIL", "flow_hash": "sha256:...", "stages_matched": 15}`
+  - ✅ **GATE #4**: Valida cobertura ≥ 300 preguntas
+    - Input: `artifacts/answers_report.json`
+    - Validación: `summary.total_questions >= 300`
+    - Falla: Si `< 300` con mensaje explícito indicando faltantes
+    - Output: `{"gate_id": 4, "status": "PASS|FAIL", "questions_found": 300, "required": 300}`
+  - ✅ **GATE #5**: Valida alineación 1:1 rubric
+    - Input: `artifacts/answers_report.json`, `RUBRIC_SCORING.json`
+    - Validación: Cada pregunta tiene peso, sin extras ni faltantes
+    - Invoca: `rubric_check.py` (FLOW #18) con exit code validation
+    - Output: `{"gate_id": 5, "status": "PASS|FAIL", "rubric_alignment": "300/300", "mismatches": 0}`
+- **Garantías**:
+  - ✅ Pre-checks ejecutan antes de procesamiento (fail-fast pattern)
+  - ✅ Post-checks validan 300/300 coverage + determinismo + alignment
+  - ✅ Logs estructurados: `"✓ Gate #N PASSED"` o `"✗ Gate #N FAILED: <reason>"`
+  - ✅ Cada gate retorna `{"gate_id": N, "status": "PASS|FAIL", "message": "...", "details": {...}}`
+  - ✅ Hash consistency checking para detectar mutación de configuración entre runs
+- **Integración con otros flujos**:
+  - ⬆️ **Upstream**: FLOW #16 (unified_evaluation_pipeline)
+  - ⬇️ **Downstream**: FLOW #18 (rubric_check), FLOW #1-15 (orchestrator execution)
+  - Llamado por `UnifiedEvaluationPipeline.evaluate()` en 2 fases críticas
+  - Pre-checks: Inmediato antes de `orchestrator.execute()` (blocking)
+  - Post-checks: Inmediato después de exportar artefactos (validation)
+  - Escribe resultados en `results_bundle.json` con detalles completos de cada gate
+
 ### ✅ FLOW #18: Verificación de Alineación de Rubric (tools/rubric_check.py)
 - **Ruta**: `system_validators → tools/rubric_check.py`
+- **Tipo**: Control (1:1 validation with strict exit codes)
 - **Contrato I/O**: 
   - **Input**: 
     - `answers_report.json` (300 question-answer pairs)
@@ -265,10 +370,10 @@ Se han implementado y garantizado **TODOS los 72 flujos críticos** especificado
     - **Exit Code 0**: Match exacto 1:1 (success)
     - **Exit Code 3**: Mismatch detectado (failure)
     - **stdout**: Diff minimal con missing/extra questions
-- **Cardinalidad**: 1:1 (validación binaria)
+- **Cardinalidad**: 1:1 (validación binaria - pass or fail)
 - **Estado**: ✅ IMPLEMENTADO
 - **Archivo**: `tools/rubric_check.py`
-- **Validación**:
+- **Validación (1:1 question-to-rubric weight verification)**:
   - ✅ Extrae `question_id` de cada answer en `answers_report.json`
   - ✅ Extrae `question_id` de cada entry en `RUBRIC_SCORING.json`
   - ✅ Calcula diff: `missing = rubric_ids - answer_ids`, `extra = answer_ids - rubric_ids`
@@ -280,26 +385,32 @@ Se han implementado y garantizado **TODOS los 72 flujos críticos** especificado
     Extra questions (in answers, not in rubric): ['DE-9.99']
     ```
 - **Formato de Diff**:
-  - Lista ordenada alfabéticamente
-  - Máximo 50 items mostrados por categoría (truncado si más)
-  - Conteos exactos: `"Missing: 2"`, `"Extra: 1"`
+  - Lista ordenada alfabéticamente para reproducibilidad
+  - Máximo 50 items mostrados por categoría (truncado si más para legibilidad)
+  - Conteos exactos: `"Missing: 2"`, `"Extra: 1"` para debugging rápido
 - **Integración en CI**:
   - Llamado por `SystemValidators.run_post_checks()` en GATE #5
-  - Script CI: `python tools/rubric_check.py artifacts/answers_report.json config/RUBRIC_SCORING.json`
-  - CI Pipeline: `validate.py` ejecuta después de `evaluate`
-  - Exit code 3 causa fallo de CI con mensaje explícito
+  - Script CI: `python tools/rubric_check.py artifacts/answers_report.json RUBRIC_SCORING.json`
+  - CI Pipeline: `validate.py` ejecuta después de `evaluate` en post-validation phase
+  - Exit code 3 causa fallo de CI con mensaje explícito (blocking deployment)
 - **Uso Manual**:
   ```bash
   # Validar alineación después de evaluación
-  python tools/rubric_check.py ./artifacts/answers_report.json ./config/RUBRIC_SCORING.json
+  python tools/rubric_check.py ./artifacts/answers_report.json ./RUBRIC_SCORING.json
   echo $?  # 0 = success, 3 = mismatch
   ```
 - **Garantías**:
-  - ✅ Validación exhaustiva de cobertura 1:1
-  - ✅ Diff legible para debugging rápido
-  - ✅ Exit codes estándar para CI integration
-  - ✅ Idempotente y determinista
-  - ✅ Sin side-effects (read-only validation)
+  - ✅ Validación exhaustiva de cobertura 1:1 (every question has weight, no extras)
+  - ✅ Diff legible para debugging rápido (clear missing/extra lists)
+  - ✅ Exit codes estándar para CI integration (0=pass, 3=fail)
+  - ✅ Idempotente y determinista (same input = same output)
+  - ✅ Sin side-effects (read-only validation, no file mutation)
+- **Integración con otros flujos**:
+  - ⬆️ **Upstream**: FLOW #17 (system_validators GATE #5), FLOW #15 (answers_report.json)
+  - ⬇️ **Downstream**: FLOW #16 (results_bundle.json), CI pipeline validation
+  - Invocado como subprocess por `SystemValidators` con exit code capture
+  - Resultados integrados en `post_validation` section de `results_bundle.json`
+  - Blocking gate para deployment - fallo aquí detiene el release
 
 ---
 

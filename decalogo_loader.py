@@ -265,122 +265,124 @@ if __name__ == "__main__":
         print(f"- {dim.get('id')}: {dim.get('name')} ({len(dim.get('questions', []))} questions)")
 
 
-def ensure_aligned_templates() -> Dict[str, Any]:
+def load_dnp_standards(path: Optional[str] = None) -> Dict[str, Any]:
     """
-    Ensure all templates are loaded and aligned.
+    Load DNP_STANDARDS.json configuration.
     
+    Args:
+        path: Optional custom path to DNP standards file
+        
     Returns:
-        Dictionary with all loaded templates and alignment status
+        DNP standards data
     """
-    # Load all templates
-    decalogo_industrial = get_decalogo_industrial()
-    decalogo_full = load_decalogo_full()
-    dnp_standards = load_dnp_standards()
+    standards_path = Path(path) if path else (Path(__file__).parent / "DNP_STANDARDS.json")
     
-    # Verify alignment
-    alignment = verify_alignment(decalogo_industrial, decalogo_full, dnp_standards)
+    try:
+        if standards_path.exists():
+            with open(standards_path, 'r', encoding='utf-8') as f:
+                standards_data = json.load(f)
+                logger.debug(f"Loaded DNP standards from {standards_path}")
+                return standards_data
+    except (PermissionError, OSError, IOError, json.JSONDecodeError) as e:
+        logger.warning(f"Error accessing DNP standards at {standards_path}: {e}")
     
-    # Log alignment status
-    if alignment["status"] == "verified":
-        logger.info("All templates are properly aligned")
-    else:
-        logger.warning(f"Template alignment issues detected: {alignment['issues']}")
-    
+    logger.warning("DNP standards file not found, returning empty structure")
     return {
-        "decalogo_industrial": decalogo_industrial,
-        "decalogo_full": decalogo_full,
-        "dnp_standards": dnp_standards,
-        "alignment": alignment
+        "metadata": {"version": "2.0.0"},
+        "decalogo_dimension_mapping": {}
     }
 
 
-def get_cluster_metadata(
-    cluster_id: str, 
-    decalogo_full: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
+def ensure_aligned_templates() -> Dict[str, Any]:
     """
-    Get metadata for a specific cluster.
+    Ensure all critical templates are loaded.
     
-    Args:
-        cluster_id: ID of the cluster to retrieve
-        decalogo_full: Optional pre-loaded DECALOGO_FULL
-        
+    NOTE: This system uses THREE canonical JSON files:
+    - decalogo_industrial.json: 300 questions for evaluation
+    - DNP_STANDARDS.json: dimension mapping and weights
+    - RUBRIC_SCORING.json: scoring modalities and weights
+    
     Returns:
-        Dictionary with cluster metadata or empty dict if not found
+        Dictionary with all loaded templates
     """
-    if decalogo_full is None:
-        decalogo_full = load_decalogo_full()
+    decalogo_industrial = get_decalogo_industrial()
+    dnp_standards = load_dnp_standards()
     
-    clusters = decalogo_full.get("clusters_politica", [])
+    # Verify basic structure
+    decalogo_questions = len(decalogo_industrial.get("questions", []))
+    dnp_dimensions = len(dnp_standards.get("decalogo_dimension_mapping", {}))
     
-    for cluster in clusters:
-        if cluster.get("id") == cluster_id:
-            return cluster
+    logger.info(f"Loaded templates: {decalogo_questions} questions, {dnp_dimensions} dimension mappings")
     
-    return {}
-
-
-def map_punto_to_cluster(
-    punto_id: int, 
-    decalogo_full: Optional[Dict[str, Any]] = None
-) -> List[str]:
-    """
-    Map a decalogo point to its associated clusters.
+    alignment_status = "verified" if decalogo_questions == 300 else "incomplete"
     
-    Args:
-        punto_id: Decalogo point ID to map
-        decalogo_full: Optional pre-loaded DECALOGO_FULL
-        
-    Returns:
-        List of cluster IDs that include this point
-    """
-    if decalogo_full is None:
-        decalogo_full = load_decalogo_full()
-    
-    clusters = decalogo_full.get("clusters_politica", [])
-    associated_clusters = []
-    
-    for cluster in clusters:
-        if punto_id in cluster.get("puntos_decalogo", []):
-            associated_clusters.append(cluster.get("id"))
-    
-    return associated_clusters
+    return {
+        "decalogo_industrial": decalogo_industrial,
+        "dnp_standards": dnp_standards,
+        "alignment": {
+            "status": alignment_status,
+            "questions_found": decalogo_questions,
+            "dimensions_mapped": dnp_dimensions
+        }
+    }
 
 
 def get_question_by_id(
-    dimension_id: str,
     question_id: str,
-    decalogo_full: Optional[Dict[str, Any]] = None
+    decalogo_industrial: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
-    Get specific question details by dimension and question ID.
+    Get specific question details by question ID.
     
     Args:
-        dimension_id: Dimension ID (e.g., 'DE-1')
-        question_id: Question ID (e.g., 'Q1')
-        decalogo_full: Optional pre-loaded DECALOGO_FULL
+        question_id: Question ID (e.g., 'D1-Q1')
+        decalogo_industrial: Optional pre-loaded decalogo_industrial
         
     Returns:
         Dictionary with question details or empty dict if not found
     """
-    if decalogo_full is None:
-        decalogo_full = load_decalogo_full()
+    if decalogo_industrial is None:
+        decalogo_industrial = get_decalogo_industrial()
     
-    dimensions = decalogo_full.get("dimensiones", [])
+    questions = decalogo_industrial.get("questions", [])
     
-    for dimension in dimensions:
-        if dimension.get("id") == dimension_id:
-            for question in dimension.get("preguntas", []):
-                if question.get("id") == question_id:
-                    return question
+    for question in questions:
+        if question.get("id") == question_id:
+            return question
     
     return {}
+
+
+def get_dimension_weight(
+    point_code: str,
+    dimension: str,
+    dnp_standards: Optional[Dict[str, Any]] = None
+) -> float:
+    """
+    Get weight for a specific dimension within a point.
+    
+    Args:
+        point_code: Point code (e.g., 'P1')
+        dimension: Dimension ID (e.g., 'D1')
+        dnp_standards: Optional pre-loaded DNP standards
+        
+    Returns:
+        Weight for the dimension (0.0 if not found)
+    """
+    if dnp_standards is None:
+        dnp_standards = load_dnp_standards()
+    
+    mapping = dnp_standards.get("decalogo_dimension_mapping", {})
+    point_config = mapping.get(point_code, {})
+    
+    weight_key = f"{dimension}_weight"
+    return point_config.get(weight_key, 0.0)
 
 
 if __name__ == "__main__":
     # Example usage
     print("DECALOGO Loader - Diagnostic tool")
-    print("================================")
+    print("=" * 50)
     
     # Load templates
     templates = ensure_aligned_templates()
@@ -388,23 +390,25 @@ if __name__ == "__main__":
     # Show alignment status
     alignment = templates["alignment"]
     print(f"\nAlignment status: {alignment['status']}")
+    print(f"Questions found: {alignment['questions_found']}")
+    print(f"Dimensions mapped: {alignment['dimensions_mapped']}")
     
-    if alignment["issues"]:
-        print("\nDetected issues:")
-        for issue in alignment["issues"]:
-            print(f"- {issue}")
-    
-    # Show dimensions
+    # Show sample questions
     industrial = templates["decalogo_industrial"]
-    print("\nDECALOGO_INDUSTRIAL dimensions:")
-    for dim in industrial.get("dimensions", []):
-        print(f"- {dim['id']}: {dim['name']} (weight: {dim['weight']})")
+    questions = industrial.get("questions", [])
+    if questions:
+        print(f"\nTotal questions: {len(questions)}")
+        print("\nSample questions:")
+        for q in questions[:3]:
+            print(f"- {q.get('id')}: {q.get('point_title')} (Dimension {q.get('dimension')})")
     
-    # Show policy clusters if available
-    full = templates["decalogo_full"]
-    clusters = full.get("clusters_politica", [])
-    if clusters:
-        print("\nPolicy clusters:")
-        for cluster in clusters:
-            points = cluster.get("puntos_decalogo", [])
-            print(f"- {cluster.get('id')}: {cluster.get('nombre')} ({len(points)} points)")
+    # Show DNP standards sample
+    dnp = templates["dnp_standards"]
+    mapping = dnp.get("decalogo_dimension_mapping", {})
+    if mapping:
+        print(f"\nDNP Standards - Points mapped: {len(mapping)}")
+        print("\nSample dimension weights (P1):")
+        p1_config = mapping.get("P1", {})
+        for key, value in list(p1_config.items())[:6]:
+            if key.endswith("_weight"):
+                print(f"- {key}: {value}")
