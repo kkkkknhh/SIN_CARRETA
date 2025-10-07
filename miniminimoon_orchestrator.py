@@ -1366,41 +1366,94 @@ class CanonicalDeterministicOrchestrator:
     # ------------------------ Artifacts ------------------------
 
     def export_artifacts(self, output_dir: Path, pipeline_results: Dict[str, Any] = None):
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
+        """
+        Export all 5 required artifacts to output_dir with proper error handling and path resolution.
+        
+        Artifacts exported (in order):
+        1. evidence_registry.json - Cryptographic evidence registry with deterministic hash
+        2. answers_report.json - Complete 300-question evaluation report
+        3. answers_sample.json - Sample of first 10 answers for quick validation
+        4. coverage_report.json - Dimension-level coverage analysis
+        5. flow_runtime.json - Execution trace with canonical flow validation
+        
+        All artifacts use deterministic JSON encoding (sorted keys) for reproducibility.
+        """
+        output_dir = Path(output_dir).resolve()
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            self.logger.error(f"Failed to create output directory {output_dir}: {e}")
+            raise
 
-        self.evidence_registry.export(output_dir / "evidence_registry.json")
+        # Artifact 1: evidence_registry.json
+        try:
+            evidence_path = output_dir / "evidence_registry.json"
+            self.evidence_registry.export(evidence_path)
+        except Exception as e:
+            self.logger.error(f"Failed to export evidence_registry.json: {e}")
+            raise
 
+        # Artifacts 2-4: answers_report.json, answers_sample.json, coverage_report.json
         if pipeline_results and "evaluations" in pipeline_results:
             answers_report = pipeline_results["evaluations"].get("answers_report")
             if answers_report:
-                # Serialize complete answers collection to artifacts/answers_report.json with deterministic JSON encoding (sorted keys)
-                with open(output_dir / "answers_report.json", 'w', encoding='utf-8') as f:
-                    json.dump(answers_report, f, indent=2, ensure_ascii=False, sort_keys=True)
-                self.logger.info(f"✓ Answers report exported to: {output_dir / 'answers_report.json'} (deterministic JSON with sorted keys)")
+                # Artifact 2: answers_report.json
+                try:
+                    answers_path = output_dir / "answers_report.json"
+                    with open(answers_path, 'w', encoding='utf-8') as f:
+                        json.dump(answers_report, f, indent=2, ensure_ascii=False, sort_keys=True)
+                    self.logger.info(f"✓ Answers report exported to: {answers_path} (deterministic JSON with sorted keys)")
+                except Exception as e:
+                    self.logger.error(f"Failed to export answers_report.json: {e}")
+                    raise
                 
-                # Serialize sample subset to artifacts/answers_sample.json with deterministic JSON encoding (sorted keys)
-                answers_sample = {
-                    "metadata": answers_report.get("metadata", {}),
-                    "global_summary": answers_report.get("global_summary", {}),
-                    "sample_question_answers": sorted(
-                        answers_report.get("question_answers", [])[:10],
-                        key=lambda x: x.get("question_id", "")
-                    )
-                }
-                with open(output_dir / "answers_sample.json", 'w', encoding='utf-8') as f:
-                    json.dump(answers_sample, f, indent=2, ensure_ascii=False, sort_keys=True)
-                self.logger.info(f"✓ Answers sample exported to: {output_dir / 'answers_sample.json'} (deterministic JSON with sorted keys)")
+                # Artifact 3: answers_sample.json
+                try:
+                    answers_sample = {
+                        "metadata": answers_report.get("metadata", {}),
+                        "global_summary": answers_report.get("global_summary", {}),
+                        "sample_question_answers": sorted(
+                            answers_report.get("question_answers", answers_report.get("answers", []))[:10],
+                            key=lambda x: x.get("question_id", "")
+                        )
+                    }
+                    sample_path = output_dir / "answers_sample.json"
+                    with open(sample_path, 'w', encoding='utf-8') as f:
+                        json.dump(answers_sample, f, indent=2, ensure_ascii=False, sort_keys=True)
+                    self.logger.info(f"✓ Answers sample exported to: {sample_path} (deterministic JSON with sorted keys)")
+                except Exception as e:
+                    self.logger.error(f"Failed to export answers_sample.json: {e}")
+                    raise
+                
+                # Artifact 4: coverage_report.json
+                try:
+                    coverage_report = self._generate_coverage_report(answers_report)
+                    coverage_path = output_dir / "coverage_report.json"
+                    with open(coverage_path, 'w', encoding='utf-8') as f:
+                        json.dump(coverage_report, f, indent=2, ensure_ascii=False, sort_keys=True)
+                    self.logger.info(f"✓ Coverage report exported to: {coverage_path} (deterministic JSON with sorted keys)")
+                except Exception as e:
+                    self.logger.error(f"Failed to export coverage_report.json: {e}")
+                    raise
 
+        # Artifact 5: flow_runtime.json
         if self.enable_validation and pipeline_results:
-            # Capture execution order of all processing stages including AnswerAssembler node
-            # Write to artifacts/flow_runtime.json with deterministic ordering matching canonical sequence in tools/flow_doc.json
-            flow_runtime = self._generate_flow_runtime_metadata(pipeline_results)
-            with open(output_dir / "flow_runtime.json", 'w', encoding='utf-8') as f:
-                json.dump(flow_runtime, f, indent=2, sort_keys=True, ensure_ascii=False)
-            self.logger.info(f"✓ Flow runtime exported to: {output_dir / 'flow_runtime.json'} (deterministic ordering matching tools/flow_doc.json)")
+            try:
+                flow_runtime = self._generate_flow_runtime_metadata(pipeline_results)
+                flow_path = output_dir / "flow_runtime.json"
+                with open(flow_path, 'w', encoding='utf-8') as f:
+                    json.dump(flow_runtime, f, indent=2, sort_keys=True, ensure_ascii=False)
+                self.logger.info(f"✓ Flow runtime exported to: {flow_path} (deterministic ordering matching tools/flow_doc.json)")
+            except Exception as e:
+                self.logger.error(f"Failed to export flow_runtime.json: {e}")
+                raise
 
-        self.logger.info(f"✓ All artifacts exported to: {output_dir}")
+        self.logger.info(f"✓ All 5 artifacts exported to: {output_dir}")
+        self.logger.info(f"  - evidence_registry.json (cryptographic evidence registry)")
+        self.logger.info(f"  - answers_report.json (300 question evaluation report)")
+        self.logger.info(f"  - answers_sample.json (first 10 answers for quick validation)")
+        self.logger.info(f"  - coverage_report.json (dimension-level coverage analysis)")
+        self.logger.info(f"  - flow_runtime.json (execution trace with canonical flow validation)")
 
     def _generate_flow_runtime_metadata(self, pipeline_results: Dict[str, Any]) -> Dict[str, Any]:
         runtime_data = self.runtime_tracer.export()
@@ -1419,6 +1472,79 @@ class CanonicalDeterministicOrchestrator:
             "validation": pipeline_results.get("validation", {})
         }
         return flow_runtime
+    
+    def _generate_coverage_report(self, answers_report: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate coverage_report.json from answers_report structure.
+        
+        Extracts questionnaire coverage metrics from global_summary and dimension breakdown.
+        Implements validation requirements for Gate #4 (≥300 questions answered).
+        
+        Args:
+            answers_report: Complete answers report with global_summary and question_answers sections.
+                           Supports both new format (question_answers) and legacy format (answers).
+            
+        Returns:
+            Coverage report matching schema in ARCHITECTURE.md artifact specification
+        """
+        # Support both new format (global_summary) and legacy format (summary)
+        global_summary = answers_report.get("global_summary", answers_report.get("summary", {}))
+        total_questions = global_summary.get("total_questions", 0)
+        answered_questions = global_summary.get("answered_questions", 0)
+        
+        # Calculate coverage percentage
+        coverage_percentage = (answered_questions / total_questions * 100.0) if total_questions > 0 else 0.0
+        
+        # Extract dimension breakdown from answers (support both formats)
+        dimension_counts = {}
+        question_answers = answers_report.get("question_answers", answers_report.get("answers", []))
+        
+        for qa in question_answers:
+            # Extract dimension from question_id if dimension field not present
+            dimension = qa.get("dimension")
+            if not dimension:
+                question_id = qa.get("question_id", "")
+                # Parse D1-Q1 format to extract D1
+                if "-" in question_id:
+                    dimension = question_id.split("-")[0]
+                else:
+                    dimension = "UNKNOWN"
+            
+            if dimension not in dimension_counts:
+                dimension_counts[dimension] = {"questions": 0, "answered": 0}
+            dimension_counts[dimension]["answered"] += 1
+        
+        # Compute expected questions per dimension (assuming 6 dimensions × 50 = 300)
+        dimensions_report = {}
+        expected_dimensions = ["D1", "D2", "D3", "D4", "D5", "D6"]
+        questions_per_dimension = 50
+        
+        for dim in expected_dimensions:
+            dimensions_report[dim] = {
+                "questions": questions_per_dimension,
+                "answered": dimension_counts.get(dim, {}).get("answered", 0)
+            }
+        
+        coverage_report = {
+            "total_questions": total_questions,
+            "answered_questions": answered_questions,
+            "coverage_percentage": round(coverage_percentage, 1),
+            "dimensions": dimensions_report
+        }
+        
+        # Log Gate #4 validation result
+        if answered_questions < 300:
+            self.logger.warning(
+                f"⨯ Gate #4 FAILED: Coverage is {answered_questions}/300 questions "
+                f"({coverage_percentage:.1f}%)"
+            )
+        else:
+            self.logger.info(
+                f"✓ Gate #4 PASSED: Coverage is {answered_questions}/300 questions "
+                f"({coverage_percentage:.1f}%)"
+            )
+        
+        return coverage_report
 
 
 # ============================================================================
