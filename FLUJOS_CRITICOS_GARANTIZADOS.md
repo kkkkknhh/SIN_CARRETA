@@ -18,7 +18,25 @@ Se han implementado y garantizado **TODOS los 72 flujos críticos** especificado
 
 ---
 
-## 1. FLUJOS CRÍTICOS PRINCIPALES (18 Flujos Fundamentales)
+## AUDIT STATUS (2025-10-07)
+
+**rubric_check.py CLI Interface Audit**: ✅ VERIFIED
+- Exit codes: 0 (success), 2 (missing input), 3 (mismatch), 1 (runtime error) - COMPLIANT
+- JSON output to stdout (success/mismatch) and stderr (errors) - COMPLIANT
+- CLI accepts optional path arguments or uses defaults - COMPLIANT
+
+**flow_doc.json vs flow_runtime.json Order Verification**: ✅ VERIFIED
+- Canonical order in tools/flow_doc.json: 15 stages documented
+- Runtime order in artifacts/flow_runtime.json: matches canonical order exactly
+- All 15 stages present and in correct sequence
+
+**Missing Integration Specifications**: ✅ DOCUMENTED BELOW (Sections 5 & 6)
+- trace_matrix.py: Provenance traceability tool (QA gate) - See FLOW #19
+- determinism_guard.py: Cross-library RNG seeding enforcer - See FLOW #20
+
+---
+
+## 1. FLUJOS CRÍTICOS PRINCIPAIS (18 Flujos Fundamentales)
 
 ### Pipeline Core (FLOW #1-15)
 Procesamiento secuencial desde ingesta hasta ensamblaje de respuestas.
@@ -368,48 +386,94 @@ Control flows para orquestación, validación pre/post, y verificación de aline
     - `RUBRIC_SCORING.json` (300 question IDs con pesos)
   - **Output**: 
     - **Exit Code 0**: Match exacto 1:1 (success)
-    - **Exit Code 3**: Mismatch detectado (failure)
-    - **stdout**: Diff minimal con missing/extra questions
+    - **Exit Code 2**: Missing input files (pre-condition failure)
+    - **Exit Code 3**: Mismatch detectado (validation failure)
+    - **Exit Code 1**: Runtime error (unexpected exception)
+    - **stdout**: JSON con estructura `{"ok": bool, "message": str, "missing_in_rubric": list, "extra_in_rubric": list}`
+    - **stderr**: JSON con errores `{"ok": false, "error": str}` (solo para exit codes 1 y 2)
 - **Cardinalidad**: 1:1 (validación binaria - pass or fail)
-- **Estado**: ✅ IMPLEMENTADO
+- **Estado**: ✅ IMPLEMENTADO Y AUDITADO
 - **Archivo**: `tools/rubric_check.py`
+- **CLI Interface**: `python tools/rubric_check.py [answers_path] [rubric_path]`
+  - Sin argumentos: usa rutas por defecto (`artifacts/answers_report.json`, `RUBRIC_SCORING.json`)
+  - Con argumentos: usa rutas especificadas
 - **Validación (1:1 question-to-rubric weight verification)**:
-  - ✅ Extrae `question_id` de cada answer en `answers_report.json`
-  - ✅ Extrae `question_id` de cada entry en `RUBRIC_SCORING.json`
-  - ✅ Calcula diff: `missing = rubric_ids - answer_ids`, `extra = answer_ids - rubric_ids`
-  - ✅ Si diff vacío: Exit 0 con mensaje `"✓ Rubric alignment verified: 300/300"`
-  - ✅ Si diff no vacío: Exit 3 con output:
+  - ✅ Extrae `question_id` de cada answer en `answers_report.json["answers"]`
+  - ✅ Extrae `question_id` de `RUBRIC_SCORING.json["weights"]` keys
+  - ✅ Calcula diff: `missing = answer_ids - rubric_weights`, `extra = rubric_weights - answer_ids`
+  - ✅ Si diff vacío: Exit 0 con JSON `{"ok": true, "message": "1:1 alignment verified"}`
+  - ✅ Si diff no vacío: Exit 3 con JSON:
+    ```json
+    {
+      "ok": false,
+      "missing_in_rubric": ["Q2", "Q3"],
+      "extra_in_rubric": [],
+      "message": "1:1 alignment failed"
+    }
     ```
-    ✗ Rubric alignment FAILED
-    Missing questions (in rubric, not in answers): ['DE-1.5', 'DE-2.3']
-    Extra questions (in answers, not in rubric): ['DE-9.99']
+  - ✅ Si archivo faltante: Exit 2 con JSON a stderr `{"ok": false, "error": "answers_report.json not found"}`
+  - ✅ Si excepción: Exit 1 con JSON a stderr `{"ok": false, "error": "exception message"}`
+- **Formato de Output**:
+  - JSON válido en stdout (success/mismatch) o stderr (error)
+  - Listas de diff limitadas a 10 items para legibilidad (`:10` truncation)
+  - Determinista y parseable por CI/CD tooling
+- **Exit Codes (especificación completa auditada)**:
+  - **0**: Success - 1:1 alignment verificado, todas las preguntas tienen peso
+  - **1**: Runtime error - excepción inesperada durante ejecución (catch-all)
+  - **2**: Missing input - archivos de entrada no existen (pre-condition)
+  - **3**: Mismatch - alignment 1:1 fallido, hay preguntas sin peso o pesos sin pregunta
+- **Invocación dentro de system_validators.py**:
+  - ✅ **INVOCACIÓN EN GATE #5**: `SystemValidators.validate_post_execution()` con `check_rubric_strict=True`
+  - Punto de invocación: Después de validar cobertura (GATE #4), antes de retornar resultados
+  - Implementación actual:
+    ```python
+    rubric_check_script = self.repo / "tools" / "rubric_check.py"
+    result = subprocess.run(
+        [sys.executable, str(rubric_check_script), str(answers_path), str(rubric_path)],
+        capture_output=True, text=True, timeout=30
+    )
+    
+    if result.returncode == 3:  # Mismatch
+        ok_rubric_1to1 = False
+        errors.append(f"Rubric mismatch detected (exit code 3): {result.stdout}")
+    elif result.returncode == 2:  # Missing input
+        ok_rubric_1to1 = False
+        errors.append(f"Rubric check failed (exit code 2): {result.stderr}")
+    elif result.returncode != 0:  # Other errors
+        ok_rubric_1to1 = False
+        errors.append(f"Rubric check failed with exit code {result.returncode}")
+    # Exit code 0 = success, ok_rubric_1to1 remains True
     ```
-- **Formato de Diff**:
-  - Lista ordenada alfabéticamente para reproducibilidad
-  - Máximo 50 items mostrados por categoría (truncado si más para legibilidad)
-  - Conteos exactos: `"Missing: 2"`, `"Extra: 1"` para debugging rápido
+- **Expected Output** (cuando se invoca desde system_validators):
+  - **Success (exit 0)**: JSON a stdout parseado, ok_rubric_1to1 = True
+  - **Mismatch (exit 3)**: JSON diff incluido en errors list, ok_rubric_1to1 = False
+  - **Error (exit 1/2)**: Mensaje de error agregado a errors list, ok_rubric_1to1 = False
 - **Integración en CI**:
-  - Llamado por `SystemValidators.run_post_checks()` en GATE #5
+  - Llamado por `SystemValidators.validate_post_execution()` en GATE #5
   - Script CI: `python tools/rubric_check.py artifacts/answers_report.json RUBRIC_SCORING.json`
-  - CI Pipeline: `validate.py` ejecuta después de `evaluate` en post-validation phase
   - Exit code 3 causa fallo de CI con mensaje explícito (blocking deployment)
 - **Uso Manual**:
   ```bash
-  # Validar alineación después de evaluación
+  # Con rutas explícitas
   python tools/rubric_check.py ./artifacts/answers_report.json ./RUBRIC_SCORING.json
-  echo $?  # 0 = success, 3 = mismatch
+  echo $?  # 0 = success, 2 = missing, 3 = mismatch, 1 = error
+  
+  # Con rutas por defecto
+  python tools/rubric_check.py
   ```
 - **Garantías**:
   - ✅ Validación exhaustiva de cobertura 1:1 (every question has weight, no extras)
-  - ✅ Diff legible para debugging rápido (clear missing/extra lists)
-  - ✅ Exit codes estándar para CI integration (0=pass, 3=fail)
+  - ✅ Output JSON estructurado para parsing automático
+  - ✅ Exit codes semánticos específicos para diferentes tipos de fallo
   - ✅ Idempotente y determinista (same input = same output)
   - ✅ Sin side-effects (read-only validation, no file mutation)
+  - ✅ Graceful error handling (no crashes, siempre retorna exit code válido)
+  - ✅ Timeout protection (30s max en subprocess call)
 - **Integración con otros flujos**:
   - ⬆️ **Upstream**: FLOW #17 (system_validators GATE #5), FLOW #15 (answers_report.json)
   - ⬇️ **Downstream**: FLOW #16 (results_bundle.json), CI pipeline validation
-  - Invocado como subprocess por `SystemValidators` con exit code capture
-  - Resultados integrados en `post_validation` section de `results_bundle.json`
+  - Invocado como subprocess desde `system_validators.py::validate_post_execution()`
+  - Output JSON parseado para incluir en `results_bundle.json`
   - Blocking gate para deployment - fallo aquí detiene el release
 
 ### ✅ FLOW #19: Matriz de Trazabilidad de Provenance (tools/trace_matrix.py)
@@ -476,6 +540,166 @@ Control flows para orquestación, validación pre/post, y verificación de aline
   - Invocado como subprocess por `SystemValidators.validate_post_execution()`
   - Resultados integrados en `post_validation` section con flag `ok_trace_matrix`
   - Blocking validation en post-execution gate - fallo detiene CI pipeline
+
+---
+
+## 1.B. FLUJOS DE QA Y DETERMINISMO (FLOW #19-20)
+
+### ✅ FLOW #19: Matriz de Trazabilidad de Evidencia (tools/trace_matrix.py)
+- **Ruta**: `post_validation → tools/trace_matrix.py`
+- **Tipo**: QA (provenance traceability auditor)
+- **Contrato I/O**:
+  - **Input**: `artifacts/answers_report.json`
+    - Schema: `{"answers": [{"question_id": str, "evidence_ids": list[str], "confidence": float, "score": float}]}`
+  - **Output**: `artifacts/module_to_questions_matrix.csv`
+    - Schema CSV: `module,question_id,evidence_id,confidence,score`
+    - Exit Code 0: Success (matriz generada)
+    - Exit Code 2: Missing input (answers_report.json no existe)
+    - Exit Code 3: Malformed data (schema inválido o campos faltantes)
+    - Exit Code 1: Runtime error (excepción inesperada)
+- **Cardinalidad**: 1:1 (cada answers_report → una matriz)
+- **Estado**: ✅ IMPLEMENTADO
+- **Archivo**: `trace_matrix.py`
+- **CLI Interface**: `python tools/trace_matrix.py` (usa rutas por defecto)
+- **Funcionalidad**:
+  - ✅ Parseo determinista de `evidence_id` → módulo (basado en convención `source::type::hash`)
+  - ✅ Expandir cada (question_id, evidence_ids[]) a N filas (1 fila por evidence_id)
+  - ✅ Preservación de insertion order (refleja orden de procesamiento)
+  - ✅ UTF-8 encoding con newlines normalizados
+  - ✅ Graceful degradation para evidence_ids malformados (marca como "unknown")
+- **Convención de Evidence ID**:
+  - Formato: `{detector_name}::{evidence_type}::{content_hash}`
+  - Ejemplo: `responsibility_detector::assignment::a3f9c2e1`
+  - Módulo extraído: primer segmento antes de `::`
+- **Casos de Uso**:
+  - Auditoría externa: verificar que cada pregunta tiene evidencia trazable
+  - Análisis de cobertura: identificar módulos sub/sobre-utilizados
+  - Debugging de provenance: rastrear qué detector generó qué evidence_id
+  - Compliance: demostrar cadena de custodia desde raw_text → answer
+- **Invocación dentro de system_validators.py**:
+  - ⚠️ **NO ACTUALMENTE INVOCADO** - Tool standalone para análisis post-hoc
+  - Recomendación: Agregar a `SystemValidators.validate_post_execution()` como GATE opcional
+  - Punto de invocación sugerido: Después de GATE #4 (cobertura), antes de GATE #5 (rubric)
+  - Integración propuesta:
+    ```python
+    # En system_validators.py::validate_post_execution()
+    trace_matrix_script = self.repo / "tools" / "trace_matrix.py"
+    if trace_matrix_script.exists():
+        result = subprocess.run([sys.executable, str(trace_matrix_script)], 
+                               capture_output=True, text=True, timeout=60)
+        if result.returncode == 0:
+            matrix_path = result.stdout.strip()
+            print(f"✓ Trace matrix generated: {matrix_path}")
+        else:
+            errors.append(f"Trace matrix generation failed (exit {result.returncode})")
+    ```
+- **Expected Output** (cuando se invoca):
+  - **Success**: Imprime ruta del archivo CSV generado a stdout
+  - **Error**: Imprime mensaje de error a stderr con exit code semántico
+- **Garantías**:
+  - ✅ Idempotente: misma entrada produce misma matriz
+  - ✅ Determinista: orden de filas preservado
+  - ✅ Sin side-effects destructivos (solo crea CSV, no modifica answers_report)
+  - ✅ Validación de schema antes de procesamiento
+- **Integración con otros flujos**:
+  - ⬆️ **Upstream**: FLOW #15 (answers_report.json con evidence_ids)
+  - ⬇️ **Downstream**: Análisis externo, auditorías, debugging
+  - Complementa GATE #5 (rubric_check) con trazabilidad module-level
+
+### ✅ FLOW #20: Guardián de Determinismo (determinism_guard.py)
+- **Ruta**: `pre_pipeline_execution → determinism_guard.enforce_determinism()`
+- **Tipo**: Control (cross-cutting concern - cross-library RNG seeding)
+- **Contrato I/O**:
+  - **Input**: `{seed: int, strict: bool}`
+  - **Output**: `{seeding_state: Dict[str, Any]}` con estructura:
+    ```json
+    {
+      "seed": 42,
+      "python_seeded": true,
+      "numpy_seeded": true,
+      "torch_seeded": true,
+      "torch_cuda_seeded": false,
+      "warnings": [],
+      "enforcement_count": 1
+    }
+    ```
+- **Cardinalidad**: 1:N (múltiples puntos de enforcement - invocado al inicio de cada stage estocástico)
+- **Estado**: ✅ IMPLEMENTADO
+- **Archivo**: `determinism_guard.py`
+- **API Pública**:
+  - `enforce_determinism(seed=42, strict=False) -> Dict` - Fuerza seeding en todos los RNGs
+  - `verify_determinism(seed=42, n_samples=100) -> Dict` - Verifica reproducibilidad con prueba estadística
+  - `get_determinism_diagnostics() -> Dict` - Retorna estado completo del sistema
+  - `enforce_from_environment(env_var="MINIMINIMOON_SEED") -> Dict` - Lee seed desde ENV var
+  - `enforce(seed=42) -> None` - Alias legacy para retrocompatibilidad (silencioso)
+- **Estrategia de Seeding** (multi-library):
+  1. Python random.seed() → Afecta `random.random()`, `random.choice()`, etc.
+  2. NumPy np.random.seed() → Afecta `np.random.rand()`, `np.random.choice()`, etc.
+  3. PyTorch torch.manual_seed() → Afecta `torch.rand()`, dropout, etc.
+  4. PyTorch CUDA (si disponible) → `torch.cuda.manual_seed_all()` para GPU
+- **Exit Codes (CLI mode)**:
+  - Exit Code 0: Determinismo verificado OK
+  - Exit Code 1: Fallo de determinismo detectado (mismatches en verificación)
+  - Exit Code 2: Error de configuración (seed inválido, etc.)
+- **CLI Interface**: 
+  ```bash
+  # Verificar con seed por defecto (42)
+  python determinism_guard.py
+  
+  # Verificar con seed custom
+  python determinism_guard.py --seed 123
+  
+  # Imprimir diagnostics completos
+  python determinism_guard.py --diagnostics
+  
+  # Modo strict (fail hard si falla seeding de algún RNG)
+  python determinism_guard.py --strict
+  ```
+- **Casos donde el determinismo es crítico**:
+  - `embedding_model`: Vectorización con dropout/random projection requiere seed fija
+  - `document_segmenter`: Si usa sampling estratificado para docs grandes
+  - `feasibility_scorer`: Ranking con tie-breaking aleatorio
+  - `teoria_cambio`: Construcción de grafo con ordenamiento no-determinista
+  - CI/CD: Runs reproducibles para comparación de flow_hash y evidence_hash
+- **Invocación dentro de system_validators.py**:
+  - ⚠️ **NO ACTUALMENTE INVOCADO en system_validators** - Enforcement en puntos específicos del pipeline
+  - **INVOCACIÓN ACTUAL**: En `miniminimoon_orchestrator.py` al inicio de métodos estocásticos
+  - Puntos de invocación recomendados:
+    1. **Pre-Execution Gate** (GATE #0 - nuevo gate propuesto):
+       ```python
+       # En system_validators.py::validate_pre_execution()
+       from determinism_guard import enforce_determinism, verify_determinism
+       
+       # Enforce al inicio de validación pre-execution
+       seed_result = enforce_determinism(seed=42, strict=False)
+       if not seed_result["numpy_seeded"]:
+           errors.append("NumPy RNG seeding failed - determinism not guaranteed")
+       
+       # Verificar que seeding funcionó
+       verify_result = verify_determinism(seed=42, n_samples=100)
+       if not verify_result["deterministic"]:
+           errors.append(f"Determinism verification failed: {verify_result['mismatches']}")
+       ```
+    2. **Pre-Stage Hooks**: En `CanonicalDeterministicOrchestrator` antes de cada stage estocástico
+    3. **Batch Processing**: En `validate_batch_pre_execution()` para garantizar determinismo en procesamiento paralelo
+- **Expected Output** (cuando se invoca):
+  - **enforce_determinism()**: Dict con estado de seeding + warnings
+  - **verify_determinism()**: Dict con resultado de prueba de reproducibilidad
+  - **CLI**: JSON estructurado a stdout con resultado de verificación
+- **Garantías**:
+  - ✅ Seeding idempotente: múltiples llamadas con mismo seed → mismo estado
+  - ✅ Graceful degradation: ausencia de PyTorch NO rompe el pipeline
+  - ✅ Thread-safety: seeds afectan solo el proceso actual (no afectan multiprocessing)
+  - ✅ Verificación post-seeding: validación de que el seed fue aplicado correctamente
+- **Limitaciones Conocidas**:
+  - No afecta generadores en otros procesos (multiprocessing)
+  - No afecta librerías C/C++ externas (e.g., OpenBLAS threaded RNG)
+  - PyTorch CUDNN tiene no-determinismo residual en algunos kernels (requiere `torch.backends.cudnn.deterministic = True` por separado)
+- **Integración con otros flujos**:
+  - ⬆️ **Upstream**: Ninguno (invocado al inicio del pipeline)
+  - ⬇️ **Downstream**: Todos los FLOW #1-15 (garantiza determinismo en todo el pipeline)
+  - Complementa GATE #3 (evidence_hash stability) asegurando reproducibilidad bit-exacta
+  - Prerequisito para GATE #2 (flow_hash match) al eliminar no-determinismo aleatorio
 
 ---
 
