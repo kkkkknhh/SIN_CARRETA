@@ -258,9 +258,10 @@ class AnswerAssembler:
         LOGGER.info(f"✓ Parsed {len(templates)} question templates from rubric")
         return templates
 
-    def _parse_weights(self) -> Dict[str, float]:
+    def _load_rubric_config(self) -> Dict[str, float]:
         """
-        Parse 'weights' section from RUBRIC_SCORING.json for per-question weight mappings.
+        Load all scoring configuration from RUBRIC_SCORING.json 'weights' section.
+        This is the single source of truth for per-question weight mappings.
         
         Returns the weights dictionary mapping question unique IDs to their weights.
         
@@ -274,8 +275,17 @@ class AnswerAssembler:
             )
         
         weights = self.rubric_config.get("weights", {})
-        LOGGER.info(f"✓ Parsed {len(weights)} weight entries from rubric")
+        LOGGER.info(f"✓ Loaded rubric weights config from RUBRIC_SCORING.json: {len(weights)} weight entries")
         return weights
+    
+    def _parse_weights(self) -> Dict[str, float]:
+        """
+        Parse 'weights' section from RUBRIC_SCORING.json for per-question weight mappings.
+        Delegates to _load_rubric_config() for actual loading.
+        
+        Returns the weights dictionary mapping question unique IDs to their weights.
+        """
+        return self._load_rubric_config()
 
     def _validate_rubric_coverage(self) -> None:
         """
