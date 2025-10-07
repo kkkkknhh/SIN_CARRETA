@@ -231,58 +231,73 @@ class SystemHealthValidator:
         # 5) (Opcional) Rúbrica 1:1: todas las preguntas reportadas deben existir en pesos
         ok_rubric_1to1 = True
         if check_rubric_strict:
-            rubric_path = self.repo / "RUBRIC_SCORING.json"
-            rubric_check_script = self.repo / "tools" / "rubric_check.py"
+            # Resolve absolute paths relative to project root
+            rubric_path_abs = (self.repo / "RUBRIC_SCORING.json").resolve()
+            rubric_check_script_abs = (self.repo / "tools" / "rubric_check.py").resolve()
+            answers_path_abs = answers_path.resolve()
             
             # Try invoking tools/rubric_check.py as a subprocess
+            exit_code = None
+            stdout_output = ""
+            stderr_output = ""
+            
             try:
                 result = subprocess.run(
-                    [sys.executable, str(rubric_check_script), str(answers_path), str(rubric_path)],
+                    [sys.executable, str(rubric_check_script_abs), str(answers_path_abs), str(rubric_path_abs)],
                     capture_output=True,
                     text=True,
                     timeout=30
                 )
+                exit_code = result.returncode
+                stdout_output = result.stdout.strip()
+                stderr_output = result.stderr.strip()
                 
-                # Handle exit codes
-                if result.returncode == 3:
-                    # Mismatch error: missing_weights and extra_weights diff
-                    ok_rubric_1to1 = False
-                    error_msg = f"Rubric mismatch detected (exit code 3): Questions in answers_report.json do not align with RUBRIC_SCORING.json weights section"
-                    if result.stdout.strip():
-                        error_msg += f"\n{result.stdout.strip()}"
-                    if result.stderr.strip():
-                        error_msg += f"\n{result.stderr.strip()}"
-                    errors.append(error_msg)
-                elif result.returncode == 2:
-                    # Missing input files
-                    ok_rubric_1to1 = False
-                    error_msg = f"Rubric check failed (exit code 2): Missing input files for rubric validation"
-                    if result.stdout.strip():
-                        error_msg += f"\n{result.stdout.strip()}"
-                    if result.stderr.strip():
-                        error_msg += f"\n{result.stderr.strip()}"
-                    errors.append(error_msg)
-                elif result.returncode != 0:
-                    # Other non-zero exit codes
-                    ok_rubric_1to1 = False
-                    error_msg = f"Rubric check failed with exit code {result.returncode}"
-                    if result.stdout.strip():
-                        error_msg += f"\n{result.stdout.strip()}"
-                    if result.stderr.strip():
-                        error_msg += f"\n{result.stderr.strip()}"
-                    errors.append(error_msg)
-                # Exit code 0 means success, ok_rubric_1to1 remains True
-                    
-            except FileNotFoundError:
-                # Handle missing rubric_check.py script gracefully
-                ok_rubric_1to1 = False
-                errors.append(f"Rubric validation failed: tools/rubric_check.py not found")
+            except FileNotFoundError as fnf_error:
+                # Handle missing rubric_check.py script gracefully - treat as exit code 2
+                exit_code = 2
+                stderr_output = f"FileNotFoundError: {fnf_error}"
+                
             except subprocess.TimeoutExpired:
                 ok_rubric_1to1 = False
                 errors.append("Rubric validation timed out after 30 seconds")
+                exit_code = None  # Mark as handled
+                
             except Exception as e:
                 ok_rubric_1to1 = False
                 errors.append(f"Rubric validation error: {e}")
+                exit_code = None  # Mark as handled
+            
+            # Handle exit codes
+            if exit_code == 3:
+                # Mismatch error: missing_weights and extra_weights diff
+                ok_rubric_1to1 = False
+                error_msg = f"Rubric mismatch (exit code 3): Questions in answers_report.json do not align with RUBRIC_SCORING.json weights"
+                if stdout_output:
+                    error_msg += f"\nDiff output: {stdout_output}"
+                if stderr_output:
+                    error_msg += f"\nError details: {stderr_output}"
+                errors.append(error_msg)
+                
+            elif exit_code == 2:
+                # Missing input files
+                ok_rubric_1to1 = False
+                error_msg = f"Rubric check failed (exit code 2): Missing input file(s) - artifacts/answers_report.json or RUBRIC_SCORING.json not found"
+                if stdout_output:
+                    error_msg += f"\nDetails: {stdout_output}"
+                if stderr_output:
+                    error_msg += f"\nError: {stderr_output}"
+                errors.append(error_msg)
+                
+            elif exit_code is not None and exit_code != 0:
+                # Other non-zero exit codes
+                ok_rubric_1to1 = False
+                error_msg = f"Rubric check failed with exit code {exit_code}"
+                if stdout_output:
+                    error_msg += f"\nOutput: {stdout_output}"
+                if stderr_output:
+                    error_msg += f"\nError: {stderr_output}"
+                errors.append(error_msg)
+            # Exit code 0 means success, ok_rubric_1to1 remains True
 
         ok_all = (ok_order_doc and ok_order_contracts and ok_coverage and ok_rubric_1to1 and len(errors) == 0)
         return {
