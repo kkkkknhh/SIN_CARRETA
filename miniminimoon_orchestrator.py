@@ -43,6 +43,7 @@ from enum import Enum
 import sys
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 
 try:
     import numpy as np
@@ -88,7 +89,7 @@ class ThreadSafeLRUCache:
     Thread-safe LRU cache with TTL for intermediate and document-level results.
     Keys: str, Values: any serializable (but not enforced)
     """
-    def __init__(self, max_size: int = 64, ttl_seconds: int = 900):
+    def __init__(self, max_size: int = 128, ttl_seconds: int = 1800):
         self.max_size = max_size
         self.ttl = ttl_seconds
         self._lock = threading.RLock()
