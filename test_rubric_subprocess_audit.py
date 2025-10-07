@@ -34,19 +34,19 @@ def create_test_environment():
     }
     (artifacts_dir / "flow_runtime.json").write_text(json.dumps(runtime))
     
-    # Create answers_report.json with 300 questions
+    # Create answers_report.json with 300 questions in D{N}-Q{N} format
     answers = {
         "summary": {"total_questions": 300},
         "answers": [
-            {"question_id": f"q{i}", "answer": "test"} 
+            {"question_id": f"D{i//50 + 1}-Q{i%50 + 1}", "answer": "test"} 
             for i in range(300)
         ]
     }
     (artifacts_dir / "answers_report.json").write_text(json.dumps(answers))
     
-    # Create RUBRIC_SCORING.json with matching weights
+    # Create RUBRIC_SCORING.json with matching weights in D{N}-Q{N} format
     rubric = {
-        "weights": {f"q{i}": 1.0 for i in range(300)}
+        "weights": {f"D{i//50 + 1}-Q{i%50 + 1}": 1.0 for i in range(300)}
     }
     (tmpdir / "RUBRIC_SCORING.json").write_text(json.dumps(rubric))
     
@@ -118,9 +118,9 @@ def test_exit_code_3_mismatch():
     print("\n=== Test 2: Exit code 3 (mismatch) ===")
     tmpdir = create_test_environment()
     try:
-        # Create mismatched rubric (missing some questions)
+        # Create mismatched rubric (missing some questions) in D{N}-Q{N} format
         rubric = {
-            "weights": {f"q{i}": 1.0 for i in range(250)}  # Only 250 instead of 300
+            "weights": {f"D{i//50 + 1}-Q{i%50 + 1}": 1.0 for i in range(250)}  # Only 250 instead of 300
         }
         (tmpdir / "RUBRIC_SCORING.json").write_text(json.dumps(rubric))
         

@@ -30,9 +30,11 @@ class TestSystemHealthValidator:
         """Create temporary repository structure"""
         temp_dir = Path(tempfile.mkdtemp(prefix="validator_test_"))
         
-        # Create required files with valid 300-question structure
-        weights = {f"D{d}-Q{q}": 0.0033333333 for d in range(1, 7) for q in range(1, 51)}
-        (temp_dir / "rubric_scoring.json").write_text(json.dumps({"weights": weights}))
+        # Create required files with D{N}-Q{N} format weights
+        rubric = {
+            "weights": {f"D{i//50 + 1}-Q{i%50 + 1}": 0.0033333333333333335 for i in range(300)}
+        }
+        (temp_dir / "RUBRIC_SCORING.json").write_text(json.dumps(rubric))
         (temp_dir / "tools").mkdir(exist_ok=True)
         (temp_dir / "tools" / "flow_doc.json").write_text('{"canonical_order": ["node1", "node2"]}')
         
@@ -165,12 +167,18 @@ class TestSystemHealthValidator:
         }
         (artifacts_dir / "flow_runtime.json").write_text(json.dumps(runtime_trace))
         
-        # Create answers report with 300+ questions
+        # Create answers report with 300+ questions in D{N}-Q{N} format
         answers_report = {
             "summary": {"total_questions": 300},
-            "answers": [{"question_id": f"Q{i}"} for i in range(300)]
+            "answers": [{"question_id": f"D{i//50 + 1}-Q{i%50 + 1}"} for i in range(300)]
         }
         (artifacts_dir / "answers_report.json").write_text(json.dumps(answers_report))
+        
+        # Update RUBRIC_SCORING.json with matching D{N}-Q{N} format weights
+        rubric = {
+            "weights": {f"D{i//50 + 1}-Q{i%50 + 1}": 0.0033333333333333335 for i in range(300)}
+        }
+        (temp_repo / "RUBRIC_SCORING.json").write_text(json.dumps(rubric))
         
         validator = SystemHealthValidator(str(temp_repo))
         result = validator.validate_post_execution(artifacts_dir="artifacts")
@@ -186,12 +194,18 @@ class TestSystemHealthValidator:
         runtime_trace = {"order": ["node1", "node2"]}
         (artifacts_dir / "flow_runtime.json").write_text(json.dumps(runtime_trace))
         
-        # Only 250 questions (below 300 threshold)
+        # Only 250 questions (below 300 threshold) in D{N}-Q{N} format
         answers_report = {
             "summary": {"total_questions": 250},
-            "answers": [{"question_id": f"Q{i}"} for i in range(250)]
+            "answers": [{"question_id": f"D{i//50 + 1}-Q{i%50 + 1}"} for i in range(250)]
         }
         (artifacts_dir / "answers_report.json").write_text(json.dumps(answers_report))
+        
+        # Update RUBRIC_SCORING.json with matching D{N}-Q{N} format weights (250 only)
+        rubric = {
+            "weights": {f"D{i//50 + 1}-Q{i%50 + 1}": 0.0033333333333333335 for i in range(250)}
+        }
+        (temp_repo / "RUBRIC_SCORING.json").write_text(json.dumps(rubric))
         
         validator = SystemHealthValidator(str(temp_repo))
         result = validator.validate_post_execution(artifacts_dir="artifacts")
@@ -290,12 +304,13 @@ class TestBatchPostExecutionValidation:
             doc_dir = artifacts_dir / doc_id
             doc_dir.mkdir(parents=True, exist_ok=True)
             
-            # Create coverage report with 300 questions
+            # Create coverage report with 300 questions in D{N}-Q{N} format
             coverage = {
                 "summary": {
                     "total_questions": 300,
                     "answered_questions": 300
-                }
+                },
+                "questions": [f"D{j//50 + 1}-Q{j%50 + 1}" for j in range(300)]
             }
             (doc_dir / "coverage_report.json").write_text(json.dumps(coverage))
             
@@ -328,12 +343,13 @@ class TestBatchPostExecutionValidation:
         doc_dir = artifacts_dir / doc_id
         doc_dir.mkdir(parents=True, exist_ok=True)
         
-        # Only 250 questions (insufficient)
+        # Only 250 questions (insufficient) in D{N}-Q{N} format
         coverage = {
             "summary": {
                 "total_questions": 250,
                 "answered_questions": 250
-            }
+            },
+            "questions": [f"D{j//50 + 1}-Q{j%50 + 1}" for j in range(250)]
         }
         (doc_dir / "coverage_report.json").write_text(json.dumps(coverage))
         

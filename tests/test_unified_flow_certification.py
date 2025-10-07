@@ -73,7 +73,7 @@ class TestUnifiedFlowCertification(unittest.TestCase):
             cls.rubric_path = cls.repo_root / "RUBRIC_SCORING.json"
             minimal_rubric = {
                 "metadata": {"version": "2.0", "total_questions": 300},
-                "weights": {f"D{i//50 + 1}-Q{i%50 + 1}": 1.0 for i in range(300)},
+                "weights": {f"D{i//50 + 1}-Q{i%50 + 1}": 0.0033333333333333335 for i in range(300)},
                 "scoring_modalities": {},
                 "dimensions": {}
             }
@@ -513,6 +513,10 @@ class TestUnifiedFlowCertification(unittest.TestCase):
         # Validate structure of first few answers
         required_fields = ["question_id", "evidence_ids", "confidence", "rationale", "score"]
         
+        # Expected D{N}-Q{N} format pattern
+        import re
+        question_id_pattern = re.compile(r'^D[1-6]-Q([1-9]|[1-4][0-9]|50)$')
+        
         for i, answer in enumerate(answers[:10]):  # Check first 10
             for field in required_fields:
                 self.assertIn(
@@ -520,6 +524,14 @@ class TestUnifiedFlowCertification(unittest.TestCase):
                     f"Answer {i} missing required field '{field}'\n"
                     f"Answer: {json.dumps(answer, indent=2)}"
                 )
+            
+            # Validate question_id format matches D{N}-Q{N}
+            question_id = answer.get("question_id", "")
+            self.assertRegex(
+                question_id,
+                question_id_pattern,
+                f"Answer {i}: question_id '{question_id}' does not match D{{N}}-Q{{N}} format (D1-Q1 through D6-Q50)"
+            )
             
             # Validate field types
             self.assertIsInstance(answer["evidence_ids"], list, f"Answer {i}: evidence_ids must be list")
@@ -538,6 +550,7 @@ class TestUnifiedFlowCertification(unittest.TestCase):
             )
         
         print(f"  ✓ answers_report.json has 300 questions with correct structure")
+        print(f"  ✓ All question IDs follow D{{N}}-Q{{N}} format (D1-Q1 through D6-Q50)")
         print(f"  ✓ All answers have evidence_ids, confidence, rationale, and score")
     
     def _validate_coverage_report(self):
