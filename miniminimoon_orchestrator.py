@@ -233,18 +233,18 @@ class PipelineStage(Enum):
     SANITIZATION = "sanitization"
     PLAN_PROCESSING = "plan_processing"
     SEGMENTATION = "document_segmentation"
-    EMBEDDING = "embedding_generation"
+    EMBEDDING = "embedding"
     RESPONSIBILITY = "responsibility_detection"
     CONTRADICTION = "contradiction_detection"
     MONETARY = "monetary_detection"
     FEASIBILITY = "feasibility_scoring"
-    CAUSAL = "causal_pattern_detection"
-    TEORIA = "teoria_cambio_validation"
+    CAUSAL = "causal_detection"
+    TEORIA = "teoria_cambio"
     DAG = "dag_validation"
     REGISTRY_BUILD = "evidence_registry_build"
     DECALOGO_EVAL = "decalogo_evaluation"
     QUESTIONNAIRE_EVAL = "questionnaire_evaluation"
-    ANSWER_ASSEMBLY = "answer_assembly"
+    ANSWER_ASSEMBLY = "answers_assembly"
 
 
 @dataclass
@@ -967,12 +967,33 @@ class CanonicalDeterministicOrchestrator:
         return evaluation
 
     def _assemble_answers(self, evaluation_inputs: Dict[str, Any]) -> Dict[str, Any]:
-        self.logger.info("  Assembling final answers report...")
+        self.logger.info("  Assembling final answers report using AnswerAssembler...")
         questionnaire_eval = evaluation_inputs.get('questionnaire_eval', {})
-        # Adapter to satisfy external assembler interface without duplicating stores
+        
+        # Load rubric to get weights section
+        rubric_path = self.config_dir / "RUBRIC_SCORING.json"
+        with open(rubric_path, 'r', encoding='utf-8') as f:
+            rubric = json.load(f)
+        weights = rubric.get("weights", {})
+        
+        # Convert questionnaire_eval to the format expected by ExternalAnswerAssembler.assemble()
+        question_scores = []
+        if "question_results" in questionnaire_eval:
+            for result in questionnaire_eval["question_results"]:
+                question_scores.append({
+                    "question_unique_id": result.get("question_id", ""),
+                    "score": result.get("score", 0.0)
+                })
+        
+        evaluation_results = {
+            "question_scores": question_scores
+        }
+        
+        # Create adapter for evidence registry to match external assembler interface
         class RegistryAdapter:
             def __init__(self, registry: EvidenceRegistry):
                 self.registry = registry
+            
             def get_evidence_for_question(self, question_unique_id: str):
                 matching = []
                 for entry in self.registry._evidence.values():
@@ -986,35 +1007,60 @@ class CanonicalDeterministicOrchestrator:
                 return matching
 
         registry_adapter = RegistryAdapter(self.evidence_registry)
+        
+        # Call ExternalAnswerAssembler.assemble() with populated EvidenceRegistry and RUBRIC_SCORING.json weights section
+        self.logger.info(f"  Passing populated EvidenceRegistry ({len(self.evidence_registry._evidence)} entries) and {len(weights)} weights to AnswerAssembler")
         final_report = self.external_answer_assembler.assemble(
             evidence_registry=registry_adapter,
-            evaluation_results=questionnaire_eval
+            evaluation_results=evaluation_results
         )
 
-        # Register assembled answers as evidence for full provenance
+        # Register each assembled answer back into EvidenceRegistry with provenance metadata
+        self.logger.info("  Registering assembled answers back into EvidenceRegistry with provenance metadata...")
         for qa in final_report.get("question_answers", []):
+            # Extract evidence_ids from the question answer
+            evidence_ids = qa.get('evidence_ids', [])
+            
+            # Create metadata linking to source evidence_ids
+            answer_metadata = {
+                "question_id": qa['question_id'],
+                "dimension": qa.get('dimension', ''),
+                "score": qa.get('raw_score', 0.0),
+                "evidence_count": qa.get('evidence_count', 0),
+                "question_unique_id": qa['question_id'],
+                "source_evidence_ids": evidence_ids,
+                "rubric_weight": weights.get(qa['question_id'], 0.0),
+                "confidence": qa.get('confidence', 0.0),
+                "rationale": qa.get('rationale', ''),
+                "scoring_modality": qa.get('scoring_modality', 'UNKNOWN'),
+                "assembled_by": "AnswerAssembler",
+                "assembler_version": "4.0",
+                "provenance": {
+                    "stage": PipelineStage.ANSWER_ASSEMBLY.value,
+                    "linked_evidence_ids": evidence_ids,
+                    "question_engine_score": qa.get('raw_score', 0.0),
+                    "final_confidence": qa.get('confidence', 0.0)
+                }
+            }
+            
             answer_entry = EvidenceEntry(
                 evidence_id=f"answer_{qa['question_id']}",
                 stage=PipelineStage.ANSWER_ASSEMBLY.value,
                 content=qa,
-                source_segment_ids=[],
+                source_segment_ids=evidence_ids,
                 confidence=qa.get('confidence', 0.0),
-                metadata={
-                    "question_id": qa['question_id'],
-                    "dimension": qa.get('dimension', ''),
-                    "score": qa.get('raw_score', 0.0),
-                    "evidence_count": qa.get('evidence_count', 0),
-                    "question_unique_id": qa['question_id']
-                }
+                metadata=answer_metadata
             )
             self.evidence_registry.register(answer_entry)
 
         total_questions = final_report.get("global_summary", {}).get("answered_questions", 0)
+        assembled_count = len(final_report.get('question_answers', []))
         if total_questions < 300:
             self.logger.warning(f"GATE #4 FAILED: Coverage is {total_questions}/300 questions.")
         else:
             self.logger.info(f"✓ GATE #4 PASSED: Coverage is {total_questions}/300 questions.")
-        self.logger.info("  Final answers report assembled.")
+        
+        self.logger.info(f"  Final answers report assembled with {assembled_count} answers, all registered with provenance.")
         return final_report
 
     # ------------------------ Main Processing ------------------------
@@ -1268,23 +1314,31 @@ class CanonicalDeterministicOrchestrator:
         if pipeline_results and "evaluations" in pipeline_results:
             answers_report = pipeline_results["evaluations"].get("answers_report")
             if answers_report:
+                # Serialize complete answers collection to artifacts/answers_report.json with deterministic JSON encoding (sorted keys)
                 with open(output_dir / "answers_report.json", 'w', encoding='utf-8') as f:
                     json.dump(answers_report, f, indent=2, ensure_ascii=False, sort_keys=True)
-                self.logger.info(f"✓ Answers report exported to: {output_dir / 'answers_report.json'}")
+                self.logger.info(f"✓ Answers report exported to: {output_dir / 'answers_report.json'} (deterministic JSON with sorted keys)")
+                
+                # Serialize sample subset to artifacts/answers_sample.json with deterministic JSON encoding (sorted keys)
                 answers_sample = {
                     "metadata": answers_report.get("metadata", {}),
                     "global_summary": answers_report.get("global_summary", {}),
-                    "sample_question_answers": answers_report.get("question_answers", [])[:10]
+                    "sample_question_answers": sorted(
+                        answers_report.get("question_answers", [])[:10],
+                        key=lambda x: x.get("question_id", "")
+                    )
                 }
                 with open(output_dir / "answers_sample.json", 'w', encoding='utf-8') as f:
                     json.dump(answers_sample, f, indent=2, ensure_ascii=False, sort_keys=True)
-                self.logger.info(f"✓ Answers sample exported to: {output_dir / 'answers_sample.json'}")
+                self.logger.info(f"✓ Answers sample exported to: {output_dir / 'answers_sample.json'} (deterministic JSON with sorted keys)")
 
         if self.enable_validation and pipeline_results:
+            # Capture execution order of all processing stages including AnswerAssembler node
+            # Write to artifacts/flow_runtime.json with deterministic ordering matching canonical sequence in tools/flow_doc.json
             flow_runtime = self._generate_flow_runtime_metadata(pipeline_results)
             with open(output_dir / "flow_runtime.json", 'w', encoding='utf-8') as f:
                 json.dump(flow_runtime, f, indent=2, sort_keys=True, ensure_ascii=False)
-            self.logger.info(f"✓ Flow runtime exported to: {output_dir / 'flow_runtime.json'}")
+            self.logger.info(f"✓ Flow runtime exported to: {output_dir / 'flow_runtime.json'} (deterministic ordering matching tools/flow_doc.json)")
 
         self.logger.info(f"✓ All artifacts exported to: {output_dir}")
 
