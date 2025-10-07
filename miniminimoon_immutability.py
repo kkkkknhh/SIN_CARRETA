@@ -623,7 +623,7 @@ Examples:
                 print(f"  Snapshot hash: {info.get('snapshot_hash', 'unknown')}")
                 print(f"  Timestamp: {info.get('timestamp', 'unknown')}")
                 print(f"  File count: {info.get('file_count', 0)}")
-                print(f"\n  Files:")
+                print("\n  Files:")
                 for filename in info.get('files', []):
                     print(f"    - {filename}")
                 sys.exit(0)
@@ -646,14 +646,14 @@ Examples:
             print("\nConfiguration Diff:")
             print(f"  Snapshot: {diff['snapshot_hash'][:16]}...")
             print(f"  Timestamp: {diff.get('snapshot_timestamp', 'unknown')}")
-            print(f"\n  Summary:")
+            print("\n  Summary:")
             print(f"    Total files: {diff['summary']['total_files']}")
             print(f"    Matching: {diff['summary']['matching']}")
             print(f"    Mismatched: {diff['summary']['mismatched']}")
             print(f"    Missing: {diff['summary']['missing']}")
 
             if diff['summary']['mismatched'] > 0 or diff['summary']['missing'] > 0:
-                print(f"\n  Differences:")
+                print("\n  Differences:")
                 for filename, file_info in diff["files"].items():
                     if file_info["status"] != "match":
                         print(f"    {filename}: {file_info['status']}")
@@ -671,7 +671,7 @@ Examples:
 
             print("\nDecatalogo_principal Verification:")
             print(f"  Status: {report['status']}")
-            print(f"\n  Checks:")
+            print("\n  Checks:")
             for check, result in report["checks"].items():
                 symbol = "✓" if result == "PASS" else "✗"
                 print(f"    {symbol} {check}: {result}")

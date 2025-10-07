@@ -458,7 +458,7 @@ class AnswerAssembler:
                     + (" ..." if len(extra) > 10 else "")
                 )
             raise ValueError(
-                f"Rubric validation FAILED (gate #5): " + "; ".join(error_parts)
+                "Rubric validation FAILED (gate #5): " + "; ".join(error_parts)
             )
         
         self.logger.info(f"✓ Rubric validated (gate #5): {len(questions)} questions with {len(weights)} weights (1:1 alignment verified)")
@@ -1717,11 +1717,11 @@ class CanonicalDeterministicOrchestrator:
                 raise
 
         self.logger.info(f"✓ All 5 artifacts exported to: {output_dir}")
-        self.logger.info(f"  - evidence_registry.json (cryptographic evidence registry)")
-        self.logger.info(f"  - answers_report.json (300 question evaluation report)")
-        self.logger.info(f"  - answers_sample.json (first 10 answers for quick validation)")
-        self.logger.info(f"  - coverage_report.json (dimension-level coverage analysis)")
-        self.logger.info(f"  - flow_runtime.json (execution trace with canonical flow validation)")
+        self.logger.info("  - evidence_registry.json (cryptographic evidence registry)")
+        self.logger.info("  - answers_report.json (300 question evaluation report)")
+        self.logger.info("  - answers_sample.json (first 10 answers for quick validation)")
+        self.logger.info("  - coverage_report.json (dimension-level coverage analysis)")
+        self.logger.info("  - flow_runtime.json (execution trace with canonical flow validation)")
 
     def _generate_flow_runtime_metadata(self, pipeline_results: Dict[str, Any]) -> Dict[str, Any]:
         runtime_data = self.runtime_tracer.export()
@@ -1874,7 +1874,7 @@ def rubric_check(answers_report_path: Path, rubric_path: Path) -> bool:
     missing_weights = rubric_questions - rubric_weights
     extra_weights = rubric_weights - rubric_questions
     if missing_weights or extra_weights:
-        print(f"⨯ Rubric check FAILED:")
+        print("⨯ Rubric check FAILED:")
         print(f"  Missing weights: {len(missing_weights)}")
         print(f"  Extra weights: {len(extra_weights)}")
         return False

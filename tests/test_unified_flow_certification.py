@@ -119,7 +119,7 @@ class TestUnifiedFlowCertification(unittest.TestCase):
         
         if missing:
             raise FileNotFoundError(
-                f"Missing required files:\n" + 
+                "Missing required files:\n" + 
                 "\n".join(f"  - {f}" for f in missing)
             )
         
@@ -463,7 +463,7 @@ class TestUnifiedFlowCertification(unittest.TestCase):
                     canonical_idx = found_idx + 1
             
             print(f"  ✓ Flow order consistent across all runs: {len(order1)} nodes")
-            print(f"  ✓ Matches canonical order from flow_doc.json")
+            print("  ✓ Matches canonical order from flow_doc.json")
     
     def _validate_artifact_structure(self):
         """Validate all expected artifacts exist with correct structure"""
@@ -549,9 +549,9 @@ class TestUnifiedFlowCertification(unittest.TestCase):
                 f"Answer {i}: score {answer['score']} out of range [0, 3]"
             )
         
-        print(f"  ✓ answers_report.json has 300 questions with correct structure")
-        print(f"  ✓ All question IDs follow D{{N}}-Q{{N}} format (D1-Q1 through D6-Q50)")
-        print(f"  ✓ All answers have evidence_ids, confidence, rationale, and score")
+        print("  ✓ answers_report.json has 300 questions with correct structure")
+        print("  ✓ All question IDs follow D{{N}}-Q{{N}} format (D1-Q1 through D6-Q50)")
+        print("  ✓ All answers have evidence_ids, confidence, rationale, and score")
     
     def _validate_coverage_report(self):
         """Validate coverage_report.json confirms 300/300 coverage"""
@@ -582,7 +582,7 @@ class TestUnifiedFlowCertification(unittest.TestCase):
                 f"Coverage percentage {coverage_pct}% below 100%"
             )
         
-        print(f"  ✓ Coverage report confirms 300/300 questions answered")
+        print("  ✓ Coverage report confirms 300/300 questions answered")
     
     def _validate_answer_assembler_integration(self):
         """Validate AnswerAssembler integration - answers trace back to EvidenceRegistry"""
@@ -618,7 +618,7 @@ class TestUnifiedFlowCertification(unittest.TestCase):
         
         print(f"  ✓ {answers_with_evidence}/300 answers reference evidence")
         print(f"  ✓ {total_evidence_refs} total evidence references")
-        print(f"  ✓ AnswerAssembler integration verified")
+        print("  ✓ AnswerAssembler integration verified")
     
     def _validate_post_execution_gates(self):
         """Validate post-execution system health gates"""
@@ -687,8 +687,8 @@ class TestUnifiedFlowCertification(unittest.TestCase):
                 f"rubric_check.py validation failed: {output}"
             )
             
-            print(f"  ✓ rubric_check.py returned exit code 0")
-            print(f"  ✓ 1:1 rubric alignment verified")
+            print("  ✓ rubric_check.py returned exit code 0")
+            print("  ✓ 1:1 rubric alignment verified")
             
         except subprocess.TimeoutExpired:
             self.fail("rubric_check.py timed out after 60 seconds")
@@ -737,12 +737,12 @@ class TestUnifiedFlowCertification(unittest.TestCase):
             f"Doctoral-level evaluation requires nuanced scoring"
         )
         
-        print(f"  ✓ Doctoral-level quality metrics:")
+        print("  ✓ Doctoral-level quality metrics:")
         print(f"    • Average rationale length: {avg_rationale_length:.1f} chars")
         print(f"    • Evidence coverage: {evidence_ratio*100:.1f}%")
         print(f"    • Average confidence: {avg_confidence:.2f}")
         print(f"    • Score diversity: {unique_scores} unique scores")
-        print(f"  ✓ Doctoral-level quality standards MET")
+        print("  ✓ Doctoral-level quality standards MET")
     
     def _validate_nonrepudiation_bundle(self):
         """Validate nonrepudiation_bundle.zip exists and is valid"""
@@ -750,13 +750,13 @@ class TestUnifiedFlowCertification(unittest.TestCase):
         
         # Bundle might not exist for test runs - that's OK
         if not bundle_path.exists():
-            print(f"  ⚠️  nonrepudiation_bundle.zip not found (optional for test)")
+            print("  ⚠️  nonrepudiation_bundle.zip not found (optional for test)")
             return
         
         # If it exists, verify it's a valid zip
         self.assertTrue(
             zipfile.is_zipfile(bundle_path),
-            f"nonrepudiation_bundle.zip is not a valid ZIP file"
+            "nonrepudiation_bundle.zip is not a valid ZIP file"
         )
         
         # Verify it contains expected files
@@ -767,7 +767,7 @@ class TestUnifiedFlowCertification(unittest.TestCase):
                 "nonrepudiation_bundle.zip is empty"
             )
             
-            print(f"  ✓ nonrepudiation_bundle.zip exists and is valid")
+            print("  ✓ nonrepudiation_bundle.zip exists and is valid")
             print(f"  ✓ Contains {len(namelist)} files")
 
 

@@ -68,7 +68,7 @@ class DecalogoBatchClient:
                 retry_after = e.response.headers.get('Retry-After', 60)
                 print(f"  Rate limit exceeded. Retry after {retry_after} seconds.")
             elif e.response.status_code == 401:
-                print(f"  Authentication failed. Check your token.")
+                print("  Authentication failed. Check your token.")
             else:
                 print(f"  Response: {e.response.text}")
             sys.exit(1)
@@ -127,13 +127,13 @@ class DecalogoBatchClient:
                 docs_total = status.get('document_count', 0)
                 print(f"\rProcessing: {progress:.1f}% ({docs_completed}/{docs_total} docs)", end='', flush=True)
             elif status['status'] == 'completed':
-                print(f"\n✓ Job completed!")
+                print("\n✓ Job completed!")
                 print(f"  Documents completed: {status['documents_completed']}")
                 print(f"  Documents failed: {status['documents_failed']}")
                 print(f"  Total time: {status.get('total_processing_seconds', 0):.1f}s")
                 return status
             elif status['status'] == 'failed':
-                print(f"\n✗ Job failed!")
+                print("\n✗ Job failed!")
                 print(f"  Error: {status.get('error', 'Unknown error')}")
                 sys.exit(1)
             
@@ -168,15 +168,15 @@ class DecalogoBatchClient:
             
             if format == 'json':
                 results = response.json()
-                print(f"✓ Results retrieved successfully")
+                print("✓ Results retrieved successfully")
                 return results
             else:
                 # CSV format
-                print(f"✓ CSV results retrieved")
+                print("✓ CSV results retrieved")
                 return {'csv': response.text}
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 202:
-                print(f"✗ Job still processing. Wait for completion first.")
+                print("✗ Job still processing. Wait for completion first.")
             elif e.response.status_code == 404:
                 print(f"✗ Job not found: {job_id}")
             else:

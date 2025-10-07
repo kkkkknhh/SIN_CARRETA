@@ -207,7 +207,7 @@ def main():
     artifacts_dir = Path("artifacts")
     
     if not artifacts_dir.exists():
-        print(f"\n⨯ artifacts/ directory does not exist")
+        print("\n⨯ artifacts/ directory does not exist")
         print("  Run the pipeline first to generate artifacts")
         sys.exit(1)
     
@@ -228,13 +228,13 @@ def main():
             all_exist = False
     
     if not all_exist:
-        print(f"\n⨯ Not all required artifacts present")
+        print("\n⨯ Not all required artifacts present")
         sys.exit(1)
     
-    print(f"\n✓ All 5 required artifacts found")
+    print("\n✓ All 5 required artifacts found")
     
     # Validate schemas
-    print(f"\n2. Validating artifact schemas...\n")
+    print("\n2. Validating artifact schemas...\n")
     
     schema_validators = {
         "flow_runtime.json": validate_flow_runtime_schema,
@@ -260,37 +260,37 @@ def main():
             print(f"  ✓ {artifact_name} - SCHEMA VALID")
     
     if not all_valid:
-        print(f"\n⨯ Some artifacts have schema validation errors")
+        print("\n⨯ Some artifacts have schema validation errors")
         sys.exit(1)
     
-    print(f"\n✓ All artifact schemas valid")
+    print("\n✓ All artifact schemas valid")
     
     # Validate cross-references
-    print(f"\n3. Validating cross-references between artifacts...\n")
+    print("\n3. Validating cross-references between artifacts...\n")
     
     errors = validate_cross_references(artifacts_dir)
     if errors:
-        print(f"  ⨯ CROSS-REFERENCE VALIDATION FAILED:")
+        print("  ⨯ CROSS-REFERENCE VALIDATION FAILED:")
         for error in errors:
             print(f"    - {error}")
         sys.exit(1)
     
-    print(f"  ✓ All cross-references valid")
+    print("  ✓ All cross-references valid")
     
     # Summary
     print("\n" + "="*80)
     print("VERIFICATION SUMMARY")
     print("="*80)
-    print(f"\n✓ All 5 artifacts generated successfully")
-    print(f"✓ All schemas match ARCHITECTURE.md specifications")
-    print(f"✓ All cross-references between artifacts are valid")
-    print(f"\nArtifacts verified:")
+    print("\n✓ All 5 artifacts generated successfully")
+    print("✓ All schemas match ARCHITECTURE.md specifications")
+    print("✓ All cross-references between artifacts are valid")
+    print("\nArtifacts verified:")
     for artifact_name in required_artifacts:
         artifact_path = artifacts_dir / artifact_name
         size_kb = artifact_path.stat().st_size / 1024
         print(f"  - {artifact_name} ({size_kb:.1f} KB)")
     
-    print(f"\n✓ VERIFICATION PASSED")
+    print("\n✓ VERIFICATION PASSED")
 
 
 if __name__ == "__main__":

@@ -146,7 +146,7 @@ class DeterminismVerifier:
         self.run1_dir = self.output_dir / "run1"
         self.run2_dir = self.output_dir / "run2"
         
-        logger.info(f"Determinism Verifier initialized")
+        logger.info("Determinism Verifier initialized")
         logger.info(f"  Input PDF: {self.input_pdf}")
         logger.info(f"  Output directory: {self.output_dir}")
     
@@ -198,7 +198,7 @@ class DeterminismVerifier:
                 logger.error(error_msg)
                 return False, error_msg
             
-            logger.info(f"✓ Orchestrator execution completed successfully")
+            logger.info("✓ Orchestrator execution completed successfully")
             return True, ""
             
         except subprocess.TimeoutExpired:
@@ -466,11 +466,11 @@ class DeterminismVerifier:
         evidence_hash_run2 = self.extract_evidence_hash(self.run2_dir / "evidence_registry.json")
         evidence_hash_match = (evidence_hash_run1 == evidence_hash_run2)
         
-        logger.info(f"\n--- EVIDENCE HASH COMPARISON ---")
+        logger.info("\n--- EVIDENCE HASH COMPARISON ---")
         if evidence_hash_match:
             logger.info(f"  ✓ Evidence hashes MATCH: {evidence_hash_run1}")
         else:
-            logger.error(f"  ✗ Evidence hashes MISMATCH")
+            logger.error("  ✗ Evidence hashes MISMATCH")
             logger.error(f"    Run1: {evidence_hash_run1}")
             logger.error(f"    Run2: {evidence_hash_run2}")
         
@@ -479,11 +479,11 @@ class DeterminismVerifier:
         flow_hash_run2 = self.extract_flow_hash(self.run2_dir / "flow_runtime.json")
         flow_hash_match = (flow_hash_run1 == flow_hash_run2)
         
-        logger.info(f"\n--- FLOW HASH COMPARISON ---")
+        logger.info("\n--- FLOW HASH COMPARISON ---")
         if flow_hash_match:
             logger.info(f"  ✓ Flow hashes MATCH: {flow_hash_run1}")
         else:
-            logger.error(f"  ✗ Flow hashes MISMATCH")
+            logger.error("  ✗ Flow hashes MISMATCH")
             logger.error(f"    Run1: {flow_hash_run1}")
             logger.error(f"    Run2: {flow_hash_run2}")
         
@@ -518,9 +518,9 @@ class DeterminismVerifier:
             if mismatches:
                 logger.error(f"  Mismatched artifacts: {mismatches}")
             if not evidence_hash_match:
-                logger.error(f"  Evidence hash mismatch")
+                logger.error("  Evidence hash mismatch")
             if not flow_hash_match:
-                logger.error(f"  Flow hash mismatch")
+                logger.error("  Flow hash mismatch")
         logger.info("=" * 80)
         
         return report
@@ -575,18 +575,18 @@ class DeterminismVerifier:
         f.write(f"  Run 1: {report.evidence_hash_run1}\n")
         f.write(f"  Run 2: {report.evidence_hash_run2}\n")
         if report.evidence_hash_match:
-            f.write(f"  Status: ✓ MATCH\n\n")
+            f.write("  Status: ✓ MATCH\n\n")
         else:
-            f.write(f"  Status: ✗ MISMATCH\n\n")
+            f.write("  Status: ✗ MISMATCH\n\n")
         
         # Flow hash comparison
         f.write("FLOW HASH COMPARISON:\n")
         f.write(f"  Run 1: {report.flow_hash_run1}\n")
         f.write(f"  Run 2: {report.flow_hash_run2}\n")
         if report.flow_hash_match:
-            f.write(f"  Status: ✓ MATCH\n\n")
+            f.write("  Status: ✓ MATCH\n\n")
         else:
-            f.write(f"  Status: ✗ MISMATCH\n\n")
+            f.write("  Status: ✗ MISMATCH\n\n")
         
         # Artifact comparisons
         f.write("ARTIFACT COMPARISONS:\n")
@@ -598,11 +598,11 @@ class DeterminismVerifier:
             f.write(f"  Run 1 Size: {comp.run1_size} bytes\n")
             f.write(f"  Run 2 Size: {comp.run2_size} bytes\n")
             if comp.match:
-                f.write(f"  Status: ✓ MATCH\n")
+                f.write("  Status: ✓ MATCH\n")
             else:
-                f.write(f"  Status: ✗ MISMATCH\n")
+                f.write("  Status: ✗ MISMATCH\n")
                 if comp.diff_lines:
-                    f.write(f"\n  Diff (first 100 lines):\n")
+                    f.write("\n  Diff (first 100 lines):\n")
                     for line in comp.diff_lines[:100]:
                         f.write(f"    {line}\n")
                     if len(comp.diff_lines) > 100:

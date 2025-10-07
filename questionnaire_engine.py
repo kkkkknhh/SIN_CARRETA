@@ -1229,7 +1229,7 @@ class QuestionnaireEngine:
             Complete evaluation results with exactly 300 question evaluations
         """
 
-        logger.info(f"🚀 Starting FULL evaluation: 30 questions × 10 points = 300 evaluations")
+        logger.info("🚀 Starting FULL evaluation: 30 questions × 10 points = 300 evaluations")
 
         # Load RUBRIC_SCORING.json weights for validation
         rubric_path = Path(__file__).parent / "RUBRIC_SCORING.json"
@@ -1389,7 +1389,7 @@ class QuestionnaireEngine:
                 f"Missing in generated: {missing_in_generated}. Extra in generated: {extra_in_generated}"
             )
         
-        logger.info(f"✅ VALIDATION PASSED: All 300 question IDs match RUBRIC_SCORING.json weights")
+        logger.info("✅ VALIDATION PASSED: All 300 question IDs match RUBRIC_SCORING.json weights")
 
         # Calculate dimension summary (average across all points)
         for dim in ["D1", "D2", "D3", "D4", "D5", "D6"]:
@@ -1461,7 +1461,7 @@ class QuestionnaireEngine:
 
             if elements_found["valor_numerico"]:
                 evidencia_encontrada.append({
-                    "texto": f"Baseline detectado en feasibility scoring",
+                    "texto": "Baseline detectado en feasibility scoring",
                     "ubicacion": "feasibility_scorer",
                     "confianza": 0.85
                 })
@@ -1632,7 +1632,7 @@ class QuestionnaireEngine:
         import random
         from concurrent.futures import ProcessPoolExecutor, as_completed
 
-        logger.info(f"🚀 Starting PARALLEL evaluation with EvidenceRegistry")
+        logger.info("🚀 Starting PARALLEL evaluation with EvidenceRegistry")
         logger.info(f"   Evidence available: {len(evidence_registry)} items")
         logger.info(f"   Deterministic hash: {evidence_registry.deterministic_hash()[:16]}...")
 

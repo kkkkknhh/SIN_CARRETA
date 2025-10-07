@@ -42,7 +42,7 @@ def demo_validation_flow():
         print("Calling validate_pre_execution()...")
         result = validator.validate_pre_execution()
         
-        print(f"\nValidation Result:")
+        print("\nValidation Result:")
         print(f"  Status: {'✗ FAILED' if not result['ok'] else '✓ PASSED'}")
         print(f"  Errors detected: {len(result['errors'])}")
         
@@ -83,14 +83,14 @@ def demo_validation_flow():
         print("Calling validate_pre_execution()...")
         result = validator.validate_pre_execution()
         
-        print(f"\nValidation Result:")
+        print("\nValidation Result:")
         print(f"  Status: {'✗ FAILED' if not result['ok'] else '✓ PASSED'}")
-        print(f"  Total questions found: 100")
-        print(f"  Expected: 300")
+        print("  Total questions found: 100")
+        print("  Expected: 300")
         
         for error in result['errors']:
             if 'count mismatch' in error.lower():
-                print(f"\n  Count Mismatch Error:")
+                print("\n  Count Mismatch Error:")
                 for line in error.split('\n'):
                     print(f"    {line}")
         
@@ -126,18 +126,18 @@ def demo_validation_flow():
         print("Calling validate_pre_execution()...")
         result = validator.validate_pre_execution()
         
-        print(f"\nValidation Result:")
-        print(f"  Total questions: 300 ✓")
-        print(f"  All IDs conform to pattern D[1-6]-Q[1-300] ✓")
+        print("\nValidation Result:")
+        print("  Total questions: 300 ✓")
+        print("  All IDs conform to pattern D[1-6]-Q[1-300] ✓")
         
         # Check if question ID validation passed (no errors about malformed IDs or count)
         question_id_errors = [e for e in result['errors'] if 'malformed' in e.lower() or 'count mismatch' in e.lower()]
         
         if not question_id_errors:
-            print(f"\n✓ Question ID validation passed")
-            print(f"  (Note: Other pre-execution checks may still fail, but question ID format is correct)")
+            print("\n✓ Question ID validation passed")
+            print("  (Note: Other pre-execution checks may still fail, but question ID format is correct)")
         else:
-            print(f"\n✗ ERROR: Valid rubric should pass question ID validation!")
+            print("\n✗ ERROR: Valid rubric should pass question ID validation!")
             return False
             
     finally:

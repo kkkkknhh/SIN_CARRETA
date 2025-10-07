@@ -333,7 +333,7 @@ def main():
     
     # Show failed tests
     if failed > 0:
-        print(f"\nFailed tests:")
+        print("\nFailed tests:")
         for result in trace_results:
             if result["status"] == "FAILED":
                 print(f"  - {result['test_name']}: {result['error']}")

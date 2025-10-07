@@ -324,7 +324,7 @@ def run_fault_injection_analysis():
         print("TIMING BREAKDOWN:")
         print(f"{'─'*40}")
         print(f"Total recovery time: {recovery_time:.3f}ms")
-        print(f"\nPhase statistics:")
+        print("\nPhase statistics:")
         for phase, stats in timing_report["phase_breakdown"].items():
             print(f"  {phase}:")
             print(f"    Count: {stats['count']}")
