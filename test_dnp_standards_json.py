@@ -17,8 +17,8 @@ def test_dnp_standards_json_is_valid():
     assert isinstance(data, dict), "Root element should be a dictionary"
     
     # Verify basic structure
-    assert "metadata" in data, "Should have metadata field"
-    assert "version" in data["metadata"], "Metadata should have version"
+    assert "version" in data, "Should have version field"
+    assert "schema" in data, "Should have schema field"
     
     print(f"✅ JSON is valid with {len(content)} characters")
     return data

@@ -33,7 +33,8 @@ class TestDecalogoLoader(unittest.TestCase):
         from decalogo_loader import load_dnp_standards
         result = load_dnp_standards()
         self.assertIsInstance(result, dict)
-        self.assertIn("metadata", result)
+        # The actual file has 'version' at root level, not nested in 'metadata'
+        self.assertIn("version", result)
 
     def test_ensure_aligned_templates(self):
         """Test loading all templates together."""
