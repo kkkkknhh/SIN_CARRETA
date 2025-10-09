@@ -5,13 +5,38 @@ Document Segmenter Module
 Segments plan documents into logical units (objectives, strategies, etc.)
 to enable precise analysis and alignment with DECALOGO questions.
 
+ALIGNED WITH decalogo-industrial.latest.clean.json (v1.0):
+--------------------------------------------------------------
+This module has been refactored to match the official DECALOGO structure:
+
+DECALOGO DIMENSIONS (D1-D6):
+- D1: INSUMOS (diagnóstico, líneas base, recursos, capacidades institucionales)
+  Questions: D1-Q1 to D1-Q5 per point (55 questions total)
+  
+- D2: ACTIVIDADES (formalización, mecanismos causales, teoría de intervención)
+  Questions: D2-Q6 to D2-Q10 per point (60 questions total)
+  
+- D3: PRODUCTOS (outputs con indicadores verificables, trazabilidad)
+  Questions: D3-Q11 to D3-Q15 per point (60 questions total)
+  
+- D4: RESULTADOS (outcomes con métricas, encadenamiento causal)
+  Questions: D4-Q16 to D4-Q20 per point (60 questions total)
+  
+- D5: IMPACTOS (efectos largo plazo, proxies, alineación marcos)
+  Questions: D5-Q21 to D5-Q25 per point (57 questions total)
+  
+- D6: CAUSALIDAD (teoría de cambio explícita, DAG, validación lógica)
+  Questions: D6-Q26 to D6-Q30 per point (55 questions total)
+
+STRUCTURE: 10 Points × 30 Questions = 300 Total Questions
+
 Features:
 - Multiple segmentation strategies (paragraph, section, semantic)
-- Section type detection
+- Section type detection aligned with D1-D6 dimensions
 - Logical unit identification
 - Cross-reference preservation
 - Context preservation
-- Direct alignment with DECALOGO dimensions
+- Direct alignment with DECALOGO dimensions and question structure
 """
 
 import logging
@@ -38,17 +63,53 @@ class SegmentationType(Enum):
 
 
 class SectionType(Enum):
-    """Types of sections in a plan document relevant to DECALOGO."""
-    DIAGNOSTIC = "diagnostic"           # DE-2: Thematic Inclusion
-    VISION = "vision"                   # DE-1: Logic Intervention Framework
-    OBJECTIVE = "objective"             # DE-1: Logic Intervention Framework
-    STRATEGY = "strategy"               # DE-1: Logic Intervention Framework
-    INDICATOR = "indicator"             # DE-4: Results Orientation
-    RESPONSIBILITY = "responsibility"   # DE-1: Logic Intervention Framework (Q2)
-    PARTICIPATION = "participation"     # DE-3: Participation and Governance
-    MONITORING = "monitoring"           # DE-4: Results Orientation
-    BUDGET = "budget"                   # DE-2: Thematic Inclusion
-    TIMELINE = "timeline"               # DE-4: Results Orientation
+    """Types of sections in a plan document relevant to DECALOGO.
+    
+    Aligned with decalogo-industrial.latest.clean.json structure:
+    - D1: INSUMOS (diagnóstico, líneas base, recursos, capacidades)
+    - D2: ACTIVIDADES (formalización, mecanismos causales)
+    - D3: PRODUCTOS (outputs con indicadores verificables)
+    - D4: RESULTADOS (outcomes con métricas)
+    - D5: IMPACTOS (efectos largo plazo)
+    - D6: CAUSALIDAD (teoría de cambio explícita)
+    """
+    # D1: INSUMOS - Diagnóstico, líneas base, recursos, capacidades
+    DIAGNOSTIC = "diagnostic"           # D1: Diagnóstico, líneas base
+    BASELINE = "baseline"               # D1: Líneas base con datos
+    RESOURCES = "resources"             # D1: Recursos asignados
+    CAPACITY = "capacity"               # D1: Capacidades institucionales
+    
+    # D2: ACTIVIDADES - Formalización, mecanismos causales
+    ACTIVITY = "activity"               # D2: Actividades formalizadas
+    MECHANISM = "mechanism"             # D2: Mecanismos causales
+    INTERVENTION = "intervention"       # D2: Teoría de intervención
+    
+    # D3: PRODUCTOS - Outputs con indicadores
+    PRODUCT = "product"                 # D3: Productos/outputs
+    OUTPUT = "output"                   # D3: Outputs definidos
+    
+    # D4: RESULTADOS - Outcomes con métricas
+    RESULT = "result"                   # D4: Resultados/outcomes
+    OUTCOME = "outcome"                 # D4: Outcomes con métricas
+    INDICATOR = "indicator"             # D4: Indicadores de resultado
+    MONITORING = "monitoring"           # D4: Seguimiento de resultados
+    
+    # D5: IMPACTOS - Efectos de largo plazo
+    IMPACT = "impact"                   # D5: Impactos de largo plazo
+    LONG_TERM_EFFECT = "long_term_effect"  # D5: Efectos largo plazo
+    
+    # D6: CAUSALIDAD - Teoría de cambio
+    CAUSAL_THEORY = "causal_theory"     # D6: Teoría de cambio
+    CAUSAL_LINK = "causal_link"         # D6: Encadenamiento causal
+    
+    # Legacy/General sections (mapped to multiple dimensions)
+    VISION = "vision"                   # D1+D6: Visión (insumo conceptual + teoría)
+    OBJECTIVE = "objective"             # D4+D6: Objetivos (resultados + causalidad)
+    STRATEGY = "strategy"               # D2+D6: Estrategias (actividades + causalidad)
+    RESPONSIBILITY = "responsibility"   # D1+D2: Responsables (capacidades + actividades)
+    PARTICIPATION = "participation"     # D1: Capacidades de gobernanza
+    BUDGET = "budget"                   # D1: Recursos financieros
+    TIMELINE = "timeline"               # D2: Temporalidad de actividades
     OTHER = "other"                     # General content
 
 
@@ -91,18 +152,55 @@ class DocumentSegment:
             self.decalogo_dimensions = self._infer_decalogo_dimensions()
     
     def _infer_decalogo_dimensions(self) -> List[str]:
-        """Infer which DECALOGO dimensions this segment is relevant to."""
+        """Infer which DECALOGO dimensions this segment is relevant to.
+        
+        Aligned with decalogo-industrial.latest.clean.json:
+        - D1: INSUMOS (diagnóstico, líneas base, recursos, capacidades)
+        - D2: ACTIVIDADES (formalización, mecanismos causales)
+        - D3: PRODUCTOS (outputs con indicadores verificables)
+        - D4: RESULTADOS (outcomes con métricas)
+        - D5: IMPACTOS (efectos largo plazo)
+        - D6: CAUSALIDAD (teoría de cambio explícita)
+        """
         section_to_dimension = {
-            SectionType.DIAGNOSTIC: ["DE-2"],
-            SectionType.VISION: ["DE-1"],
-            SectionType.OBJECTIVE: ["DE-1"],
-            SectionType.STRATEGY: ["DE-1"],
-            SectionType.INDICATOR: ["DE-1", "DE-4"],
-            SectionType.RESPONSIBILITY: ["DE-1"],  # Specifically for DE-1 Q2
-            SectionType.PARTICIPATION: ["DE-3"],
-            SectionType.MONITORING: ["DE-4"],
-            SectionType.BUDGET: ["DE-2"],
-            SectionType.TIMELINE: ["DE-4"],
+            # D1: INSUMOS
+            SectionType.DIAGNOSTIC: ["D1"],
+            SectionType.BASELINE: ["D1"],
+            SectionType.RESOURCES: ["D1"],
+            SectionType.CAPACITY: ["D1"],
+            SectionType.BUDGET: ["D1"],
+            SectionType.PARTICIPATION: ["D1"],
+            
+            # D2: ACTIVIDADES
+            SectionType.ACTIVITY: ["D2"],
+            SectionType.MECHANISM: ["D2"],
+            SectionType.INTERVENTION: ["D2"],
+            SectionType.TIMELINE: ["D2"],
+            
+            # D3: PRODUCTOS
+            SectionType.PRODUCT: ["D3"],
+            SectionType.OUTPUT: ["D3"],
+            
+            # D4: RESULTADOS
+            SectionType.RESULT: ["D4"],
+            SectionType.OUTCOME: ["D4"],
+            SectionType.INDICATOR: ["D4"],
+            SectionType.MONITORING: ["D4"],
+            
+            # D5: IMPACTOS
+            SectionType.IMPACT: ["D5"],
+            SectionType.LONG_TERM_EFFECT: ["D5"],
+            
+            # D6: CAUSALIDAD
+            SectionType.CAUSAL_THEORY: ["D6"],
+            SectionType.CAUSAL_LINK: ["D6"],
+            
+            # Multi-dimensional sections
+            SectionType.VISION: ["D1", "D6"],  # Insumo conceptual + teoría
+            SectionType.OBJECTIVE: ["D4", "D6"],  # Resultados + causalidad
+            SectionType.STRATEGY: ["D2", "D6"],  # Actividades + causalidad
+            SectionType.RESPONSIBILITY: ["D1", "D2"],  # Capacidades + actividades
+            
             SectionType.OTHER: [],
         }
         return section_to_dimension.get(self.section_type, [])
@@ -141,76 +239,139 @@ class DocumentSegmenter:
         self.max_segment_length = max_segment_length
         self.preserve_context = preserve_context
         
-        # Section identification patterns - aligned with DECALOGO dimensions
+        # Section identification patterns - aligned with DECALOGO dimensions (D1-D6)
+        # Based on decalogo-industrial.latest.clean.json structure
         self.section_patterns = {
-            # DE-2: Thematic Inclusion (Diagnostic)
+            # D1: INSUMOS - Diagnóstico, líneas base, recursos, capacidades
             SectionType.DIAGNOSTIC: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:diagn[óo]stico|antecedentes|contexto|situaci[óo]n actual)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:problem[áa]tica|necesidades|demandas)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:caracterizaci[óo]n|perfil)"
             ],
-            
-            # DE-1: Logical Intervention Framework (Vision)
-            SectionType.VISION: [
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:visi[óo]n|misi[óo]n)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:escenario(?:s)? deseado(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:futuro(?:s)? deseado(?:s)?)"
+            SectionType.BASELINE: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:l[íi]nea(?:s)? base|datos base|baseline)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:series temporales|medici[óo]n inicial)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:estado actual medido|indicadores iniciales)"
             ],
-            
-            # DE-1: Logical Intervention Framework (Objectives)
-            SectionType.OBJECTIVE: [
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:objetivo(?:s)?|prop[óo]sito(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:finalidad(?:es)?|meta(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:logro(?:s)? esperado(?:s)?)"
+            SectionType.RESOURCES: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:recursos asignados|asignaci[óo]n de recursos)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:plan plurianual|PPI|plan indicativo)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:trazabilidad program[áa]tica)"
             ],
-            
-            # DE-1: Logical Intervention Framework (Strategies)
-            SectionType.STRATEGY: [
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:estrategia(?:s)?|l[íi]nea(?:s)? (?:de)? acci[óo]n)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:programa(?:s)?|proyecto(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:iniciativa(?:s)?|actividad(?:es)?)"
+            SectionType.CAPACITY: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:capacidades institucionales|capacidad institucional)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:talento humano|recurso humano|personal)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:procesos institucionales|sistemas de informaci[óo]n)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cuellos de botella|restricciones institucionales)"
             ],
-            
-            # DE-4: Results Orientation (Indicators)
-            SectionType.INDICATOR: [
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:indicador(?:es)?|medici[óo]n(?:es)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:m[ée]trica(?:s)?|valor(?:es)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:l[íi]nea(?:s)? base)"
+            SectionType.BUDGET: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:presupuesto|recursos (?:financieros|econ[óo]micos))",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:financiaci[óo]n|inversi[óo]n|gasto(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:costeo|asignaci[óo]n (?:presupuestal|de recursos))"
             ],
-            
-            # DE-1: Logical Intervention Framework (Q2 - Responsibilities)
-            SectionType.RESPONSIBILITY: [
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:responsable(?:s)?|encargado(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:entidad(?:es)? (?:responsable|ejecutora)(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:actor(?:es)? (?:responsable|institucional)(?:s)?)"
-            ],
-            
-            # DE-3: Participation and Governance
             SectionType.PARTICIPATION: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:participaci[óo]n|gobernanza|concertaci[óo]n)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:mesa(?:s)? (?:t[ée]cnica(?:s)?|participativa(?:s)?))",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:di[áa]logo(?:s)?|consulta(?:s)?)"
             ],
             
-            # DE-4: Results Orientation (Monitoring)
+            # D2: ACTIVIDADES - Formalización, mecanismos causales
+            SectionType.ACTIVITY: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:actividad(?:es)?|acciones?|intervenciones?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:formalizaci[óo]n de actividades|tabla de actividades)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:responsable.*insumo.*output|cronograma.*costo)"
+            ],
+            SectionType.MECHANISM: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:mecanismo(?:s)? causal(?:es)?|v[íi]a causal)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:poblaci[óo]n diana|grupo objetivo)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:causa ra[íi]z|mediador(?:es)?)"
+            ],
+            SectionType.INTERVENTION: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:teor[íi]a de intervenci[óo]n|l[óo]gica de intervenci[óo]n)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:complementariedades|secuenciaci[óo]n)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:riesgos de implementaci[óo]n|cu[ñn]as de implementaci[óo]n)"
+            ],
+            SectionType.STRATEGY: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:estrategia(?:s)?|l[íi]nea(?:s)? (?:de)? acci[óo]n)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:programa(?:s)?|proyecto(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:iniciativa(?:s)?)"
+            ],
+            SectionType.TIMELINE: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cronograma|calendario|plazos)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:tiempos|periodicidad|fechas)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:hitos|milestones|fases)"
+            ],
+            
+            # D3: PRODUCTOS - Outputs con indicadores verificables
+            SectionType.PRODUCT: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:producto(?:s)?|output(?:s)?|entregable(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:bien(?:es)? y servicio(?:s)?|prestaci[óo]n de servicios)"
+            ],
+            SectionType.OUTPUT: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:output(?:s)? verificable(?:s)?|producto verificable)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cobertura proporcional|suficiencia relativa)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:trazabilidad presupuestal del producto)"
+            ],
+            
+            # D4: RESULTADOS - Outcomes con métricas
+            SectionType.RESULT: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:resultado(?:s)?|outcome(?:s)?|logro(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:encadenamiento causal|v[íi]nculo productos.*resultados)"
+            ],
+            SectionType.OUTCOME: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:outcome(?:s)? con m[ée]trica(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:ventana de maduraci[óo]n|tiempo de efecto)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:nivel de ambici[óo]n|magnitud del cambio)"
+            ],
+            SectionType.INDICATOR: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:indicador(?:es)? de resultado|medici[óo]n de outcome)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:m[ée]trica(?:s)?|f[óo]rmula de c[áa]lculo)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:meta(?:s)? cuantificada(?:s)?)"
+            ],
             SectionType.MONITORING: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:seguimiento|monitoreo|evaluaci[óo]n)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:control|supervisi[óo]n|vigilancia)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:tablero(?:s)? de (?:control|mando))"
             ],
             
-            # DE-2: Thematic Inclusion (Budget)
-            SectionType.BUDGET: [
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:presupuesto|recursos (?:financieros|econ[ó]micos))",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:financiaci[óo]n|inversi[óo]n|gasto(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:costeo|asignaci[óo]n (?:presupuestal|de recursos))"
+            # D5: IMPACTOS - Efectos de largo plazo
+            SectionType.IMPACT: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:impacto(?:s)?|efecto(?:s)? (?:de )?largo plazo)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cambio(?:s)? estructural(?:es)?|transformaci[óo]n sostenible)"
+            ],
+            SectionType.LONG_TERM_EFFECT: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:efecto(?:s)? duradero(?:s)?|sostenibilidad)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:alineaci[óo]n (?:con )?(?:PND|ODS|marco(?:s)? internacionales?))",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:proxy de impacto|indicador(?:es)? proxy)"
             ],
             
-            # DE-4: Results Orientation (Timeline)
-            SectionType.TIMELINE: [
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cronograma|calendario|plazos)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:tiempos|periodicidad|fechas)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:hitos|milestones|fases)"
+            # D6: CAUSALIDAD - Teoría de cambio explícita
+            SectionType.CAUSAL_THEORY: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:teor[íi]a de cambio|marco l[óo]gico causal)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:DAG|grafo (?:causal|ac[íi]clico dirigido))",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:diagrama causal|modelo causal)"
+            ],
+            SectionType.CAUSAL_LINK: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:encadenamiento (?:causal|l[óo]gico))",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:validaci[óo]n l[óo]gica|consistencia causal)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:hip[óo]tesis causales|supuestos cr[íi]ticos)"
+            ],
+            
+            # Multi-dimensional legacy sections
+            SectionType.VISION: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:visi[óo]n|misi[óo]n)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:escenario(?:s)? deseado(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:futuro(?:s)? deseado(?:s)?)"
+            ],
+            SectionType.OBJECTIVE: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:objetivo(?:s)?|prop[óo]sito(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:finalidad(?:es)?|meta(?:s)? general(?:es)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:logro(?:s)? esperado(?:s)?)"
+            ],
+            SectionType.RESPONSIBILITY: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:responsable(?:s)?|encargado(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:entidad(?:es)? (?:responsable|ejecutora)(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:actor(?:es)? (?:responsable|institucional)(?:s)?)"
             ],
         }
         
@@ -219,12 +380,14 @@ class DocumentSegmenter:
         for section_type, patterns in self.section_patterns.items():
             self.compiled_patterns[section_type] = [re.compile(pattern) for pattern in patterns]
     
-    def segment(self, doc_struct: Dict[str, Any]) -> List[DocumentSegment]:
+    def segment(self, doc_struct: Union[Dict[str, Any], str]) -> List[DocumentSegment]:
         """
-        Segment a document based on its structured representation.
+        Segment a document based on its structured representation or raw text.
 
         Args:
-            doc_struct: Structured document from PlanProcessor
+            doc_struct: Structured document from PlanProcessor (dict) or raw text (str)
+                       For dict: expects {'full_text': str, 'sections': {...}, ...}
+                       For str: treats as raw text directly
 
         Returns:
             List of DocumentSegment objects
@@ -232,6 +395,12 @@ class DocumentSegmenter:
         if not doc_struct:
             return []
 
+        # Handle backward compatibility: accept both dict and string
+        if isinstance(doc_struct, str):
+            # Direct text input (backward compatibility)
+            return self.segment_text(doc_struct)
+        
+        # Dictionary input (new format)
         # Attempt to get full text, otherwise reconstruct it from sections
         text = doc_struct.get("full_text")
         if not text and "sections" in doc_struct:
