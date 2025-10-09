@@ -11,12 +11,58 @@ Features:
 - Thread-safe operations
 - Consistent json.dump() parameters across all JSON writes
 - Support for nested data structures (lists, dicts, tuples)
+- Safe file reading with automatic encoding fallback
 """
 
 import json
 import math
+import logging
 from typing import Any, Dict, List, Union, Optional, TextIO
-import numpy as np
+from pathlib import Path
+
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
+
+
+def safe_read_text_file(file_path: Union[str, Path], encodings: List[str] = None) -> str:
+    """
+    Safely read a text file with automatic encoding fallback.
+    
+    Args:
+        file_path: Path to the text file
+        encodings: List of encodings to try (default: ['utf-8', 'latin-1'])
+        
+    Returns:
+        File content as string
+        
+    Raises:
+        Exception: If file cannot be read with any of the attempted encodings
+    """
+    file_path = Path(file_path)
+    if encodings is None:
+        encodings = ['utf-8', 'latin-1']
+    
+    last_error = None
+    for encoding in encodings:
+        try:
+            with open(file_path, 'r', encoding=encoding) as f:
+                return f.read()
+        except UnicodeDecodeError as e:
+            last_error = e
+            logger.debug(f"Failed to read {file_path} with {encoding} encoding: {e}")
+            continue
+        except Exception as e:
+            logger.error(f"Failed to read file {file_path}: {e}")
+            raise
+    
+    # If we get here, all encodings failed
+    logger.error(f"Failed to read file {file_path} with any encoding: {encodings}")
+    raise last_error or Exception(f"Failed to read {file_path} with any encoding")
 
 
 def clean_data_for_json(data: Any, 
@@ -42,19 +88,28 @@ def clean_data_for_json(data: Any,
         cleaned_list = [clean_data_for_json(item, nan_replacement, inf_replacement, neg_inf_replacement) 
                        for item in data]
         return cleaned_list if isinstance(data, list) else type(data)(cleaned_list)
-    elif isinstance(data, (float, np.floating)):
+    elif isinstance(data, float):
         if math.isnan(data):
             return nan_replacement
         elif math.isinf(data):
             return inf_replacement if data > 0 else neg_inf_replacement
         else:
-            return float(data)  # Convert numpy floats to Python floats
-    elif isinstance(data, np.integer):
-        return int(data)  # Convert numpy integers to Python integers
-    elif isinstance(data, np.ndarray):
-        return clean_data_for_json(data.tolist(), nan_replacement, inf_replacement, neg_inf_replacement)
-    else:
-        return data
+            return data
+    elif NUMPY_AVAILABLE:
+        # Handle numpy types only if numpy is available
+        if isinstance(data, np.floating):
+            if math.isnan(data):
+                return nan_replacement
+            elif math.isinf(data):
+                return inf_replacement if data > 0 else neg_inf_replacement
+            else:
+                return float(data)  # Convert numpy floats to Python floats
+        elif isinstance(data, np.integer):
+            return int(data)  # Convert numpy integers to Python integers
+        elif isinstance(data, np.ndarray):
+            return clean_data_for_json(data.tolist(), nan_replacement, inf_replacement, neg_inf_replacement)
+    
+    return data
 
 
 def safe_json_dump(data: Any, 
