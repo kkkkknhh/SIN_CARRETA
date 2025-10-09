@@ -172,69 +172,34 @@ class EmbeddingModelPool:
 # ============================================================================
 
 @dataclass
-class SanitizationIO:
-    input: Dict[str, str]
-    output: Dict[str, str]
-
-
-@dataclass
-class PlanProcessingIO:
-    input: Dict[str, str]
-    output: Dict[str, dict]
-
-
-@dataclass
-class SegmentationIO:
-    input: Dict[str, dict]
-    output: Dict[str, list]
-
-
-@dataclass
-class EmbeddingIO:
-    input: Dict[str, list]
-    output: Dict[str, list]
-
-
-@dataclass
-class DetectorIO:
-    input: Dict[str, list]
-    output: Dict[str, list]
-
-
-@dataclass
-class FeasibilityIO:
-    input: Dict[str, list]
-    output: Dict[str, dict]
-
-
-@dataclass
-class TeoriaIO:
-    input: Dict[str, list]
-    output: Dict[str, dict]
-
-
-@dataclass
-class DAGIO:
-    input: Dict[str, dict]
-    output: Dict[str, dict]
-
-
-@dataclass
-class EvidenceRegistryIO:
+class PipelineIO:
+    """Generic I/O schema for pipeline stages."""
     input: Dict[str, Any]
-    output: Dict[str, str]
+    output: Dict[str, Any]
 
 
-@dataclass
-class EvaluationIO:
-    input: Dict[str, object]
-    output: Dict[str, dict]
+# Stage-specific IO schemas using PipelineIO as base
+def create_io_schema(input_type: type, output_type: type) -> type:
+    """Factory to create stage-specific IO schemas with proper type hints."""
+    @dataclass
+    class StageIO(PipelineIO):
+        input: Dict[str, input_type]  # type: ignore
+        output: Dict[str, output_type]  # type: ignore
+    return StageIO
 
 
-@dataclass
-class AnswerAssemblyIO:
-    input: Dict[str, Any]
-    output: Dict[str, dict]
+# Explicit type contracts per stage (for documentation and future validation)
+SanitizationIO = create_io_schema(str, str)
+PlanProcessingIO = create_io_schema(str, dict)
+SegmentationIO = create_io_schema(dict, list)
+EmbeddingIO = create_io_schema(list, list)
+DetectorIO = create_io_schema(list, list)
+FeasibilityIO = create_io_schema(list, dict)
+TeoriaIO = create_io_schema(list, dict)
+DAGIO = create_io_schema(dict, dict)
+EvidenceRegistryIO = PipelineIO  # Generic types
+EvaluationIO = PipelineIO  # Generic types
+AnswerAssemblyIO = PipelineIO  # Generic types
 
 
 # ============================================================================
