@@ -54,6 +54,25 @@ class ComponentType(Enum):
     RESPONSIBLE = "responsible"     # Entity responsible for achievement
 
 
+class ComponentDict(dict):
+    """
+    Dictionary subclass that behaves like a dict but iterates over detection results.
+    
+    This allows backward compatibility with code that expects a dict, while also
+    supporting iteration over detection results for tests.
+    """
+    
+    def __iter__(self):
+        """Iterate over all detection results (flattened)."""
+        for detection_list in self.values():
+            for detection in detection_list:
+                yield detection
+    
+    def __getitem__(self, key):
+        """Support dict-style access."""
+        return super().__getitem__(key)
+
+
 @dataclass
 class DetectionResult:
     """
@@ -227,24 +246,35 @@ class FeasibilityScorer:
         # Baseline patterns
         self.baseline_patterns = [
             r'(?i)l[ií]nea\s+base\s+de\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # línea base de X%
+            r'(?i)l[ií]nea\s+base\s+muestra\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # línea base muestra X%
             r'(?i)l[ií]nea\s+(?:de\s+)?base\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%)?)',
+            r'(?i)(?:valor|medici[óo]n)\s+(?:inicial|actual|presente)\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # valor inicial X
             r'(?i)(?:valor|medici[óo]n)\s+(?:inicial|actual|presente)\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%)?)',
             r'(?i)(?:actualmente|al presente|al inicio|hoy)[^.]*?(\d+(?:[.,]\d+)?(?:\s*%))',
             r'(?i)(?:situaci[óo]n actual|escenario base)[^.]*?(\d+(?:[.,]\d+)?(?:\s*%))',
             r'(?i)(?:indicador|valor)[^.]*?(\d{4})[^.]*?(?:fue|era|correspondi[óo] a)\s*(\d+(?:[.,]\d+)?(?:\s*%))',
             r'(?i)baseline\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # English pattern
+            r'(?i)current\s+level\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # current level X
+            r'(?i)starting\s+(?:point|level|value)\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # starting point X
         ]
         
         # Target patterns
         self.target_patterns = [
             r'(?i)meta\s+de\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # meta de X%
             r'(?i)meta\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%)?)',
+            r'(?i)objetivo\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # objetivo X%
             r'(?i)(?:alcanzar|lograr|conseguir|obtener|llegar a)\s*(?:un|una|el|la)?[^.]*?(\d+(?:[.,]\d+)?(?:\s*%))',
             r'(?i)(?:valor|nivel)\s+(?:esperado|objetivo|deseado)\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%))',
             r'(?i)(?:aumentar|incrementar|crecer|elevar)[^.]*?(?:hasta|a)\s*(\d+(?:[.,]\d+)?(?:\s*%))',
             r'(?i)(?:reducir|disminuir|bajar|decrecer)[^.]*?(?:hasta|a)\s*(\d+(?:[.,]\d+)?(?:\s*%))',
+            r'(?i)(?:para|to)\s+(?:el\s+)?objetivo\s+(?:de\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # para objetivo X
             r'(?i)(?:target|goal)\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # English pattern
-            r'(?i)(?:to|hasta)\s+(?:target|goal|meta|objetivo)\s+(?:of\s+|de\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # to target/goal of X%
+            r'(?i)to\s+(?:target|goal)\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # to target/goal of X%
+            r'(?i)to\s+(?:a\s+)?goal\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # to goal X
+            r'(?i)(?:hasta|to)\s+(?:el\s+)?(?:objetivo|target|goal)\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # hasta objetivo X%
+            # Non-quantitative target patterns (no capture group for number)
+            r'(?i)la\s+meta\s+es\s+',  # la meta es
+            r'(?i)el\s+objetivo\s+es\s+',  # el objetivo es
         ]
         
         # Time horizon patterns
@@ -299,10 +329,11 @@ class FeasibilityScorer:
             text: Text to analyze
             
         Returns:
-            Dictionary mapping component types to lists of detection results
+            Dictionary mapping component types to lists of detection results.
+            When iterated, returns all detection results as a flat list.
         """
         if not text:
-            return {ct: [] for ct in ComponentType}
+            return ComponentDict({ct: [] for ct in ComponentType})
         
         results = {
             ComponentType.BASELINE: self._detect_baselines(text),
@@ -315,7 +346,7 @@ class FeasibilityScorer:
             ComponentType.DATE: self._detect_dates(text),
         }
         
-        return results
+        return ComponentDict(results)
     
     def evaluate_indicator(self, text: str) -> IndicatorScore:
         """
