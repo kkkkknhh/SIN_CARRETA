@@ -164,7 +164,7 @@ def _load_decalogo_full(path: Path, audit: List[AuditIssue]) -> Dict[str, object
 
 def _load_decalogo_industrial(
         path: Path, audit: List[AuditIssue]
-) -> List[Dict[str, object]]:
+) -> Dict[str, object]:
     raw = path.read_text(encoding="utf-8")
     cleaned_lines = []
     for line in raw.splitlines():
@@ -172,8 +172,10 @@ def _load_decalogo_industrial(
     cleaned_text = "\n".join(cleaned_lines).strip()
     try:
         data = json.loads(cleaned_text)
-        if not isinstance(data, list):
-            raise TypeError("El decálogo industrial debe ser una lista")
+        if not isinstance(data, dict):
+            raise TypeError("El decálogo industrial debe ser un diccionario")
+        if "questions" not in data:
+            raise KeyError("El decálogo industrial debe contener una clave 'questions'")
         return data
     except Exception as exc:  # pragma: no cover - errores severos
         audit.append(
@@ -309,6 +311,41 @@ def _build_canonical_clusters(
     return clusters
 
 
+def _build_industrial_clusters(
+        industrial_data: Dict[str, object],
+        audit: List[AuditIssue]
+) -> List[ClusterSpec]:
+    """Build clusters from decalogo-industrial.latest.clean.json structure."""
+    questions = industrial_data.get("questions")
+    if not isinstance(questions, list):
+        audit.append(
+            AuditIssue(
+                source="decalogo-industrial",
+                category="structure_error",
+                message="Campo 'questions' ausente o mal tipificado.",
+            )
+        )
+        return []
+    
+    # Group questions by point_code
+    grouped: Dict[str, Dict[str, object]] = {}
+    for entry in questions:
+        point_code = _nfkc_trim(str(entry.get("point_code", "")))
+        point_title = (
+                _nfkc_trim(str(entry.get("point_title", ""))
+                           ) or "evidencia_insuficiente"
+        )
+        if point_code not in grouped:
+            grouped[point_code] = {
+                "title": point_title,
+                "questions": [],
+            }
+        grouped[point_code]["questions"].append(entry)
+    
+    # Build clusters from grouped data
+    return _build_canonical_clusters(grouped)
+
+
 def _placeholder_clusters_from_canonical(
         canonical: List[ClusterSpec],
         domain_prefix: str,
@@ -409,16 +446,37 @@ def align_decalogos(
 
     industrial_raw = _load_decalogo_industrial(industrial_path, audit)
     if industrial_raw:
+        industrial_clusters = _build_industrial_clusters(industrial_raw, audit)
+        if not industrial_clusters:
+            audit.append(
+                AuditIssue(
+                    source="decalogo-industrial",
+                    category="warning",
+                    message="No se pudieron construir clusters; se crean placeholders.",
+                )
+            )
+            industrial_clusters = _placeholder_clusters_from_canonical(
+                canonical_clusters, "IND", "faltante_en_industrial"
+            )
+        else:
+            audit.append(
+                AuditIssue(
+                    source="decalogo-industrial",
+                    category="info",
+                    message=f"Se construyeron {len(industrial_clusters)} clusters desde decalogo-industrial con {sum(len(c.points[0].questions) for c in industrial_clusters)} preguntas.",
+                )
+            )
+    else:
         audit.append(
             AuditIssue(
                 source="decalogo-industrial",
-                category="info",
-                message="Los indicadores industriales carecen de preguntas explícitas; se crean placeholders.",
+                category="warning",
+                message="No se pudo cargar el archivo; se crean placeholders.",
             )
         )
-    industrial_clusters = _placeholder_clusters_from_canonical(
-        canonical_clusters, "IND", "faltante_en_industrial"
-    )
+        industrial_clusters = _placeholder_clusters_from_canonical(
+            canonical_clusters, "IND", "faltante_en_industrial"
+        )
 
     dnp_data = _load_dnp_standards(dnp_path, audit)
     if dnp_data is None:
