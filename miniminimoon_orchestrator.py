@@ -575,20 +575,11 @@ class AnswerAssembler:
         return "UNKNOWN"
     
     def _calculate_confidence_from_evidence(self, evidence_list: List[Any], score: float) -> float:
-        """Calculate confidence from evidence list."""
-        if not evidence_list:
-            return 0.3
-        
-        avg_evidence_conf = sum(
-            e.confidence if hasattr(e, "confidence") else 0.5 
-            for e in evidence_list
-        ) / len(evidence_list)
-        
-        evidence_factor = min(len(evidence_list) / 3.0, 1.0)
-        extremity = abs(score - 0.5) * 2
-        extremity_penalty = 0.85 if (extremity > 0.7 and len(evidence_list) < 2) else 1.0
-        confidence = avg_evidence_conf * evidence_factor * extremity_penalty
-        return round(min(confidence, 1.0), 2)
+        """
+        Calculate confidence from evidence list.
+        Wrapper that delegates to _calculate_confidence with evidence extraction.
+        """
+        return self._calculate_confidence(evidence_list, score)
     
     def _extract_quotes_from_evidence(self, evidence_list: List[Any], max_quotes: int = 3) -> List[str]:
         """Extract supporting quotes from evidence."""
@@ -656,10 +647,20 @@ class AnswerAssembler:
             caveats=caveats
         )
 
-    def _calculate_confidence(self, evidence: List[EvidenceEntry], score: float) -> float:
+    def _calculate_confidence(self, evidence: List[Any], score: float) -> float:
+        """
+        Calculate confidence from evidence list.
+        Works with both EvidenceEntry objects and generic evidence objects with confidence attribute.
+        """
         if not evidence:
             return 0.3
-        avg_evidence_conf = sum(e.confidence for e in evidence) / len(evidence)
+        
+        # Handle both EvidenceEntry and generic objects with confidence attribute
+        avg_evidence_conf = sum(
+            e.confidence if hasattr(e, "confidence") else 0.5 
+            for e in evidence
+        ) / len(evidence)
+        
         evidence_factor = min(len(evidence) / 3.0, 1.0)
         extremity = abs(score - 0.5) * 2
         extremity_penalty = 0.85 if (extremity > 0.7 and len(evidence) < 2) else 1.0

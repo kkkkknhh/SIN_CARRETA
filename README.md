@@ -96,7 +96,7 @@ results = orchestrator.process_plan_deterministic(plan_path)
 
 #### **Fase 2: Construcción de Evidencia (Etapa 12)**
 
-12. **Evidence Registry** (Fan-in N:1)
+1. **Evidence Registry** (Fan-in N:1)
     - Input: Outputs de etapas 5-11
     - Output: `{evidence_hash: str, evidence_store: dict}`
     - **Único origen de verdad** para evaluadores
@@ -104,19 +104,19 @@ results = orchestrator.process_plan_deterministic(plan_path)
 
 #### **Fase 3: Evaluación (Etapas 13-14)**
 
-13. **Evaluación Decálogo** (`Decatalogo_principal`)
+1. **Evaluación Decálogo** (`Decatalogo_principal`)
     - Input: `{evidence_store}`
     - Output: `{decalogo_eval: dict}`
     - Evaluación data-driven por dimensión/pregunta
 
-14. **Evaluación Cuestionario** (`questionnaire_engine`)
+2. **Evaluación Cuestionario** (`questionnaire_engine`)
     - Input: `{evidence_store}`
     - Output: `{questionnaire_eval: dict}`
     - 300 preguntas sobre la misma evidencia
 
 #### **Fase 4: Ensamblaje Final (Etapa 15)**
 
-15. **Answer Assembler** (`answer_assembler`)
+1. **Answer Assembler** (`answer_assembler`)
     - Input: `{evidence_store, rubric, decalogo_eval, questionnaire_eval}`
     - Output: `{answers_report: dict}`
     - Respuestas con evidence_ids, confidence, score y rationale
