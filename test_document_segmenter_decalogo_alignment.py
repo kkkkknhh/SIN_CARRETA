@@ -286,6 +286,37 @@ class TestDecalogoAlignment(unittest.TestCase):
                     self.assertTrue(dim in ["D1", "D2", "D3", "D4", "D5", "D6"],
                                   f"Dimension should be D1-D6 format: {dim}")
 
+    def test_backward_compatibility_string_input(self):
+        """Test that segment() accepts both string and dict inputs."""
+        text = "Diagnóstico de la situación con líneas base verificables y datos completos"
+        
+        # Test string input (backward compatibility)
+        segments_str = self.segmenter.segment(text)
+        self.assertGreater(len(segments_str), 0, "Should segment string input")
+        
+        # Test dict input (new format)
+        segments_dict = self.segmenter.segment({"full_text": text})
+        self.assertGreater(len(segments_dict), 0, "Should segment dict input")
+        
+        # Results should be equivalent
+        self.assertEqual(len(segments_str), len(segments_dict),
+                        "String and dict inputs should produce same number of segments")
+        
+        # Test with sections dict (with longer text)
+        longer_text = "Esta es la primera parte del diagnóstico con información relevante y detallada."
+        segments_sections = self.segmenter.segment({
+            "sections": {
+                "section1": {"text": longer_text},
+                "section2": {"text": "Segunda parte del diagnóstico con más información detallada."}
+            }
+        })
+        self.assertGreater(len(segments_sections), 0, "Should segment from sections")
+        
+        # Test empty inputs
+        self.assertEqual(len(self.segmenter.segment("")), 0)
+        self.assertEqual(len(self.segmenter.segment({})), 0)
+        self.assertEqual(len(self.segmenter.segment(None)), 0)
+
 
 if __name__ == '__main__':
     unittest.main()

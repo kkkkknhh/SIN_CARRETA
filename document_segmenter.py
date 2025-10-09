@@ -380,12 +380,14 @@ class DocumentSegmenter:
         for section_type, patterns in self.section_patterns.items():
             self.compiled_patterns[section_type] = [re.compile(pattern) for pattern in patterns]
     
-    def segment(self, doc_struct: Dict[str, Any]) -> List[DocumentSegment]:
+    def segment(self, doc_struct: Union[Dict[str, Any], str]) -> List[DocumentSegment]:
         """
-        Segment a document based on its structured representation.
+        Segment a document based on its structured representation or raw text.
 
         Args:
-            doc_struct: Structured document from PlanProcessor
+            doc_struct: Structured document from PlanProcessor (dict) or raw text (str)
+                       For dict: expects {'full_text': str, 'sections': {...}, ...}
+                       For str: treats as raw text directly
 
         Returns:
             List of DocumentSegment objects
@@ -393,6 +395,12 @@ class DocumentSegmenter:
         if not doc_struct:
             return []
 
+        # Handle backward compatibility: accept both dict and string
+        if isinstance(doc_struct, str):
+            # Direct text input (backward compatibility)
+            return self.segment_text(doc_struct)
+        
+        # Dictionary input (new format)
         # Attempt to get full text, otherwise reconstruct it from sections
         text = doc_struct.get("full_text")
         if not text and "sections" in doc_struct:
