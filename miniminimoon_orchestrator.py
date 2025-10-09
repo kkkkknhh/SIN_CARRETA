@@ -1439,7 +1439,7 @@ class CanonicalDeterministicOrchestrator:
             return cached_full
 
         # Flow #2: Plan Processing
-        _ = self._run_stage(
+        doc_struct = self._run_stage(
             PipelineStage.PLAN_PROCESSING,
             lambda: self.plan_processor.process(sanitized_text),
             results["stages_completed"]
@@ -1454,7 +1454,7 @@ class CanonicalDeterministicOrchestrator:
         else:
             segments = self._run_stage(
                 PipelineStage.SEGMENTATION,
-                lambda: self.document_segmenter.segment(sanitized_text),
+                lambda: self.document_segmenter.segment(doc_struct),
                 results["stages_completed"]
             )
             self.intermediate_cache.set(cache_key_segments, segments)
