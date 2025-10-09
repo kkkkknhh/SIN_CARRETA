@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""
-Comprehensive test suite for flux diagnostic report generator
-"""
+"""Comprehensive test suite for the flux diagnostic report generator."""
 
 import json
-import pytest
-import tempfile
-from pathlib import Path
-from datetime import datetime
 import sys
+import tempfile
+from datetime import datetime
+from pathlib import Path
+
+import pytest
 
 # Add reports directory to path
 sys.path.insert(0, str(Path(__file__).parent / "reports"))

@@ -12,14 +12,14 @@ Exit codes:
     3: Environment detection failed
 """
 
-import json
-import sys
-import subprocess
-import platform
-from pathlib import Path
-from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional
 import importlib.metadata
+import json
+import platform
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 class FluxDiagnosticGenerator:

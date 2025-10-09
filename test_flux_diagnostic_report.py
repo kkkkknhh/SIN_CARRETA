@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""
-Test suite for flux diagnostic report generator.
-"""
+"""Tests for the Flux diagnostic Markdown report generation utilities."""
 
 import json
-import pytest
 import tempfile
 from pathlib import Path
+
+import pytest
+
 from generate_flux_diagnostic_report import (
+    assess_node_health,
     format_bytes,
     format_latency,
     format_throughput,
-    assess_node_health,
+    generate_report,
     identify_top_risks,
-    generate_report
 )
 
 
