@@ -21,18 +21,13 @@ from typing import List, Tuple
 
 def run_command(name: str, cmd: List[str]) -> Tuple[bool, str]:
     """Run a command and return (success, output)."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Running: {name}")
     print(f"Command: {' '.join(cmd)}")
-    print('='*60)
+    print("=" * 60)
 
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
 
         output = result.stdout + result.stderr
         if output:
@@ -58,24 +53,22 @@ def main() -> int:
     """Run all inspections and return overall exit code."""
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Run all code quality inspections"
-    )
+    parser = argparse.ArgumentParser(description="Run all code quality inspections")
     parser.add_argument(
         "--fail-fast",
         action="store_true",
-        help="Stop on first failure (default: run all inspections)"
+        help="Stop on first failure (default: run all inspections)",
     )
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Fail on any inspection errors (default: warn only)"
+        help="Fail on any inspection errors (default: warn only)",
     )
     args = parser.parse_args()
 
-    print("="*60)
+    print("=" * 60)
     print("CODE QUALITY INSPECTIONS")
-    print("="*60)
+    print("=" * 60)
 
     inspections = [
         ("Python Bytecode Compilation", ["python", "-m", "compileall", "-q", "."]),
@@ -100,9 +93,9 @@ def main() -> int:
             break
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("INSPECTION SUMMARY")
-    print("="*60)
+    print("=" * 60)
 
     passed = sum(1 for _, success in results if success)
     total = len(results)
@@ -111,9 +104,9 @@ def main() -> int:
         status = "✅ PASSED" if success else "❌ FAILED"
         print(f"{name:.<40} {status}")
 
-    print("="*60)
+    print("=" * 60)
     print(f"TOTAL: {passed}/{total} inspections passed")
-    print("="*60)
+    print("=" * 60)
 
     if passed == total:
         print("\n✅ All inspections PASSED")
