@@ -28,12 +28,13 @@ class TestDecalogoLoader(unittest.TestCase):
         self.assertIn("version", template)
         self.assertIn("questions", template)
     
-    def test_load_dnp_standards(self):
-        """Test loading DNP_STANDARDS.json."""
-        standards = load_dnp_standards()
-        self.assertIsInstance(standards, dict)
-        self.assertIn("metadata", standards)
-    
+    def test_loading_dnp_standards(self):
+        """Test loading dnp-standards.latest.clean.json."""
+        from decalogo_loader import load_dnp_standards
+        result = load_dnp_standards()
+        self.assertIsInstance(result, dict)
+        self.assertIn("metadata", result)
+
     def test_ensure_aligned_templates(self):
         """Test loading all templates together."""
         templates = ensure_aligned_templates()

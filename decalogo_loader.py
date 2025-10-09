@@ -28,7 +28,7 @@ _DECALOGO_CACHE = {}
 _CACHE_LOCK = threading.RLock()
 
 # Default paths
-DEFAULT_TEMPLATE_PATH = Path(__file__).parent / "decalogo_industrial.json"
+DEFAULT_TEMPLATE_PATH = Path(__file__).parent / "decalogo-industrial.latest.clean.json"
 
 # Fallback template in case file access fails
 DECALOGO_INDUSTRIAL_TEMPLATE = {
@@ -246,8 +246,8 @@ def get_decalogo_industrial(path: Optional[str] = None, force_reload: bool = Fal
     Returns:
         DECALOGO_INDUSTRIAL template data
     """
-    cache_key = str(path) if path else "default"
-    
+    cache_key = path or str(DEFAULT_TEMPLATE_PATH)
+
     with _CACHE_LOCK:
         if force_reload or cache_key not in _DECALOGO_CACHE:
             _DECALOGO_CACHE[cache_key] = load_decalogo_industrial(path)
@@ -275,8 +275,8 @@ def load_dnp_standards(path: Optional[str] = None) -> Dict[str, Any]:
     Returns:
         DNP standards data
     """
-    standards_path = Path(path) if path else (Path(__file__).parent / "DNP_STANDARDS.json")
-    
+    standards_path = Path(path) if path else (Path(__file__).parent / "dnp-standards.latest.clean.json")
+
     try:
         if standards_path.exists():
             with open(standards_path, 'r', encoding='utf-8') as f:
@@ -285,7 +285,6 @@ def load_dnp_standards(path: Optional[str] = None) -> Dict[str, Any]:
                 return standards_data
     except (PermissionError, OSError, IOError, json.JSONDecodeError) as e:
         logger.warning(f"Error accessing DNP standards at {standards_path}: {e}")
-    
     logger.warning("DNP standards file not found, returning empty structure")
     return {
         "metadata": {"version": "2.0.0"},

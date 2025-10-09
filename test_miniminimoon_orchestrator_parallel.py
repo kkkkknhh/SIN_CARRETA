@@ -206,7 +206,7 @@ class TestDynamicBatchEmbedding(unittest.TestCase):
         """Create minimal config files for testing"""
         configs = {
             "DECALOGO_FULL.json": {"questions": []},
-            "decalogo_industrial.json": {"questions": []},
+            "decalogo-industrial.latest.clean.json": {"questions": []},
             "dnp-standards.latest.clean.json": {},
             "RUBRIC_SCORING.json": {"questions": {}, "weights": {}},
         }
@@ -302,7 +302,7 @@ class TestWarmUpMethod(unittest.TestCase):
         """Create minimal config files"""
         configs = {
             "DECALOGO_FULL.json": {"questions": []},
-            "decalogo_industrial.json": {"questions": []},
+            "decalogo-industrial.latest.clean.json": {"questions": []},
             "dnp-standards.latest.clean.json": {},
             "RUBRIC_SCORING.json": {"questions": {}, "weights": {}},
         }
@@ -382,7 +382,7 @@ class TestThreadSafeSharedResources(unittest.TestCase):
         """Create minimal configs"""
         configs = {
             "DECALOGO_FULL.json": {"questions": []},
-            "decalogo_industrial.json": {"questions": []},
+            "decalogo-industrial.latest.clean.json": {"questions": []},
             "dnp-standards.latest.clean.json": {},
             "RUBRIC_SCORING.json": {"questions": {}, "weights": {}},
         }
