@@ -204,6 +204,29 @@ class TestFeasibilityScorer:
                     f"Missing component {expected_component} in '{indicator_data['text']}'"
                 )
 
+
+    @staticmethod
+    def _assert_indicator_results(result, indicator_data):
+        """
+        Helper method to assert common indicator result properties.
+        
+        Args:
+            result: FeasibilityScorer result object
+            indicator_data: Expected indicator data dictionary
+        """
+        assert (
+            abs(result.feasibility_score - indicator_data["expected_score"]) <= 0.15
+        )
+        assert result.quality_tier == indicator_data["expected_tier"]
+        assert (
+            result.has_quantitative_baseline
+            == indicator_data["has_quantitative_baseline"]
+        )
+        assert (
+            result.has_quantitative_target
+            == indicator_data["has_quantitative_target"]
+        )
+
     @staticmethod
     def test_medium_quality_indicators(scorer):
         """Test scoring of medium-quality indicators."""
@@ -211,19 +234,7 @@ class TestFeasibilityScorer:
 
         for indicator_data in indicators:
             result = scorer.calculate_feasibility_score(indicator_data["text"])
-
-            assert (
-                abs(result.feasibility_score - indicator_data["expected_score"]) <= 0.15
-            )
-            assert result.quality_tier == indicator_data["expected_tier"]
-            assert (
-                result.has_quantitative_baseline
-                == indicator_data["has_quantitative_baseline"]
-            )
-            assert (
-                result.has_quantitative_target
-                == indicator_data["has_quantitative_target"]
-            )
+            TestQualityValidation._assert_indicator_results(result, indicator_data)
 
     @staticmethod
     def test_low_quality_indicators(scorer):
@@ -232,19 +243,7 @@ class TestFeasibilityScorer:
 
         for indicator_data in indicators:
             result = scorer.calculate_feasibility_score(indicator_data["text"])
-
-            assert (
-                abs(result.feasibility_score - indicator_data["expected_score"]) <= 0.15
-            )
-            assert result.quality_tier == indicator_data["expected_tier"]
-            assert (
-                result.has_quantitative_baseline
-                == indicator_data["has_quantitative_baseline"]
-            )
-            assert (
-                result.has_quantitative_target
-                == indicator_data["has_quantitative_target"]
-            )
+            TestQualityValidation._assert_indicator_results(result, indicator_data)
 
     @staticmethod
     def test_insufficient_indicators(scorer):
