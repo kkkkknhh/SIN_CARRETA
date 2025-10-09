@@ -92,6 +92,19 @@ python -m py_compile test_canary_deployment.py test_opentelemetry_instrumentatio
 python -m py_compile determinism_verifier.py test_determinism_verifier.py test_determinism_verifier_integration.py
 ```
 
+### Inspections
+
+```bash
+# Run all code quality inspections (bytecode, flake8, mypy, ruff)
+python run_inspections.py
+
+# Individual inspections
+python -m compileall -q .  # Bytecode compilation
+flake8 .                    # PEP 8 style checking
+mypy . --config-file pyproject.toml  # Type checking
+ruff check .                # Fast linting (optional)
+```
+
 ### Test
 
 ```bash
