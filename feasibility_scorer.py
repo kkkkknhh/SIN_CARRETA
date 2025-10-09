@@ -243,8 +243,9 @@ class FeasibilityScorer:
 
         # Define detection patterns
         
-        # Baseline patterns
+        # Baseline patterns (both quantitative and qualitative)
         self.baseline_patterns = [
+            # Quantitative patterns (with numbers)
             r'(?i)l[ií]nea\s+base\s+de\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # línea base de X%
             r'(?i)l[ií]nea\s+base\s+muestra\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # línea base muestra X%
             r'(?i)l[ií]nea\s+(?:de\s+)?base\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%)?)',
@@ -256,10 +257,15 @@ class FeasibilityScorer:
             r'(?i)baseline\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # English pattern
             r'(?i)current\s+level\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # current level X
             r'(?i)starting\s+(?:point|level|value)\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # starting point X
+            # Qualitative patterns (no numbers)
+            r'(?i)(?:partir\s+de\s+|desde\s+)(?:la\s+)?l[ií]nea\s+base\b',  # partir de la línea base
+            r'(?i)(?:partir\s+de\s+|desde\s+)(?:la\s+)?situaci[óo]n\s+actual\b',  # desde situación actual
+            r'(?i)starting\s+point\b',  # starting point (qualitative)
         ]
         
-        # Target patterns
+        # Target patterns (both quantitative and qualitative)
         self.target_patterns = [
+            # Quantitative patterns (with numbers)
             r'(?i)meta\s+de\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # meta de X%
             r'(?i)meta\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%)?)',
             r'(?i)objetivo\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # objetivo X%
@@ -272,7 +278,10 @@ class FeasibilityScorer:
             r'(?i)to\s+(?:target|goal)\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # to target/goal of X%
             r'(?i)to\s+(?:a\s+)?goal\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # to goal X
             r'(?i)(?:hasta|to)\s+(?:el\s+)?(?:objetivo|target|goal)\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # hasta objetivo X%
-            # Non-quantitative target patterns (no capture group for number)
+            # Qualitative patterns (no numbers)
+            r'(?i)(?:alcanzar|lograr|hasta)\s+(?:el\s+)?(?:objetivo|prop[óo]sito)\b',  # alcanzar el objetivo
+            r'(?i)(?:mejorar|improve)\b',  # mejorar (generic improvement)
+            r'(?i)(?:para|to)\s+(?:el\s+)?(?:objetivo|aim)\b',  # para el objetivo
             r'(?i)la\s+meta\s+es\s+',  # la meta es
             r'(?i)el\s+objetivo\s+es\s+',  # el objetivo es
         ]
