@@ -28,7 +28,7 @@ def test_inspections_help():
         ["python", "run_inspections.py", "--help"],
         capture_output=True,
         text=True,
-        check=False
+        check=False,
     )
     assert result.returncode == 0, "--help should exit with 0"
     assert "Run all code quality inspections" in result.stdout
@@ -37,10 +37,7 @@ def test_inspections_help():
 def test_inspections_default_mode():
     """Test that default (warning) mode exits with 0."""
     result = subprocess.run(
-        ["python", "run_inspections.py"],
-        capture_output=True,
-        text=True,
-        check=False
+        ["python", "run_inspections.py"], capture_output=True, text=True, check=False
     )
     # Default mode should exit with 0 even if some checks fail
     assert result.returncode == 0, "Default mode should exit with 0"
@@ -53,7 +50,7 @@ def test_inspections_strict_mode():
         ["python", "run_inspections.py", "--strict"],
         capture_output=True,
         text=True,
-        check=False
+        check=False,
     )
     # Strict mode exits with 1 if any checks fail
     # OR 0 if all pass (unlikely in this codebase)
@@ -71,11 +68,7 @@ def test_individual_inspections():
     for cmd in commands:
         try:
             result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=30
+                cmd, capture_output=True, text=True, check=False, timeout=30
             )
             # Just check that commands don't crash
             assert result.returncode in [0, 1], f"{cmd} should not crash"
@@ -86,7 +79,7 @@ def test_individual_inspections():
 
 if __name__ == "__main__":
     print("Testing run_inspections.py...")
-    print("="*60)
+    print("=" * 60)
 
     tests = [
         ("Script exists", test_inspections_script_exists),
@@ -111,7 +104,7 @@ if __name__ == "__main__":
             print(f"❌ {name}: Unexpected error: {e}")
             failed += 1
 
-    print("="*60)
+    print("=" * 60)
     print(f"TOTAL: {passed}/{len(tests)} tests passed")
 
     if failed > 0:
