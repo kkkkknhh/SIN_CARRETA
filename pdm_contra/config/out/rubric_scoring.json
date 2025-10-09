@@ -1,0 +1,1251 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "created": "2025-01-15",
+    "description": "Complete scoring system for 300-question PDM evaluation",
+    "total_questions": 300,
+    "base_questions": 30,
+    "thematic_points": 10,
+    "dimensions": 6
+  },
+
+  "scoring_modalities": {
+    "TYPE_A": {
+      "id": "count_4_elements",
+      "description": "Count 4 elements and scale to 0-3",
+      "formula": "(elements_found / 4) * 3",
+      "max_score": 3.0,
+      "expected_elements": 4,
+      "conversion_table": {
+        "0": 0.00,
+        "1": 0.75,
+        "2": 1.50,
+        "3": 2.25,
+        "4": 3.00
+      }
+    },
+    "TYPE_B": {
+      "id": "count_3_elements",
+      "description": "Count up to 3 elements, each worth 1 point",
+      "formula": "min(elements_found, 3)",
+      "max_score": 3.0,
+      "expected_elements": 3,
+      "conversion_table": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3
+      }
+    },
+    "TYPE_C": {
+      "id": "count_2_elements",
+      "description": "Count 2 elements and scale to 0-3",
+      "formula": "(elements_found / 2) * 3",
+      "max_score": 3.0,
+      "expected_elements": 2,
+      "conversion_table": {
+        "0": 0.0,
+        "1": 1.5,
+        "2": 3.0
+      }
+    },
+    "TYPE_D": {
+      "id": "ratio_quantitative",
+      "description": "Calculate ratio and apply thresholds",
+      "formula": "f(ratio) with thresholds",
+      "max_score": 3.0,
+      "uses_thresholds": true,
+      "uses_quantitative_data": true
+    },
+    "TYPE_E": {
+      "id": "logical_rule",
+      "description": "Apply if-then-else logic",
+      "formula": "custom logic per question",
+      "max_score": 3.0,
+      "uses_custom_logic": true
+    },
+    "TYPE_F": {
+      "id": "semantic_analysis",
+      "description": "Semantic matching with cosine similarity",
+      "formula": "f(coverage_ratio) with thresholds",
+      "max_score": 3.0,
+      "uses_thresholds": true,
+      "uses_semantic_matching": true,
+      "similarity_threshold": 0.6
+    }
+  },
+
+  "aggregation_levels": {
+    "level_1": {
+      "name": "Question Score",
+      "range": [0.0, 3.0],
+      "unit": "points",
+      "precision": 2,
+      "description": "Individual question score"
+    },
+    "level_2": {
+      "name": "Dimension Score",
+      "range": [0.0, 100.0],
+      "unit": "percentage",
+      "precision": 1,
+      "formula": "(sum_of_5_questions / 15) * 100",
+      "max_points": 15,
+      "questions_per_dimension": 5,
+      "description": "Aggregate of 5 questions in a dimension"
+    },
+    "level_3": {
+      "name": "Point Score",
+      "range": [0.0, 100.0],
+      "unit": "percentage",
+      "precision": 1,
+      "formula": "sum_of_6_dimensions / 6",
+      "dimensions_per_point": 6,
+      "description": "Aggregate of 6 dimensions in a thematic point"
+    },
+    "level_4": {
+      "name": "Global Score",
+      "range": [0.0, 100.0],
+      "unit": "percentage",
+      "precision": 1,
+      "formula": "sum_of_applicable_points / count_applicable",
+      "exclude_na": true,
+      "description": "Aggregate of all thematic points (excluding N/A)"
+    }
+  },
+
+  "score_bands": {
+    "EXCELENTE": {
+      "min": 85,
+      "max": 100,
+      "color": "🟢",
+      "emoji": "🟢🟢🟢",
+      "description": "Diseño causal robusto. Cumple estándares avanzados de planificación basada en evidencia.",
+      "recommendation": "PDM cumple con estándares avanzados. Implementación directa recomendada."
+    },
+    "BUENO": {
+      "min": 70,
+      "max": 84,
+      "color": "🟡",
+      "emoji": "🟢🟢⚪",
+      "description": "Diseño sólido con vacíos menores. Requiere ajustes específicos identificados.",
+      "recommendation": "PDM sólido con vacíos menores. Realizar ajustes específicos antes de implementación."
+    },
+    "SATISFACTORIO": {
+      "min": 55,
+      "max": 69,
+      "color": "🟠",
+      "emoji": "🟢⚪⚪",
+      "description": "Cumple requisitos mínimos. Requiere mejoras sustanciales en dimensiones débiles.",
+      "recommendation": "PDM cumple mínimos. Requiere mejoras sustanciales en dimensiones débiles."
+    },
+    "INSUFICIENTE": {
+      "min": 40,
+      "max": 54,
+      "color": "🔴",
+      "emoji": "⚪⚪⚪",
+      "description": "Vacíos críticos en diseño causal. Alta probabilidad de fallo en implementación.",
+      "recommendation": "PDM con vacíos críticos. Reformulación sustancial requerida."
+    },
+    "DEFICIENTE": {
+      "min": 0,
+      "max": 39,
+      "color": "⚫",
+      "emoji": "❌❌❌",
+      "description": "Ausencia de diseño causal verificable. Intervención no fundamentada.",
+      "recommendation": "PDM no cumple estándares básicos. Rediseño completo necesario."
+    }
+  },
+
+  "dimensions": {
+    "D1": {
+      "id": "D1",
+      "name": "Diagnóstico y Recursos",
+      "description": "Líneas base, magnitud del problema, recursos y capacidades institucionales",
+      "questions": ["Q1", "Q2", "Q3", "Q4", "Q5"],
+      "max_score": 15
+    },
+    "D2": {
+      "id": "D2",
+      "name": "Diseño de Intervención",
+      "description": "Formalización de actividades, población diana, correspondencia problema-producto",
+      "questions": ["Q6", "Q7", "Q8", "Q9", "Q10"],
+      "max_score": 15
+    },
+    "D3": {
+      "id": "D3",
+      "name": "Productos y Outputs",
+      "description": "Estándares técnicos, proporcionalidad, cuantificación, responsables, justificación causal",
+      "questions": ["Q11", "Q12", "Q13", "Q14", "Q15"],
+      "max_score": 15
+    },
+    "D4": {
+      "id": "D4",
+      "name": "Resultados y Outcomes",
+      "description": "Indicadores de resultado, diferenciación, magnitud del cambio, atribución, monitoreo",
+      "questions": ["Q16", "Q17", "Q18", "Q19", "Q20"],
+      "max_score": 15
+    },
+    "D5": {
+      "id": "D5",
+      "name": "Impactos y Efectos de Largo Plazo",
+      "description": "Indicadores de impacto, horizontes temporales, efectos sistémicos, sostenibilidad, equidad",
+      "questions": ["Q21", "Q22", "Q23", "Q24", "Q25"],
+      "max_score": 15
+    },
+    "D6": {
+      "id": "D6",
+      "name": "Teoría de Cambio y Coherencia Causal",
+      "description": "Teoría de cambio explícita, supuestos, modelo lógico, seguimiento, evaluación",
+      "questions": ["Q26", "Q27", "Q28", "Q29", "Q30"],
+      "max_score": 15
+    }
+  },
+
+  "questions": [
+    {
+      "id": "D1-Q1",
+      "dimension": "D1",
+      "question_no": 1,
+      "template": "¿El diagnóstico presenta líneas base con fuentes, series temporales, unidades, cobertura y método de medición para {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_A",
+      "max_score": 3.0,
+      "expected_elements": [
+        "valor_numerico",
+        "año",
+        "fuente",
+        "serie_temporal"
+      ],
+      "search_patterns": {
+        "valor_numerico": {
+          "type": "regex",
+          "pattern": "\\d+[.,]?\\d*\\s*(%|casos|personas|tasa|porcentaje|índice)",
+          "description": "Buscar valor numérico con unidad"
+        },
+        "año": {
+          "type": "regex",
+          "pattern": "(20\\d{2}|periodo|año|vigencia)",
+          "description": "Buscar año o período de medición"
+        },
+        "fuente": {
+          "type": "regex",
+          "pattern": "(fuente:|según|DANE|Ministerio|Secretaría|Encuesta|Censo|SISBEN|SIVIGILA|\\(20\\d{2}\\))",
+          "description": "Buscar fuente de datos identificada"
+        },
+        "serie_temporal": {
+          "type": "regex",
+          "pattern": "(20\\d{2}.{0,50}20\\d{2}|serie|histórico|evolución|tendencia)",
+          "description": "Buscar serie temporal o datos históricos"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "feasibility",
+        "extraction_method": "Check feasibility.has_baseline, metadata, detailed_matches"
+      }
+    },
+    {
+      "id": "D1-Q2",
+      "dimension": "D1",
+      "question_no": 2,
+      "template": "¿Las líneas base capturan la magnitud del problema y los vacíos de información, explicitando sesgos, supuestos y calidad de datos para {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_B",
+      "max_score": 3.0,
+      "expected_elements": [
+        "poblacion_afectada",
+        "brecha_deficit",
+        "vacios_info"
+      ],
+      "search_patterns": {
+        "poblacion_afectada": {
+          "type": "regex",
+          "pattern": "(\\d+\\s*(personas|habitantes|casos|familias|mujeres|niños)|población.*\\d+|afectados.*\\d+)",
+          "description": "Población afectada cuantificada"
+        },
+        "brecha_deficit": {
+          "type": "regex",
+          "pattern": "(brecha|déficit|diferencia|faltante|carencia|necesidad insatisfecha).{0,30}\\d+",
+          "description": "Brecha o déficit calculado"
+        },
+        "vacios_info": {
+          "type": "regex",
+          "pattern": "(sin datos|no.*disponible|vacío|falta.*información|se requiere.*datos|limitación.*información|no se cuenta con)",
+          "description": "Vacíos de información reconocidos"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "feasibility",
+        "extraction_method": "Count indicators, check contradictions"
+      }
+    },
+    {
+      "id": "D1-Q3",
+      "dimension": "D1",
+      "question_no": 3,
+      "template": "¿Los recursos del PPI/Plan Indicativo están asignados explícitamente a {PUNTO_TEMATICO}, con trazabilidad programática y suficiencia relativa a la brecha?",
+      "scoring_modality": "TYPE_B",
+      "max_score": 3.0,
+      "expected_elements": [
+        "presupuesto_total",
+        "desglose",
+        "trazabilidad"
+      ],
+      "search_patterns": {
+        "presupuesto_total": {
+          "type": "regex",
+          "pattern": "\\$\\s*\\d+([.,]\\d+)?\\s*(millones|miles de millones|mil|COP|pesos)",
+          "description": "Presupuesto total identificado"
+        },
+        "desglose": {
+          "type": "regex",
+          "pattern": "(20\\d{2}.*\\$|Producto.*\\$|Meta.*\\$|anual|vigencia.*presupuesto|por año)",
+          "description": "Desglose temporal o por producto"
+        },
+        "trazabilidad": {
+          "type": "regex",
+          "pattern": "(Programa.{0,50}(inversión|presupuesto|recursos))",
+          "description": "Trazabilidad programa-presupuesto"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "monetary",
+        "extraction_method": "Check len(monetary) > 0, analyze for temporal breakdown, verify responsibilities"
+      }
+    },
+    {
+      "id": "D1-Q4",
+      "dimension": "D1",
+      "question_no": 4,
+      "template": "¿Las capacidades institucionales (talento, procesos, datos, gobernanza) necesarias para activar los mecanismos causales en {PUNTO_TEMATICO} están descritas con sus cuellos de botella?",
+      "scoring_modality": "TYPE_B",
+      "max_score": 3.0,
+      "expected_elements": [
+        "recursos_humanos",
+        "infraestructura",
+        "procesos_instancias"
+      ],
+      "search_patterns": {
+        "recursos_humanos": {
+          "type": "regex",
+          "pattern": "(profesionales|técnicos|funcionarios|personal|equipo|contratación|psicólogo|trabajador social|profesional).{0,50}\\d+|se requiere.*personal|brecha.*talento",
+          "description": "Recursos humanos mencionados"
+        },
+        "infraestructura": {
+          "type": "regex",
+          "pattern": "(infraestructura|equipamiento|sede|oficina|espacios|dotación|vehículos|adecuación)",
+          "description": "Infraestructura/equipamiento mencionado"
+        },
+        "procesos_instancias": {
+          "type": "regex",
+          "pattern": "(Secretaría|Comisaría|Comité|Mesa|Consejo|Sistema|procedimiento|protocolo|ruta|proceso de)",
+          "description": "Procesos o instancias institucionales"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "responsibilities",
+        "extraction_method": "Count entities by type, filter for institutional capacity indicators"
+      }
+    },
+    {
+      "id": "D1-Q5",
+      "dimension": "D1",
+      "question_no": 5,
+      "template": "¿Existe coherencia entre objetivos, recursos y capacidades para {PUNTO_TEMATICO}, con restricciones legales, presupuestales y temporales modeladas?",
+      "scoring_modality": "TYPE_E",
+      "max_score": 3.0,
+      "expected_elements": [
+        "presupuesto_presente",
+        "productos_definidos"
+      ],
+      "logical_rule": "if presupuesto > 0 and num_productos > 0: 3 elif presupuesto > 0: 2 else: 0",
+      "search_patterns": {
+        "presupuesto_presente": {
+          "type": "logical",
+          "pattern": {"check": "presupuesto > 0"},
+          "description": "Verificar existencia de presupuesto"
+        },
+        "productos_definidos": {
+          "type": "logical",
+          "pattern": {"check": "num_productos > 0"},
+          "description": "Verificar existencia de productos definidos"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": ["monetary", "feasibility"],
+        "extraction_method": "Logical check: len(monetary) > 0 AND len(feasibility.detailed_matches) > 0"
+      }
+    },
+    {
+      "id": "D2-Q6",
+      "dimension": "D2",
+      "question_no": 6,
+      "template": "¿Las actividades para {PUNTO_TEMATICO} están formalizadas en tablas (responsable, insumo, output, calendario, costo unitario) y no sólo en narrativa?",
+      "scoring_modality": "TYPE_A",
+      "max_score": 3.0,
+      "expected_elements": [
+        "Producto",
+        "Meta",
+        "Unidad",
+        "Responsable"
+      ],
+      "search_patterns": {
+        "tabla_productos": {
+          "type": "table",
+          "pattern": {"columns": ["Producto", "Meta", "Unidad", "Responsable"]},
+          "description": "Detectar tabla con columnas requeridas"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "feasibility",
+        "extraction_method": "Check for structured data in detailed_matches, verify responsibilities exist"
+      }
+    },
+    {
+      "id": "D2-Q7",
+      "dimension": "D2",
+      "question_no": 7,
+      "template": "¿Cada actividad especifica el instrumento y su mecanismo causal pretendido y la población diana en {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_B",
+      "max_score": 3.0,
+      "expected_elements": [
+        "poblacion_objetivo",
+        "cuantificacion",
+        "focalizacion"
+      ],
+      "search_patterns": {
+        "poblacion_objetivo": {
+          "type": "regex",
+          "pattern": "(mujeres|niños|niñas|adolescentes|jóvenes|víctimas|familias|comunidad|población|adultos mayores|personas con discapacidad)",
+          "description": "Población objetivo nombrada"
+        },
+        "cuantificacion": {
+          "type": "regex",
+          "pattern": "\\d+\\s*(personas|beneficiarios|familias|atenciones|servicios|participantes)",
+          "description": "Cuantificación de beneficiarios"
+        },
+        "focalizacion": {
+          "type": "regex",
+          "pattern": "(zona rural|urbano|cabecera|prioridad|vulnerable|focalización|criterios|selección|población objetivo)",
+          "description": "Criterios de focalización"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "responsibilities",
+        "extraction_method": "Extract population targets from responsibilities and feasibility"
+      }
+    },
+    {
+      "id": "D2-Q8",
+      "dimension": "D2",
+      "question_no": 8,
+      "template": "¿Cada problema priorizado en {PUNTO_TEMATICO} tiene al menos una actividad que ataca el eslabón causal relevante (causa raíz o mediador)?",
+      "scoring_modality": "TYPE_F",
+      "max_score": 3.0,
+      "expected_elements": [
+        "problemas_diagnostico",
+        "productos_tabla"
+      ],
+      "thresholds": {
+        "high": 0.80,
+        "medium": 0.50,
+        "low": 0.30
+      },
+      "scoring_formula": "ratio >= 0.80: 3, >= 0.50: 2, >= 0.30: 1, else: 0",
+      "search_patterns": {
+        "problemas_diagnostico": {
+          "type": "semantic",
+          "pattern": {"extract": "problems_from_diagnosis"},
+          "description": "Extraer problemas del diagnóstico"
+        },
+        "productos_tabla": {
+          "type": "semantic",
+          "pattern": {"extract": "products_from_table"},
+          "description": "Extraer productos de tabla"
+        },
+        "matching": {
+          "type": "semantic",
+          "pattern": {"method": "cosine_similarity", "threshold": 0.6},
+          "description": "Matching semántico problema-producto"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": ["causal_patterns", "feasibility"],
+        "extraction_method": "Calculate ratio: num_products / num_problems from causal_patterns"
+      }
+    },
+    {
+      "id": "D2-Q9",
+      "dimension": "D2",
+      "question_no": 9,
+      "template": "¿Se identifican riesgos de desplazamiento de efectos, cuñas de implementación y conflictos entre actividades en {PUNTO_TEMATICO}, con mitigaciones?",
+      "scoring_modality": "TYPE_C",
+      "max_score": 3.0,
+      "expected_elements": [
+        "riesgos_explicitos",
+        "factores_externos"
+      ],
+      "search_patterns": {
+        "riesgos_explicitos": {
+          "type": "regex",
+          "pattern": "(riesgo|limitación|restricción|dificultad|cuello de botella|matriz.*riesgo|desafío|obstáculo)",
+          "description": "Mención explícita de riesgos"
+        },
+        "factores_externos": {
+          "type": "regex",
+          "pattern": "(depende|articulación|coordinación|transversal|nivel nacional|competencia de|requiere apoyo|sujeto a)",
+          "description": "Factores externos reconocidos"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "contradictions",
+        "extraction_method": "Check contradictions.total > 0 and risk_level"
+      }
+    },
+    {
+      "id": "D2-Q10",
+      "dimension": "D2",
+      "question_no": 10,
+      "template": "¿Las actividades de {PUNTO_TEMATICO} forman una teoría de intervención coherente (complementariedades, secuenciación, no redundancias)?",
+      "scoring_modality": "TYPE_C",
+      "max_score": 3.0,
+      "expected_elements": [
+        "integracion",
+        "referencia_cruzada"
+      ],
+      "search_patterns": {
+        "integracion": {
+          "type": "regex",
+          "pattern": "(articulación|complementa|sinergia|coordinación|integra|transversal|en conjunto|simultáneamente)",
+          "description": "Términos de integración"
+        },
+        "referencia_cruzada": {
+          "type": "regex",
+          "pattern": "(programa de|articulado con|en el marco de|junto con|además de)",
+          "description": "Referencias cruzadas a otros programas"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "teoria_cambio",
+        "extraction_method": "Check teoria_cambio.is_valid and complete_paths > 0"
+      }
+    },
+    {
+      "id": "D3-Q11",
+      "dimension": "D3",
+      "question_no": 11,
+      "template": "¿Se mencionan estándares técnicos o protocolos para los productos de {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_C",
+      "max_score": 3.0,
+      "expected_elements": [
+        "estandares",
+        "control_calidad"
+      ],
+      "search_patterns": {
+        "estandares": {
+          "type": "regex",
+          "pattern": "(norma|estándar|protocolo|lineamiento|guía|directriz|NTC|ISO|Resolución|Decreto|Ley|según el Ministerio)",
+          "description": "Normas/estándares/protocolos"
+        },
+        "control_calidad": {
+          "type": "regex",
+          "pattern": "(certificación|acreditación|supervisión|verificación|control de calidad|seguimiento|auditoría)",
+          "description": "Supervisión/verificación"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "feasibility",
+        "extraction_method": "Search for quality standards in detailed_matches"
+      }
+    },
+    {
+      "id": "D3-Q12",
+      "dimension": "D3",
+      "question_no": 12,
+      "template": "¿La meta de productos es proporcional a la magnitud del problema en {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_D",
+      "max_score": 3.0,
+      "expected_elements": [
+        "magnitud_problema",
+        "meta_producto"
+      ],
+      "thresholds": {
+        "high": 0.50,
+        "medium": 0.20,
+        "low": 0.05
+      },
+      "scoring_formula": "ratio >= 0.50: 3, >= 0.20: 2, >= 0.05: 1, else: 0",
+      "search_patterns": {
+        "magnitud_problema": {
+          "type": "quantitative",
+          "pattern": {"source": "Q2", "field": "poblacion_afectada"},
+          "description": "Extraer magnitud del problema"
+        },
+        "meta_producto": {
+          "type": "quantitative",
+          "pattern": {"source": "tabla_productos", "field": "meta"},
+          "description": "Extraer meta de producto principal"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": ["feasibility", "causal_patterns"],
+        "extraction_method": "Calculate ratio: meta_producto / magnitud_problema"
+      }
+    },
+    {
+      "id": "D3-Q13",
+      "dimension": "D3",
+      "question_no": 13,
+      "template": "¿Las metas de productos en {PUNTO_TEMATICO} están cuantificadas?",
+      "scoring_modality": "TYPE_C",
+      "max_score": 3.0,
+      "expected_elements": [
+        "meta_numerica",
+        "desagregacion"
+      ],
+      "search_patterns": {
+        "meta_numerica": {
+          "type": "regex",
+          "pattern": "\\d+",
+          "description": "Meta numérica presente"
+        },
+        "desagregacion": {
+          "type": "regex",
+          "pattern": "(\\d+.{0,20}(rural|urbano|2024|2025|2026|2027|hombres|mujeres|año|anual))",
+          "description": "Desagregación de meta"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "feasibility",
+        "extraction_method": "Check for TARGET type in detailed_matches with numeric values"
+      }
+    },
+    {
+      "id": "D3-Q14",
+      "dimension": "D3",
+      "question_no": 14,
+      "template": "¿Cada producto en {PUNTO_TEMATICO} tiene una dependencia responsable asignada?",
+      "scoring_modality": "TYPE_D",
+      "max_score": 3.0,
+      "expected_elements": [
+        "productos_tabla"
+      ],
+      "thresholds": {
+        "high": 0.90,
+        "medium": 0.70,
+        "low": 0.40
+      },
+      "scoring_formula": "ratio >= 0.90: 3, >= 0.70: 2, >= 0.40: 1, else: 0",
+      "search_patterns": {
+        "productos_tabla": {
+          "type": "table",
+          "pattern": {"extract_column": "Responsable"},
+          "description": "Extraer columna Responsable de tabla"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "responsibilities",
+        "extraction_method": "Calculate ratio: products_with_responsible / total_products"
+      }
+    },
+    {
+      "id": "D3-Q15",
+      "dimension": "D3",
+      "question_no": 15,
+      "template": "¿Los productos de {PUNTO_TEMATICO} tienen justificación causal (relación con resultados esperados)?",
+      "scoring_modality": "TYPE_D",
+      "max_score": 3.0,
+      "expected_elements": [
+        "terminos_causales"
+      ],
+      "thresholds": {
+        "high": 0.70,
+        "medium": 0.40,
+        "low": 0.20
+      },
+      "scoring_formula": "ratio >= 0.70: 3, >= 0.40: 2, >= 0.20: 1, else: 0",
+      "search_patterns": {
+        "terminos_causales": {
+          "type": "regex",
+          "pattern": "(para|con el fin de|contribuye a|permite|lograr|reducir|aumentar)",
+          "description": "Términos causales en contexto de productos"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "causal_patterns",
+        "extraction_method": "Calculate ratio: products_with_causal_terms / total_products"
+      }
+    },
+    {
+      "id": "D4-Q16",
+      "dimension": "D4",
+      "question_no": 16,
+      "template": "¿Existe un indicador de resultado formalizado para {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_A",
+      "max_score": 3.0,
+      "expected_elements": [
+        "nombre_indicador",
+        "linea_base",
+        "meta",
+        "fuente"
+      ],
+      "search_patterns": {
+        "nombre_indicador": {
+          "type": "regex",
+          "pattern": "(Tasa|Porcentaje|Índice|Cobertura|Prevalencia|Incidencia).{0,100}(resultado|impacto)",
+          "description": "Nombre del indicador de resultado"
+        },
+        "linea_base": {
+          "type": "regex",
+          "pattern": "(línea base|LB|valor inicial|20(21|22|23)).*\\d+",
+          "description": "Línea base numérica"
+        },
+        "meta": {
+          "type": "regex",
+          "pattern": "(meta|valor esperado|20(27|28)).*\\d+",
+          "description": "Meta cuatrienio"
+        },
+        "fuente": {
+          "type": "regex",
+          "pattern": "(fuente|según|medición|DANE|Ministerio|Secretaría)",
+          "description": "Fuente del indicador"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "feasibility",
+        "extraction_method": "Check for INDICATOR type with baseline, target, and source"
+      }
+    },
+    {
+      "id": "D4-Q17",
+      "dimension": "D4",
+      "question_no": 17,
+      "template": "¿El indicador de resultado de {PUNTO_TEMATICO} es diferente de los indicadores de producto?",
+      "scoring_modality": "TYPE_E",
+      "max_score": 3.0,
+      "expected_elements": [
+        "indicador_resultado",
+        "indicador_resultado_valido"
+      ],
+      "logical_rule": "if es_gestion: 0 elif es_resultado: 3 else: 1",
+      "search_patterns": {
+        "indicador_resultado": {
+          "type": "semantic",
+          "pattern": {"check_not": ["número de", "cantidad de", "talleres realizados", "servicios prestados"]},
+          "description": "Verificar que no es indicador de gestión"
+        },
+        "indicador_resultado_valido": {
+          "type": "semantic",
+          "pattern": {"check": ["tasa", "porcentaje", "cobertura", "reducción", "aumento"]},
+          "description": "Verificar que es indicador de resultado"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "feasibility",
+        "extraction_method": "Classify indicator as management vs outcome type"
+      }
+    },
+    {
+      "id": "D4-Q18",
+      "dimension": "D4",
+      "question_no": 18,
+      "template": "¿Cuál es la magnitud del cambio esperado en el indicador de resultado de {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_E",
+      "max_score": 3.0,
+      "expected_elements": [
+        "linea_base_valor",
+        "meta_valor"
+      ],
+      "thresholds": {
+        "high": 20,
+        "medium": 10,
+        "low": 5
+      },
+      "logical_rule": "abs(cambio%) >= 20: 3, >= 10: 2, >= 5: 1, else: 0",
+      "search_patterns": {
+        "linea_base_valor": {
+          "type": "quantitative",
+          "pattern": {"source": "Q16", "field": "linea_base"},
+          "description": "Valor de línea base"
+        },
+        "meta_valor": {
+          "type": "quantitative",
+          "pattern": {"source": "Q16", "field": "meta"},
+          "description": "Valor de meta"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "feasibility",
+        "extraction_method": "Calculate percentage change: abs((meta - baseline) / baseline * 100)"
+      }
+    },
+    {
+      "id": "D4-Q19",
+      "dimension": "D4",
+      "question_no": 19,
+      "template": "¿Se reconoce que el resultado en {PUNTO_TEMATICO} depende de múltiples factores?",
+      "scoring_modality": "TYPE_C",
+      "max_score": 3.0,
+      "expected_elements": [
+        "contribucion",
+        "factores_externos"
+      ],
+      "search_patterns": {
+        "contribucion": {
+          "type": "regex",
+          "pattern": "(contribuye|aporta|incide|influye|favorece|apoya)",
+          "description": "Términos de contribución (no causalidad directa)"
+        },
+        "factores_externos": {
+          "type": "regex",
+          "pattern": "(también|otros programas|nivel nacional|articulación|transversal|depende|conjunto de)",
+          "description": "Factores externos mencionados"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": ["teoria_cambio", "contradictions"],
+        "extraction_method": "Check for recognition of external dependencies"
+      }
+    },
+    {
+      "id": "D4-Q20",
+      "dimension": "D4",
+      "question_no": 20,
+      "template": "¿Se especifica cómo se monitoreará el indicador de resultado de {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_C",
+      "max_score": 3.0,
+      "expected_elements": [
+        "frecuencia",
+        "responsable"
+      ],
+      "search_patterns": {
+        "frecuencia": {
+          "type": "regex",
+          "pattern": "(anual|semestral|trimestral|mensual|periódic|seguimiento|medición)",
+          "description": "Frecuencia de medición"
+        },
+        "responsable": {
+          "type": "regex",
+          "pattern": "(Secretaría|Dirección|Oficina|Dependencia).{0,50}(responsable|encargado|medición|seguimiento)",
+          "description": "Responsable de medición"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "responsibilities",
+        "extraction_method": "Check for monitoring entities and frequency mentions"
+      }
+    },
+    {
+      "id": "D5-Q21",
+      "dimension": "D5",
+      "question_no": 21,
+      "template": "¿Existe un indicador de impacto de largo plazo para {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_E",
+      "max_score": 3.0,
+      "expected_elements": [
+        "seccion_impacto",
+        "referencia_ODS",
+        "mencion_impacto"
+      ],
+      "logical_rule": "if seccion_impacto and indicadores: 3 elif referencia_ODS: 2 elif mencion: 1 else: 0",
+      "search_patterns": {
+        "seccion_impacto": {
+          "type": "semantic",
+          "pattern": {"check_section": ["Impacto", "Componente"]},
+          "description": "Sección de impacto presente"
+        },
+        "referencia_ODS": {
+          "type": "regex",
+          "pattern": "(ODS|Objetivo.*Desarrollo Sostenible|CONPES|PND)",
+          "description": "Referencias a ODS/CONPES/PND"
+        },
+        "mencion_impacto": {
+          "type": "regex",
+          "pattern": "(impacto de largo plazo|impacto socioeconómico)",
+          "description": "Mención narrativa de impacto"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "evaluation",
+        "extraction_method": "Check for impact indicators in evaluation results"
+      }
+    },
+    {
+      "id": "D5-Q22",
+      "dimension": "D5",
+      "question_no": 22,
+      "template": "¿Se menciona el horizonte temporal de los impactos en {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_C",
+      "max_score": 3.0,
+      "expected_elements": [
+        "plazos",
+        "post_cuatrienio"
+      ],
+      "search_patterns": {
+        "plazos": {
+          "type": "regex",
+          "pattern": "(corto plazo|mediano plazo|largo plazo|\\d+ años|más de \\d+ años)",
+          "description": "Plazos mencionados"
+        },
+        "post_cuatrienio": {
+          "type": "regex",
+          "pattern": "(más allá|sostenibilidad|continuidad|después de 20\\d{2}|posterior)",
+          "description": "Efectos post-cuatrienio"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "teoria_cambio",
+        "extraction_method": "Check for temporal horizons in theory of change"
+      }
+    },
+    {
+      "id": "D5-Q23",
+      "dimension": "D5",
+      "question_no": 23,
+      "template": "¿Se mencionan efectos indirectos o sistémicos en {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_C",
+      "max_score": 3.0,
+      "expected_elements": [
+        "indirectos",
+        "sistemico"
+      ],
+      "search_patterns": {
+        "indirectos": {
+          "type": "regex",
+          "pattern": "(efecto.{0,20}indirecto|multiplicador|cascada|secundario|colateral|derivado)",
+          "description": "Efectos indirectos"
+        },
+        "sistemico": {
+          "type": "regex",
+          "pattern": "(transformación|cambio cultural|normas sociales|institucional|estructural)",
+          "description": "Cambio sistémico"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "causal_patterns",
+        "extraction_method": "Check for indirect/systemic effects in causal patterns"
+      }
+    },
+    {
+      "id": "D5-Q24",
+      "dimension": "D5",
+      "question_no": 24,
+      "template": "¿Se menciona la sostenibilidad de las acciones en {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_B",
+      "max_score": 3.0,
+      "expected_elements": [
+        "sostenibilidad",
+        "institucionalizacion",
+        "financiamiento"
+      ],
+      "search_patterns": {
+        "sostenibilidad": {
+          "type": "regex",
+          "pattern": "(sostenibilidad|sostenible|permanente|continuidad|perdurable)",
+          "description": "Término sostenibilidad"
+        },
+        "institucionalizacion": {
+          "type": "regex",
+          "pattern": "(institucionalización|Acuerdo Municipal|Ordenanza|creación de|fortalecimiento permanente)",
+          "description": "Institucionalización"
+        },
+        "financiamiento": {
+          "type": "regex",
+          "pattern": "(cofinanciación|recursos futuros|alianzas|convenio|fuentes de financiamiento)",
+          "description": "Financiamiento futuro"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": ["teoria_cambio", "monetary"],
+        "extraction_method": "Check for sustainability mentions in theory of change preconditions"
+      }
+    },
+    {
+      "id": "D5-Q25",
+      "dimension": "D5",
+      "question_no": 25,
+      "template": "¿Se menciona un enfoque diferencial o de equidad en {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_B",
+      "max_score": 3.0,
+      "expected_elements": [
+        "equidad",
+        "desagregacion",
+        "focalizacion"
+      ],
+      "search_patterns": {
+        "equidad": {
+          "type": "regex",
+          "pattern": "(enfoque diferencial|equidad|inclusión|priorización|vulnerable|diversidad)",
+          "description": "Términos de equidad"
+        },
+        "desagregacion": {
+          "type": "regex",
+          "pattern": "(rural|urbano|étnico|indígena|afro|negro|raizal|género|edad|discapacidad|LGTBIQ)",
+          "description": "Desagregación por grupos"
+        },
+        "focalizacion": {
+          "type": "regex",
+          "pattern": "(focalización|criterios de selección|priorizando|preferencia)",
+          "description": "Focalización progresiva"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "responsibilities",
+        "extraction_method": "Check for differential approach mentions in population targeting"
+      }
+    },
+    {
+      "id": "D6-Q26",
+      "dimension": "D6",
+      "question_no": 26,
+      "template": "¿Existe un diagrama o narrativa de teoría de cambio para {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_E",
+      "max_score": 3.0,
+      "expected_elements": [
+        "diagrama",
+        "narrativa_causal"
+      ],
+      "logical_rule": "if diagrama: 3 elif narrativa: 2 else: 0",
+      "search_patterns": {
+        "diagrama": {
+          "type": "semantic",
+          "pattern": {"detect_image": ["insumos", "productos", "resultados", "impactos", "teoría", "marco lógico"]},
+          "description": "Diagrama de teoría de cambio"
+        },
+        "narrativa_causal": {
+          "type": "regex",
+          "pattern": "(teoría de cambio|marco lógico|cadena causal|modelo de intervención)",
+          "description": "Narrativa de teoría de cambio"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "teoria_cambio",
+        "extraction_method": "Check teoria_cambio.is_valid"
+      }
+    },
+    {
+      "id": "D6-Q27",
+      "dimension": "D6",
+      "question_no": 27,
+      "template": "¿Se mencionan supuestos o condiciones necesarias para {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_C",
+      "max_score": 3.0,
+      "expected_elements": [
+        "supuestos",
+        "factores_necesarios"
+      ],
+      "search_patterns": {
+        "supuestos": {
+          "type": "regex",
+          "pattern": "(supuesto|condición|si.{0,30}entonces|siempre que|requiere que|asumiendo)",
+          "description": "Término supuesto o condición"
+        },
+        "factores_necesarios": {
+          "type": "regex",
+          "pattern": "(depende de|necesario que|en tanto|contexto favorable|apoyo de|voluntad política)",
+          "description": "Factores externos necesarios"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "teoria_cambio",
+        "extraction_method": "Check for assumptions in teoria_cambio.supuestos_causales"
+      }
+    },
+    {
+      "id": "D6-Q28",
+      "dimension": "D6",
+      "question_no": 28,
+      "template": "¿Se identifican los niveles del modelo lógico (insumos→productos→resultados→impactos) para {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_E",
+      "max_score": 3.0,
+      "expected_elements": [
+        "niveles"
+      ],
+      "logical_rule": "niveles >= 4: 3, == 3: 2, == 2: 1, else: 0",
+      "search_patterns": {
+        "niveles": {
+          "type": "semantic",
+          "pattern": {"detect_levels": ["Insumos", "Actividades", "Productos", "Resultados", "Impactos"]},
+          "description": "Niveles del modelo lógico"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "teoria_cambio",
+        "extraction_method": "Count logical framework levels present"
+      }
+    },
+    {
+      "id": "D6-Q29",
+      "dimension": "D6",
+      "question_no": 29,
+      "template": "¿Se menciona un sistema de seguimiento para {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_B",
+      "max_score": 3.0,
+      "expected_elements": [
+        "instancia",
+        "frecuencia",
+        "ajustes"
+      ],
+      "search_patterns": {
+        "instancia": {
+          "type": "regex",
+          "pattern": "(Consejo de Gobierno|Comité de seguimiento|Sistema de evaluación|Mesa técnica)",
+          "description": "Instancia de seguimiento"
+        },
+        "frecuencia": {
+          "type": "regex",
+          "pattern": "(trimestral|semestral|anual|periódico|cada \\d+ meses)",
+          "description": "Frecuencia de seguimiento"
+        },
+        "ajustes": {
+          "type": "regex",
+          "pattern": "(ajuste|corrección|revisión|modificación|actualización|reformulación)",
+          "description": "Ajustes/correcciones mencionados"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "responsibilities",
+        "extraction_method": "Check for monitoring committees and processes"
+      }
+    },
+    {
+      "id": "D6-Q30",
+      "dimension": "D6",
+      "question_no": 30,
+      "template": "¿Se menciona evaluación o documentación de aprendizajes en {PUNTO_TEMATICO}?",
+      "scoring_modality": "TYPE_C",
+      "max_score": 3.0,
+      "expected_elements": [
+        "evaluacion",
+        "aprendizaje"
+      ],
+      "search_patterns": {
+        "evaluacion": {
+          "type": "regex",
+          "pattern": "(evaluación|medio término|línea final|estudio de impacto|evaluación externa)",
+          "description": "Evaluación planificada"
+        },
+        "aprendizaje": {
+          "type": "regex",
+          "pattern": "(sistematización|lecciones aprendidas|documentación|buenas prácticas|mejora continua)",
+          "description": "Sistematización/aprendizaje"
+        }
+      },
+      "evidence_sources": {
+        "orchestrator_key": "evaluation",
+        "extraction_method": "Check for evaluation and learning mechanisms"
+      }
+    }
+  ],
+
+  "thematic_points": {
+    "P1": {
+      "id": "P1",
+      "title": "Derechos de las mujeres e igualdad de género",
+      "keywords": ["mujer", "género", "violencia", "igualdad", "equidad"],
+      "applies_all_questions": true
+    },
+    "P2": {
+      "id": "P2",
+      "title": "Prevención de la violencia y protección frente al conflicto",
+      "keywords": ["conflicto", "violencia", "paz", "víctimas", "seguridad"],
+      "applies_all_questions": true
+    },
+    "P3": {
+      "id": "P3",
+      "title": "Ambiente sano, cambio climático, prevención y atención a desastres",
+      "keywords": ["ambiente", "clima", "desastre", "sostenible", "biodiversidad"],
+      "applies_all_questions": true
+    },
+    "P4": {
+      "id": "P4",
+      "title": "Derechos económicos, sociales y culturales",
+      "keywords": ["educación", "salud", "cultura", "empleo", "vivienda"],
+      "applies_all_questions": true
+    },
+    "P5": {
+      "id": "P5",
+      "title": "Derechos de las víctimas y construcción de paz",
+      "keywords": ["víctimas", "paz", "reparación", "reconciliación", "memoria"],
+      "applies_all_questions": true
+    },
+    "P6": {
+      "id": "P6",
+      "title": "Derecho al buen futuro de la niñez, adolescencia, juventud",
+      "keywords": ["niñez", "juventud", "adolescencia", "educación", "protección"],
+      "applies_all_questions": true
+    },
+    "P7": {
+      "id": "P7",
+      "title": "Tierras y territorios",
+      "keywords": ["tierra", "territorio", "rural", "agro", "campesino"],
+      "applies_all_questions": true
+    },
+    "P8": {
+      "id": "P8",
+      "title": "Líderes y defensores de derechos humanos",
+      "keywords": ["líderes", "defensores", "DDHH", "comunidad", "participación"],
+      "applies_all_questions": true
+    },
+    "P9": {
+      "id": "P9",
+      "title": "Crisis de derechos de personas privadas de la libertad",
+      "keywords": ["cárcel", "privados", "libertad", "penitenciario", "reinserción"],
+      "applies_all_questions": true,
+      "can_be_na": true,
+      "na_condition": "No existe centro de reclusión en el municipio"
+    },
+    "P10": {
+      "id": "P10",
+      "title": "Migración transfronteriza",
+      "keywords": ["migración", "frontera", "migrante", "desplazamiento", "movilidad"],
+      "applies_all_questions": true,
+      "can_be_na": true,
+      "na_condition": "Municipio no limita con ruta migratoria del Darién"
+    }
+  },
+
+  "validation_rules": {
+    "question_score_range": {
+      "min": 0.0,
+      "max": 3.0,
+      "precision": 2
+    },
+    "dimension_score_range": {
+      "min": 0.0,
+      "max": 100.0,
+      "precision": 1
+    },
+    "point_score_range": {
+      "min": 0.0,
+      "max": 100.0,
+      "precision": 1
+    },
+    "global_score_range": {
+      "min": 0.0,
+      "max": 100.0,
+      "precision": 1
+    },
+    "total_evaluations": 300,
+    "questions_per_dimension": 5,
+    "dimensions_per_point": 6,
+    "max_points": 10
+  },
+
+  "special_cases": {
+    "missing_data": {
+      "rule": "If element not found, mark as False",
+      "score_impact": "Reduces score proportionally"
+    },
+    "not_applicable": {
+      "rule": "Mark point as N/A if criteria met",
+      "exclude_from_global": true,
+      "examples": ["P9: No prison", "P10: Not near migration route"]
+    },
+    "division_by_zero": {
+      "rule": "If denominator = 0, score = 0 or N/A",
+      "applies_to": ["TYPE_D questions with ratio calculations"]
+    },
+    "contradictory_info": {
+      "rule": "Prioritize table data over narrative",
+      "register_alert": true
+    }
+  }
+}
