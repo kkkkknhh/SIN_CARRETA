@@ -8,6 +8,12 @@ verificación causal, certeza probabilística y capacidades de frontera.
 Autor: Dr. en Políticas Públicas
 Enfoque: Evaluación estructural con econometría de políticas, minería causal avanzada,
 procesamiento paralelo industrial y reportes masivos granulares.
+
+ESTRUCTURA CANÓNICA DEL DECÁLOGO (Fuentes: decalogo-industrial.latest.clean.json, 
+dnp-standards.latest.clean.json):
+- 6 DIMENSIONES (D1-D6): INSUMOS, ACTIVIDADES, PRODUCTOS, RESULTADOS, IMPACTOS, CAUSALIDAD
+- 10 PUNTOS PDET (P1-P10): Áreas temáticas prioritarias
+- 300 PREGUNTAS: 6 dimensiones × 10 puntos × 5 preguntas/combinación
 """
 
 import argparse
@@ -377,12 +383,23 @@ class NivelAnalisis(Enum):
 
 
 class TipoCadenaValor(Enum):
+    """Tipos de eslabones en cadena de valor alineados con dimensiones DNP.
+    
+    Mapeo con dimensiones del decálogo (decalogo-industrial.latest.clean.json
+    y dnp-standards.latest.clean.json):
+    - D1: INSUMOS
+    - D2: ACTIVIDADES
+    - D3: PRODUCTOS
+    - D4: RESULTADOS
+    - D5: IMPACTOS
+    - D6: CAUSALIDAD
+    """
     INSUMOS = "Recursos financieros, humanos y físicos"
-    PROCESOS = "Transformación institucional y gestión"
+    ACTIVIDADES = "Transformación institucional y gestión"
     PRODUCTOS = "Bienes/servicios entregables medibles"
     RESULTADOS = "Cambios conductuales/institucionales"
     IMPACTOS = "Bienestar y desarrollo humano sostenible"
-    OUTCOMES = "Efectos de largo plazo y sostenibilidad"
+    CAUSALIDAD = "Teoría de cambio y enlaces causales"
 
 
 class TipoEvidencia(Enum):
@@ -601,7 +618,16 @@ class TeoriaCambioAvanzada:
 
 @dataclass(frozen=True)
 class EslabonCadenaAvanzado:
-    """Eslabón de cadena de valor con capacidades avanzadas."""
+    """Eslabón de cadena de valor con capacidades avanzadas.
+    
+    Representa un eslabón en la cadena de valor de políticas públicas.
+    Los tipos de eslabones están alineados con las 6 dimensiones del decálogo:
+    D1=INSUMOS, D2=ACTIVIDADES, D3=PRODUCTOS, D4=RESULTADOS, D5=IMPACTOS, D6=CAUSALIDAD
+    
+    Fuentes canónicas:
+    - decalogo-industrial.latest.clean.json: 300 preguntas estructuradas
+    - dnp-standards.latest.clean.json: mapeo dimensiones y criterios evaluación
+    """
 
     id: str
     tipo: TipoCadenaValor
@@ -1174,7 +1200,18 @@ class OntologiaPoliticasAvanzada:
 # -------------------- Decálogo avanzado con capacidades de frontera --------------------
 @dataclass(frozen=True)
 class DimensionDecalogoAvanzada:
-    """Dimensión del decálogo con capacidades matemáticas de frontera."""
+    """Dimensión del decálogo con capacidades matemáticas de frontera.
+    
+    Representa una dimensión de evaluación con múltiples eslabones de cadena de valor.
+    El sistema de dimensiones está alineado con el estándar DNP de 6 dimensiones:
+    D1=INSUMOS, D2=ACTIVIDADES, D3=PRODUCTOS, D4=RESULTADOS, D5=IMPACTOS, D6=CAUSALIDAD
+    
+    Cada dimensión contiene 50 preguntas (300 total distribuidas en 6 dimensiones × 50).
+    
+    Fuentes canónicas:
+    - decalogo-industrial.latest.clean.json: estructura de 300 preguntas
+    - dnp-standards.latest.clean.json: criterios evaluación por dimensión
+    """
 
     id: int
     nombre: str
@@ -1214,7 +1251,7 @@ class DimensionDecalogoAvanzada:
             tipos_presentes = {e.tipo for e in self.eslabones}
             tipos_criticos = {
                 TipoCadenaValor.INSUMOS,
-                TipoCadenaValor.PROCESOS,
+                TipoCadenaValor.ACTIVIDADES,
                 TipoCadenaValor.PRODUCTOS,
             }
             cobertura_critica = len(tipos_criticos.intersection(tipos_presentes)) / len(
@@ -1603,11 +1640,11 @@ class DimensionDecalogoAvanzada:
                     "Disponibilidad de infraestructura requerida (%)",
                 ]
             )
-        elif eslabon.tipo == TipoCadenaValor.PROCESOS:
+        elif eslabon.tipo == TipoCadenaValor.ACTIVIDADES:
             indicadores.extend(
                 [
-                    "Porcentaje de procesos implementados según cronograma",
-                    "Tiempo promedio de ejecución de procesos críticos",
+                    "Porcentaje de actividades implementadas según cronograma",
+                    "Tiempo promedio de ejecución de actividades críticas",
                     "Número de cuellos de botella identificados y resueltos",
                 ]
             )
@@ -1650,7 +1687,12 @@ class DimensionDecalogoAvanzada:
 
 # -------------------- Sistema de carga del decálogo avanzado --------------------
 def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
-    """Carga el decálogo industrial con capacidades avanzadas."""
+    """Carga el decálogo industrial con capacidades avanzadas.
+    
+    NOTA: Esta función carga un formato interno avanzado que organiza por
+    10 puntos PDET (P1-P10), diferente del formato canónico de 6 dimensiones (D1-D6).
+    Para acceso a la estructura canónica, usar decalogo_loader.get_decalogo_industrial().
+    """
     json_path = Path("decalogo_industrial_avanzado.json")
 
     if json_path.exists():
@@ -1838,14 +1880,14 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
             "eslabones": [],
         }
 
-        # Generar eslabones más sofisticados
+        # Generar eslabones alineados con dimensiones DNP (D1-D6)
         tipos_eslabon = [
             ("INSUMOS", "Recursos financieros, humanos y normativos"),
-            ("PROCESOS", "Gestión, coordinación e implementación"),
+            ("ACTIVIDADES", "Gestión, coordinación e implementación"),
             ("PRODUCTOS", "Bienes y servicios específicos entregados"),
             ("RESULTADOS", "Cambios medibles en la población objetivo"),
             ("IMPACTOS", "Transformaciones territoriales sostenibles"),
-            ("OUTCOMES", "Efectos de largo plazo en desarrollo humano"),
+            ("CAUSALIDAD", "Teoría de cambio y enlaces causales"),
         ]
 
         for tipo_idx, (tipo_nombre, descripcion) in enumerate(tipos_eslabon):
