@@ -395,11 +395,11 @@ class TipoCadenaValor(Enum):
     - D6: CAUSALIDAD
     """
     INSUMOS = "Recursos financieros, humanos y físicos"
-    ACTIVIDADES = "Transformación institucional y gestión"
+    ACTIVIDADES = "Actividades operacionales e implementación de procesos"
     PRODUCTOS = "Bienes/servicios entregables medibles"
     RESULTADOS = "Cambios conductuales/institucionales"
     IMPACTOS = "Bienestar y desarrollo humano sostenible"
-    CAUSALIDAD = "Teoría de cambio y enlaces causales"
+    CAUSALIDAD = "Teoría de cambio, enlaces causales y modelo lógico de intervención"
 
 
 class TipoEvidencia(Enum):
@@ -1644,7 +1644,7 @@ class DimensionDecalogoAvanzada:
             indicadores.extend(
                 [
                     "Porcentaje de actividades implementadas según cronograma",
-                    "Tiempo promedio de ejecución de actividades críticas",
+                    "Porcentaje de actividades críticas completadas según cronograma",
                     "Número de cuellos de botella identificados y resueltos",
                 ]
             )
@@ -1887,7 +1887,7 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
             ("PRODUCTOS", "Bienes y servicios específicos entregados"),
             ("RESULTADOS", "Cambios medibles en la población objetivo"),
             ("IMPACTOS", "Transformaciones territoriales sostenibles"),
-            ("CAUSALIDAD", "Teoría de cambio y enlaces causales"),
+            ("CAUSALIDAD", "Teoría de cambio, enlaces causales y modelo lógico de intervención"),
         ]
 
         for tipo_idx, (tipo_nombre, descripcion) in enumerate(tipos_eslabon):
