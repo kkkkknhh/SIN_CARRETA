@@ -1887,7 +1887,7 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
             ("PRODUCTOS", "Bienes y servicios específicos entregados"),
             ("RESULTADOS", "Cambios medibles en la población objetivo"),
             ("IMPACTOS", "Transformaciones territoriales sostenibles"),
-            ("CAUSALIDAD", "Teoría de cambio y enlaces causales"),
+            ("CAUSALIDAD", "Teoría de cambio, enlaces causales y modelo lógico de intervención"),
         ]
 
         for tipo_idx, (tipo_nombre, descripcion) in enumerate(tipos_eslabon):
