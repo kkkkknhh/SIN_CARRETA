@@ -35,6 +35,15 @@ def _resolve_path(base_dir: Path, raw_path: str) -> Path:
     return path
 
 
+def _ensure_latest_clean(label: str, path: Path) -> None:
+    """Validate that the resolved path points to a latest.clean JSON file."""
+
+    if "latest.clean.json" not in path.name:
+        raise DecalogoProviderError(
+            f"La ruta para '{label}' debe apuntar a un archivo latest.clean.json: {path}"
+        )
+
+
 def provide_decalogos(config_path: Path | None = None) -> Dict[str, object]:
     """Carga el bundle canónico de decálogos usando la configuración empaquetada."""
 
@@ -62,6 +71,13 @@ def provide_decalogos(config_path: Path | None = None) -> Dict[str, object]:
     if crosswalk_raw is None:
         crosswalk_raw = str(full_path.parent / "crosswalk.latest.json")
     crosswalk_path = _resolve_path(config_dir, crosswalk_raw)
+
+    for label, path in (
+        ("full", full_path),
+        ("industrial", industrial_path),
+        ("dnp", dnp_path),
+    ):
+        _ensure_latest_clean(label, path)
 
     for path in (full_path, industrial_path, dnp_path, crosswalk_path):
         if not path.exists():
