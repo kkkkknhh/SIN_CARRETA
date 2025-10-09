@@ -244,20 +244,9 @@ class ResponsibilityDetector:
                 if any(keyword in entity_text.lower() for keyword in ["ministerio", "secretaría", "dirección"]):
                     confidence += 0.1
                 
-                # Extract context
-                context_start = max(0, match.start() - context_window)
-                context_end = min(len(text), match.end() + context_window)
-                context_text = text[context_start:context_end]
-                
-                entity = ResponsibilityEntity(
-                    text=entity_text,
-                    entity_type=EntityType.GOVERNMENT,
-                    confidence=min(confidence, 1.0),
-                    start_pos=match.start(),
-                    end_pos=match.end(),
-                    context=context_text,
+                entity = self._create_entity_from_match(
+                    entity_text, EntityType.GOVERNMENT, confidence, match, text, context_window
                 )
-                
                 entities.append(entity)
         
         # Find positions
@@ -272,20 +261,9 @@ class ResponsibilityDetector:
                 if any(keyword in entity_text.lower() for keyword in ["alcalde", "gobernador", "director"]):
                     confidence += 0.1
                 
-                # Extract context
-                context_start = max(0, match.start() - context_window)
-                context_end = min(len(text), match.end() + context_window)
-                context_text = text[context_start:context_end]
-                
-                entity = ResponsibilityEntity(
-                    text=entity_text,
-                    entity_type=EntityType.POSITION,
-                    confidence=min(confidence, 1.0),
-                    start_pos=match.start(),
-                    end_pos=match.end(),
-                    context=context_text,
+                entity = self._create_entity_from_match(
+                    entity_text, EntityType.POSITION, confidence, match, text, context_window
                 )
-                
                 entities.append(entity)
         
         # Find institutions (lower priority)
@@ -298,23 +276,31 @@ class ResponsibilityDetector:
                 if len(entity_text.split()) > 2:
                     confidence += 0.1
                 
-                # Extract context
-                context_start = max(0, match.start() - context_window)
-                context_end = min(len(text), match.end() + context_window)
-                context_text = text[context_start:context_end]
-                
-                entity = ResponsibilityEntity(
-                    text=entity_text,
-                    entity_type=EntityType.INSTITUTION,
-                    confidence=min(confidence, 1.0),
-                    start_pos=match.start(),
-                    end_pos=match.end(),
-                    context=context_text,
+                entity = self._create_entity_from_match(
+                    entity_text, EntityType.INSTITUTION, confidence, match, text, context_window
                 )
-                
                 entities.append(entity)
         
         return entities
+    
+    def _create_entity_from_match(
+        self, entity_text: str, entity_type: EntityType, confidence: float,
+        match, text: str, context_window: int
+    ) -> ResponsibilityEntity:
+        """Create a ResponsibilityEntity from a regex match (DRY helper)."""
+        # Extract context
+        context_start = max(0, match.start() - context_window)
+        context_end = min(len(text), match.end() + context_window)
+        context_text = text[context_start:context_end]
+        
+        return ResponsibilityEntity(
+            text=entity_text,
+            entity_type=entity_type,
+            confidence=min(confidence, 1.0),
+            start_pos=match.start(),
+            end_pos=match.end(),
+            context=context_text,
+        )
     
     def _merge_entities(self, entities1: List[ResponsibilityEntity], 
                         entities2: List[ResponsibilityEntity]) -> List[ResponsibilityEntity]:

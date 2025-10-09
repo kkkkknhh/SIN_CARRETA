@@ -67,42 +67,28 @@ class NodeContract:
         Returns:
             (is_valid, error_messages)
         """
-        errors = []
-
-        if not isinstance(data, dict):
-            errors.append(f"Input must be dict, got {type(data)}")
-            return False, errors
-
-        # Check required fields
-        for field in self.required_inputs:
-            if field not in data:
-                errors.append(f"Missing required input field: {field}")
-
-        # Check types (basic validation)
-        for field, expected_type in self.input_schema.items():
-            if field in data:
-                actual_type = type(data[field]).__name__
-                if not self._types_compatible(actual_type, expected_type):
-                    errors.append(
-                        f"Type mismatch for {field}: "
-                        f"expected {expected_type}, got {actual_type}"
-                    )
-
-        return len(errors) == 0, errors
+        return self._validate_data(data, self.input_schema, self.required_inputs, "input")
 
     def validate_output(self, data: Any) -> Tuple[bool, List[str]]:
         """Validate output data against schema"""
+        return self._validate_data(data, self.output_schema, self.required_outputs, "output")
+    
+    def _validate_data(self, data: Any, schema: Dict[str, str], 
+                      required_fields: List[str], data_type: str) -> Tuple[bool, List[str]]:
+        """Core validation logic shared by validate_input and validate_output (DRY)."""
         errors = []
 
         if not isinstance(data, dict):
-            errors.append(f"Output must be dict, got {type(data)}")
+            errors.append(f"{data_type.capitalize()} must be dict, got {type(data)}")
             return False, errors
 
-        for field in self.required_outputs:
+        # Check required fields
+        for field in required_fields:
             if field not in data:
-                errors.append(f"Missing required output field: {field}")
+                errors.append(f"Missing required {data_type} field: {field}")
 
-        for field, expected_type in self.output_schema.items():
+        # Check types (basic validation)
+        for field, expected_type in schema.items():
             if field in data:
                 actual_type = type(data[field]).__name__
                 if not self._types_compatible(actual_type, expected_type):

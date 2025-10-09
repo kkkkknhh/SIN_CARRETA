@@ -205,25 +205,29 @@ class TestFeasibilityScorer:
                 )
 
     @staticmethod
+    def _assert_indicator_result(result, indicator_data):
+        """Helper method to assert feasibility score results (DRY)."""
+        assert (
+            abs(result.feasibility_score - indicator_data["expected_score"]) <= 0.15
+        )
+        assert result.quality_tier == indicator_data["expected_tier"]
+        assert (
+            result.has_quantitative_baseline
+            == indicator_data["has_quantitative_baseline"]
+        )
+        assert (
+            result.has_quantitative_target
+            == indicator_data["has_quantitative_target"]
+        )
+
+    @staticmethod
     def test_medium_quality_indicators(scorer):
         """Test scoring of medium-quality indicators."""
         indicators = TestDataset.get_medium_quality_indicators()
 
         for indicator_data in indicators:
             result = scorer.calculate_feasibility_score(indicator_data["text"])
-
-            assert (
-                abs(result.feasibility_score - indicator_data["expected_score"]) <= 0.15
-            )
-            assert result.quality_tier == indicator_data["expected_tier"]
-            assert (
-                result.has_quantitative_baseline
-                == indicator_data["has_quantitative_baseline"]
-            )
-            assert (
-                result.has_quantitative_target
-                == indicator_data["has_quantitative_target"]
-            )
+            TestFeasibilityScorer._assert_indicator_result(result, indicator_data)
 
     @staticmethod
     def test_low_quality_indicators(scorer):
@@ -232,19 +236,7 @@ class TestFeasibilityScorer:
 
         for indicator_data in indicators:
             result = scorer.calculate_feasibility_score(indicator_data["text"])
-
-            assert (
-                abs(result.feasibility_score - indicator_data["expected_score"]) <= 0.15
-            )
-            assert result.quality_tier == indicator_data["expected_tier"]
-            assert (
-                result.has_quantitative_baseline
-                == indicator_data["has_quantitative_baseline"]
-            )
-            assert (
-                result.has_quantitative_target
-                == indicator_data["has_quantitative_target"]
-            )
+            TestFeasibilityScorer._assert_indicator_result(result, indicator_data)
 
     @staticmethod
     def test_insufficient_indicators(scorer):

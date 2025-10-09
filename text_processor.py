@@ -428,6 +428,39 @@ def create_text_processor(
     )
 
 
+
+def read_text_file_with_fallback(file_path, logger=None):
+    """
+    Read a text file with encoding fallback (UTF-8 → latin-1).
+    
+    Args:
+        file_path: Path to the file to read
+        logger: Optional logger for error messages
+        
+    Returns:
+        str: File contents
+        
+    Raises:
+        Exception: If file cannot be read with any supported encoding
+    """
+    from pathlib import Path
+    
+    file_path = Path(file_path)
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except UnicodeDecodeError:
+        # Try alternate encodings if utf-8 fails
+        try:
+            with open(file_path, 'r', encoding='latin-1') as f:
+                return f.read()
+        except Exception as e:
+            if logger:
+                logger.error(f"Failed to read file with latin-1 encoding: {e}")
+            raise
+
+
 if __name__ == "__main__":
     # Example usage
     processor = create_text_processor()

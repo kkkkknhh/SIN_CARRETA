@@ -575,7 +575,8 @@ class AnswerAssembler:
         return "UNKNOWN"
     
     def _calculate_confidence_from_evidence(self, evidence_list: List[Any], score: float) -> float:
-        """Calculate confidence from evidence list."""
+        """Calculate confidence from evidence list (wrapper for backward compatibility)."""
+        # Convert evidence list to proper format and use shared calculation logic
         if not evidence_list:
             return 0.3
         
@@ -584,11 +585,7 @@ class AnswerAssembler:
             for e in evidence_list
         ) / len(evidence_list)
         
-        evidence_factor = min(len(evidence_list) / 3.0, 1.0)
-        extremity = abs(score - 0.5) * 2
-        extremity_penalty = 0.85 if (extremity > 0.7 and len(evidence_list) < 2) else 1.0
-        confidence = avg_evidence_conf * evidence_factor * extremity_penalty
-        return round(min(confidence, 1.0), 2)
+        return self._calculate_confidence_core(len(evidence_list), avg_evidence_conf, score)
     
     def _extract_quotes_from_evidence(self, evidence_list: List[Any], max_quotes: int = 3) -> List[str]:
         """Extract supporting quotes from evidence."""
@@ -660,10 +657,14 @@ class AnswerAssembler:
         if not evidence:
             return 0.3
         avg_evidence_conf = sum(e.confidence for e in evidence) / len(evidence)
-        evidence_factor = min(len(evidence) / 3.0, 1.0)
+        return self._calculate_confidence_core(len(evidence), avg_evidence_conf, score)
+    
+    def _calculate_confidence_core(self, evidence_count: int, avg_confidence: float, score: float) -> float:
+        """Core confidence calculation logic shared by both confidence methods."""
+        evidence_factor = min(evidence_count / 3.0, 1.0)
         extremity = abs(score - 0.5) * 2
-        extremity_penalty = 0.85 if (extremity > 0.7 and len(evidence) < 2) else 1.0
-        confidence = avg_evidence_conf * evidence_factor * extremity_penalty
+        extremity_penalty = 0.85 if (extremity > 0.7 and evidence_count < 2) else 1.0
+        confidence = avg_confidence * evidence_factor * extremity_penalty
         return round(min(confidence, 1.0), 2)
 
     def _extract_quotes(self, evidence: List[EvidenceEntry], max_quotes: int = 3) -> List[str]:

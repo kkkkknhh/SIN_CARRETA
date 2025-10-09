@@ -21,6 +21,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Union, Any
 
+from text_processor import read_text_file_with_fallback
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -799,17 +801,7 @@ class DocumentSegmenter:
         """
         input_path = Path(input_path)
         
-        try:
-            with open(input_path, 'r', encoding='utf-8') as f:
-                text = f.read()
-        except UnicodeDecodeError:
-            # Try alternate encodings if utf-8 fails
-            try:
-                with open(input_path, 'r', encoding='latin-1') as f:
-                    text = f.read()
-            except Exception as e:
-                logger.error(f"Failed to read file with latin-1 encoding: {e}")
-                raise
+        text = read_text_file_with_fallback(input_path, logger)
         
         # Use provided segmentation type or instance default
         current_type = segmentation_type or self.segmentation_type

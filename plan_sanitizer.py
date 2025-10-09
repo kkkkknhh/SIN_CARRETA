@@ -21,6 +21,7 @@ from typing import Dict, List, Optional, Set, Tuple, Union, Any
 from text_processor import (
     normalize_text,
     clean_policy_text,
+    read_text_file_with_fallback,
     )
 
 # Configure logging
@@ -227,17 +228,7 @@ class PlanSanitizer:
         """
         input_path = Path(input_path)
         
-        try:
-            with open(input_path, 'r', encoding='utf-8') as f:
-                text = f.read()
-        except UnicodeDecodeError:
-            # Try alternate encodings if utf-8 fails
-            try:
-                with open(input_path, 'r', encoding='latin-1') as f:
-                    text = f.read()
-            except Exception as e:
-                logger.error(f"Failed to read file with latin-1 encoding: {e}")
-                raise
+        text = read_text_file_with_fallback(input_path, logger)
         
         sanitized_text = self.sanitize_text(text)
         
