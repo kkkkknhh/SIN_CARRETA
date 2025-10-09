@@ -47,11 +47,11 @@ if __name__ == "__main__":
 echo "MINIMINIMOON Decalogo Alignment Tool"
 echo "==================================="
 
-# Default paths
-SNAPSHOT_DIR="/Users/recovered/MINIMINIMOON/decalogo_snapshots"
+# Default paths (use canonical files in repository root)
+SNAPSHOT_DIR="./decalogo_snapshots"
 LATEST_LINK="$SNAPSHOT_DIR/decalogo_latest.json"
-STANDARDS_FILE="/Users/recovered/MINIMINIMOON/dnp-standards.latest.clean.json"
-DECALOGO_FILE="/Users/recovered/MINIMINIMOON/decalogo_industrial.json"
+STANDARDS_FILE="dnp-standards.latest.clean.json"
+DECALOGO_FILE="decalogo-industrial.latest.clean.json"
 
 # Check if we need to use a specific snapshot
 if [ -n "$1" ]; then
@@ -99,42 +99,54 @@ cp "$REFERENCE_FILE" "$DECALOGO_FILE"
 
 # Run Python alignment script to update references in modules
 echo "Running alignment script..."
-python3 -c "
+python3 - <<'PY'
 import sys, json, time, os
-sys.path.append('/Users/recovered/MINIMINIMOON')
+from pathlib import Path
+try:
+    repo_root = Path(__file__).resolve().parent
+except Exception:
+    repo_root = Path(os.getcwd())
+
+REFERENCE_FILE = repo_root / os.path.relpath(os.environ.get('REFERENCE_FILE', '')) if os.environ.get('REFERENCE_FILE') else Path('./decalogo_snapshots/decalogo_latest.json')
+standards_file = repo_root / 'dnp-standards.latest.clean.json'
+
 try:
     # Load reference decalogo
-    with open('$REFERENCE_FILE', 'r') as f:
-        reference_data = json.load(f)
-    
+    if REFERENCE_FILE.exists():
+        with open(REFERENCE_FILE, 'r', encoding='utf-8') as f:
+            reference_data = json.load(f)
+    else:
+        reference_data = {}
+
     # Update DNP standards with alignment information if needed
-    standards_file = '$STANDARDS_FILE'
-    if os.path.exists(standards_file):
+    if standards_file.exists():
         try:
-            with open(standards_file, 'r') as f:
+            with open(standards_file, 'r', encoding='utf-8') as f:
                 standards_data = json.load(f)
             
             # Add alignment metadata
             if 'metadata' not in standards_data:
                 standards_data['metadata'] = {}
             
-            standards_data['metadata']['aligned_with'] = os.path.basename('$REFERENCE_FILE')
+            standards_data['metadata']['aligned_with'] = REFERENCE_FILE.name if REFERENCE_FILE.exists() else ''
             standards_data['metadata']['alignment_time'] = time.time()
             
             # Write updated standards
-            with open(standards_file, 'w') as f:
-                json.dump(standards_data, f, indent=2)
-            
+            with open(standards_file, 'w', encoding='utf-8') as f:
+                json.dump(standards_data, f, indent=2, ensure_ascii=False)
+
             print('DNP standards aligned with reference.')
         except Exception as e:
             print(f'Error updating standards file: {e}')
-    
-    # Run immutability verification
+    else:
+        print('Standards file not found; skipping alignment metadata update.')
+
+    # Run immutability verification (best-effort)
     try:
         from miniminimoon_immutability import ImmutabilityContract
         contract = ImmutabilityContract()
         verify_result = contract.verify_components('normal')
-        print(f'System integrity: {verify_result[\"integrity_status\"]}')
+        print(f'System integrity: {verify_result["integrity_status"]}')
         if verify_result['integrity_status'] != 'verified':
             print('Warning: System may have been modified since freezing!')
     except Exception as e:
@@ -144,12 +156,14 @@ try:
 except Exception as e:
     print(f'Error in alignment process: {e}')
     sys.exit(1)
-"
+PY
 
 echo "Checking for other components that need alignment..."
-python3 -c "
+python3 - <<'PY'
 import os, glob, re
 from pathlib import Path
+
+repo_root = Path('.')
 
 def check_file(filepath):
     try:
@@ -162,7 +176,7 @@ def check_file(filepath):
     return None
 
 # Check Python files
-python_files = list(Path('/Users/recovered/MINIMINIMOON').glob('*.py'))
+python_files = list(Path('.').glob('**/*.py'))
 matches = []
 
 for pyfile in python_files:
@@ -176,7 +190,7 @@ if matches:
         print(f'  - {match}')
 else:
     print('No additional files found that need alignment.')
-"
+PY
 
 echo "Done!"
 exit 0
