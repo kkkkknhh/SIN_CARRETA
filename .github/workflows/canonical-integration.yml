@@ -7,15 +7,18 @@ on:
     branches: [ main, develop ]
   workflow_dispatch:
 
+permissions:
+  actions: read
+  checks: write
+  contents: write
+  issues: write
+  pull-requests: write
+  statuses: write
+
 jobs:
   validate-integration:
     name: Validate 11 Canonical Nodes + 5 Target Components
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
-      statuses: write
 
     steps:
     - name: Checkout code
@@ -147,6 +150,7 @@ PY
       with:
         script: |
           const fs = require('fs');
+          const core = require('@actions/core');
           
           let status = '❌ FAILED';
           let body = '## Canonical Integration Validation Failed\n\nCould not load validation report.';
@@ -217,12 +221,20 @@ PY
             body = `## Canonical Integration Validation ⚠️ ERROR\n\n**Error parsing validation report**: ${error.message}\n\nPlease check workflow logs for details.`;
           }
           
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: body
-          });
+          try {
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+          } catch (error) {
+            if (error.message && error.message.includes('Resource not accessible by integration')) {
+              core.warning('Insufficient permissions to post PR comment. Skipping comment creation.');
+            } else {
+              throw error;
+            }
+          }
           
     - name: Check validation status
       if: steps.validation.outcome == 'failure'
@@ -236,6 +248,7 @@ PY
       with:
         script: |
           const fs = require('fs');
+          const core = require('@actions/core');
           let conclusion = 'failure';
           let summary = 'Validation failed';
           
@@ -247,15 +260,23 @@ PY
             summary = 'Could not parse validation report';
           }
           
-          await github.rest.checks.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            name: 'Canonical Integration Validation',
-            head_sha: context.sha,
-            status: 'completed',
-            conclusion: conclusion,
-            output: {
-              title: 'Canonical Integration Validation',
-              summary: summary
+          try {
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Canonical Integration Validation',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: conclusion,
+              output: {
+                title: 'Canonical Integration Validation',
+                summary: summary
+              }
+            });
+          } catch (error) {
+            if (error.message && error.message.includes('Resource not accessible by integration')) {
+              core.warning('Insufficient permissions to create check run. Skipping check creation.');
+            } else {
+              throw error;
             }
-          });
+          }
