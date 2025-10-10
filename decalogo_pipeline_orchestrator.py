@@ -734,7 +734,7 @@ class PipelineOrchestrator:
             # This would be expanded in a full implementation with specific logic per question
             positive_evidence = [
                 item for item in evidence if 
-                any(value == True for key, value in item.metadata.items() if key.startswith("has_"))
+                any(value is True for key, value in item.metadata.items() if key.startswith("has_"))
             ]
             
             answer = "Sí" if len(positive_evidence) > len(evidence) / 2 else "No"

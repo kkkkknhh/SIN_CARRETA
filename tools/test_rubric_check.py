@@ -43,7 +43,7 @@ def test_matching_sets():
         stdout, stderr, returncode = run_rubric_check(answers_path, rubric_path)
         assert returncode == 0, f"Expected exit code 0, got {returncode}"
         result = json.loads(stdout)
-        assert result["match"] == True
+        assert result["match"] is True
         assert result["answers_count"] == 3
         assert result["rubric_count"] == 3
         assert result["missing_weights_count"] == 0
@@ -78,7 +78,7 @@ def test_missing_weights():
         stdout, stderr, returncode = run_rubric_check(answers_path, rubric_path)
         assert returncode == 3, f"Expected exit code 3, got {returncode}"
         result = json.loads(stdout)
-        assert result["match"] == False
+        assert result["match"] is False
         assert result["missing_weights_count"] == 2
         assert "Q2" in result["missing_weights"]
         assert "Q3" in result["missing_weights"]
@@ -112,7 +112,7 @@ def test_extra_weights():
         stdout, stderr, returncode = run_rubric_check(answers_path, rubric_path)
         assert returncode == 3, f"Expected exit code 3, got {returncode}"
         result = json.loads(stdout)
-        assert result["match"] == False
+        assert result["match"] is False
         assert result["extra_weights_count"] == 2
         assert "Q2" in result["extra_weights"]
         assert "Q3" in result["extra_weights"]
@@ -146,7 +146,7 @@ def test_weights_dict_format():
         stdout, stderr, returncode = run_rubric_check(answers_path, rubric_path)
         assert returncode == 0, f"Expected exit code 0, got {returncode}"
         result = json.loads(stdout)
-        assert result["match"] == True
+        assert result["match"] is True
         print("✓ test_weights_dict_format passed")
     finally:
         os.unlink(answers_path)
