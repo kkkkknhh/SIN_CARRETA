@@ -441,8 +441,8 @@ class TestReportExport:
         # Verify JSON is valid
         with open(json_path, 'r') as f:
             loaded = json.load(f)
-            assert loaded["perfect_match"] == True
-            assert loaded["evidence_hash_match"] == True
+            assert loaded["perfect_match"] is True
+            assert loaded["evidence_hash_match"] is True
     
     def test_text_report_content(self, tmp_path):
         """Test text report contains expected sections"""
