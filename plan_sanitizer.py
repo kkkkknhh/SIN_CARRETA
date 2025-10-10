@@ -353,11 +353,7 @@ def create_plan_sanitizer(
     Returns:
         Configured PlanSanitizer instance
     """
-    return PlanSanitizer(
-        preserve_structure=preserve_structure,
-        tag_key_elements=tag_key_elements,
-        aggressive_cleaning=aggressive_cleaning,
-    )
+    return PlanSanitizer.legacy()
 
 
 # Simple usage example
