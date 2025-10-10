@@ -71,13 +71,11 @@ class ContradictionDetector:
                 self._encoder_available = True
             except Exception as exc:  # pragma: no cover - network/dependency issues
                 logger.warning(
-                    "Falling back to lexical alignment because encoder could not be loaded: %s",
-                    exc,
+                    f"Falling back to lexical alignment because encoder could not be loaded: {exc}"
                 )
 
         logger.info(
-            "Initialized ContradictionDetector in %s mode",
-            "light" if mode_light else "full",
+            f"Initialized ContradictionDetector in {'light' if mode_light else 'full'} mode"
         )
 
     def detect_contradictions(
@@ -423,7 +421,7 @@ class ContradictionDetector:
                 max_sim = float(torch.max(similarities).item())
                 return max_sim > 0.6
             except Exception as exc:  # pragma: no cover - runtime fallback
-                logger.debug("Encoder alignment failed, using lexical fallback: %s", exc)
+                logger.debug(f"Encoder alignment failed, using lexical fallback: {exc}")
 
         # Lexical fallback: Jaccard similarity on meaningful tokens
         tokens1 = set(self._tokenize(text1))

@@ -134,7 +134,7 @@ def load_config_file(config_path: str) -> Dict[str, Any]:
         with open(config_path, "r", encoding="utf-8") as config_file:
             return json.load(config_file)
     except (OSError, json.JSONDecodeError) as exc:
-        LOGGER.exception("Error loading config file %s", config_path)
+        LOGGER.exception(f"Error loading config file {config_path}")
         raise ValueError(f"Invalid configuration file: {config_path}") from exc
 
 
@@ -144,7 +144,7 @@ def validate_args(args: argparse.Namespace) -> None:
     # Validate input path exists
     input_path = Path(args.input)
     if not input_path.exists():
-        LOGGER.error("Input path '%s' does not exist", args.input)
+        LOGGER.error(f"Input path '{args.input}' does not exist")
         raise ValueError(f"Input path '{args.input}' does not exist")
 
     # Create output directory if it doesn't exist
@@ -152,31 +152,30 @@ def validate_args(args: argparse.Namespace) -> None:
     try:
         output_path.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        LOGGER.exception("Error creating output directory '%s'", args.outdir)
+        LOGGER.exception(f"Error creating output directory '{args.outdir}'")
         raise ValueError(f"Unable to create output directory '{args.outdir}'") from exc
 
     # Validate workers count
     if args.workers < 1:
-        LOGGER.error("Workers count must be at least 1 (received %s)", args.workers)
+        LOGGER.error(f"Workers count must be at least 1 (received {args.workers})")
         raise ValueError("Workers count must be at least 1")
 
     # Validate topk value
     if args.topk < 1:
-        LOGGER.error("topk value must be at least 1 (received %s)", args.topk)
+        LOGGER.error(f"topk value must be at least 1 (received {args.topk})")
         raise ValueError("topk value must be at least 1")
 
     # Validate umbral range
     if not 0.0 <= args.umbral <= 1.0:
         LOGGER.error(
-            "umbral value must be between 0.0 and 1.0 (received %s)", args.umbral
+            f"umbral value must be between 0.0 and 1.0 (received {args.umbral})"
         )
         raise ValueError("umbral value must be between 0.0 and 1.0")
 
     # Validate max_segmentos
     if args.max_segmentos < 1:
         LOGGER.error(
-            "max-segmentos value must be at least 1 (received %s)",
-            args.max_segmentos,
+            f"max-segmentos value must be at least 1 (received {args.max_segmentos})"
         )
         raise ValueError("max-segmentos value must be at least 1")
 
@@ -233,15 +232,7 @@ def run_feasibility_mode(args: argparse.Namespace) -> int:
 
     LOGGER.info("Running feasibility analysis")
     LOGGER.info(
-        "Configuration: input=%s, outdir=%s, workers=%s, device=%s, precision=%s, topk=%s, umbral=%s, max_segmentos=%s",
-        args.input,
-        args.outdir,
-        args.workers,
-        args.device,
-        args.precision,
-        args.topk,
-        args.umbral,
-        args.max_segmentos,
+        f"Configuration: input={args.input}, outdir={args.outdir}, workers={args.workers}, device={args.device}, precision={args.precision}, topk={args.topk}, umbral={args.umbral}, max_segmentos={args.max_segmentos}"
     )
 
     scorer = FeasibilityScorer(
@@ -254,10 +245,10 @@ def run_feasibility_mode(args: argparse.Namespace) -> int:
         text_files.extend(input_path.glob(ext))
 
     if not text_files:
-        LOGGER.warning("No text files found in %s", args.input)
+        LOGGER.warning(f"No text files found in {args.input}")
         return 1
 
-    LOGGER.info("Found %s files to process", len(text_files))
+    LOGGER.info(f"Found {len(text_files)} files to process")
 
     indicators = []
     for file_path in text_files:
@@ -265,7 +256,7 @@ def run_feasibility_mode(args: argparse.Namespace) -> int:
             with open(file_path, "r", encoding="utf-8") as input_file:
                 content = input_file.read()
         except OSError as exc:
-            LOGGER.warning("Could not read %s: %s", file_path, exc)
+            LOGGER.warning(f"Could not read {file_path}: {exc}")
             continue
 
         segments = [
@@ -277,7 +268,7 @@ def run_feasibility_mode(args: argparse.Namespace) -> int:
         LOGGER.warning("No content found to analyze")
         return 1
 
-    LOGGER.info("Analyzing %s indicators", len(indicators))
+    LOGGER.info(f"Analyzing {len(indicators)} indicators")
 
     try:
         if args.workers > 1:
@@ -336,24 +327,18 @@ def run_feasibility_mode(args: argparse.Namespace) -> int:
         with open(output_file, "w", encoding="utf-8") as report_file:
             json.dump(report_data, report_file, indent=2, ensure_ascii=False)
     except OSError:
-        LOGGER.exception("Failed to write feasibility report to %s", output_file)
+        LOGGER.exception(f"Failed to write feasibility report to {output_file}")
         return 1
 
-    LOGGER.info("Analysis complete. Results saved to %s", output_file)
+    LOGGER.info(f"Analysis complete. Results saved to {output_file}")
     if top_results:
         LOGGER.info(
-            "Top %s results (threshold >= %s)",
-            len(top_results),
-            args.umbral,
+            f"Top {len(top_results)} results (threshold >= {args.umbral})"
         )
         for index, (text, result) in enumerate(top_results, start=1):
             display_text = text[:100] + ("..." if len(text) > 100 else "")
             LOGGER.info(
-                "%s. Score: %.3f | %s | %s",
-                index,
-                result.feasibility_score,
-                result.quality_tier,
-                display_text,
+                f"{index}. Score: {result.feasibility_score:.3f} | {result.quality_tier} | {display_text}"
             )
 
     return 0
@@ -392,19 +377,19 @@ def run_embedding_mode(args: argparse.Namespace) -> int:
                             }
                         )
             except OSError as exc:
-                LOGGER.warning("Could not read %s: %s", file_path, exc)
+                LOGGER.warning(f"Could not read {file_path}: {exc}")
 
         if not documents:
             LOGGER.warning("No documents found to process")
             return 1
 
-        LOGGER.info("Processing %s documents", len(documents))
+        LOGGER.info(f"Processing {len(documents)} documents")
 
         # Generate embeddings
         texts = [doc["content"] for doc in documents]
         embeddings = model.encode(texts)
 
-        LOGGER.info("Generated embeddings with shape %s", embeddings.shape)
+        LOGGER.info(f"Generated embeddings with shape {embeddings.shape}")
 
         # Save results
         output_file = Path(args.outdir) / "embeddings.npy"
@@ -428,8 +413,8 @@ def run_embedding_mode(args: argparse.Namespace) -> int:
         with open(metadata_file, "w", encoding="utf-8") as metadata_handle:
             json.dump(metadata, metadata_handle, indent=2)
 
-        LOGGER.info("Embeddings saved to %s", output_file)
-        LOGGER.info("Metadata saved to %s", metadata_file)
+        LOGGER.info(f"Embeddings saved to {output_file}")
+        LOGGER.info(f"Metadata saved to {metadata_file}")
 
         return 0
 
@@ -450,10 +435,7 @@ def run_demo_mode(args: argparse.Namespace) -> int:
         os.environ["CLI_OUTPUT_DIR"] = args.outdir
 
         LOGGER.info(
-            "Running demo mode with workers=%s, device=%s, output=%s",
-            args.workers,
-            args.device,
-            args.outdir,
+            f"Running demo mode with workers={args.workers}, device={args.device}, output={args.outdir}"
         )
 
         # Import and run demo with environment configuration
@@ -483,7 +465,7 @@ def main():
         try:
             config = load_config_file(args.config)
         except ValueError as exc:
-            LOGGER.error("Failed to load configuration file: %s", exc)
+            LOGGER.error(f"Failed to load configuration file: {exc}")
             return 1
         # Override command line args with config file values
         for key, value in config.items():
@@ -497,22 +479,22 @@ def main():
     try:
         validate_args(args)
     except ValueError as exc:
-        LOGGER.error("Invalid CLI configuration: %s", exc)
+        LOGGER.error(f"Invalid CLI configuration: {exc}")
         return 1
 
     # Show configuration and exit if dry-run
     if args.dry_run:
         LOGGER.info("Configuration (dry-run mode):")
-        LOGGER.info("  Input directory: %s", args.input)
-        LOGGER.info("  Output directory: %s", args.outdir)
-        LOGGER.info("  Workers: %s", args.workers)
-        LOGGER.info("  Device: %s", get_device_config(args.device))
-        LOGGER.info("  Precision: %s", args.precision)
-        LOGGER.info("  Top-k: %s", args.topk)
-        LOGGER.info("  Umbral: %s", args.umbral)
-        LOGGER.info("  Max segments: %s", args.max_segmentos)
-        LOGGER.info("  Mode: %s", args.mode)
-        LOGGER.info("  Verbose: %s", args.verbose)
+        LOGGER.info(f"  Input directory: {args.input}")
+        LOGGER.info(f"  Output directory: {args.outdir}")
+        LOGGER.info(f"  Workers: {args.workers}")
+        LOGGER.info(f"  Device: {get_device_config(args.device)}")
+        LOGGER.info(f"  Precision: {args.precision}")
+        LOGGER.info(f"  Top-k: {args.topk}")
+        LOGGER.info(f"  Umbral: {args.umbral}")
+        LOGGER.info(f"  Max segments: {args.max_segmentos}")
+        LOGGER.info(f"  Mode: {args.mode}")
+        LOGGER.info(f"  Verbose: {args.verbose}")
         return 0
 
     # Execute the selected mode
@@ -523,7 +505,7 @@ def main():
     elif args.mode == "demo":
         return run_demo_mode(args)
     else:
-        LOGGER.error("Unknown mode: %s", args.mode)
+        LOGGER.error(f"Unknown mode: {args.mode}")
         return 1
 
 

@@ -876,8 +876,7 @@ class CanonicalDeterministicOrchestrator:
 
         if not industrial_report.get("success", False):
             self.logger.warning(
-                "Teoría de Cambio industrial validation status: %s",
-                industrial_report.get("status", "unknown"),
+                f"Teoría de Cambio industrial validation status: {industrial_report.get('status', 'unknown')}"
             )
 
         return {
