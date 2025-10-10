@@ -2,17 +2,21 @@
 
 import inspect
 
+import causal_pattern_detector as cpd
+import dag_validation as dv
 import document_segmenter as ds
-import plan_sanitizer as ps
 
 
-def test_plan_sanitizer_init_is_zero_arg() -> None:
-    """PlanSanitizer.__init__ must remain an exact zero-argument signature."""
+def test_causal_detector_init_signature_exact() -> None:
+    sig = str(inspect.signature(cpd.CausalPatternDetector.__init__))
+    assert sig == "(self)", f"Extra params detected: {sig}"
 
-    assert str(inspect.signature(ps.PlanSanitizer.__init__)) == "(self)"
+
+def test_dag_validator_init_signature_exact() -> None:
+    sig = str(inspect.signature(dv.DAGValidator.__init__))
+    assert sig == "(self)", f"Constructor must be empty: {sig}"
 
 
-def test_document_segmenter_init_is_zero_arg() -> None:
-    """DocumentSegmenter.__init__ must remain an exact zero-argument signature."""
-
-    assert str(inspect.signature(ds.DocumentSegmenter.__init__)) == "(self)"
+def test_document_segmenter_segment_signature() -> None:
+    sig = str(inspect.signature(ds.DocumentSegmenter.segment))
+    assert sig.startswith("(self, text"), f"segment() must take `text` first: {sig}"

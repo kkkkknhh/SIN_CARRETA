@@ -1,1 +1,385 @@
-{"canonical_order": ["test"]}
+{
+  "version": "2.1.0",
+  "flow_hash": "97a953ec76fd488ff91b234eb912b58af362ef70d419d64747214e5058067d87",
+  "generated_at": "2025-10-10T02:10:25.475501Z",
+  "description": "Canonical deterministic pipeline flow (16 stages)",
+  "total_stages": 16,
+  "stages": [
+    {
+      "name": "sanitization",
+      "node_id": "node_01",
+      "input_schema": {
+        "raw_text": "str"
+      },
+      "output_schema": {
+        "sanitized_text": "str"
+      },
+      "required_inputs": [
+        "raw_text"
+      ],
+      "required_outputs": [
+        "sanitized_text"
+      ],
+      "invariants": [
+        "non_empty_output",
+        "unicode_valid"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "plan_processing",
+      "node_id": "node_02",
+      "input_schema": {
+        "sanitized_text": "str"
+      },
+      "output_schema": {
+        "doc_struct": "dict"
+      },
+      "required_inputs": [
+        "sanitized_text"
+      ],
+      "required_outputs": [
+        "doc_struct"
+      ],
+      "invariants": [
+        "structure_valid"
+      ],
+      "dependencies": [
+        "sanitization"
+      ]
+    },
+    {
+      "name": "document_segmentation",
+      "node_id": "node_03",
+      "input_schema": {
+        "doc_struct": "dict"
+      },
+      "output_schema": {
+        "segments": "list"
+      },
+      "required_inputs": [
+        "doc_struct"
+      ],
+      "required_outputs": [
+        "segments"
+      ],
+      "invariants": [
+        "segments_non_empty",
+        "deterministic_ids"
+      ],
+      "dependencies": [
+        "plan_processing"
+      ]
+    },
+    {
+      "name": "embedding",
+      "node_id": "node_04",
+      "input_schema": {
+        "segments": "list"
+      },
+      "output_schema": {
+        "embeddings": "list"
+      },
+      "required_inputs": [
+        "segments"
+      ],
+      "required_outputs": [
+        "embeddings"
+      ],
+      "invariants": [
+        "length_match",
+        "deterministic_seed"
+      ],
+      "dependencies": [
+        "document_segmentation"
+      ]
+    },
+    {
+      "name": "responsibility_detection",
+      "node_id": "node_05",
+      "input_schema": {
+        "segments": "list"
+      },
+      "output_schema": {
+        "responsibilities": "list"
+      },
+      "required_inputs": [
+        "segments"
+      ],
+      "required_outputs": [
+        "responsibilities"
+      ],
+      "invariants": [
+        "provenance_tracked"
+      ],
+      "dependencies": [
+        "document_segmentation"
+      ]
+    },
+    {
+      "name": "contradiction_detection",
+      "node_id": "node_06",
+      "input_schema": {
+        "segments": "list"
+      },
+      "output_schema": {
+        "contradictions": "list"
+      },
+      "required_inputs": [
+        "segments"
+      ],
+      "required_outputs": [
+        "contradictions"
+      ],
+      "invariants": [
+        "consistency_checked"
+      ],
+      "dependencies": [
+        "document_segmentation"
+      ]
+    },
+    {
+      "name": "monetary_detection",
+      "node_id": "node_07",
+      "input_schema": {
+        "segments": "list"
+      },
+      "output_schema": {
+        "monetary": "list"
+      },
+      "required_inputs": [
+        "segments"
+      ],
+      "required_outputs": [
+        "monetary"
+      ],
+      "invariants": [
+        "currency_validated"
+      ],
+      "dependencies": [
+        "document_segmentation"
+      ]
+    },
+    {
+      "name": "feasibility_scoring",
+      "node_id": "node_08",
+      "input_schema": {
+        "segments": "list"
+      },
+      "output_schema": {
+        "feasibility": "dict"
+      },
+      "required_inputs": [
+        "segments"
+      ],
+      "required_outputs": [
+        "feasibility"
+      ],
+      "invariants": [
+        "score_bounded"
+      ],
+      "dependencies": [
+        "document_segmentation"
+      ]
+    },
+    {
+      "name": "causal_detection",
+      "node_id": "node_09",
+      "input_schema": {
+        "segments": "list"
+      },
+      "output_schema": {
+        "causal_patterns": "dict"
+      },
+      "required_inputs": [
+        "segments"
+      ],
+      "required_outputs": [
+        "causal_patterns"
+      ],
+      "invariants": [
+        "patterns_valid"
+      ],
+      "dependencies": [
+        "document_segmentation"
+      ]
+    },
+    {
+      "name": "teoria_cambio",
+      "node_id": "node_10",
+      "input_schema": {
+        "segments": "list"
+      },
+      "output_schema": {
+        "toc_graph": "dict"
+      },
+      "required_inputs": [
+        "segments"
+      ],
+      "required_outputs": [
+        "toc_graph"
+      ],
+      "invariants": [
+        "graph_valid"
+      ],
+      "dependencies": [
+        "document_segmentation"
+      ]
+    },
+    {
+      "name": "dag_validation",
+      "node_id": "node_11",
+      "input_schema": {
+        "toc_graph": "dict"
+      },
+      "output_schema": {
+        "dag_diagnostics": "dict"
+      },
+      "required_inputs": [
+        "toc_graph"
+      ],
+      "required_outputs": [
+        "dag_diagnostics"
+      ],
+      "invariants": [
+        "dag_acyclic"
+      ],
+      "dependencies": [
+        "teoria_cambio",
+        "teoria_cambio_validation"
+      ]
+    },
+    {
+      "name": "evidence_registry_build",
+      "node_id": "node_12",
+      "input_schema": {
+        "responsibilities": "list",
+        "contradictions": "list",
+        "monetary": "list",
+        "feasibility": "dict",
+        "causal_patterns": "dict",
+        "toc_graph": "dict",
+        "dag_diagnostics": "dict"
+      },
+      "output_schema": {
+        "evidence_hash": "str",
+        "evidence_store": "object"
+      },
+      "required_inputs": [
+        "responsibilities",
+        "contradictions"
+      ],
+      "required_outputs": [
+        "evidence_hash"
+      ],
+      "invariants": [
+        "hash_deterministic"
+      ],
+      "dependencies": [
+        "responsibility_detection",
+        "contradiction_detection",
+        "monetary_detection",
+        "feasibility_scoring",
+        "causal_detection",
+        "causal_pattern_detection",
+        "teoria_cambio",
+        "teoria_cambio_validation",
+        "dag_validation"
+      ]
+    },
+    {
+      "name": "decalogo_load",
+      "node_id": "node_13",
+      "input_schema": {},
+      "output_schema": {
+        "status": "str",
+        "bundle_version": "str",
+        "categories_count": "int",
+        "extractor_type": "str"
+      },
+      "required_inputs": [],
+      "required_outputs": [
+        "status"
+      ],
+      "invariants": [
+        "load_success"
+      ],
+      "dependencies": [
+        "evidence_registry_build"
+      ]
+    },
+    {
+      "name": "decalogo_evaluation",
+      "node_id": "node_14",
+      "input_schema": {
+        "evidence_store": "object"
+      },
+      "output_schema": {
+        "decalogo_eval": "dict"
+      },
+      "required_inputs": [
+        "evidence_store"
+      ],
+      "required_outputs": [
+        "decalogo_eval"
+      ],
+      "invariants": [
+        "scores_bounded"
+      ],
+      "dependencies": [
+        "decalogo_load",
+        "evidence_registry_build"
+      ]
+    },
+    {
+      "name": "questionnaire_evaluation",
+      "node_id": "node_15",
+      "input_schema": {
+        "evidence_store": "object"
+      },
+      "output_schema": {
+        "questionnaire_eval": "dict"
+      },
+      "required_inputs": [
+        "evidence_store"
+      ],
+      "required_outputs": [
+        "questionnaire_eval"
+      ],
+      "invariants": [
+        "300_questions",
+        "weights_aligned"
+      ],
+      "dependencies": [
+        "evidence_registry_build"
+      ]
+    },
+    {
+      "name": "answers_assembly",
+      "node_id": "node_16",
+      "input_schema": {
+        "evidence_store": "object",
+        "rubric": "dict",
+        "questionnaire_eval": "dict"
+      },
+      "output_schema": {
+        "answers_report": "dict"
+      },
+      "required_inputs": [
+        "evidence_store",
+        "questionnaire_eval"
+      ],
+      "required_outputs": [
+        "answers_report"
+      ],
+      "invariants": [
+        "provenance_complete",
+        "confidence_bounded"
+      ],
+      "dependencies": [
+        "questionnaire_evaluation",
+        "decalogo_evaluation"
+      ]
+    }
+  ]
+}

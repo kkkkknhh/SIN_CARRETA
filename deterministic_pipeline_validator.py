@@ -140,22 +140,24 @@ class PipelineStage(Enum):
     SANITIZATION = "sanitization"
     PLAN_PROCESSING = "plan_processing"
     SEGMENTATION = "document_segmentation"
-    EMBEDDING = "embedding_generation"
+    EMBEDDING = "embedding"  # UPDATED (was embedding_generation)
     RESPONSIBILITY = "responsibility_detection"
     CONTRADICTION = "contradiction_detection"
     MONETARY = "monetary_detection"
     FEASIBILITY = "feasibility_scoring"
-    CAUSAL = "causal_pattern_detection"
-    TEORIA = "teoria_cambio_validation"
+    CAUSAL = "causal_detection"  # UPDATED (was causal_pattern_detection)
+    TEORIA = "teoria_cambio"  # UPDATED (was teoria_cambio_validation)
     DAG = "dag_validation"
     REGISTRY_BUILD = "evidence_registry_build"
+    DECALOGO_LOAD = "decalogo_load"  # NEW stage (explicit extractor load)
     DECALOGO_EVAL = "decalogo_evaluation"
     QUESTIONNAIRE_EVAL = "questionnaire_evaluation"
-    ANSWER_ASSEMBLY = "answer_assembly"
+    ANSWERS_ASSEMBLY = "answers_assembly"  # UPDATED (was answer_assembly)
 
 
-# Canonical node contracts (flows #1-15)
+# Canonical node contracts (flows #1-16) — updated names + legacy aliases retained
 CANONICAL_NODE_CONTRACTS = {
+    # Stage 1
     "sanitization": NodeContract(
         node_id="node_01",
         node_name="sanitization",
@@ -166,7 +168,7 @@ CANONICAL_NODE_CONTRACTS = {
         invariants=["non_empty_output", "unicode_valid"],
         dependencies=[]
     ),
-
+    # Stage 2
     "plan_processing": NodeContract(
         node_id="node_02",
         node_name="plan_processing",
@@ -177,20 +179,22 @@ CANONICAL_NODE_CONTRACTS = {
         invariants=["structure_valid"],
         dependencies=["sanitization"]
     ),
-
+    # Stage 3
     "document_segmentation": NodeContract(
-        node_id="node_03",
-        node_name="document_segmentation",
-        input_schema={"doc_struct": "dict"},
-        output_schema={"segments": "list"},
-        required_inputs=["doc_struct"],
-        required_outputs=["segments"],
-        invariants=["segments_non_empty", "deterministic_ids"],
-        dependencies=["plan_processing"]
+        node_id="node_03", node_name="document_segmentation",
+        input_schema={"doc_struct": "dict"}, output_schema={"segments": "list"},
+        required_inputs=["doc_struct"], required_outputs=["segments"],
+        invariants=["segments_non_empty", "deterministic_ids"], dependencies=["plan_processing"]
     ),
-
+    # Stage 4 (new name) + legacy alias
+    "embedding": NodeContract(
+        node_id="node_04", node_name="embedding",
+        input_schema={"segments": "list"}, output_schema={"embeddings": "list"},
+        required_inputs=["segments"], required_outputs=["embeddings"],
+        invariants=["length_match", "deterministic_seed"], dependencies=["document_segmentation"]
+    ),
     "embedding_generation": NodeContract(
-        node_id="node_04",
+        node_id="node_04_legacy",
         node_name="embedding_generation",
         input_schema={"segments": "list"},
         output_schema={"embeddings": "list"},
@@ -199,53 +203,43 @@ CANONICAL_NODE_CONTRACTS = {
         invariants=["length_match", "deterministic_seed"],
         dependencies=["document_segmentation"]
     ),
-
+    # Stage 5
     "responsibility_detection": NodeContract(
-        node_id="node_05",
-        node_name="responsibility_detection",
-        input_schema={"segments": "list"},
-        output_schema={"responsibilities": "list"},
-        required_inputs=["segments"],
-        required_outputs=["responsibilities"],
-        invariants=["provenance_tracked"],
-        dependencies=["document_segmentation"]
+        node_id="node_05", node_name="responsibility_detection",
+        input_schema={"segments": "list"}, output_schema={"responsibilities": "list"},
+        required_inputs=["segments"], required_outputs=["responsibilities"],
+        invariants=["provenance_tracked"], dependencies=["document_segmentation"]
     ),
-
+    # Stage 6
     "contradiction_detection": NodeContract(
-        node_id="node_06",
-        node_name="contradiction_detection",
-        input_schema={"segments": "list"},
-        output_schema={"contradictions": "list"},
-        required_inputs=["segments"],
-        required_outputs=["contradictions"],
-        invariants=["consistency_checked"],
-        dependencies=["document_segmentation"]
+        node_id="node_06", node_name="contradiction_detection",
+        input_schema={"segments": "list"}, output_schema={"contradictions": "list"},
+        required_inputs=["segments"], required_outputs=["contradictions"],
+        invariants=["consistency_checked"], dependencies=["document_segmentation"]
     ),
-
+    # Stage 7
     "monetary_detection": NodeContract(
-        node_id="node_07",
-        node_name="monetary_detection",
-        input_schema={"segments": "list"},
-        output_schema={"monetary": "list"},
-        required_inputs=["segments"],
-        required_outputs=["monetary"],
-        invariants=["currency_validated"],
-        dependencies=["document_segmentation"]
+        node_id="node_07", node_name="monetary_detection",
+        input_schema={"segments": "list"}, output_schema={"monetary": "list"},
+        required_inputs=["segments"], required_outputs=["monetary"],
+        invariants=["currency_validated"], dependencies=["document_segmentation"]
     ),
-
+    # Stage 8
     "feasibility_scoring": NodeContract(
-        node_id="node_08",
-        node_name="feasibility_scoring",
-        input_schema={"segments": "list"},
-        output_schema={"feasibility": "dict"},
-        required_inputs=["segments"],
-        required_outputs=["feasibility"],
-        invariants=["score_bounded"],
-        dependencies=["document_segmentation"]
+        node_id="node_08", node_name="feasibility_scoring",
+        input_schema={"segments": "list"}, output_schema={"feasibility": "dict"},
+        required_inputs=["segments"], required_outputs=["feasibility"],
+        invariants=["score_bounded"], dependencies=["document_segmentation"]
     ),
-
+    # Stage 9 (new name) + legacy alias
+    "causal_detection": NodeContract(
+        node_id="node_09", node_name="causal_detection",
+        input_schema={"segments": "list"}, output_schema={"causal_patterns": "dict"},
+        required_inputs=["segments"], required_outputs=["causal_patterns"],
+        invariants=["patterns_valid"], dependencies=["document_segmentation"]
+    ),
     "causal_pattern_detection": NodeContract(
-        node_id="node_09",
+        node_id="node_09_legacy",
         node_name="causal_pattern_detection",
         input_schema={"segments": "list"},
         output_schema={"causal_patterns": "dict"},
@@ -254,9 +248,15 @@ CANONICAL_NODE_CONTRACTS = {
         invariants=["patterns_valid"],
         dependencies=["document_segmentation"]
     ),
-
+    # Stage 10 (new name) + legacy alias
+    "teoria_cambio": NodeContract(
+        node_id="node_10", node_name="teoria_cambio",
+        input_schema={"segments": "list"}, output_schema={"toc_graph": "dict"},
+        required_inputs=["segments"], required_outputs=["toc_graph"],
+        invariants=["graph_valid"], dependencies=["document_segmentation"]
+    ),
     "teoria_cambio_validation": NodeContract(
-        node_id="node_10",
+        node_id="node_10_legacy",
         node_name="teoria_cambio_validation",
         input_schema={"segments": "list"},
         output_schema={"toc_graph": "dict"},
@@ -265,18 +265,14 @@ CANONICAL_NODE_CONTRACTS = {
         invariants=["graph_valid"],
         dependencies=["document_segmentation"]
     ),
-
+    # Stage 11
     "dag_validation": NodeContract(
-        node_id="node_11",
-        node_name="dag_validation",
-        input_schema={"toc_graph": "dict"},
-        output_schema={"dag_diagnostics": "dict"},
-        required_inputs=["toc_graph"],
-        required_outputs=["dag_diagnostics"],
-        invariants=["dag_acyclic"],
-        dependencies=["teoria_cambio_validation"]
+        node_id="node_11", node_name="dag_validation",
+        input_schema={"toc_graph": "dict"}, output_schema={"dag_diagnostics": "dict"},
+        required_inputs=["toc_graph"], required_outputs=["dag_diagnostics"],
+        invariants=["dag_acyclic"], dependencies=["teoria_cambio"]
     ),
-
+    # Stage 12
     "evidence_registry_build": NodeContract(
         node_id="node_12",
         node_name="evidence_registry_build",
@@ -296,35 +292,55 @@ CANONICAL_NODE_CONTRACTS = {
         dependencies=[
             "responsibility_detection", "contradiction_detection",
             "monetary_detection", "feasibility_scoring",
-            "causal_pattern_detection", "teoria_cambio_validation",
+            "causal_detection", "causal_pattern_detection",
+            "teoria_cambio", "teoria_cambio_validation",
             "dag_validation"
         ]
     ),
-
-    "decalogo_evaluation": NodeContract(
+    # Stage 13 (NEW)
+    "decalogo_load": NodeContract(
         node_id="node_13",
+        node_name="decalogo_load",
+        input_schema={},  # no required inputs (loads bundle)
+        output_schema={
+            "status": "str",
+            "bundle_version": "str",
+            "categories_count": "int",
+            "extractor_type": "str"
+        },
+        required_inputs=[],
+        required_outputs=["status"],
+        invariants=["load_success"],
+        dependencies=["evidence_registry_build"]
+    ),
+    # Stage 14 (Decálogo eval now depends on load + registry)
+    "decalogo_evaluation": NodeContract(
+        node_id="node_14",
         node_name="decalogo_evaluation",
         input_schema={"evidence_store": "object"},
         output_schema={"decalogo_eval": "dict"},
         required_inputs=["evidence_store"],
         required_outputs=["decalogo_eval"],
         invariants=["scores_bounded"],
-        dependencies=["evidence_registry_build"]
+        dependencies=["decalogo_load", "evidence_registry_build"]
     ),
-
+    # Stage 15
     "questionnaire_evaluation": NodeContract(
-        node_id="node_14",
-        node_name="questionnaire_evaluation",
-        input_schema={"evidence_store": "object"},
-        output_schema={"questionnaire_eval": "dict"},
-        required_inputs=["evidence_store"],
-        required_outputs=["questionnaire_eval"],
-        invariants=["300_questions", "weights_aligned"],
-        dependencies=["evidence_registry_build"]
+        node_id="node_15", node_name="questionnaire_evaluation",
+        input_schema={"evidence_store": "object"}, output_schema={"questionnaire_eval": "dict"},
+        required_inputs=["evidence_store"], required_outputs=["questionnaire_eval"],
+        invariants=["300_questions", "weights_aligned"], dependencies=["evidence_registry_build"]
     ),
-
+    # Stage 16 (updated name) + legacy alias
+    "answers_assembly": NodeContract(
+        node_id="node_16", node_name="answers_assembly",
+        input_schema={"evidence_store": "object", "rubric": "dict", "questionnaire_eval": "dict"},
+        output_schema={"answers_report": "dict"}, required_inputs=["evidence_store", "questionnaire_eval"],
+        required_outputs=["answers_report"], invariants=["provenance_complete", "confidence_bounded"],
+        dependencies=["questionnaire_evaluation", "decalogo_evaluation"]
+    ),
     "answer_assembly": NodeContract(
-        node_id="node_15",
+        node_id="node_16_legacy",
         node_name="answer_assembly",
         input_schema={
             "evidence_store": "object",
@@ -335,8 +351,8 @@ CANONICAL_NODE_CONTRACTS = {
         required_inputs=["evidence_store", "questionnaire_eval"],
         required_outputs=["answers_report"],
         invariants=["provenance_complete", "confidence_bounded"],
-        dependencies=["questionnaire_evaluation"]
-    )
+        dependencies=["questionnaire_evaluation", "decalogo_evaluation"]
+    ),
 }
 
 
@@ -485,23 +501,24 @@ class CanonicalFlowValidator:
     Gate #2: flow_runtime.json identical to canonical documentation
     """
 
-    # Canonical execution order (must match PipelineStage enum)
+    # Canonical execution order (UPDATED: 16 stages)
     CANONICAL_ORDER = [
         "sanitization",
         "plan_processing",
         "document_segmentation",
-        "embedding_generation",
+        "embedding",
         "responsibility_detection",
         "contradiction_detection",
         "monetary_detection",
         "feasibility_scoring",
-        "causal_pattern_detection",
-        "teoria_cambio_validation",
+        "causal_detection",
+        "teoria_cambio",
         "dag_validation",
         "evidence_registry_build",
+        "decalogo_load",
         "decalogo_evaluation",
         "questionnaire_evaluation",
-        "answer_assembly"
+        "answers_assembly"
     ]
 
     def __init__(self, flow_doc_path: Optional[Path] = None):
@@ -732,14 +749,8 @@ class FlowDocGenerator:
 
     @staticmethod
     def generate_flow_doc(output_path: Path):
-        """
-        Generate canonical flow documentation from contracts.
-
-        Args:
-            output_path: Path to save flow_doc.json (typically tools/flow_doc.json)
-        """
+        """Generate canonical flow documentation from contracts (16 stages)."""
         stages = []
-
         for stage_name in CanonicalFlowValidator.CANONICAL_ORDER:
             if stage_name in CANONICAL_NODE_CONTRACTS:
                 contract = CANONICAL_NODE_CONTRACTS[stage_name]
@@ -753,26 +764,20 @@ class FlowDocGenerator:
                     "invariants": contract.invariants,
                     "dependencies": contract.dependencies
                 })
-
-        # Compute canonical flow hash
         stages_str = "|".join([s["name"] for s in stages])
         flow_hash = hashlib.sha256(stages_str.encode()).hexdigest()
-
         doc = {
-            "version": "2.0.0",
+            "version": "2.1.0",
             "flow_hash": flow_hash,
             "generated_at": datetime.utcnow().isoformat() + "Z",
-            "description": "Canonical deterministic pipeline flow (15 stages)",
+            "description": "Canonical deterministic pipeline flow (16 stages)",
             "total_stages": len(stages),
             "stages": stages
         }
-
         output_path.parent.mkdir(parents=True, exist_ok=True)
-
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(doc, f, indent=2, ensure_ascii=False)
-
-        logger.info(f"✓ Flow documentation generated: {output_path}")
+        logger.info(f"✓ Flow documentation generated (16 stages): {output_path}")
         logger.info(f"  Flow hash: {flow_hash}")
         logger.info(f"  Stages: {len(stages)}")
 
