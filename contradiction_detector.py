@@ -536,11 +536,8 @@ if __name__ == "__main__":
         "sin embargo, los recursos presupuestales han sido reducidos en un 30% este año."
     )
     analysis = detector.detect_contradictions(sample)
-    logger.info("Total contradicciones: %d", analysis.total_contradictions)
+    logger.info(f"Total contradicciones: {analysis.total_contradictions}")
     for c in analysis.contradictions:
         logger.info(
-            "Connector: %s | confidence: %.3f | risk: %s",
-            c.adversative_connector,
-            c.confidence,
-            c.risk_level.value,
+            f"Connector: {c.adversative_connector} | confidence: {c.confidence:.3f} | risk: {c.risk_level.value}"
         )
