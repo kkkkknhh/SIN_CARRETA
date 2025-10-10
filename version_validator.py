@@ -3,6 +3,7 @@ Version Validator
 Ensures Python 3.10 is being used across all system modules.
 """
 
+import os
 import sys
 import warnings
 from typing import Tuple
@@ -28,6 +29,7 @@ def validate_python_310() -> bool:
         raise RuntimeError(error_msg)
     
     return True
+
 
 def validate_numpy_compatibility() -> bool:
     """
@@ -65,12 +67,14 @@ def validate_numpy_compatibility() -> bool:
         warnings.warn("NumPy not installed. Install with: pip install 'numpy>=1.21.0,<1.25.0'", UserWarning)
         return False
 
+
 def get_python_version_info() -> Tuple[int, int, int]:
     """Get current Python version as tuple."""
     return sys.version_info[:3]
 
+
 # Automatic validation on import (can be disabled by setting environment variable)
-import os
-if os.getenv('SKIP_VERSION_VALIDATION') != '1':
+skip_validation = os.getenv('SKIP_VERSION_VALIDATION')
+if skip_validation != '1':
     validate_python_310()
     validate_numpy_compatibility()
