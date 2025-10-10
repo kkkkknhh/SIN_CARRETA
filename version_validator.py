@@ -80,8 +80,7 @@ def get_python_version_info() -> Tuple[int, int, int]:
     return sys.version_info[:3]
 
 
-# Automatic validation on import
-# (can be disabled by setting environment variable)
+# Automatic validation on import (can be disabled by env var)
 if os.getenv('SKIP_VERSION_VALIDATION') != '1':
     validate_python_310()
     validate_numpy_compatibility()

@@ -28,7 +28,7 @@ def float_or_disabled(x: str) -> Optional[float]:
 
 
 def extract_text(
-    files: Iterable[str] = [],
+    files: Iterable[str] = None,
     outfile: str = "-",
     laparams: Optional[LAParams] = None,
     output_type: str = "text",
@@ -45,6 +45,8 @@ def extract_text(
     disable_caching: bool = False,
     **kwargs: Any,
 ) -> AnyIO:
+    if files is None:
+        files = []
     if not files:
         raise PDFValueError("Must provide files to work upon!")
 
