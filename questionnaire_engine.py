@@ -41,11 +41,21 @@ class ScoreBand(Enum):
     INSUFICIENTE = (40, 54, "🔴", "Vacíos críticos")
     DEFICIENTE = (0, 39, "⚫", "Ausencia de diseño causal")
 
-    def __init__(self, min_score, max_score, color, description):
-        self.min_score = min_score
-        self.max_score = max_score
-        self.color = color
-        self.description = description
+    @property
+    def min_score(self):
+        return self.value[0]
+
+    @property
+    def max_score(self):
+        return self.value[1]
+
+    @property
+    def color(self):
+        return self.value[2]
+
+    @property
+    def description(self):
+        return self.value[3]
 
     @classmethod
     def classify(cls, score_percentage: float) -> 'ScoreBand':
@@ -1128,8 +1138,11 @@ class QuestionnaireEngine:
     COMPLETE IMPLEMENTATION: Enforces strict 30×10 structure with full scoring
     """
 
-    def __init__(self):
+    def __init__(self, evidence_registry=None, rubric_path=None):
         """Initialize with complete question library"""
+        self.evidence_registry = evidence_registry
+        self.rubric_path = rubric_path
+        
         self.structure = QuestionnaireStructure()
         if not self.structure.validate_structure():
             raise ValueError("CRITICAL: Questionnaire structure validation FAILED")
@@ -1144,9 +1157,26 @@ class QuestionnaireEngine:
         if len(self.thematic_points) != 10:
             raise ValueError(f"CRITICAL: Must have exactly 10 thematic points, got {len(self.thematic_points)}")
 
+        # Load rubric if path provided
+        if rubric_path:
+            self._load_rubric()
+
         logger.info("✅ QuestionnaireEngine v2.0 initialized with COMPLETE 30×10 structure")
         logger.info(f"   📋 {len(self.base_questions)} base questions loaded")
         logger.info(f"   🎯 {len(self.thematic_points)} thematic points loaded")
+
+    def _load_rubric(self):
+        """Load rubric data from the provided path."""
+        if not self.rubric_path:
+            return
+        
+        try:
+            with open(self.rubric_path, 'r', encoding='utf-8') as f:
+                self.rubric_data = json.load(f)
+            logger.info(f"✓ Rubric loaded from {self.rubric_path}")
+        except Exception as e:
+            logger.warning(f"Could not load rubric from {self.rubric_path}: {e}")
+            self.rubric_data = None
 
     def _load_thematic_points(self) -> List[ThematicPoint]:
         """Load the 10 thematic points from the authoritative JSON"""
