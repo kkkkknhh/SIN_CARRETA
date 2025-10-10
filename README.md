@@ -6,6 +6,36 @@
 
 ---
 
+## 📑 Tabla de Contenidos
+
+1. [🎯 Descripción](#-descripción)
+2. [📦 Instalación Completa (Paso a Paso)](#-instalación-completa-paso-a-paso)
+   - [Requisitos Previos](#requisitos-previos)
+   - [Instalación Manual (11 Pasos)](#paso-1-verificar-python-310)
+   - [Instalación Automatizada](#instalación-automatizada-script)
+3. [🚀 Guía de Implementación (Workflow Completo)](#-guía-de-implementación-workflow-completo)
+   - [Paso 1: Congelar Configuración (Gate #1)](#paso-1-congelar-configuración-gate-1---obligatorio)
+   - [Paso 2: Verificar Estado](#paso-2-verificar-estado-del-sistema-pre-ejecución)
+   - [Paso 3: Primera Evaluación](#paso-3-ejecutar-primera-evaluación-de-pdm)
+   - [Paso 4: Inspeccionar Resultados](#paso-4-inspeccionar-resultados)
+   - [Paso 5: Verificar Reproducibilidad](#paso-5-verificar-reproducibilidad-gate-3---crítico)
+   - [Paso 6: Validar Rúbrica](#paso-6-validar-alineación-de-rúbrica-gate-5)
+   - [Paso 7: Matriz de Trazabilidad](#paso-7-generar-matriz-de-trazabilidad)
+   - [Paso 8: Verificación Completa](#paso-8-verificación-post-ejecución-completa)
+4. [🔧 Uso Programático (API Python)](#-uso-programático-api-python)
+5. [🆘 Troubleshooting](#-troubleshooting-solución-de-problemas)
+6. [🏗️ Arquitectura del Sistema](#️-arquitectura-del-sistema)
+7. [🛡️ Gates de Aceptación](#️-gates-de-aceptación-verificación-automática)
+8. [📁 Archivos Fundamentales](#-archivos-fundamentales-del-sistema)
+9. [📊 Salidas del Sistema](#-salidas-del-sistema)
+10. [📊 Visual Architecture Diagrams](#-visual-architecture-diagrams)
+11. [🧪 Testing y Verificación](#-testing-y-verificación)
+12. [🤝 Contribución](#-contribución)
+13. [📚 Documentación Adicional](#-documentación-adicional)
+14. [⚡ Quick Reference (Comandos Comunes)](#-quick-reference-comandos-comunes)
+
+---
+
 ## 🎯 Descripción
 
 Sistema de evaluación determinista y reproducible de Planes de Desarrollo Municipal (PDM) basado en:
@@ -148,7 +178,7 @@ python miniminimoon_cli.py freeze
 
 ### Gate #5: Alineación de Rúbrica ✅
 ```bash
-python rubric_check.py
+python miniminimoon_cli.py rubric-check
 ```
 - Verifica: 1:1 preguntas ↔ pesos (sin missing/extra)
 - **Bloqueo:** Exit code 3 si hay desalineación
@@ -205,9 +235,9 @@ questionnaire_engine.py            # Motor de 300 preguntas
 ### 5. Herramientas de Verificación
 
 ```
-miniminimoon_cli.py                # CLI: freeze, evaluate, verify
-rubric_check.py                    # Verificación 1:1 preguntas↔rúbrica
-trace_matrix.py                    # Matriz módulo→pregunta→evidencia
+miniminimoon_cli.py                # CLI: freeze, evaluate, verify, rubric-check, trace-matrix
+system_validators.py               # Validadores pre/post ejecución
+test_validation_end_to_end.py      # Verificación end-to-end
 tools/flow_doc.json                # Orden canónico documentado
 determinism_guard.py               # Fijación de seeds deterministas
 ```
@@ -223,55 +253,761 @@ DEPLOYMENT_INFRASTRUCTURE.md       # Infraestructura de deployment
 
 ---
 
-## 🚀 Uso Rápido
+## 📦 Instalación Completa (Paso a Paso)
 
-### Instalación y Setup
+### Requisitos Previos
+
+**Sistema Operativo:**
+- Linux (Ubuntu 18.04+, Debian 10+)
+- macOS (10.15+, incluye Apple Silicon)
+- Windows 10+ (con WSL2 recomendado)
+
+**Python Version:**
+- **Python 3.10** (REQUERIDO - versión exacta)
+- Otras versiones NO soportadas debido a compatibilidad con NumPy >=1.21.0 y modelos de embeddings
+
+**Espacio en Disco:**
+- Mínimo: 5 GB
+- Recomendado: 10 GB (incluye modelos de NLP y caché)
+
+**Memoria RAM:**
+- Mínimo: 8 GB
+- Recomendado: 16 GB (para planes grandes >100 páginas)
+
+### Paso 1: Verificar Python 3.10
 
 ```bash
-# 1. Congelar configuración (Gate #1)
+# Verificar versión de Python
+python3.10 --version
+
+# Si no está instalado:
+# Ubuntu/Debian:
+sudo apt update
+sudo apt install python3.10 python3.10-venv python3.10-dev
+
+# macOS (con Homebrew):
+brew install python@3.10
+
+# Verificar que esté disponible
+which python3.10
+```
+
+### Paso 2: Clonar el Repositorio
+
+```bash
+# Clonar repositorio
+git clone https://github.com/ANITALAVALATINACONPRISA/SIN_CARRETA.git
+cd SIN_CARRETA
+
+# Verificar que estás en el directorio correcto
+pwd  # Debe mostrar: /ruta/a/SIN_CARRETA
+ls   # Debe mostrar: README.md, requirements.txt, miniminimoon_orchestrator.py, etc.
+```
+
+### Paso 3: Crear Entorno Virtual (Python 3.10)
+
+```bash
+# Crear entorno virtual con Python 3.10
+python3.10 -m venv venv
+
+# Activar entorno virtual
+# En Linux/macOS:
+source venv/bin/activate
+
+# En Windows (PowerShell):
+# .\venv\Scripts\Activate.ps1
+
+# Verificar que Python 3.10 está activo
+python --version  # Debe mostrar: Python 3.10.x
+```
+
+### Paso 4: Actualizar pip, setuptools y wheel
+
+```bash
+# Actualizar herramientas de instalación
+python -m pip install --upgrade pip setuptools wheel
+
+# Verificar versiones actualizadas
+pip --version  # Debe mostrar pip 23.0 o superior
+```
+
+### Paso 5: Instalar Dependencias Base
+
+```bash
+# Instalar todas las dependencias del proyecto
+pip install -r requirements.txt
+
+# Tiempo estimado: 5-10 minutos
+# Si encuentras errores, ver sección de Troubleshooting abajo
+```
+
+### Paso 6: Instalar Dependencias de Desarrollo (Opcional)
+
+```bash
+# Solo si necesitas ejecutar tests o desarrollo
+pip install -r requirements-dev.txt
+
+# Incluye: pytest, mypy, black, flake8, pylint
+```
+
+### Paso 7: Descargar Modelos de NLP
+
+```bash
+# Descargar modelos de spaCy (español)
+python -m spacy download es_core_news_sm
+python -m spacy download es_core_news_md
+
+# Descargar datos de NLTK
+python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords'); nltk.download('wordnet'); nltk.download('averaged_perceptron_tagger')"
+
+# Verificar instalación de modelos
+python -c "import spacy; nlp = spacy.load('es_core_news_sm'); print('✓ spaCy modelo cargado correctamente')"
+```
+
+### Paso 8: Crear Estructura de Directorios
+
+```bash
+# Crear directorios necesarios para el sistema
+mkdir -p artifacts config logs output data
+
+# Verificar estructura
+ls -la | grep -E "artifacts|config|logs|output|data"
+```
+
+### Paso 9: Verificar Archivos de Configuración
+
+```bash
+# Verificar que existan los archivos de configuración críticos
+ls -la config/ | grep -E "decalogo_industrial|dnp-standards|RUBRIC_SCORING"
+
+# O verificar en el directorio raíz:
+ls -la | grep -E "decalogo_industrial|dnp-standards|RUBRIC_SCORING"
+
+# Archivos requeridos:
+# - decalogo_industrial.json (o decalogo-industrial.latest.clean.json)
+# - dnp-standards.latest.clean.json
+# - RUBRIC_SCORING.json (o rubric_scoring.json)
+```
+
+**⚠️ Si faltan archivos:** El sistema no podrá ejecutarse sin estos archivos. Deben ser proporcionados por el administrador del proyecto.
+
+### Paso 10: Ejecutar Verificación de Compatibilidad
+
+```bash
+# Verificar que todo está correctamente instalado
+python python_310_compatibility_checker.py
+
+# Output esperado:
+# ✓ Python 3.10.x detected
+# ✓ NumPy version compatible
+# ✓ All dependencies installed
+# ✓ System ready for operation
+```
+
+### Paso 11: Verificar Instalación del Sistema
+
+```bash
+# Verificar que todos los módulos se pueden importar
+python -c "from miniminimoon_orchestrator import CanonicalDeterministicOrchestrator; print('✓ Orchestrator OK')"
+python -c "from plan_processor import PlanProcessor; print('✓ Plan Processor OK')"
+python -c "from document_segmenter import DocumentSegmenter; print('✓ Document Segmenter OK')"
+python -c "from plan_sanitizer import PlanSanitizer; print('✓ Plan Sanitizer OK')"
+python -c "from embedding_model import EmbeddingModel; print('✓ Embedding Model OK')"
+
+# Si todos muestran "✓ ... OK", la instalación fue exitosa
+```
+
+### Instalación Automatizada (Script)
+
+Si prefieres una instalación automatizada, puedes usar el script `setup_environment.sh`:
+
+```bash
+# Hacer ejecutable el script
+chmod +x setup_environment.sh
+
+# Ejecutar script de instalación
+./setup_environment.sh
+```
+
+**El script automatiza:**
+- ✓ Verificación de Python 3.10
+- ✓ Creación de entorno virtual
+- ✓ Instalación de dependencias (base + dev opcional)
+- ✓ Descarga de modelos NLP (spaCy + NLTK)
+- ✓ Creación de estructura de directorios
+- ✓ Verificación de archivos de configuración
+- ✓ Tests básicos de verificación (opcional)
+
+**Interacción durante el script:**
+
+```bash
+# El script preguntará:
+¿Deseas instalar dependencias de desarrollo? (y/n): y
+¿Deseas ejecutar tests básicos de verificación? (y/n): y
+```
+
+**Output esperado al finalizar:**
+
+```
+==========================================
+Setup completado exitosamente!
+==========================================
+
+Para activar el entorno en el futuro:
+  source venv/bin/activate
+
+Para ejecutar el sistema:
+  1. Congelar configuración:
+     python miniminimoon_orchestrator.py freeze ./config/
+
+  2. Ejecutar evaluación:
+     python miniminimoon_orchestrator.py evaluate ./config/ plan.pdf ./output/
+
+  3. Verificar reproducibilidad:
+     python miniminimoon_orchestrator.py verify ./config/ plan.pdf --runs 3
+
+Documentación completa en:
+  - FLUJOS_CRITICOS_GARANTIZADOS.md
+  - ARCHITECTURE.md
+```
+
+**⚠️ Nota para Windows:** El script `setup_environment.sh` es para Linux/macOS. Para Windows, usa `setup_environment.bat` o sigue los pasos manuales en PowerShell.
+
+---
+
+## 🚀 Guía de Implementación (Workflow Completo)
+
+Una vez completada la instalación, sigue estos pasos para implementar y usar el sistema:
+
+### Paso 1: Congelar Configuración (Gate #1) - OBLIGATORIO
+
+Este paso es **CRÍTICO** y debe ejecutarse antes de cualquier evaluación.
+
+```bash
+# Activar entorno virtual si no está activo
+source venv/bin/activate
+
+# Congelar configuración (crea snapshot inmutable)
 python miniminimoon_cli.py freeze
 
-# 2. Verificar estado del sistema
-python verify_critical_flows.py
+# O usando el orquestador directamente:
+python miniminimoon_orchestrator.py freeze ./config/
 ```
 
-### Evaluación de un PDM
+**¿Qué hace esto?**
+- Crea `.immutability_snapshot.json` con hash SHA-256 de todos los archivos de configuración
+- Garantiza que la configuración no cambie entre ejecuciones
+- Es requisito obligatorio para Gate #1 (primera validación)
+
+**Output esperado:**
+```
+✓ Configuration frozen successfully
+  Hash: a3f8d2e1b4c5a9f2d8e6c4a1b7f3d9e5
+  Files: ['decalogo_industrial.json', 'dnp-standards.latest.clean.json', 'RUBRIC_SCORING.json']
+  Snapshot saved: .immutability_snapshot.json
+```
+
+### Paso 2: Verificar Estado del Sistema (Pre-Ejecución)
 
 ```bash
-# Evaluación completa con validación
-python miniminimoon_cli.py evaluate --plan path/to/pdm.pdf --strict
+# Verificar sistema con validación end-to-end
+python test_validation_end_to_end.py
 
-# Verificación post-ejecución
-python miniminimoon_cli.py verify
+# O verificar usando el CLI con diagnóstico
+python miniminimoon_cli.py diagnostic
 
-# Verificación de rúbrica (Gate #5)
-python rubric_check.py
-
-# Generar matriz de trazabilidad
-python trace_matrix.py
+# O verificar que el sistema está operativo
+python -c "from system_validators import SystemHealthValidator; print('✓ System validators ready')"
 ```
 
-### Uso Programático
+### Paso 3: Ejecutar Primera Evaluación de PDM
+
+```bash
+# Evaluación completa con validación estricta
+python miniminimoon_cli.py evaluate --plan path/to/tu_plan.pdf --strict
+
+# O usando el orquestador con más control:
+python miniminimoon_orchestrator.py evaluate ./config/ tu_plan.pdf ./output/
+
+# Tiempo estimado: 45-60 segundos para plan de ~50 páginas
+```
+
+**Argumentos:**
+- `--plan`: Ruta al archivo PDF del Plan de Desarrollo Municipal
+- `--strict`: Modo estricto (activa todas las validaciones)
+- `./config/`: Directorio con archivos de configuración
+- `./output/`: Directorio donde se guardarán los resultados
+
+**Artifacts Generados (en `output/` o `artifacts/`):**
+
+```
+output/
+├── answers_report.json           # ⭐ Reporte completo con 300 preguntas respondidas
+├── answers_sample.json           # Muestra de las primeras 10 respuestas
+├── evidence_registry.json        # Registro único de toda la evidencia recolectada
+├── flow_runtime.json             # Trace completo de ejecución (orden + contratos I/O)
+├── coverage_report.json          # Cobertura: qué preguntas tienen evidencia
+├── final_results.json            # Resultados consolidados + hashes (evidence_hash, flow_hash)
+└── module_to_questions_matrix.csv # Matriz de trazabilidad: módulo → pregunta → evidencia
+```
+
+### Paso 4: Inspeccionar Resultados
+
+```bash
+# Ver resumen de resultados
+cat output/final_results.json | python -m json.tool | head -50
+
+# Ver muestra de respuestas
+cat output/answers_sample.json | python -m json.tool
+
+# Ver evidencia recolectada
+cat output/evidence_registry.json | python -m json.tool | head -100
+
+# Verificar cobertura de preguntas
+python -c "import json; data=json.load(open('output/coverage_report.json')); print(f'Preguntas respondidas: {data[\"coverage_summary\"][\"total_answered\"]}/300')"
+```
+
+**Estructura de una Respuesta (ejemplo):**
+
+```json
+{
+  "question_id": "DE-1-Q4",
+  "dimension": "DE-1",
+  "question_text": "¿Se especifican líneas base cuantitativas?",
+  "evidence_ids": ["resp_abc123", "feas_def456"],
+  "confidence": 0.85,
+  "score": 2.5,
+  "reasoning": "Evidencia sólida de líneas base en 3 programas: Educación (45% cobertura 2023), Salud (62% atención 2023), Infraestructura (78% vías pavimentadas 2023)...",
+  "rubric_weight": 0.15,
+  "supporting_quotes": [
+    "Línea base 2023: 45% cobertura educativa en zona rural",
+    "Meta 2027: Incrementar a 75% cobertura educativa"
+  ],
+  "caveats": ["Basado en 2 fuentes de evidencia", "No se encontró línea base para programa de medio ambiente"]
+}
+```
+
+### Paso 5: Verificar Reproducibilidad (Gate #3) - CRÍTICO
+
+Este paso valida que el sistema es **determinista**: mismo input = mismo output.
+
+```bash
+# Ejecutar pipeline 3 veces con el mismo input
+python miniminimoon_orchestrator.py verify ./config/ tu_plan.pdf --runs 3
+
+# O manualmente:
+for i in {1..3}; do
+  python miniminimoon_cli.py evaluate --plan tu_plan.pdf --output run_${i}.json
+done
+
+# Comparar hashes (deben ser IDÉNTICOS)
+python -c "
+import json
+hashes = []
+for i in range(1, 4):
+    with open(f'run_{i}.json') as f:
+        data = json.load(f)
+        hashes.append(data['evidence_hash'])
+print('Evidence hashes:', hashes)
+print('Todas idénticas:', len(set(hashes)) == 1)
+"
+```
+
+**Output esperado:**
+```
+✓ Run 1 completed - evidence_hash: a3f8d2e1b4c5...
+✓ Run 2 completed - evidence_hash: a3f8d2e1b4c5...
+✓ Run 3 completed - evidence_hash: a3f8d2e1b4c5...
+✓ DETERMINISM VERIFIED: All hashes identical
+✓ Gate #3 PASSED
+```
+
+**⚠️ Si los hashes NO son idénticos:** Hay un problema de no-determinismo. Reportar como bug.
+
+### Paso 6: Validar Alineación de Rúbrica (Gate #5)
+
+```bash
+# Verificar que hay correspondencia 1:1 entre preguntas y pesos de rúbrica
+python miniminimoon_cli.py rubric-check \
+    output/answers_report.json \
+    config/RUBRIC_SCORING.json
+```
+
+**Output esperado (PASSING):**
+```
+================================================================================
+RUBRIC VALIDATION REPORT
+================================================================================
+✓ Total questions in answers_report: 300
+✓ Total weights in rubric: 300
+✓ All questions have corresponding weights
+✓ All weights have corresponding questions
+✓ No missing questions
+✓ No extra weights
+================================================================================
+✓ RUBRIC VALIDATION PASSED - Gate #5 ✓
+================================================================================
+```
+
+**Output esperado (FAILING):**
+```
+================================================================================
+RUBRIC VALIDATION REPORT
+================================================================================
+✗ Total questions in answers_report: 300
+✗ Total weights in rubric: 295
+✗ MISSING questions (no weight): ['DE-3-Q14', 'DE-5-Q22', ...]
+✗ EXTRA weights (no question): []
+================================================================================
+✗ RUBRIC VALIDATION FAILED - Gate #5 ✗
+Exit code: 3
+================================================================================
+```
+
+**Si falla:** Corregir `RUBRIC_SCORING.json` para añadir/eliminar pesos según sea necesario.
+
+### Paso 7: Generar Matriz de Trazabilidad
+
+```bash
+# Generar matriz completa: módulo → pregunta → evidencia
+python miniminimoon_cli.py trace-matrix
+
+# Output: artifacts/module_to_questions_matrix.csv
+```
+
+Este archivo CSV muestra qué módulos del pipeline generaron evidencia para qué preguntas, permitiendo auditoría completa.
+
+### Paso 8: Verificación Post-Ejecución Completa
+
+```bash
+# Ejecutar todas las verificaciones post-ejecución
+python miniminimoon_cli.py verify
+
+# Este comando ejecuta:
+# - Verificación de Gates #3, #4, #5
+# - Validación de contratos I/O
+# - Verificación de orden canónico
+# - Chequeo de cobertura ≥300 preguntas
+```
+
+---
+
+## 🔧 Uso Programático (API Python)
+
+Para integrar MINIMINIMOON en tu propio código:
 
 ```python
 from miniminimoon_orchestrator import CanonicalDeterministicOrchestrator
 
 # Inicializar orquestador con validación habilitada
 orchestrator = CanonicalDeterministicOrchestrator(
-    config_dir=".",
-    enable_validation=True,
-    flow_doc_path="tools/flow_doc.json",
-    log_level="INFO"
+    config_dir="./config",           # Directorio con archivos JSON
+    enable_validation=True,           # Activar validación de gates
+    flow_doc_path="tools/flow_doc.json",  # Orden canónico documentado
+    log_level="INFO"                  # DEBUG, INFO, WARNING, ERROR
 )
 
-# Ejecutar pipeline completo
-results = orchestrator.process_plan_deterministic("plan.pdf")
+# Ejecutar pipeline completo de forma determinista
+results = orchestrator.process_plan_deterministic("path/to/plan.pdf")
 
 # Acceder a resultados
 print(f"Evidence hash: {results['evidence_hash']}")
-print(f"Total preguntas: {results['evaluations']['answers_report']['summary']['total_questions']}")
 print(f"Flow hash: {results['validation']['flow_hash']}")
+print(f"Total preguntas: {results['evaluations']['answers_report']['summary']['total_questions']}")
+
+# Acceder a respuestas individuales
+answers = results['evaluations']['answers_report']['answers']
+for answer in answers[:5]:  # Primeras 5 respuestas
+    print(f"Q: {answer['question_id']} - Score: {answer['score']}")
+
+# Acceder a evidencia
+evidence_store = results['evidence_registry']
+print(f"Total evidencias: {len(evidence_store['evidence_by_type'])}")
+
+# Guardar resultados
+import json
+with open('my_results.json', 'w', encoding='utf-8') as f:
+    json.dump(results, f, indent=2, ensure_ascii=False)
 ```
+
+---
+
+## 🆘 Troubleshooting (Solución de Problemas)
+
+### Problema 1: Error al instalar dependencias
+
+**Síntoma:**
+```
+ERROR: Could not find a version that satisfies the requirement...
+```
+
+**Soluciones:**
+
+```bash
+# Solución 1: Verificar versión de Python
+python --version  # DEBE ser 3.10.x
+
+# Solución 2: Limpiar caché de pip
+pip cache purge
+pip install -r requirements.txt --no-cache-dir
+
+# Solución 3: Instalar en grupos pequeños
+pip install numpy scipy scikit-learn
+pip install pandas
+pip install torch --index-url https://download.pytorch.org/whl/cpu  # CPU-only (más ligero)
+pip install sentence-transformers
+pip install spacy networkx matplotlib
+```
+
+### Problema 2: Error "No space left on device"
+
+**Síntoma:**
+```
+[Errno 28] No space left on device
+```
+
+**Soluciones:**
+
+```bash
+# Ver espacio disponible
+df -h
+
+# Limpiar caché de pip
+pip cache purge
+
+# Instalar torch CPU-only (más ligero: ~200MB vs ~2GB)
+pip uninstall torch
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# Ver espacio usado por venv
+du -sh venv/
+
+# Si necesario, mover a disco con más espacio
+mv venv /otro/disco/con/espacio/
+ln -s /otro/disco/con/espacio/venv venv
+```
+
+### Problema 3: Error al importar módulos
+
+**Síntoma:**
+```
+ImportError: cannot import name 'CanonicalDeterministicOrchestrator'
+ModuleNotFoundError: No module named 'plan_processor'
+```
+
+**Soluciones:**
+
+```bash
+# Verificar que estás en el directorio correcto
+pwd  # Debe mostrar: /ruta/a/SIN_CARRETA
+
+# Verificar que el entorno virtual está activo
+which python  # Debe mostrar: /ruta/a/SIN_CARRETA/venv/bin/python
+
+# Reinstalar dependencias
+pip install -r requirements.txt --force-reinstall
+
+# Verificar archivos Python existen
+ls -la *.py | grep -E "orchestrator|processor|segmenter|sanitizer"
+```
+
+### Problema 4: Error "No frozen config snapshot"
+
+**Síntoma:**
+```
+RuntimeError: Configuration must be frozen before execution (Gate #1)
+File not found: .immutability_snapshot.json
+```
+
+**Solución:**
+
+```bash
+# Ejecutar freeze antes de cualquier evaluación
+python miniminimoon_cli.py freeze
+
+# Verificar que se creó el snapshot
+ls -la .immutability_snapshot.json
+cat .immutability_snapshot.json | python -m json.tool
+```
+
+### Problema 5: Modelos de spaCy no encontrados
+
+**Síntoma:**
+```
+OSError: [E050] Can't find model 'es_core_news_sm'
+```
+
+**Solución:**
+
+```bash
+# Descargar modelo nuevamente
+python -m spacy download es_core_news_sm
+
+# Verificar instalación
+python -c "import spacy; nlp = spacy.load('es_core_news_sm'); print('OK')"
+
+# Si persiste, instalar manualmente
+pip install https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.6.0/es_core_news_sm-3.6.0-py3-none-any.whl
+```
+
+### Problema 6: Archivos de configuración faltantes
+
+**Síntoma:**
+```
+FileNotFoundError: [Errno 2] No such file or directory: 'decalogo_industrial.json'
+```
+
+**Solución:**
+
+```bash
+# Verificar ubicación de archivos
+find . -name "decalogo*.json"
+find . -name "dnp-standards*.json"
+find . -name "rubric*.json"
+
+# Copiar a ubicación esperada (si están en subdirectorios)
+cp config/decalogo-industrial.latest.clean.json decalogo_industrial.json
+cp config/dnp-standards.latest.clean.json .
+cp config/rubric_scoring.json RUBRIC_SCORING.json
+
+# O crear enlaces simbólicos
+ln -s config/decalogo-industrial.latest.clean.json decalogo_industrial.json
+```
+
+### Problema 7: Hashes no reproducibles (Gate #3 falla)
+
+**Síntoma:**
+```
+✗ DETERMINISM CHECK FAILED
+Run 1 hash: a3f8d2e1...
+Run 2 hash: b4c5f6d7...
+Run 3 hash: c8d9e0f1...
+```
+
+**Solución:**
+
+```bash
+# Verificar que determinism_guard está activo
+python -c "from determinism_guard import verify_determinism; verify_determinism()"
+
+# Ejecutar con modo debug
+python miniminimoon_cli.py evaluate --plan test.pdf --debug
+
+# Revisar logs para identificar fuente de no-determinismo
+cat logs/miniminimoon_*.log | grep -i "random\|seed\|nondetermin"
+```
+
+### Problema 8: Validación de rúbrica falla (Gate #5)
+
+**Síntoma:**
+```
+✗ RUBRIC VALIDATION FAILED
+Missing questions: ['DE-3-Q14', 'DE-5-Q22']
+Extra weights: ['DE-1-Q99']
+```
+
+**Solución:**
+
+```bash
+# Ejecutar rubric_check para ver detalles
+python miniminimoon_cli.py rubric-check
+
+# Editar RUBRIC_SCORING.json para corregir
+# - Añadir pesos para preguntas faltantes
+# - Eliminar pesos extra
+
+# Verificar formato JSON
+python -m json.tool RUBRIC_SCORING.json > /dev/null
+echo "JSON válido"
+
+# Volver a ejecutar validación
+python miniminimoon_cli.py rubric-check
+```
+
+### Problema 9: Performance lento (>120 segundos)
+
+**Síntoma:**
+```
+Evaluation took 180 seconds (expected: 45-60s)
+```
+
+**Soluciones:**
+
+```bash
+# Verificar uso de CPU/memoria durante ejecución
+htop  # o top
+
+# Usar CPU-only torch si no tienes GPU
+pip uninstall torch
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# Reducir verbosity de logs
+python miniminimoon_cli.py evaluate --plan test.pdf --log-level WARNING
+
+# Verificar que no hay procesos en background
+ps aux | grep python
+```
+
+### Problema 10: Pytest/Tests fallan
+
+**Síntoma:**
+```
+test_critical_flows.py::test_flow_1 FAILED
+```
+
+**Soluciones:**
+
+```bash
+# Verificar que pytest está instalado
+pip install pytest pytest-cov
+
+# Ejecutar tests con verbose
+python -m pytest -v test_critical_flows.py
+
+# Ejecutar solo tests críticos
+python -m pytest -k "critical" -v
+
+# Ver output completo de errores
+python -m pytest --tb=long test_critical_flows.py
+```
+
+### Problema 11: Error "No frozen config snapshot"
+
+**Síntoma:**
+```
+RuntimeError: Configuration must be frozen before execution (Gate #1)
+File not found: .immutability_snapshot.json
+```
+
+**Solución:**
+
+```bash
+python miniminimoon_cli.py freeze
+```
+
+### Problema 12: Error "Flow order does not match canonical documentation"
+
+**Causa:** Modificación del orden de ejecución en el orquestador
+
+**Solución:** 
+
+Revisar que el orden en `miniminimoon_orchestrator.py` coincida con `tools/flow_doc.json`. No modificar el orden canónico sin autorización.
+
+### Problema 13: Error "decalogo_pipeline_orchestrator is DEPRECATED"
+
+**Causa:** Intento de usar orquestador deprecado
+
+**Solución:**
+
+```python
+# ❌ PROHIBIDO
+from decalogo_pipeline_orchestrator import DecalogoPipelineOrchestrator
+
+# ✅ CORRECTO
+from miniminimoon_orchestrator import CanonicalDeterministicOrchestrator
+```
+
+Ver `DEPRECATIONS.md` para detalles completos de migración.
 
 ---
 
@@ -370,17 +1106,14 @@ Ver `DEPRECATIONS.md` para detalles completos de migración.
 ### Verificación Completa del Sistema
 
 ```bash
-# Verificar todos los flujos críticos (72 flujos)
-python verify_critical_flows.py
+# Verificar todos los flujos con validación end-to-end
+python test_validation_end_to_end.py
 
-# Output esperado:
-# ================================================================================
-# RESUMEN DE VERIFICACIÓN
-# ================================================================================
-# Total de verificaciones: 33
-# Errores: 0
-# Advertencias: 2
-# ✓ ¡TODOS LOS FLUJOS CRÍTICOS VERIFICADOS!
+# O usar el CLI con diagnóstico completo
+python miniminimoon_cli.py diagnostic
+
+# O verificar componentes individuales
+python -m pytest test_plan_sanitizer.py test_document_segmenter.py test_teoria_cambio.py -v
 ```
 
 ### Tests Unitarios por Componente
@@ -721,39 +1454,6 @@ Output: 300 DPI PNG files suitable for documentation and presentations.
 
 ---
 
-## 🛠️ Troubleshooting
-
-### Error: "No frozen config snapshot"
-
-**Solución:**
-```bash
-python miniminimoon_cli.py freeze
-```
-
-### Error: "Flow order does not match canonical documentation"
-
-**Causa:** Modificación del orden de ejecución en el orquestador
-
-**Solución:** Revisar que el orden en `miniminimoon_orchestrator.py` coincida con `tools/flow_doc.json`
-
-### Error: "Rubric validation FAILED"
-
-**Causa:** Preguntas sin peso o pesos sin pregunta
-
-**Solución:**
-```bash
-python rubric_check.py  # Ver missing/extra
-# Corregir RUBRIC_SCORING.json
-```
-
-### Error: "decalogo_pipeline_orchestrator is DEPRECATED"
-
-**Causa:** Intento de usar orquestador deprecado
-
-**Solución:** Migrar a `CanonicalDeterministicOrchestrator` (ver `DEPRECATIONS.md`)
-
----
-
 ## 📚 Documentación Adicional
 
 - **Visual Architecture Diagrams:** 7 advanced diagrams (see [Visual Architecture section](#-visual-architecture-diagrams))
@@ -771,8 +1471,8 @@ python rubric_check.py  # Ver missing/extra
 ### Reglas para PRs
 
 1. **Nunca** modificar el orden canónico de flujos sin actualizar `tools/flow_doc.json`
-2. **Siempre** ejecutar `verify_critical_flows.py` antes de commit
-3. **Siempre** verificar que `rubric_check.py` pase
+2. **Siempre** ejecutar verificación antes de commit: `python test_validation_end_to_end.py`
+3. **Siempre** verificar que rúbrica pase: `python miniminimoon_cli.py rubric-check`
 4. **Nunca** importar módulos deprecados
 5. **Siempre** mantener determinismo (seeds fijos, sin randomness)
 
@@ -796,7 +1496,7 @@ jobs:
 ## 📞 Soporte
 
 **Documentación:** Ver carpeta `docs/`  
-**Verificación:** `python verify_critical_flows.py`  
+**Verificación:** `python miniminimoon_cli.py diagnostic` o `python test_validation_end_to_end.py`  
 **CLI Help:** `python miniminimoon_cli.py --help`  
 **Issues:** Reportar con logs de `artifacts/` adjuntos
 
@@ -815,3 +1515,69 @@ Ver archivo `LICENSE`
 **Flujos críticos:** 72/72 verificados  
 **Gates de aceptación:** 6/6 activos  
 **Cobertura:** 300/300 preguntas
+
+---
+
+## ⚡ Quick Reference (Comandos Comunes)
+
+### Comandos de Instalación
+```bash
+# Crear entorno virtual con Python 3.10
+python3.10 -m venv venv
+source venv/bin/activate  # Linux/macOS
+# .\venv\Scripts\Activate.ps1  # Windows PowerShell
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Descargar modelos NLP
+python -m spacy download es_core_news_sm
+python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+```
+
+### Comandos de Operación
+```bash
+# 1. Congelar configuración (obligatorio antes de cualquier evaluación)
+python miniminimoon_cli.py freeze
+
+# 2. Evaluar un plan
+python miniminimoon_cli.py evaluate --plan mi_plan.pdf --strict
+
+# 3. Verificar resultados
+python miniminimoon_cli.py verify
+
+# 4. Validar rúbrica
+python miniminimoon_cli.py rubric-check output/answers_report.json config/RUBRIC_SCORING.json
+
+# 5. Generar matriz de trazabilidad
+python miniminimoon_cli.py trace-matrix
+```
+
+### Comandos de Verificación
+```bash
+# Verificar que todos los módulos funcionan
+python test_validation_end_to_end.py
+
+# Diagnóstico completo del sistema
+python miniminimoon_cli.py diagnostic
+
+# Verificar reproducibilidad (triple-run)
+for i in {1..3}; do python miniminimoon_cli.py evaluate --plan test.pdf > run_$i.json; done
+
+# Ver versión y estado
+python miniminimoon_cli.py version
+```
+
+### Comandos de Desarrollo
+```bash
+# Ejecutar tests unitarios
+python -m pytest test_plan_sanitizer.py -v
+python -m pytest test_document_segmenter.py -v
+python -m pytest test_teoria_cambio.py -v
+
+# Verificar todos los tests
+python -m pytest -v
+
+# Ver cobertura de tests
+python -m pytest --cov=. --cov-report=html
+```
