@@ -86,8 +86,8 @@ results = orchestrator.process_plan_deterministic(plan_path)
 
 10. **Teoría del Cambio** (`teoria_cambio`)
     - Input: `{segments: list}`
-    - Output: `{toc_graph: dict}`
-    - Coherencia medios-fines
+    - Output: `{toc_graph: dict, industrial_validation: dict}`
+    - Coherencia medios-fines + reporte industrial completo
 
 11. **Validación DAG** (`dag_validation`)
     - Input: `{toc_graph: dict}`
