@@ -459,7 +459,8 @@ class ContradictionDetector:
             "coherence_score": coherence_score
         }
 
-    def _calculate_confidence(self, contradiction: Dict) -> float:
+    @staticmethod
+    def _calculate_confidence(contradiction: Dict) -> float:
         """Calcular confidence DETERMINISTA"""
         confidence = 0.6  # Base
 
@@ -476,7 +477,8 @@ class ContradictionDetector:
 
         return min(1.0, confidence)
 
-    def _calculate_severity(self, contradiction: Dict) -> float:
+    @staticmethod
+    def _calculate_severity(contradiction: Dict) -> float:
         """Calcular severidad de la contradicción"""
         severity = 0.5  # Base
 
@@ -491,7 +493,8 @@ class ContradictionDetector:
 
         return min(1.0, severity)
 
-    def _map_to_questions(self, contradiction_type: str) -> List[str]:
+    @staticmethod
+    def _map_to_questions(contradiction_type: str) -> List[str]:
         """Mapear contradicción a preguntas del cuestionario"""
         questions = []
 
@@ -507,7 +510,8 @@ class ContradictionDetector:
 
         return questions
 
-    def _calculate_coherence_score(self, num_contradictions: int, text_length: int) -> float:
+    @staticmethod
+    def _calculate_coherence_score(num_contradictions: int, text_length: int) -> float:
         """Calcular score de coherencia global (1.0 = sin contradicciones)"""
         if text_length == 0:
             return 0.5
@@ -532,11 +536,8 @@ if __name__ == "__main__":
         "sin embargo, los recursos presupuestales han sido reducidos en un 30% este año."
     )
     analysis = detector.detect_contradictions(sample)
-    logger.info("Total contradicciones: %d", analysis.total_contradictions)
+    logger.info(f"Total contradicciones: {analysis.total_contradictions}")
     for c in analysis.contradictions:
         logger.info(
-            "Connector: %s | confidence: %.3f | risk: %s",
-            c.adversative_connector,
-            c.confidence,
-            c.risk_level.value,
+            f"Connector: {c.adversative_connector} | confidence: {c.confidence:.3f} | risk: {c.risk_level.value}"
         )

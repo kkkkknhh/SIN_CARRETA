@@ -127,7 +127,8 @@ class PipelineOrchestrator:
         # Load available components
         self._load_components()
     
-    def _build_question_mapping(self) -> Dict[str, DecalogoQuestion]:
+    @staticmethod
+    def _build_question_mapping() -> Dict[str, DecalogoQuestion]:
         """
         Build comprehensive mapping of all DECALOGO questions.
         
@@ -589,7 +590,8 @@ class PipelineOrchestrator:
         
         return evaluations
     
-    def _evaluate_question(self, question: DecalogoQuestion, evidence: List[EvidenceItem]) -> DecalogoEvaluation:
+    @staticmethod
+    def _evaluate_question(question: DecalogoQuestion, evidence: List[EvidenceItem]) -> DecalogoEvaluation:
         """
         Evaluate a DECALOGO question based on collected evidence.
         
@@ -734,7 +736,7 @@ class PipelineOrchestrator:
             # This would be expanded in a full implementation with specific logic per question
             positive_evidence = [
                 item for item in evidence if 
-                any(value == True for key, value in item.metadata.items() if key.startswith("has_"))
+                any(value is True for key, value in item.metadata.items() if key.startswith("has_"))
             ]
             
             answer = "Sí" if len(positive_evidence) > len(evidence) / 2 else "No"

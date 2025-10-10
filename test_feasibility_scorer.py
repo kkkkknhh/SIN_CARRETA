@@ -257,8 +257,8 @@ class TestFeasibilityScorer:
                 f"Expected 0.0 score for insufficient indicator, got {result.feasibility_score}"
             )
             assert result.quality_tier == "insufficient"
-            assert result.has_quantitative_baseline == False
-            assert result.has_quantitative_target == False
+            assert result.has_quantitative_baseline is False
+            assert result.has_quantitative_target is False
 
     @staticmethod
     def test_mandatory_requirements(scorer):
@@ -352,20 +352,20 @@ class TestFeasibilityScorer:
         # Quantitative baseline
         text1 = "línea base de 65% incrementar hasta meta general"
         result1 = scorer.calculate_feasibility_score(text1)
-        assert result1.has_quantitative_baseline == True
-        assert result1.has_quantitative_target == False
+        assert result1.has_quantitative_baseline is True
+        assert result1.has_quantitative_target is False
 
         # Quantitative target
         text2 = "partir de situación actual hasta objetivo de 85%"
         result2 = scorer.calculate_feasibility_score(text2)
-        assert result2.has_quantitative_baseline == False
-        assert result2.has_quantitative_target == True
+        assert result2.has_quantitative_baseline is False
+        assert result2.has_quantitative_target is True
 
         # Both quantitative
         text3 = "línea base 40% hasta meta 70%"
         result3 = scorer.calculate_feasibility_score(text3)
-        assert result3.has_quantitative_baseline == True
-        assert result3.has_quantitative_target == True
+        assert result3.has_quantitative_baseline is True
+        assert result3.has_quantitative_target is True
 
     @staticmethod
     def test_batch_scoring(scorer):
@@ -1106,8 +1106,8 @@ class TestAtomicReportGeneration:
         assert zero_evidence_result.quality_tier == "REQUIERE MAYOR EVIDENCIA"
         assert len(zero_evidence_result.components_detected) == 0
         assert len(zero_evidence_result.detailed_matches) == 0
-        assert zero_evidence_result.has_quantitative_baseline == False
-        assert zero_evidence_result.has_quantitative_target == False
+        assert zero_evidence_result.has_quantitative_baseline is False
+        assert zero_evidence_result.has_quantitative_target is False
 
         # Test with non-zero evidence support (should work normally)
         normal_result_with_evidence = scorer.calculate_feasibility_score(

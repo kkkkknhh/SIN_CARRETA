@@ -83,7 +83,8 @@ class GroundTruthCollector:
                 json.dump(self.pending_labels, f, indent=2)
             logger.info(f"{len(self.pending_labels)} items exportados a JSON: {json_file}")
     
-    def import_labeled_data(self, input_file: Path) -> Dict[str, List[Tuple]]:
+    @staticmethod
+    def import_labeled_data(input_file: Path) -> Dict[str, List[Tuple]]:
         """
         Importa datos labeleados y agrupa por detector.
         

@@ -89,7 +89,8 @@ class Python310CompatibilityChecker:
         logger.info(f"✓ Python {self.python_version.major}.{self.python_version.minor}.{self.python_version.micro} detected")
         return True
         
-    def test_import(self, module_name: str) -> ImportResult:
+    @staticmethod
+    def test_import(module_name: str) -> ImportResult:
         """Test importing a module and capture version info."""
         try:
             # Capture warnings during import
@@ -127,7 +128,8 @@ class Python310CompatibilityChecker:
                 error_message=f"Unexpected error: {str(e)}"
             )
     
-    def check_numpy_compatibility(self) -> Dict[str, any]:
+    @staticmethod
+    def check_numpy_compatibility() -> Dict[str, any]:
         """Special NumPy compatibility checks for Python 3.10."""
         try:
             import numpy as np

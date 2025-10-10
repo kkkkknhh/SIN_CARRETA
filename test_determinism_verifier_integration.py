@@ -178,9 +178,9 @@ def test_determinism_verifier_perfect_match():
         # Verify JSON report content
         with open(json_report, 'r') as f:
             report_data = json.load(f)
-            assert report_data["perfect_match"] == True
-            assert report_data["evidence_hash_match"] == True
-            assert report_data["flow_hash_match"] == True
+            assert report_data["perfect_match"] is True
+            assert report_data["evidence_hash_match"] is True
+            assert report_data["flow_hash_match"] is True
         
         print("✓ Perfect match test passed")
 

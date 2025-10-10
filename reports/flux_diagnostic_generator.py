@@ -142,7 +142,8 @@ class FluxDiagnosticGenerator:
             
         return True
         
-    def collect_environment_metadata(self) -> Dict[str, Any]:
+    @staticmethod
+    def collect_environment_metadata() -> Dict[str, Any]:
         """Collect environment information including git hash, Python version, etc."""
         env = {}
         

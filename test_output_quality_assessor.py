@@ -4,7 +4,8 @@ from output_quality_assessor import validate_output_quality
 
 class TestOutputQualityAssessor:
     
-    def test_question_count_validation_success(self, tmp_path):
+    @staticmethod
+    def test_question_count_validation_success(tmp_path):
         """Test that exactly 300 questions passes validation"""
         answers_file = tmp_path / "answers_report.json"
         answers_data = {
@@ -26,7 +27,8 @@ class TestOutputQualityAssessor:
         assert results["criteria"]["question_count"]["pass"] is True
         assert results["criteria"]["question_count"]["actual"] == 300
     
-    def test_question_count_validation_failure(self, tmp_path):
+    @staticmethod
+    def test_question_count_validation_failure(tmp_path):
         """Test that non-300 question count fails validation"""
         answers_file = tmp_path / "answers_report.json"
         answers_data = {
@@ -48,7 +50,8 @@ class TestOutputQualityAssessor:
         assert results["criteria"]["question_count"]["pass"] is False
         assert results["criteria"]["question_count"]["actual"] == 250
     
-    def test_pipeline_stage_coverage_success(self, tmp_path):
+    @staticmethod
+    def test_pipeline_stage_coverage_success(tmp_path):
         """Test that all 15 stages contributing passes validation"""
         evidence_file = tmp_path / "evidence_registry.json"
         evidence_data = {
@@ -73,7 +76,8 @@ class TestOutputQualityAssessor:
         assert results["criteria"]["pipeline_stage_coverage"]["pass"] is True
         assert results["criteria"]["pipeline_stage_coverage"]["actual_stages"] == 15
     
-    def test_pipeline_stage_coverage_failure(self, tmp_path):
+    @staticmethod
+    def test_pipeline_stage_coverage_failure(tmp_path):
         """Test that fewer than 15 stages fails validation"""
         evidence_file = tmp_path / "evidence_registry.json"
         evidence_data = {
@@ -98,7 +102,8 @@ class TestOutputQualityAssessor:
         assert results["criteria"]["pipeline_stage_coverage"]["pass"] is False
         assert results["criteria"]["pipeline_stage_coverage"]["actual_stages"] == 9
     
-    def test_flow_order_match_success(self, tmp_path):
+    @staticmethod
+    def test_flow_order_match_success(tmp_path):
         """Test that matching flow order passes validation"""
         flow_runtime = tmp_path / "flow_runtime.json"
         flow_doc = tmp_path / "flow_doc.json"
@@ -122,7 +127,8 @@ class TestOutputQualityAssessor:
         assert results["criteria"]["flow_order_match"]["pass"] is True
         assert len(results["criteria"]["flow_order_match"]["deviations"]) == 0
     
-    def test_flow_order_match_failure(self, tmp_path):
+    @staticmethod
+    def test_flow_order_match_failure(tmp_path):
         """Test that mismatched flow order fails validation"""
         flow_runtime = tmp_path / "flow_runtime.json"
         flow_doc = tmp_path / "flow_doc.json"
@@ -145,7 +151,8 @@ class TestOutputQualityAssessor:
         assert results["criteria"]["flow_order_match"]["pass"] is False
         assert len(results["criteria"]["flow_order_match"]["deviations"]) > 0
     
-    def test_validation_gates_all_passing(self, tmp_path):
+    @staticmethod
+    def test_validation_gates_all_passing(tmp_path):
         """Test that all 6 gates passing succeeds"""
         gates_file = tmp_path / "validation_gates.json"
         gates_data = {
@@ -172,7 +179,8 @@ class TestOutputQualityAssessor:
         assert results["criteria"]["validation_gates"]["pass"] is True
         assert results["criteria"]["validation_gates"]["passing_gates"] == 6
     
-    def test_validation_gates_some_failing(self, tmp_path):
+    @staticmethod
+    def test_validation_gates_some_failing(tmp_path):
         """Test that some gates failing causes overall failure"""
         gates_file = tmp_path / "validation_gates.json"
         gates_data = {
@@ -199,7 +207,8 @@ class TestOutputQualityAssessor:
         assert results["criteria"]["validation_gates"]["pass"] is False
         assert results["criteria"]["validation_gates"]["passing_gates"] == 4
     
-    def test_confidence_metrics(self, tmp_path):
+    @staticmethod
+    def test_confidence_metrics(tmp_path):
         """Test confidence score metrics computation"""
         answers_file = tmp_path / "answers_report.json"
         answers_data = {
@@ -228,7 +237,8 @@ class TestOutputQualityAssessor:
         assert results["metrics"]["confidence_scores"]["min"] == 0.6
         assert results["metrics"]["confidence_scores"]["max"] == 0.9
     
-    def test_evidence_distribution_metrics(self, tmp_path):
+    @staticmethod
+    def test_evidence_distribution_metrics(tmp_path):
         """Test evidence distribution metrics computation"""
         answers_file = tmp_path / "answers_report.json"
         answers_data = {
@@ -257,7 +267,8 @@ class TestOutputQualityAssessor:
         assert results["metrics"]["evidence_distribution"]["questions_with_zero_evidence"] == 1
         assert results["metrics"]["evidence_distribution"]["max"] == 3
     
-    def test_rationale_completeness_metrics(self, tmp_path):
+    @staticmethod
+    def test_rationale_completeness_metrics(tmp_path):
         """Test rationale completeness metrics computation"""
         answers_file = tmp_path / "answers_report.json"
         answers_data = {
@@ -286,7 +297,8 @@ class TestOutputQualityAssessor:
         assert results["metrics"]["rationale_completeness"]["total_questions"] == 4
         assert results["metrics"]["rationale_completeness"]["completeness_percentage"] == 50.0
     
-    def test_overall_pass_determination(self, tmp_path):
+    @staticmethod
+    def test_overall_pass_determination(tmp_path):
         """Test overall pass is true only when all criteria pass"""
         # Create minimal passing files
         answers_file = tmp_path / "answers_report.json"
@@ -337,7 +349,8 @@ class TestOutputQualityAssessor:
         # Overall should fail because rubric_alignment fails
         assert results["overall_pass"] is False
     
-    def test_output_file_creation(self, tmp_path):
+    @staticmethod
+    def test_output_file_creation(tmp_path):
         """Test that results are written to output file"""
         output_file = tmp_path / "reports" / "output_quality_assessment.json"
         
@@ -358,7 +371,8 @@ class TestOutputQualityAssessor:
         assert "criteria" in saved_results
         assert "metrics" in saved_results
     
-    def test_summary_statistics(self, tmp_path):
+    @staticmethod
+    def test_summary_statistics(tmp_path):
         """Test that summary statistics are computed correctly"""
         results = validate_output_quality(
             answers_path="/nonexistent",

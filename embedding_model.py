@@ -1038,7 +1038,8 @@ class IndustrialEmbeddingModel:
             logger.error(f"Instruction transformation failed: {str(e)}")
             return embeddings
 
-    def _assess_instruction_coherence(self, instruction_emb: np.ndarray, embeddings: np.ndarray) -> float:
+    @staticmethod
+    def _assess_instruction_coherence(instruction_emb: np.ndarray, embeddings: np.ndarray) -> float:
         """Assess semantic coherence between instruction and embeddings."""
         try:
             similarities = embeddings @ instruction_emb
@@ -1047,8 +1048,8 @@ class IndustrialEmbeddingModel:
         except:
             return 0.5
 
+    @staticmethod
     def _assess_transformation_quality(
-            self,
             original: np.ndarray,
             transformed: np.ndarray,
             instruction_emb: np.ndarray
@@ -1753,7 +1754,8 @@ class EmbeddingModelBenchmark:
         print("Comprehensive benchmark completed!")
         return results
 
-    def _generate_test_corpus(self, size: int) -> List[str]:
+    @staticmethod
+    def _generate_test_corpus(size: int) -> List[str]:
         """Generate diverse test corpus for benchmarking."""
         templates = [
             "The company reported revenue of ${amount} million in Q{quarter} {year}.",

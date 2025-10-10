@@ -194,7 +194,7 @@ class TestPlanSanitizer:
         """Test edge cases for JSON key standardization."""
         # Empty/None keys
         assert PlanSanitizer.standardize_json_key("") == ""
-        assert PlanSanitizer.standardize_json_key(None) == None
+        assert PlanSanitizer.standardize_json_key(None) is None
 
         # Multiple underscores/dashes/spaces
         assert PlanSanitizer.standardize_json_key(

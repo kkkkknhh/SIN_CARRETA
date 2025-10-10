@@ -309,7 +309,8 @@ class AnswerAssembler:
         self.weights = self.rubric.get("weights", {})
         self._validate_rubric_coverage()
 
-    def _load_rubric(self, path: Path) -> Dict[str, Any]:
+    @staticmethod
+    def _load_rubric(path: Path) -> Dict[str, Any]:
         with open(path, 'r', encoding='utf-8') as f:
             rubric = json.load(f)
 
@@ -427,7 +428,8 @@ class AnswerAssembler:
             return q.get("scoring_modality", "UNKNOWN")
         return "UNKNOWN"
 
-    def _calculate_confidence(self, evidence: List[Any], score: float) -> float:
+    @staticmethod
+    def _calculate_confidence(evidence: List[Any], score: float) -> float:
         if not evidence:
             return 0.3
 
@@ -443,7 +445,8 @@ class AnswerAssembler:
         confidence = avg_evidence_conf * evidence_factor * extremity_penalty
         return round(min(confidence, 1.0), 2)
 
-    def _extract_quotes(self, evidence: List[Any], max_quotes: int = 3) -> List[str]:
+    @staticmethod
+    def _extract_quotes(evidence: List[Any], max_quotes: int = 3) -> List[str]:
         quotes = []
         for e in evidence[:max_quotes]:
             text = None
@@ -463,7 +466,8 @@ class AnswerAssembler:
 
         return quotes
 
-    def _identify_caveats(self, evidence: List[Any], score: float) -> List[str]:
+    @staticmethod
+    def _identify_caveats(evidence: List[Any], score: float) -> List[str]:
         caveats = []
 
         if len(evidence) == 0:
@@ -483,7 +487,8 @@ class AnswerAssembler:
 
         return caveats
 
-    def _generate_reasoning(self, dimension: str, evidence: List[Any], score: float) -> str:
+    @staticmethod
+    def _generate_reasoning(dimension: str, evidence: List[Any], score: float) -> str:
         if not evidence:
             return f"No evidence found for {dimension}. Score reflects absence of required information."
 
@@ -505,7 +510,8 @@ class AnswerAssembler:
         else:
             return f"Limited evidence from {evidence_summary} suggests low compliance in {dimension}."
 
-    def _standardize_question_id(self, raw_id: str) -> str:
+    @staticmethod
+    def _standardize_question_id(raw_id: str) -> str:
         import re
 
         if not raw_id:
@@ -876,8 +882,7 @@ class CanonicalDeterministicOrchestrator:
 
         if not industrial_report.get("success", False):
             self.logger.warning(
-                "Teoría de Cambio industrial validation status: %s",
-                industrial_report.get("status", "unknown"),
+                f"Teoría de Cambio industrial validation status: {industrial_report.get('status', 'unknown')}"
             )
 
         return {
@@ -1026,7 +1031,8 @@ class CanonicalDeterministicOrchestrator:
                         ))
                 return matching
 
-            def _standardize_question_id(self, raw_id: str) -> str:
+            @staticmethod
+            def _standardize_question_id(raw_id: str) -> str:
                 import re
                 if not raw_id:
                     return raw_id
@@ -1049,7 +1055,8 @@ class CanonicalDeterministicOrchestrator:
 
         return final_report
 
-    def _standardize_question_id(self, raw_id: str) -> str:
+    @staticmethod
+    def _standardize_question_id(raw_id: str) -> str:
         """Standardize question ID to D{N}-Q{N} format."""
         import re
 

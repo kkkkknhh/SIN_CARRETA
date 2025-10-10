@@ -821,7 +821,8 @@ class DocumentSegmenter:
         # Default to OTHER if no patterns or keywords match
         return SectionType.OTHER
     
-    def _contains_table(self, text: str) -> bool:
+    @staticmethod
+    def _contains_table(text: str) -> bool:
         """Check if text contains a table."""
         # Look for table-like patterns
         table_patterns = [
@@ -903,7 +904,8 @@ class DocumentSegmenter:
         
         return segments
     
-    def _contains_list(self, text: str) -> bool:
+    @staticmethod
+    def _contains_list(text: str) -> bool:
         """Check if text contains a list."""
         # Look for list-like patterns
         list_patterns = [

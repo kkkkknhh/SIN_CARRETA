@@ -168,8 +168,8 @@ class PerformanceBenchmark:
         
         return result
     
+    @staticmethod
     def run_soak_test(
-        self,
         component_name: str,
         func: Callable,
         duration_hours: float = 4.0,

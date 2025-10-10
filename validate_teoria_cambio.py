@@ -59,7 +59,7 @@ class IndustrialGradeValidator:
         """Inicia el proceso de validación industrial"""
         self.validation_start_time = time.time()
         self.logger.info("🚀 INICIANDO VALIDACIÓN INDUSTRIAL DE ÚLTIMA GENERACIÓN")
-        self.logger.info("%s", "=" * 80)
+        self.logger.info("=" * 80)
 
     def log_metric(self, name: str, value: float, unit: str, threshold: float):
         """Registra métrica con evaluación automática de estado"""
@@ -84,11 +84,9 @@ class IndustrialGradeValidator:
                 self.performance_benchmarks["import_time"],
             )
 
-            self.logger.info("📦 IMPORTACIÓN INDUSTRIAL: %s", metric.status)
+            self.logger.info(f"📦 IMPORTACIÓN INDUSTRIAL: {metric.status}")
             self.logger.info(
-                "   ⏱️  Tiempo: %.4fs (Límite: %ss)",
-                import_time,
-                metric.threshold,
+                f"   ⏱️  Tiempo: {import_time:.4f}s (Límite: {metric.threshold}s)"
             )
 
             return metric.status == "✅ PASÓ"
@@ -117,11 +115,11 @@ class IndustrialGradeValidator:
         for expected in expected_categories:
             if expected in category_names:
                 validation_results.append(True)
-                self.logger.info("   ✅ %s: Definición óptima", expected)
+                self.logger.info(f"   ✅ {expected}: Definición óptima")
             else:
                 validation_results.append(False)
                 missing_categories.append(expected)
-                self.logger.error("   ❌ %s: Categoría faltante", expected)
+                self.logger.error(f"   ❌ {expected}: Categoría faltante")
 
         # Validación de orden lógico
         try:
@@ -171,11 +169,7 @@ class IndustrialGradeValidator:
 
                 status_icon = "✅" if is_valid else "❌"
                 self.logger.info(
-                    "      %s %10s → %-10s | Válido: %s",
-                    status_icon,
-                    origen.name,
-                    destino.name,
-                    is_valid,
+                    f"      {status_icon} {origen.name:>10} → {destino.name:<10} | Válido: {is_valid}"
                 )
 
         return connection_matrix
@@ -233,9 +227,9 @@ class IndustrialGradeValidator:
         """Genera reporte industrial completo"""
         total_time = time.time() - self.validation_start_time
 
-        self.logger.info("%s", "\n" + "=" * 80)
+        self.logger.info("\n" + "=" * 80)
         self.logger.info("📊 INFORME INDUSTRIAL DE VALIDACIÓN - ESTADO DEL ARTE")
-        self.logger.info("%s", "=" * 80)
+        self.logger.info("=" * 80)
 
         # Resumen ejecutivo
         passed_metrics = sum(1 for m in self.metrics if m.status == "✅ PASÓ")
@@ -243,12 +237,11 @@ class IndustrialGradeValidator:
         success_rate = (passed_metrics / total_metrics) * 100
 
         self.logger.info("\n🎯 RESUMEN EJECUTIVO:")
-        self.logger.info("   • Tiempo total de validación: %.3f segundos", total_time)
-        self.logger.info("   • Métricas evaluadas: %s", total_metrics)
-        self.logger.info("   • Tasa de éxito: %.1f%%", success_rate)
+        self.logger.info(f"   • Tiempo total de validación: {total_time:.3f} segundos")
+        self.logger.info(f"   • Métricas evaluadas: {total_metrics}")
+        self.logger.info(f"   • Tasa de éxito: {success_rate:.1f}%")
         self.logger.info(
-            "   • Nivel de calidad: %s",
-            self._determine_quality_level(success_rate),
+            f"   • Nivel de calidad: {self._determine_quality_level(success_rate)}"
         )
 
         # Métricas detalladas
@@ -256,14 +249,7 @@ class IndustrialGradeValidator:
         for metric in self.metrics:
             color_icon = "🟢" if metric.status == "✅ PASÓ" else "🔴"
             self.logger.info(
-                "   %s %s: %.4f%s (Límite: %s%s) - %s",
-                color_icon,
-                metric.name,
-                metric.value,
-                metric.unit,
-                metric.threshold,
-                metric.unit,
-                metric.status,
+                f"   {color_icon} {metric.name}: {metric.value:.4f}{metric.unit} (Límite: {metric.threshold}{metric.unit}) - {metric.status}"
             )
 
         # Recomendaciones industriales
@@ -271,8 +257,7 @@ class IndustrialGradeValidator:
         self._generate_industrial_recommendations()
 
         self.logger.info(
-            "\n🏆 VALIDACIÓN %s",
-            "EXITOSA" if success_rate >= 90 else "CON OBSERVACIONES",
+            f"\n🏆 VALIDACIÓN {'EXITOSA' if success_rate >= 90 else 'CON OBSERVACIONES'}"
         )
         return success_rate >= 90
 
@@ -301,18 +286,15 @@ class IndustrialGradeValidator:
         for metric in failed_metrics:
             if "Tiempo" in metric.name:
                 self.logger.info(
-                    "   ⚡ Optimizar %s: Considerar caching o optimización de algoritmos",
-                    metric.name,
+                    f"   ⚡ Optimizar {metric.name}: Considerar caching o optimización de algoritmos"
                 )
             elif "Construcción" in metric.name:
                 self.logger.info(
-                    "   🏗️  Revisar arquitectura de %s: Evaluar patrones de diseño industrial",
-                    metric.name,
+                    f"   🏗️  Revisar arquitectura de {metric.name}: Evaluar patrones de diseño industrial"
                 )
             elif "Detección" in metric.name:
                 self.logger.info(
-                    "   🔍 Mejorar algoritmos de %s: Implementar técnicas de búsqueda eficiente",
-                    metric.name,
+                    f"   🔍 Mejorar algoritmos de {metric.name}: Implementar técnicas de búsqueda eficiente"
                 )
 
 
@@ -430,8 +412,6 @@ if __name__ == "__main__":
 
     exit_code = 0 if success else 1
     LOGGER.info(
-        "\n📤 Código de salida: %s - %s",
-        exit_code,
-        "ÉXITO" if success else "FALLA",
+        f"\n📤 Código de salida: {exit_code} - {'ÉXITO' if success else 'FALLA'}"
     )
     sys.exit(exit_code)

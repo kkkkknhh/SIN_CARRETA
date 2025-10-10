@@ -628,7 +628,8 @@ class MiniMiniMoonAuditor:
         
         return health
     
-    def _get_expected_methods(self, component_name: str) -> List[str]:
+    @staticmethod
+    def _get_expected_methods(component_name: str) -> List[str]:
         """Get expected methods for each component type."""
         method_map = {
             "plan_sanitizer": ["sanitize_text"],

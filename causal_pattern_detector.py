@@ -21,7 +21,8 @@ class PDETCausalPatternDetector:
         self.logger = logging.getLogger(__name__)
         self.evidence_registry = evidence_registry
 
-    def _load_pdet_indicators(self) -> Dict[str, List[str]]:
+    @staticmethod
+    def _load_pdet_indicators() -> Dict[str, List[str]]:
         """Load PDET-specific indicators for causal analysis"""
         return {
             'violence_indicators': [
@@ -92,7 +93,8 @@ class PDETCausalPatternDetector:
 
         return max(municipality_counts, key=lambda x: x[1])[0] if municipality_counts else "UNKNOWN"
 
-    def _extract_quantitative_metrics(self, text: str) -> Dict[str, float]:
+    @staticmethod
+    def _extract_quantitative_metrics(text: str) -> Dict[str, float]:
         """Extract quantitative metrics, targets, and baselines from text"""
         metrics = {}
 
@@ -162,7 +164,8 @@ class PDETCausalPatternDetector:
                 sentences) if sentences else 0
         }
 
-    def _extract_policy_domains(self, text: str) -> Dict[str, int]:
+    @staticmethod
+    def _extract_policy_domains(text: str) -> Dict[str, int]:
         """Extract policy domain mentions"""
         domains = {
             'mentions_women_rights': len(re.findall(r'mujer|género|femenino|violencia.*género', text, re.IGNORECASE)),
@@ -213,7 +216,8 @@ class PDETCausalPatternDetector:
             self.logger.warning("causalnex not available, using correlation fallback")
             self._add_correlation_edges(G, data)
 
-    def _add_mutual_info_edges(self, G: nx.DiGraph, data: pd.DataFrame):
+    @staticmethod
+    def _add_mutual_info_edges(G: nx.DiGraph, data: pd.DataFrame):
         """Add edges based on mutual information"""
         for i, col1 in enumerate(data.columns):
             for j, col2 in enumerate(data.columns):
@@ -223,7 +227,8 @@ class PDETCausalPatternDetector:
                         if col1 not in G or col2 not in G[col1]:
                             G.add_edge(col1, col2, method='mutual_info', weight=mi)
 
-    def _add_granger_causality_edges(self, G: nx.DiGraph, data: pd.DataFrame):
+    @staticmethod
+    def _add_granger_causality_edges(G: nx.DiGraph, data: pd.DataFrame):
         """Add edges based on Granger causality (for time series patterns)"""
         # Since we have cross-sectional data, we'll use a simplified approach
         # based on predictive power
@@ -243,7 +248,8 @@ class PDETCausalPatternDetector:
                             G.add_edge(cause, effect, method='predictive_power',
                                        weight=feature_importance)
 
-    def _add_correlation_edges(self, G: nx.DiGraph, data: pd.DataFrame):
+    @staticmethod
+    def _add_correlation_edges(G: nx.DiGraph, data: pd.DataFrame):
         """Fallback: add edges based on correlation"""
         correlation_matrix = data.corr()
 
@@ -277,7 +283,8 @@ class PDETCausalPatternDetector:
             'policy_domains': self._extract_policy_domains(plan_text)
         }
 
-    def _calculate_evaluation_scores(self, data: pd.DataFrame,
+    @staticmethod
+    def _calculate_evaluation_scores(data: pd.DataFrame,
                                      causal_claims: List[Dict],
                                      causal_graph: nx.DiGraph) -> Dict[str, float]:
         """Calculate evaluation scores for the development plan"""
@@ -322,14 +329,16 @@ class PDETCausalPatternDetector:
             'overall_quality': overall_quality
         }
 
-    def _split_into_sentences(self, text: str) -> List[str]:
+    @staticmethod
+    def _split_into_sentences(text: str) -> List[str]:
         """Split text into sentences for Spanish text"""
         # Improved sentence splitting for Spanish development plans
         text = re.sub(r'[\n\r]+', ' ', text)
         sentences = re.split(r'(?<=[.!?])\s+', text)
         return [s.strip() for s in sentences if len(s.strip()) > 10]  # Filter very short sentences
 
-    def _calculate_claim_confidence(self, sentence: str, cause: str, effect: str) -> float:
+    @staticmethod
+    def _calculate_claim_confidence(sentence: str, cause: str, effect: str) -> float:
         """Calculate confidence score for a causal claim"""
         confidence = 0.5
 
@@ -425,7 +434,8 @@ class PDETCausalPatternDetector:
             "causal_density": len(patterns) / max(1, len(text) / 1000)
         }
 
-    def _calculate_pattern_strength(self, pattern: Dict) -> float:
+    @staticmethod
+    def _calculate_pattern_strength(pattern: Dict) -> float:
         """Calcular fuerza del patrón causal"""
         strength = 0.5
 
@@ -440,7 +450,8 @@ class PDETCausalPatternDetector:
 
         return min(1.0, strength)
 
-    def _map_pattern_to_questions(self, pattern: Dict) -> List[str]:
+    @staticmethod
+    def _map_pattern_to_questions(pattern: Dict) -> List[str]:
         """Mapear patrón causal a preguntas del cuestionario"""
         questions = []
 

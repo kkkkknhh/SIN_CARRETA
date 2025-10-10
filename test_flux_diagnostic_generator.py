@@ -258,7 +258,8 @@ class TestFluxDiagnosticGenerator:
             "variance": 0.0
         }
     
-    def test_valid_data_generates_report(self, valid_diagnostic_data, valid_connection_data, valid_determinism_data):
+    @staticmethod
+    def test_valid_data_generates_report(valid_diagnostic_data, valid_connection_data, valid_determinism_data):
         """Test that valid data generates a complete report"""
         generator = FluxDiagnosticGenerator(
             diagnostic_data=valid_diagnostic_data,
@@ -277,7 +278,8 @@ class TestFluxDiagnosticGenerator:
         assert len(report["pipeline_stages"]) == 15
         assert len(report["connections"]) == 72
         
-    def test_missing_pipeline_stages_fails_validation(self, valid_connection_data, valid_determinism_data):
+    @staticmethod
+    def test_missing_pipeline_stages_fails_validation(valid_connection_data, valid_determinism_data):
         """Test that missing pipeline_stages key fails validation"""
         generator = FluxDiagnosticGenerator(
             diagnostic_data={},
@@ -290,7 +292,8 @@ class TestFluxDiagnosticGenerator:
             
         assert "pipeline_stages" in str(exc_info.value)
         
-    def test_missing_stage_fields_fails_validation(self, valid_connection_data, valid_determinism_data):
+    @staticmethod
+    def test_missing_stage_fields_fails_validation(valid_connection_data, valid_determinism_data):
         """Test that stages with missing required fields fail validation"""
         incomplete_data = {
             "pipeline_stages": [
@@ -313,7 +316,8 @@ class TestFluxDiagnosticGenerator:
             
         assert "missing fields" in str(exc_info.value).lower()
         
-    def test_missing_expected_stages_fails_validation(self, valid_diagnostic_data, valid_connection_data, valid_determinism_data):
+    @staticmethod
+    def test_missing_expected_stages_fails_validation(valid_diagnostic_data, valid_connection_data, valid_determinism_data):
         """Test that missing expected stages fails validation"""
         # Remove a required stage
         incomplete_stages = [s for s in valid_diagnostic_data["pipeline_stages"] if s["stage_name"] != "rubric_alignment"]
@@ -329,7 +333,8 @@ class TestFluxDiagnosticGenerator:
             
         assert "Missing expected stages" in str(exc_info.value)
         
-    def test_invalid_suitability_verdict_fails(self, valid_diagnostic_data, valid_determinism_data):
+    @staticmethod
+    def test_invalid_suitability_verdict_fails(valid_diagnostic_data, valid_determinism_data):
         """Test that invalid verdict enum fails validation"""
         invalid_connections = {
             "connections": [
@@ -355,7 +360,8 @@ class TestFluxDiagnosticGenerator:
             
         assert "Invalid suitability_verdict" in str(exc_info.value)
         
-    def test_insufficient_connections_fails(self, valid_diagnostic_data, valid_determinism_data):
+    @staticmethod
+    def test_insufficient_connections_fails(valid_diagnostic_data, valid_determinism_data):
         """Test that fewer than 72 connections fails validation"""
         insufficient_connections = {
             "connections": [
@@ -381,7 +387,8 @@ class TestFluxDiagnosticGenerator:
             
         assert "Expected 72 flow contracts" in str(exc_info.value)
         
-    def test_environment_metadata_collection(self, valid_diagnostic_data, valid_connection_data, valid_determinism_data):
+    @staticmethod
+    def test_environment_metadata_collection(valid_diagnostic_data, valid_connection_data, valid_determinism_data):
         """Test that environment metadata is properly collected"""
         generator = FluxDiagnosticGenerator(
             diagnostic_data=valid_diagnostic_data,
@@ -401,7 +408,8 @@ class TestFluxDiagnosticGenerator:
         # Verify timestamp format (ISO 8601)
         datetime.fromisoformat(env["execution_timestamp"].replace("Z", "+00:00"))
         
-    def test_final_output_aggregation(self, valid_diagnostic_data, valid_connection_data, valid_determinism_data):
+    @staticmethod
+    def test_final_output_aggregation(valid_diagnostic_data, valid_connection_data, valid_determinism_data):
         """Test that final_output section properly aggregates results"""
         generator = FluxDiagnosticGenerator(
             diagnostic_data=valid_diagnostic_data,
@@ -417,7 +425,8 @@ class TestFluxDiagnosticGenerator:
         assert final_output["rubric_alignment"] == "ALIGNED"
         assert "quality_metrics" in final_output
         
-    def test_rubric_exit_code_mapping(self, valid_diagnostic_data, valid_connection_data, valid_determinism_data):
+    @staticmethod
+    def test_rubric_exit_code_mapping(valid_diagnostic_data, valid_connection_data, valid_determinism_data):
         """Test that rubric exit codes map correctly to status"""
         test_cases = [
             (0, "ALIGNED"),
@@ -438,7 +447,8 @@ class TestFluxDiagnosticGenerator:
             final_output = generator.generate_final_output_section()
             assert final_output["rubric_alignment"] == expected_status
             
-    def test_save_report_creates_file(self, valid_diagnostic_data, valid_connection_data, valid_determinism_data):
+    @staticmethod
+    def test_save_report_creates_file(valid_diagnostic_data, valid_connection_data, valid_determinism_data):
         """Test that save_report creates a valid JSON file"""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "test_report.json"
@@ -462,7 +472,8 @@ class TestFluxDiagnosticGenerator:
             assert "final_output" in report
             assert "environment" in report
             
-    def test_contract_checks_structure(self, valid_diagnostic_data, valid_connection_data, valid_determinism_data):
+    @staticmethod
+    def test_contract_checks_structure(valid_diagnostic_data, valid_connection_data, valid_determinism_data):
         """Test that contract_checks have proper pass/fail structure"""
         generator = FluxDiagnosticGenerator(
             diagnostic_data=valid_diagnostic_data,

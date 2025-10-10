@@ -47,7 +47,8 @@ class CodePathTracer:
         """Start tracing execution"""
         sys.settrace(self.trace_function)
     
-    def stop_tracing(self):
+    @staticmethod
+    def stop_tracing():
         """Stop tracing execution"""
         sys.settrace(None)
     

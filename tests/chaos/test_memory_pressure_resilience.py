@@ -12,7 +12,8 @@ from embedding_model import create_industrial_embedding_model
 class TestMemoryPressureResilience:
     """Test system resilience under memory pressure."""
     
-    def test_large_batch_processing_under_memory_pressure(self):
+    @staticmethod
+    def test_large_batch_processing_under_memory_pressure():
         """Test processing large batches when memory is constrained."""
         model = create_industrial_embedding_model(model_tier="basic")
         
@@ -27,14 +28,16 @@ class TestMemoryPressureResilience:
         except MemoryError:
             pytest.skip("Memory pressure test requires more memory")
     
-    def test_model_loading_with_limited_memory(self):
+    @staticmethod
+    def test_model_loading_with_limited_memory():
         """Test model loads with reduced memory footprint."""
         gc.collect()
         
         model = create_industrial_embedding_model(model_tier="basic")
         assert model is not None
     
-    def test_incremental_processing_prevents_oom(self):
+    @staticmethod
+    def test_incremental_processing_prevents_oom():
         """Test that incremental processing prevents out-of-memory errors."""
         model = create_industrial_embedding_model(model_tier="basic")
         

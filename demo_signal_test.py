@@ -35,23 +35,23 @@ class SistemaMonitoreoDemo:
 
     def iniciar_monitoreo(self):
         self.tiempo_inicio = datetime.now()
-        self.logger.info("🚀 Sistema de monitoreo iniciado: %s", self.tiempo_inicio)
+        self.logger.info(f"🚀 Sistema de monitoreo iniciado: {self.tiempo_inicio}")
 
     def registrar_trabajador(self, trabajador_id: str):
         with self.lock:
             self.trabajadores_activos.add(trabajador_id)
-            self.logger.info("➕ Trabajador registrado: %s", trabajador_id)
+            self.logger.info(f"➕ Trabajador registrado: {trabajador_id}")
 
     def desregistrar_trabajador(self, trabajador_id: str):
         with self.lock:
             self.trabajadores_activos.discard(trabajador_id)
-            self.logger.info("➖ Trabajador desregistrado: %s", trabajador_id)
+            self.logger.info(f"➖ Trabajador desregistrado: {trabajador_id}")
 
     def terminar_trabajadores(self):
         with self.lock:
             self.interrumpido = True
             trabajadores_copia = self.trabajadores_activos.copy()
-        self.logger.warning("🛑 Terminando %s trabajadores...", len(trabajadores_copia))
+        self.logger.warning(f"🛑 Terminando {len(trabajadores_copia)} trabajadores...")
 
     def registrar_ejecucion(self, nombre: str, resultado: dict):
         with self.lock:
@@ -62,9 +62,7 @@ class SistemaMonitoreoDemo:
             }
             self.ejecuciones.append(ejecucion)
             self.logger.info(
-                "📝 Ejecución registrada: %s - %s",
-                nombre,
-                resultado.get("status", "unknown"),
+                f"📝 Ejecución registrada: {nombre} - {resultado.get('status', 'unknown')}"
             )
 
     def generar_dump_emergencia(self, output_dir: Path) -> Path:
@@ -86,7 +84,7 @@ class SistemaMonitoreoDemo:
             with open(dump_path, "w", encoding="utf-8") as f:
                 json.dump(estado, f, indent=2, ensure_ascii=False)
 
-            self.logger.info("💾 Dump de emergencia guardado: %s", dump_path)
+            self.logger.info(f"💾 Dump de emergencia guardado: {dump_path}")
             return dump_path
 
 
@@ -102,7 +100,7 @@ def signal_handler(signum, frame):
 
     with _signal_handler_lock:
         LOGGER.warning(
-            "🚨 SEÑAL %s RECIBIDA - Iniciando terminación graciosa...", signum
+            f"🚨 SEÑAL {signum} RECIBIDA - Iniciando terminación graciosa..."
         )
 
         if _sistema_monitoreo_global:
@@ -113,7 +111,7 @@ def signal_handler(signum, frame):
                     dump_path = _sistema_monitoreo_global.generar_dump_emergencia(
                         _output_dir_global
                     )
-                    LOGGER.info("📊 Estado guardado en: %s", dump_path)
+                    LOGGER.info(f"📊 Estado guardado en: {dump_path}")
 
             except Exception:  # pragma: no cover - defensive signal logging
                 LOGGER.exception("❌ Error durante terminación")
@@ -134,7 +132,7 @@ def atexit_handler():
                 dump_path = _sistema_monitoreo_global.generar_dump_emergencia(
                     _output_dir_global
                 )
-                LOGGER.info("💾 Estado de emergencia guardado: %s", dump_path)
+                LOGGER.info(f"💾 Estado de emergencia guardado: {dump_path}")
             except Exception:  # pragma: no cover - defensive logging
                 LOGGER.exception("❌ Error en atexit handler")
 
@@ -147,16 +145,16 @@ def simular_trabajo(trabajador_id: str, duracion: int):
         _sistema_monitoreo_global.registrar_trabajador(trabajador_id)
 
     try:
-        LOGGER.info("🔄 %s iniciando trabajo por %ss...", trabajador_id, duracion)
+        LOGGER.info(f"🔄 {trabajador_id} iniciando trabajo por {duracion}s...")
 
         for i in range(duracion):
             time.sleep(1)
             if _sistema_monitoreo_global and _sistema_monitoreo_global.interrumpido:
                 LOGGER.warning(
-                    "⚠️  %s detectó interrupción, terminando...", trabajador_id
+                    f"⚠️  {trabajador_id} detectó interrupción, terminando..."
                 )
                 break
-            LOGGER.info("🔄 %s trabajando... (%s/%s)", trabajador_id, i + 1, duracion)
+            LOGGER.info(f"🔄 {trabajador_id} trabajando... ({i + 1}/{duracion})")
 
         # Simular resultado
         resultado = {
@@ -181,10 +179,10 @@ def simular_trabajo(trabajador_id: str, duracion: int):
                 f"plan_{trabajador_id}", resultado
             )
 
-        LOGGER.info("✅ %s completado", trabajador_id)
+        LOGGER.info(f"✅ {trabajador_id} completado")
 
     except Exception as error:
-        LOGGER.exception("❌ Error en %s", trabajador_id)
+        LOGGER.exception(f"❌ Error en {trabajador_id}")
         if _sistema_monitoreo_global:
             _sistema_monitoreo_global.registrar_ejecucion(
                 f"plan_{trabajador_id}",
@@ -200,9 +198,9 @@ def main():
     global _sistema_monitoreo_global, _output_dir_global
 
     LOGGER.info("🏭 DEMO: Sistema de Manejo de Señales")
-    LOGGER.info("%s", "=" * 50)
+    LOGGER.info("=" * 50)
     LOGGER.info("Presiona Ctrl+C para probar la terminación graciosa")
-    LOGGER.info("%s", "=" * 50)
+    LOGGER.info("=" * 50)
 
     # Configurar output
     output_dir = Path("demo_resultados")
@@ -239,7 +237,7 @@ def main():
         # El signal handler se encarga de esto
         pass
 
-    LOGGER.info("📊 Resultados disponibles en: %s", output_dir)
+    LOGGER.info(f"📊 Resultados disponibles en: {output_dir}")
 
 
 if __name__ == "__main__":
