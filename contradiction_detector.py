@@ -17,6 +17,7 @@ Esta versión refactorizada mejora:
 
 from __future__ import annotations
 
+import inspect
 import logging
 import re
 import unicodedata
@@ -68,9 +69,15 @@ class ContradictionDetector:
 
     DEFAULT_CONTEXT_WINDOW = 150
 
-    def __init__(self, context_window: int = DEFAULT_CONTEXT_WINDOW, evidence_registry=None) -> None:
-        self.context_window = int(context_window)
-        self.evidence_registry = evidence_registry
+    def __init__(self, *args, **kwargs) -> None:
+        if args:
+            raise TypeError("ContradictionDetector does not accept positional arguments")
+
+        self.context_window = int(kwargs.pop("context_window", self.DEFAULT_CONTEXT_WINDOW))
+        self.evidence_registry = kwargs.pop("evidence_registry", None)
+        if kwargs:
+            unexpected = ", ".join(sorted(kwargs))
+            raise TypeError(f"Unexpected keyword arguments: {unexpected}")
 
         # Definir patrones relevantes (español).
         # Se evitan patrones demasiado genéricos y se normaliza el texto antes de buscar.
@@ -133,6 +140,27 @@ class ContradictionDetector:
         self.compiled_actions = [re.compile(p, flags) for p in actions]
         self.compiled_quantitative = [
             re.compile(p, flags) for p in quantitative]
+
+    def attach_evidence_registry(self, evidence_registry) -> None:
+        """Attach an evidence registry instance after construction."""
+        self.evidence_registry = evidence_registry
+
+    def set_context_window(self, context_window: int) -> None:
+        """Update the context window length in characters."""
+        self.context_window = int(context_window)
+
+    def configure(self, *, context_window: Optional[int] = None, evidence_registry=None) -> None:
+        """Convenience helper to update runtime configuration."""
+        if context_window is not None:
+            self.set_context_window(context_window)
+        if evidence_registry is not None:
+            self.attach_evidence_registry(evidence_registry)
+
+    __signature__ = inspect.Signature(
+        parameters=[
+            inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD),
+        ]
+    )
 
     @staticmethod
     def _normalize_text(text: str) -> str:
