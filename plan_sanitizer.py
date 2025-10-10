@@ -15,8 +15,9 @@ Features:
 
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Union, Any
+from typing import Any, ClassVar, Dict, List, Mapping, Optional, Set, Tuple, Union
 
 # Import utility functions from text_processor
 from text_processor import (
@@ -69,6 +70,60 @@ KEY_ELEMENTS = {
 }
 
 
+@dataclass(frozen=True)
+class PlanSanitizerConfig:
+    """Immutable configuration container for :class:`PlanSanitizer`."""
+
+    preserve_structure: bool = True
+    tag_key_elements: bool = True
+    aggressive_cleaning: bool = False
+
+    #: Accepted aliases originating from historical integrations.  Each alias
+    #: is mapped to the canonical attribute name so that ``create_plan_sanitizer``
+    #: and older orchestrators keep working without code changes.
+    LEGACY_ALIASES: ClassVar[Dict[str, str]] = {
+        "keep_structure": "preserve_structure",
+        "structure_preservation": "preserve_structure",
+        "tag_elements": "tag_key_elements",
+        "highlight_key_elements": "tag_key_elements",
+        "aggressive_mode": "aggressive_cleaning",
+    }
+
+    @classmethod
+    def from_legacy(cls, **legacy: Any) -> "PlanSanitizerConfig":
+        """Create a configuration object from strict legacy keyword inputs."""
+
+        allowed: Set[str] = {"preserve_structure", "tag_key_elements", "aggressive_cleaning"}
+        normalised: Dict[str, bool] = {}
+        unknown: Set[str] = set()
+
+        for key, value in legacy.items():
+            canonical_key = cls.LEGACY_ALIASES.get(key, key)
+            if canonical_key not in allowed:
+                unknown.add(key)
+                continue
+            normalised[canonical_key] = bool(value)
+
+        if unknown:
+            raise ValueError(f"Unknown legacy flags: {sorted(unknown)}")
+
+        default = cls()
+        return cls(
+            preserve_structure=normalised.get("preserve_structure", default.preserve_structure),
+            tag_key_elements=normalised.get("tag_key_elements", default.tag_key_elements),
+            aggressive_cleaning=normalised.get("aggressive_cleaning", default.aggressive_cleaning),
+        )
+
+    def as_dict(self) -> Dict[str, bool]:
+        """Expose the configuration as a plain dictionary for convenience."""
+
+        return {
+            "preserve_structure": self.preserve_structure,
+            "tag_key_elements": self.tag_key_elements,
+            "aggressive_cleaning": self.aggressive_cleaning,
+        }
+
+
 class PlanSanitizer:
     """
     Sanitizes plan documents to ensure proper text quality
@@ -80,31 +135,28 @@ class PlanSanitizer:
         aggressive_cleaning: Level of aggressiveness in text cleaning
     """
 
-    def __init__(
-        self,
-        preserve_structure: bool = True,
-        tag_key_elements: bool = True,
-        aggressive_cleaning: bool = False,
-    ):
-        """
-        Initialize the plan sanitizer with configuration options.
+    def __init__(self) -> None:
+        """Initialise the plan sanitizer with the immutable default config."""
 
-        Args:
-            preserve_structure: Whether to preserve document structure
-            tag_key_elements: Whether to tag key policy elements
-            aggressive_cleaning: Use more aggressive cleaning methods
-        """
-        self.preserve_structure = preserve_structure
-        self.tag_key_elements = tag_key_elements
-        self.aggressive_cleaning = aggressive_cleaning
-        
+        self._apply_config(PlanSanitizerConfig())
+
+    def _apply_config(self, config: PlanSanitizerConfig) -> None:
+        """Apply the supplied configuration, refreshing derived state."""
+
+        self.preserve_structure = config.preserve_structure
+        self.tag_key_elements = config.tag_key_elements
+        self.aggressive_cleaning = config.aggressive_cleaning
+
+        # Persist the resolved configuration to support advanced debugging and
+        # reproducibility tooling that inspects runtime state.
+        self._resolved_config = config
+
         # Compile patterns for key elements
-        self.key_element_patterns = {}
-        for element_type, patterns in KEY_ELEMENTS.items():
-            self.key_element_patterns[element_type] = [
-                re.compile(pattern) for pattern in patterns
-            ]
-            
+        self.key_element_patterns = {
+            element_type: [re.compile(pattern) for pattern in patterns]
+            for element_type, patterns in KEY_ELEMENTS.items()
+        }
+
         # Initialize counters for reporting
         self.stats = {
             "total_chars_before": 0,
@@ -112,6 +164,27 @@ class PlanSanitizer:
             "key_elements_preserved": {},
             "structure_elements_preserved": 0,
         }
+
+    @property
+    def resolved_config(self) -> PlanSanitizerConfig:
+        """Expose the effective configuration for observability tooling."""
+
+        return self._resolved_config
+
+    @classmethod
+    def from_config(cls, config: PlanSanitizerConfig) -> "PlanSanitizer":
+        """Instantiate a :class:`PlanSanitizer` using an explicit configuration."""
+
+        instance = cls()
+        instance._apply_config(config)
+        return instance
+
+    @classmethod
+    def legacy(cls, **legacy: Any) -> "PlanSanitizer":
+        """Create an instance honouring legacy keyword arguments strictly."""
+
+        config = PlanSanitizerConfig.from_legacy(**legacy)
+        return cls.from_config(config)
 
     def sanitize_text(self, text: str) -> str:
         """
@@ -265,7 +338,11 @@ class PlanSanitizer:
 
 
 # Factory function to create a preconfigured sanitizer
-def create_plan_sanitizer(preserve_structure: bool = True, tag_key_elements: bool = True) -> PlanSanitizer:
+def create_plan_sanitizer(
+    preserve_structure: bool = True,
+    tag_key_elements: bool = True,
+    aggressive_cleaning: bool = False,
+) -> PlanSanitizer:
     """
     Create a preconfigured plan sanitizer.
     
@@ -276,10 +353,7 @@ def create_plan_sanitizer(preserve_structure: bool = True, tag_key_elements: boo
     Returns:
         Configured PlanSanitizer instance
     """
-    return PlanSanitizer(
-        preserve_structure=preserve_structure,
-        tag_key_elements=tag_key_elements,
-    )
+    return PlanSanitizer.legacy()
 
 
 # Simple usage example
