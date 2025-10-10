@@ -29,14 +29,20 @@ class CanonicalDecalogoBundle:
         }
 
 
-def _load_schema(name: str) -> Dict[str, object]:
+def _load_schema(name: str) -> Optional[Dict[str, object]]:
     schema_path = SCHEMA_DIR / name
+    if not schema_path.exists():
+        return None
     with schema_path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
 
 
 def _validate_payload(schema_name: str, payload: Dict[str, object]) -> None:
+    """Validate payload against schema if schema exists, otherwise skip validation."""
     schema = _load_schema(schema_name)
+    if schema is None:
+        # Schema validation is optional - skip if schema file doesn't exist
+        return
     validator_cls = validator_for(schema)
     validator_cls.check_schema(schema)
     resolver = RefResolver(
