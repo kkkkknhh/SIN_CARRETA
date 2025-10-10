@@ -349,15 +349,15 @@ class UnifiedEvaluationPipeline:
         logger.info("Running Decálogo evaluation with EvidenceRegistry...")
 
         try:
-            decalogo_json = Path("decalogo-industrial.latest.clean.json")
-            if not decalogo_json.exists():
-                raise FileNotFoundError("decalogo-industrial.latest.clean.json not found")
+            # Use central path resolver
+            from repo_paths import get_decalogo_path
+            decalogo_json = get_decalogo_path()
 
             with open(decalogo_json, 'r', encoding='utf-8') as f:
                 decalogo_data = json.load(f)
 
             questions = decalogo_data.get("questions", [])
-            logger.info(f"→ Loaded {len(questions)} questions from decalogo-industrial.latest.clean.json")
+            logger.info(f"→ Loaded {len(questions)} questions from {decalogo_json.name}")
 
             # Evaluate each question using evidence from registry
             dimension_results = {}

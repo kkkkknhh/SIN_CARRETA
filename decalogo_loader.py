@@ -19,6 +19,9 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, Optional, List
 
+# Import canonical path resolver
+from repo_paths import get_decalogo_path, get_dnp_path
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,8 +30,8 @@ logger = logging.getLogger(__name__)
 _DECALOGO_CACHE = {}
 _CACHE_LOCK = threading.RLock()
 
-# Default paths
-DEFAULT_TEMPLATE_PATH = Path(__file__).parent / "decalogo-industrial.latest.clean.json"
+# Default paths - now using central resolver
+DEFAULT_TEMPLATE_PATH = get_decalogo_path(os.getenv("DECALOGO_PATH_OVERRIDE"))
 
 # Fallback template in case file access fails
 # Minimal template matching the actual file structure
@@ -221,7 +224,8 @@ def load_dnp_standards(path: Optional[str] = None) -> Dict[str, Any]:
     Returns:
         DNP standards data
     """
-    standards_path = Path(path) if path else (Path(__file__).parent / "dnp-standards.latest.clean.json")
+    # Use central path resolver with optional override
+    standards_path = Path(path) if path else get_dnp_path(os.getenv("DNP_PATH_OVERRIDE"))
 
     try:
         if standards_path.exists():

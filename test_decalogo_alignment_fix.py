@@ -42,8 +42,11 @@ class TestDecalogoIndustrialLoading(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
-        cls.repo_root = Path('/home/runner/work/SIN_CARRETA/SIN_CARRETA')
-        cls.industrial_path = cls.repo_root / 'decalogo-industrial.latest.clean.json'
+        # Use central path resolver
+        from repo_paths import get_decalogo_path, get_dnp_path
+        
+        cls.industrial_path = get_decalogo_path()
+        cls.dnp_path = get_dnp_path()
         
         # Load the original file for comparison
         with open(cls.industrial_path, 'r') as f:
@@ -83,8 +86,10 @@ class TestIndustrialClusterBuilding(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
-        cls.repo_root = Path('/home/runner/work/SIN_CARRETA/SIN_CARRETA')
-        cls.industrial_path = cls.repo_root / 'decalogo-industrial.latest.clean.json'
+        # Use central path resolver
+        from repo_paths import get_decalogo_path
+        
+        cls.industrial_path = get_decalogo_path()
         
         # Load the data
         audit = []
@@ -137,9 +142,11 @@ class TestFullAlignment(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
-        cls.repo_root = Path('/home/runner/work/SIN_CARRETA/SIN_CARRETA')
-        cls.industrial_path = cls.repo_root / 'decalogo-industrial.latest.clean.json'
-        cls.dnp_path = cls.repo_root / 'dnp-standards.latest.clean.json'
+        # Use central path resolver
+        from repo_paths import get_decalogo_path, get_dnp_path
+        
+        cls.industrial_path = get_decalogo_path()
+        cls.dnp_path = get_dnp_path()
     
     def test_align_decalogos_success(self):
         """Test that align_decalogos completes successfully."""
