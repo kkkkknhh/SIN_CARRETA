@@ -34,37 +34,75 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Key policy elements to preserve - aligned with DECALOGO questions
+# Key policy elements to preserve - aligned with DECALOGO 6 dimensions
+# Based on decalogo-industrial.latest.clean.json canonical structure
 KEY_ELEMENTS = {
-    # DE-1: Logical Intervention Framework
-    "indicators": [
-        r"(?i)indicador(?:es)?",
-        r"(?i)meta(?:s)?",
-        r"(?i)l[ií]nea(?:s)?\s+base",
-        r"(?i)resultado(?:s)?\s+esperado(?:s)?",
-        r"(?i)producto(?:s)?\s+esperado(?:s)?",
-    ],
-    # DE-2: Thematic Inclusion
-    "diagnostics": [
+    # D1: INSUMOS (diagnóstico, líneas base, recursos, capacidades institucionales)
+    "insumos": [
         r"(?i)diagn[óo]stico",
+        r"(?i)l[ií]nea(?:s)?\s+base",
+        r"(?i)recurso(?:s)?",
+        r"(?i)capacidad(?:es)?\s+institucional(?:es)?",
         r"(?i)situaci[óo]n\s+actual",
         r"(?i)problem[áa]tica",
-        r"(?i)contexto",
+        r"(?i)brecha(?:s)?",
+        r"(?i)coherencia",
     ],
-    # DE-3: Participation and Governance
-    "participation": [
-        r"(?i)participaci[óo]n",
-        r"(?i)consulta(?:s)?",
-        r"(?i)mesa(?:s)?\s+t[ée]cnica(?:s)?",
-        r"(?i)concertaci[óo]n",
+    # D2: ACTIVIDADES (formalización, mecanismos causales, teoría de intervención)
+    "actividades": [
+        r"(?i)actividad(?:es)?",
+        r"(?i)mecanismo(?:s)?\s+causal(?:es)?",
+        r"(?i)intervenci[óo]n",
+        r"(?i)responsable(?:s)?",
+        r"(?i)instrumento(?:s)?",
+        r"(?i)poblaci[óo]n\s+diana",
+        r"(?i)riesgo(?:s)?\s+de\s+implementaci[óo]n",
     ],
-    # DE-4: Results Orientation
-    "monitoring": [
+    # D3: PRODUCTOS (outputs con indicadores verificables, trazabilidad)
+    "productos": [
+        r"(?i)producto(?:s)?",
+        r"(?i)output(?:s)?",
+        r"(?i)indicador(?:es)?\s+verificable(?:s)?",
+        r"(?i)trazabilidad",
+        r"(?i)cobertura",
+        r"(?i)dosificaci[óo]n",
+        r"(?i)entregable(?:s)?",
+    ],
+    # D4: RESULTADOS (outcomes con métricas, encadenamiento causal)
+    "resultados": [
+        r"(?i)resultado(?:s)?",
+        r"(?i)outcome(?:s)?",
+        r"(?i)m[ée]trica(?:s)?",
+        r"(?i)meta(?:s)?",
+        r"(?i)encadenamiento\s+causal",
+        r"(?i)ventana\s+de\s+maduraci[óo]n",
+        r"(?i)nivel\s+de\s+ambici[óo]n",
+    ],
+    # D5: IMPACTOS (efectos largo plazo, proxies, alineación marcos)
+    "impactos": [
+        r"(?i)impacto(?:s)?",
+        r"(?i)efecto(?:s)?\s+(?:de\s+)?largo\s+plazo",
+        r"(?i)prox(?:y|ies)",
+        r"(?i)transmisi[óo]n",
+        r"(?i)rezago(?:s)?",
+        r"(?i)PND",
+        r"(?i)ODS",
+        r"(?i)marco(?:s)?\s+(?:nacional|global)(?:es)?",
+    ],
+    # D6: CAUSALIDAD (teoría de cambio explícita, DAG, validación lógica)
+    "causalidad": [
+        r"(?i)teor[ií]a\s+de\s+cambio",
+        r"(?i)diagrama\s+causal",
+        r"(?i)DAG",
+        r"(?i)cadena\s+causal",
+        r"(?i)l[óo]gica\s+causal",
+        r"(?i)supuesto(?:s)?\s+verificable(?:s)?",
+        r"(?i)mediador(?:es)?",
+        r"(?i)moderador(?:es)?",
+        r"(?i)validaci[óo]n\s+l[óo]gica",
         r"(?i)seguimiento",
         r"(?i)monitoreo",
         r"(?i)evaluaci[óo]n",
-        r"(?i)control",
-        r"(?i)tablero(?:s)?",
     ],
 }
 
