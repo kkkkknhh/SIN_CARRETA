@@ -11,38 +11,54 @@ Features:
 - Special character handling
 - Key element identification and tagging
 - Policy domain preservation
+
+Contract (frozen):
+- class PlanSanitizer:
+    __init__(self)                      # ZERO-ARG constructor (no kwargs backdoors)
+    sanitize_text(self, text: str) -> str
+    sanitize_file(self, input_path: Union[str, Path], output_path: Optional[Union[str, Path]] = None) -> str
+    get_sanitization_stats(self) -> Dict[str, Any]
+- Factory helpers that DO NOT widen __init__:
+    PlanSanitizer.from_config(cfg: PlanSanitizerConfig) -> PlanSanitizer
+    PlanSanitizer.legacy(**legacy_flags) -> PlanSanitizer
+    create_plan_sanitizer(...legacy flags...) -> PlanSanitizer  # routes to .legacy()
+
+Notes:
+- No import-time side effects beyond logger configuration.
+- Deterministic behavior, fail-closed on unknown legacy flags.
 """
+
+from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Union, Any
+from typing import Any, ClassVar, Dict, List, Optional, Set, Tuple, Union
 
-# Import utility functions from text_processor
-from text_processor import (
-    normalize_text,
-    clean_policy_text,
-    )
+# External utilities (kept as in original repo layout)
+from text_processor import normalize_text, clean_policy_text  # type: ignore
+from json_utils import safe_read_text_file  # type: ignore
 
-# Import file reading utility
-from json_utils import safe_read_text_file
-
-# Configure logging
+# ------------------------------------------------------------------------------
+# Logging
+# ------------------------------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
+# ------------------------------------------------------------------------------
 # Key policy elements to preserve - aligned with DECALOGO questions
-KEY_ELEMENTS = {
+# ------------------------------------------------------------------------------
+KEY_ELEMENTS: Dict[str, List[str]] = {
     # DE-1: Logical Intervention Framework
     "indicators": [
         r"(?i)indicador(?:es)?",
         r"(?i)meta(?:s)?",
         r"(?i)l[ií]nea(?:s)?\s+base",
         r"(?i)resultado(?:s)?\s+esperado(?:s)?",
-        r"(?i)producto(?:s)?\s+esperado(?:s)?",
     ],
     # DE-2: Thematic Inclusion
     "diagnostics": [
@@ -68,275 +84,318 @@ KEY_ELEMENTS = {
     ],
 }
 
+# ------------------------------------------------------------------------------
+# Immutable configuration (adapter for legacy flags)
+# ------------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class PlanSanitizerConfig:
+    """Immutable configuration container for :class:`PlanSanitizer`."""
+    preserve_structure: bool = True
+    tag_key_elements: bool = True
+    aggressive_cleaning: bool = False
+
+    # Accepted aliases from historical integrations → canonical field
+    LEGACY_ALIASES: ClassVar[Dict[str, str]] = {
+        "keep_structure": "preserve_structure",
+        "structure_preservation": "preserve_structure",
+        "tag_elements": "tag_key_elements",
+        "highlight_key_elements": "tag_key_elements",
+        "aggressive_mode": "aggressive_cleaning",
+    }
+
+    @classmethod
+    def from_legacy(cls, **legacy: Any) -> "PlanSanitizerConfig":
+        """Create a config from strict legacy keyword inputs; raise on unknowns."""
+        allowed: Set[str] = {"preserve_structure", "tag_key_elements", "aggressive_cleaning"}
+        normalised: Dict[str, bool] = {}
+        unknown: Set[str] = set()
+
+        for key, value in legacy.items():
+            canonical = cls.LEGACY_ALIASES.get(key, key)
+            if canonical not in allowed:
+                unknown.add(key)
+                continue
+            normalised[canonical] = bool(value)
+
+        if unknown:
+            raise ValueError(f"Unknown legacy flags: {sorted(unknown)}")
+
+        default = cls()
+        return cls(
+            preserve_structure=normalised.get("preserve_structure", default.preserve_structure),
+            tag_key_elements=normalised.get("tag_key_elements", default.tag_key_elements),
+            aggressive_cleaning=normalised.get("aggressive_cleaning", default.aggressive_cleaning),
+        )
+
+    def as_dict(self) -> Dict[str, bool]:
+        return {
+            "preserve_structure": self.preserve_structure,
+            "tag_key_elements": self.tag_key_elements,
+            "aggressive_cleaning": self.aggressive_cleaning,
+        }
+
+# ------------------------------------------------------------------------------
+# Main component (contract-pure)
+# ------------------------------------------------------------------------------
 
 class PlanSanitizer:
     """
     Sanitizes plan documents to ensure proper text quality
     while preserving critical elements for DECALOGO evaluation.
 
-    Attributes:
-        preserve_structure: Whether to preserve document structure
-        tag_key_elements: Whether to tag key policy elements for easier detection
-        aggressive_cleaning: Level of aggressiveness in text cleaning
+    ZERO-ARG CONSTRUCTOR to satisfy public API contract.
     """
 
-    def __init__(
-        self,
-        preserve_structure: bool = True,
-        tag_key_elements: bool = True,
-        aggressive_cleaning: bool = False,
-    ):
-        """
-        Initialize the plan sanitizer with configuration options.
+    # --- constructor (zero-arg, no kwargs backdoors) ---
+    def __init__(self) -> None:
+        self._apply_config(PlanSanitizerConfig())
 
-        Args:
-            preserve_structure: Whether to preserve document structure
-            tag_key_elements: Whether to tag key policy elements
-            aggressive_cleaning: Use more aggressive cleaning methods
-        """
-        self.preserve_structure = preserve_structure
-        self.tag_key_elements = tag_key_elements
-        self.aggressive_cleaning = aggressive_cleaning
-        
+    # --- configuration plumbing (internal) ---
+    def _apply_config(self, config: PlanSanitizerConfig) -> None:
+        self.preserve_structure: bool = config.preserve_structure
+        self.tag_key_elements: bool = config.tag_key_elements
+        self.aggressive_cleaning: bool = config.aggressive_cleaning
+        self._resolved_config: PlanSanitizerConfig = config
+
         # Compile patterns for key elements
-        self.key_element_patterns = {}
-        for element_type, patterns in KEY_ELEMENTS.items():
-            self.key_element_patterns[element_type] = [
-                re.compile(pattern) for pattern in patterns
-            ]
-            
-        # Initialize counters for reporting
-        self.stats = {
+        self.key_element_patterns: Dict[str, List[re.Pattern[str]]] = {
+            kind: [re.compile(pat) for pat in pats] for kind, pats in KEY_ELEMENTS.items()
+        }
+
+        # Operational stats
+        self.stats: Dict[str, Any] = {
             "total_chars_before": 0,
             "total_chars_after": 0,
             "key_elements_preserved": {},
             "structure_elements_preserved": 0,
         }
 
+    @property
+    def resolved_config(self) -> PlanSanitizerConfig:
+        """Expose effective configuration (for audits/telemetry)."""
+        return self._resolved_config
+
+    @classmethod
+    def from_config(cls, config: PlanSanitizerConfig) -> "PlanSanitizer":
+        """Instantiate using an explicit config without widening __init__."""
+        instance = cls()
+        instance._apply_config(config)
+        return instance
+
+    @classmethod
+    def legacy(cls, **legacy: Any) -> "PlanSanitizer":
+        """Instantiate honoring strict legacy keyword arguments; raise on unknowns."""
+        cfg = PlanSanitizerConfig.from_legacy(**legacy)
+        return cls.from_config(cfg)
+
+    # ------------------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------------------
+
     def sanitize_text(self, text: str) -> str:
         """
         Sanitize text while preserving key elements.
-        
+
         Args:
             text: Raw text to sanitize
-            
         Returns:
             Sanitized text with key elements preserved
         """
         if not text:
+            # Clear stats in case caller reuses instance
+            self.stats["total_chars_before"] = 0
+            self.stats["total_chars_after"] = 0
+            self.stats["key_elements_preserved"] = {k: 0 for k in KEY_ELEMENTS}
+            self.stats["structure_elements_preserved"] = 0
             return ""
-        
+
         # Track statistics
         self.stats["total_chars_before"] = len(text)
-        self.stats["key_elements_preserved"] = {k: 0 for k in KEY_ELEMENTS.keys()}
-        
-        # First, normalize text
+        self.stats["key_elements_preserved"] = {k: 0 for k in KEY_ELEMENTS}
+
+        # 1) Normalize base text (unicode, whitespace, accents, etc.)
         normalized_text = normalize_text(text)
-        
-        # Detect and mark key elements before cleaning
+
+        # 2) Tag key elements before aggressive cleaning so they survive transforms
         if self.tag_key_elements:
             normalized_text = self._tag_key_elements(normalized_text)
-            
-        # Preserve structure if needed
+
+        # 3) Optionally preserve structure (headings, lists) via light-touch cleaning
         if self.preserve_structure:
             normalized_text = self._preserve_structure(normalized_text)
-        
-        # Clean the text while preserving marked elements
-        cleaned_text = clean_policy_text(normalized_text)
 
-        # Update statistics
-        self.stats["total_chars_after"] = len(cleaned_text)
-        
-        return cleaned_text
+        # 4) Policy-aware cleaning (domain-specific) + special chars handling
+        sanitized = clean_policy_text(
+            normalized_text,
+            aggressive=self.aggressive_cleaning,
+        )
+        sanitized = self._clean_special_characters(sanitized)
 
-    def _tag_key_elements(self, text: str) -> str:
-        """
-        Tag key policy elements to ensure they're preserved during cleaning.
-        
-        Args:
-            text: Text to process
-            
-        Returns:
-            Text with key elements tagged
-        """
-        processed_text = text
-        
-        for element_type, patterns in self.key_element_patterns.items():
-            for pattern in patterns:
-                matches = list(pattern.finditer(processed_text))
-                
-                # Track matches for statistics
-                self.stats["key_elements_preserved"][element_type] = len(matches)
-                
-                # Process matches from end to start to avoid position shifts
-                for match in reversed(matches):
-                    start, end = match.span()
-                    # Extract the context around the match
-                    context_start = max(0, start - 100)
-                    context_end = min(len(processed_text), end + 300)
-                    context = processed_text[context_start:context_end]
-                    
-                    # Keep this context block protected from aggressive cleaning
-                    if self.aggressive_cleaning:
-                        # Mark the context with special tags
-                        processed_text = (
-                            processed_text[:context_start] +
-                            f"__PRESERVE_START_{element_type}__" +
-                            context +
-                            f"__PRESERVE_END_{element_type}__" +
-                            processed_text[context_end:]
-                        )
-        
-        return processed_text
+        # 5) Final trim
+        sanitized = sanitized.strip()
 
-    def _preserve_structure(self, text: str) -> str:
+        # Stats
+        self.stats["total_chars_after"] = len(sanitized)
+        return sanitized
+
+    def sanitize_file(
+        self,
+        input_path: Union[str, Path],
+        output_path: Optional[Union[str, Path]] = None,
+        *,
+        encoding: str = "utf-8",
+    ) -> str:
         """
-        Preserve document structure elements like headings, lists, and tables.
-        
+        Sanitize a file from disk and optionally write the result.
+
         Args:
-            text: Text to process
-            
-        Returns:
-            Text with structure elements preserved
-        """
-        # Identify and mark headings
-        heading_pattern = re.compile(r"(?m)^(?:[\d.]+\s+)?([A-Z][A-Za-z\s]{3,60})$")
-        matches = list(heading_pattern.finditer(text))
-        self.stats["structure_elements_preserved"] = len(matches)
-        
-        # Mark headings from end to start to avoid position shifts
-        processed_text = text
-        for match in reversed(matches):
-            start, end = match.span()
-            heading_text = match.group(1)
-            # Mark as heading
-            processed_text = (
-                processed_text[:start] +
-                f"\n__HEADING_START__{heading_text}__HEADING_END__\n" +
-                processed_text[end:]
-            )
-        
-        return processed_text
-    
-    def sanitize_file(self, input_path: Union[str, Path], output_path: Optional[Union[str, Path]] = None) -> str:
-        """
-        Sanitize a file containing plan text.
-        
-        Args:
-            input_path: Path to input file
-            output_path: Optional path to output file (if None, returns text without saving)
-            
+            input_path: Path to the input text file
+            output_path: Optional path to write sanitized output
+            encoding: File encoding for write path (read uses safe reader)
         Returns:
             Sanitized text
         """
-        input_path = Path(input_path)
-        
-        # Use utility function for safe file reading with encoding fallback
-        text = safe_read_text_file(input_path)
-        
-        sanitized_text = self.sanitize_text(text)
-        
-        if output_path:
-            output_path = Path(output_path)
-            # Ensure output directory exists
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(output_path, 'w', encoding='utf-8') as f:
+        src = Path(input_path)
+        if not src.exists():
+            raise FileNotFoundError(f"Input file not found: {src}")
+
+        original_text = safe_read_text_file(src)
+        sanitized_text = self.sanitize_text(original_text)
+
+        if output_path is not None:
+            out = Path(output_path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            with out.open("w", encoding=encoding) as f:
                 f.write(sanitized_text)
-                
-            logger.info(f"Sanitized text saved to {output_path}")
-        
+            logger.info("Sanitized text saved to %s", out)
+
         return sanitized_text
-    
-    def get_sanitization_stats(self) -> Dict[str, any]:
+
+    def get_sanitization_stats(self) -> Dict[str, Any]:
         """
         Get statistics from the most recent sanitization operation.
-        
+
         Returns:
             Dictionary with sanitization statistics
         """
-        if self.stats["total_chars_before"] > 0:
-            reduction_pct = 100 - (self.stats["total_chars_after"] / self.stats["total_chars_before"] * 100)
+        before = self.stats.get("total_chars_before", 0)
+        after = self.stats.get("total_chars_after", 0)
+        if before > 0:
+            reduction_pct = 100 - (after / before * 100)
         else:
-            reduction_pct = 0
-        
+            reduction_pct = 0.0
         self.stats["reduction_percentage"] = round(reduction_pct, 2)
         return self.stats
 
+    # ------------------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------------------
 
-# Factory function to create a preconfigured sanitizer
-def create_plan_sanitizer(preserve_structure: bool = True, tag_key_elements: bool = True) -> PlanSanitizer:
+    def _tag_key_elements(self, text: str) -> str:
+        """
+        Surround detected key elements with stable tags to survive cleaning passes.
+        Tags also allow downstream heuristics to verify preservation.
+        """
+        def mark(match: re.Match[str], kind: str) -> str:
+            found = match.group(0)
+            self.stats["key_elements_preserved"][kind] += 1
+            return f"<KEY:{kind}>{found}</KEY:{kind}>"
+
+        tagged = text
+        for kind, patterns in self.key_element_patterns.items():
+            for pat in patterns:
+                tagged = pat.sub(lambda m, k=kind: mark(m, k), tagged)
+        return tagged
+
+    def _preserve_structure(self, text: str) -> str:
+        """
+        Lightweight structure preservation:
+        - Normalize ordered list markers
+        - Preserve headings by ensuring newline separation
+        - Keep bullet markers consistent
+        """
+        # Normalize list bullets
+        text = re.sub(r"^\s*[-•·]\s+", "- ", text, flags=re.MULTILINE)
+
+        # Normalize numbered headings: "1) Title" or "1. Title" → ensure newline before
+        text = re.sub(r"(?m)(?<!\n)(^\s*\d+[\.\)]\s+)", r"\n\1", text)
+
+        # Collapse excessive blank lines to at most two
+        text = re.sub(r"\n{3,}", "\n\n", text)
+
+        # Count a rough number of structure elements preserved (for stats)
+        headings = len(re.findall(r"(?m)^\s*\d+[\.\)]\s+\S", text))
+        bullets = len(re.findall(r"(?m)^-\s+\S", text))
+        self.stats["structure_elements_preserved"] = headings + bullets
+
+        return text
+
+    def _clean_special_characters(self, text: str) -> str:
+        """
+        Remove undesirable control characters, normalize whitespace,
+        and fix common OCR artifacts while keeping semantic content.
+        """
+        # Remove non-printable controls (except newlines and tabs)
+        text = re.sub(r"[^\x09\x0A\x0D\x20-\x7E\xA0-\uFFFF]", " ", text)
+
+        # Normalize common OCR ligatures
+        ligatures = {
+            "ﬁ": "fi", "ﬂ": "fl", "ﬃ": "ffi", "ﬄ": "ffl",
+            """: '"', """: '"', "'": "'", "'": "'",
+            "–": "-", "—": "-", "•": "-", "·": "-",
+        }
+        for bad, good in ligatures.items():
+            text = text.replace(bad, good)
+
+        # Normalize whitespace around tags
+        text = re.sub(r"\s*(</KEY:[a-z_]+>)\s*", r"\1 ", text)
+        text = re.sub(r"\s*(<KEY:[a-z_]+>)\s*", r" \1", text)
+
+        # Collapse spaces
+        text = re.sub(r"[ \t]{2,}", " ", text)
+        return text.strip()
+
+# ------------------------------------------------------------------------------
+# Factory (keeps __init__ contract pure)
+# ------------------------------------------------------------------------------
+
+def create_plan_sanitizer(
+    preserve_structure: bool = True,
+    tag_key_elements: bool = True,
+    aggressive_cleaning: bool = False,
+) -> PlanSanitizer:
     """
-    Create a preconfigured plan sanitizer.
-    
-    Args:
-        preserve_structure: Whether to preserve document structure
-        tag_key_elements: Whether to tag key elements
-        
-    Returns:
-        Configured PlanSanitizer instance
+    Create a preconfigured plan sanitizer (legacy flags supported).
+
+    NOTE: This does NOT widen PlanSanitizer.__init__.
     """
-    return PlanSanitizer(
+    return PlanSanitizer.legacy(
         preserve_structure=preserve_structure,
         tag_key_elements=tag_key_elements,
+        aggressive_cleaning=aggressive_cleaning,
     )
 
-
+# ------------------------------------------------------------------------------
 # Simple usage example
+# ------------------------------------------------------------------------------
+
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     sanitizer = create_plan_sanitizer()
-    
-    # Example text with key elements that should be preserved
     sample_text = """
     PLAN DE DESARROLLO MUNICIPAL 2020-2023
-    
+
     1. DIAGNÓSTICO
-    
     La situación actual del municipio presenta desafíos en educación y salud.
-    
+
     2. OBJETIVOS ESTRATÉGICOS
-    
     2.1 EDUCACIÓN
-    
     Indicador: Tasa de escolaridad
     Línea Base: 85%
     Meta: 95%
-    
     Responsable: Secretaría de Educación Municipal
-    
-    3. MECANISMOS DE PARTICIPACIÓN
-    
-    Se realizaron 5 mesas técnicas con la comunidad.
-    
-    4. SEGUIMIENTO Y MONITOREO
-    
-    El plan contará con un tablero de control para seguimiento trimestral.
     """
-    
-    sanitized = sanitizer.sanitize_text(sample_text)
-    print("\nSanitized text:")
-    print(sanitized)
-    
-    stats = sanitizer.get_sanitization_stats()
-    print("\nSanitization statistics:")
-    for key, value in stats.items():
-        print(f"  {key}: {value}")
 
-
-# Convenience functions for common use cases
-def sanitize_plan_name(plan_name: str, max_length: int = 255) -> str:
-    """Convenience function for plan name sanitization."""
-    return PlanSanitizer.sanitize_plan_name(plan_name, max_length)
-
-
-def standardize_json_keys(
-    json_obj: Dict[str, Any], preserve_display: bool = True
-) -> Dict[str, Any]:
-    """Convenience function for JSON key standardization."""
-    return PlanSanitizer.standardize_json_object(json_obj, preserve_display)
-
-
-def create_plan_directory(plan_name: str, base_path: str = ".") -> str:
-    """Convenience function to create a safe directory for a plan."""
-    return PlanSanitizer.create_safe_directory(plan_name, base_path, create=True)
+    out = sanitizer.sanitize_text(sample_text)
+    print(out)
+    print(sanitizer.get_sanitization_stats())

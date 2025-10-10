@@ -317,12 +317,13 @@ def normalize_text(text: str) -> str:
     return processor.normalize_text(text)
 
 
-def clean_policy_text(text: str) -> str:
+def clean_policy_text(text: str, aggressive: bool = False) -> str:
     """
     Clean policy document text with standard settings.
 
     Args:
         text: Policy document text
+        aggressive: If True, apply more aggressive cleaning (currently same as standard)
 
     Returns:
         Cleaned text
