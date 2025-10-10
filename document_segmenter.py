@@ -44,7 +44,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Union, Any
+from typing import Any, ClassVar, Dict, List, Mapping, Optional, Set, Tuple, Union
 
 # Import file reading utility
 from json_utils import safe_read_text_file
@@ -206,38 +206,392 @@ class DocumentSegment:
         return section_to_dimension.get(self.section_type, [])
 
 
+@dataclass(frozen=True)
+class DocumentSegmenterConfig:
+    """Immutable configuration container for :class:`DocumentSegmenter`."""
+
+    target_char_min: int = 700
+    target_char_max: int = 900
+    target_sentences: int = 3
+    segmentation_type: SegmentationType = SegmentationType.SECTION
+    min_segment_length: int = 50
+    max_segment_length: int = 1000
+    preserve_context: bool = True
+    min_segment_chars: int = 350
+    max_segment_chars: int = 900
+    context_window: int = 1
+
+    LEGACY_ALIASES: ClassVar[Dict[str, str]] = {
+        "min_chunk_size": "target_char_min",
+        "max_chunk_size": "target_char_max",
+        "target_min_chars": "target_char_min",
+        "target_max_chars": "target_char_max",
+        "sentence_target": "target_sentences",
+        "segment_type": "segmentation_type",
+        "keep_context": "preserve_context",
+    }
+
+    ALLOWED_KEYS: ClassVar[Set[str]] = {
+        "target_char_min",
+        "target_char_max",
+        "target_sentences",
+        "segmentation_type",
+        "min_segment_length",
+        "max_segment_length",
+        "preserve_context",
+        "min_segment_chars",
+        "max_segment_chars",
+        "context_window",
+    }
+
+    @staticmethod
+    def _coerce_int(
+        value: Any,
+        default: int,
+        *,
+        minimum: Optional[int] = None,
+    ) -> int:
+        """Coerce a value to ``int`` while applying lower bounds."""
+
+        if value is None:
+            result = default
+        else:
+            try:
+                result = int(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Expected integer-compatible value, received {value!r}") from exc
+
+        if minimum is not None:
+            result = max(minimum, result)
+
+        return result
+
+    @staticmethod
+    def _coerce_bool(value: Any, default: bool) -> bool:
+        """Coerce a value to ``bool`` while tolerating ``None`` inputs."""
+
+        if value is None:
+            return default
+        return bool(value)
+
+    @staticmethod
+    def _coerce_segmentation_type(
+        value: Any,
+        default: SegmentationType,
+    ) -> SegmentationType:
+        """Convert legacy values into :class:`SegmentationType`."""
+
+        if value is None:
+            return default
+
+        if isinstance(value, SegmentationType):
+            return value
+
+        if isinstance(value, str):
+            try:
+                return SegmentationType(value.lower())
+            except ValueError as exc:
+                raise ValueError(f"Unsupported segmentation_type: {value!r}") from exc
+
+        raise ValueError(f"Unsupported segmentation_type: {value!r}")
+
+    @classmethod
+    def from_legacy(cls, **legacy: Any) -> "DocumentSegmenterConfig":
+        """Create a configuration object from strict legacy keyword inputs."""
+
+        unknown: Set[str] = set()
+        normalised: Dict[str, Any] = {}
+
+        for key, value in legacy.items():
+            canonical = cls.LEGACY_ALIASES.get(key, key)
+            if canonical not in cls.ALLOWED_KEYS:
+                unknown.add(key)
+                continue
+            normalised[canonical] = value
+
+        if unknown:
+            raise ValueError(f"Unknown legacy flags: {sorted(unknown)}")
+
+        defaults = cls()
+        target_char_min = cls._coerce_int(
+            normalised.get("target_char_min"),
+            defaults.target_char_min,
+            minimum=10,
+        )
+        target_char_max = cls._coerce_int(
+            normalised.get("target_char_max"),
+            defaults.target_char_max,
+            minimum=target_char_min,
+        )
+
+        min_segment_length = cls._coerce_int(
+            normalised.get("min_segment_length"),
+            defaults.min_segment_length,
+            minimum=1,
+        )
+        max_segment_length = cls._coerce_int(
+            normalised.get("max_segment_length"),
+            defaults.max_segment_length,
+            minimum=min_segment_length,
+        )
+
+        default_min_segment_chars = max(10, target_char_min // 2)
+        min_segment_chars = cls._coerce_int(
+            normalised.get("min_segment_chars"),
+            default_min_segment_chars,
+            minimum=10,
+        )
+
+        max_segment_chars = cls._coerce_int(
+            normalised.get("max_segment_chars"),
+            target_char_max,
+            minimum=min_segment_chars,
+        )
+
+        context_window = cls._coerce_int(
+            normalised.get("context_window"),
+            defaults.context_window,
+            minimum=0,
+        )
+
+        target_sentences = cls._coerce_int(
+            normalised.get("target_sentences"),
+            defaults.target_sentences,
+            minimum=1,
+        )
+
+        segmentation_type = cls._coerce_segmentation_type(
+            normalised.get("segmentation_type"),
+            defaults.segmentation_type,
+        )
+
+        preserve_context = cls._coerce_bool(
+            normalised.get("preserve_context"),
+            defaults.preserve_context,
+        )
+
+        return cls(
+            target_char_min=target_char_min,
+            target_char_max=target_char_max,
+            target_sentences=target_sentences,
+            segmentation_type=segmentation_type,
+            min_segment_length=min_segment_length,
+            max_segment_length=max_segment_length,
+            preserve_context=preserve_context,
+            min_segment_chars=min_segment_chars,
+            max_segment_chars=max_segment_chars,
+            context_window=context_window,
+        )
+
+    def as_dict(self) -> Dict[str, Any]:
+        """Expose the configuration as a plain dictionary for diagnostics."""
+
+        return {
+            "target_char_min": self.target_char_min,
+            "target_char_max": self.target_char_max,
+            "target_sentences": self.target_sentences,
+            "segmentation_type": self.segmentation_type,
+            "min_segment_length": self.min_segment_length,
+            "max_segment_length": self.max_segment_length,
+            "preserve_context": self.preserve_context,
+            "min_segment_chars": self.min_segment_chars,
+            "max_segment_chars": self.max_segment_chars,
+            "context_window": self.context_window,
+        }
+
+
 class DocumentSegmenter:
-    """
-    Segments a document into logical units for DECALOGO analysis.
-    
-    Attributes:
-        segmentation_type: Type of segmentation to perform
-        min_segment_length: Minimum length for a valid segment
-        max_segment_length: Maximum length for a segment before splitting
-        preserve_context: Whether to include surrounding context in segments
-        section_patterns: Regex patterns for identifying section types
-    """
-    
-    def __init__(
-        self,
-        segmentation_type: SegmentationType = SegmentationType.SECTION,
-        min_segment_length: int = 50,
-        max_segment_length: int = 1000,
-        preserve_context: bool = True,
-    ):
-        """
-        Initialize the document segmenter.
-        
-        Args:
-            segmentation_type: Type of segmentation to perform
-            min_segment_length: Minimum length for a valid segment
-            max_segment_length: Maximum length for a segment before splitting
-            preserve_context: Whether to include surrounding context in segments
-        """
-        self.segmentation_type = segmentation_type
-        self.min_segment_length = min_segment_length
-        self.max_segment_length = max_segment_length
-        self.preserve_context = preserve_context
+    """Segments a document into logical units for DECALOGO analysis."""
+
+    def __init__(self) -> None:
+        """Initialise the document segmenter with immutable defaults."""
+
+        self._apply_config(DocumentSegmenterConfig())
+        self._initialise_patterns()
+
+    def _apply_config(self, config: DocumentSegmenterConfig) -> None:
+        """Apply the supplied configuration, refreshing derived state."""
+
+        self.target_char_min = config.target_char_min
+        self.target_char_max = config.target_char_max
+        self.target_sentences = config.target_sentences
+
+        self.segmentation_type = config.segmentation_type
+        self.min_segment_length = config.min_segment_length
+        self.max_segment_length = config.max_segment_length
+        self.preserve_context = config.preserve_context
+
+        self.min_segment_chars = config.min_segment_chars
+        self.max_segment_chars = config.max_segment_chars
+        self.context_window = config.context_window
+
+        self._resolved_config = config
+
+    @property
+    def resolved_config(self) -> DocumentSegmenterConfig:
+        """Return the resolved configuration for telemetry and audits."""
+
+        return self._resolved_config
+
+    @classmethod
+    def from_config(cls, config: DocumentSegmenterConfig) -> "DocumentSegmenter":
+        """Instantiate a :class:`DocumentSegmenter` using an explicit config."""
+
+        instance = cls()
+        instance._apply_config(config)
+        return instance
+
+    @classmethod
+    def legacy(cls, **legacy: Any) -> "DocumentSegmenter":
+        """Create an instance honouring strict legacy keyword arguments."""
+
+        config = DocumentSegmenterConfig.from_legacy(**legacy)
+        return cls.from_config(config)
+
+    def _initialise_patterns(self) -> None:
+        """Prepare regular expression patterns for section identification."""
+
+        # Section identification patterns - aligned with DECALOGO dimensions (D1-D6)
+        # Based on decalogo-industrial.latest.clean.json structure
+        self.section_patterns = {
+            # D1: INSUMOS - Diagnóstico, líneas base, recursos, capacidades
+            SectionType.DIAGNOSTIC: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:diagn[óo]stico|antecedentes|contexto|situaci[óo]n actual)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:problem[áa]tica|necesidades|demandas)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:caracterizaci[óo]n|perfil)"
+            ],
+            SectionType.BASELINE: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:l[íi]nea(?:s)? base|datos base|baseline)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:series temporales|medici[óo]n inicial)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:estado actual medido|indicadores iniciales)"
+            ],
+            SectionType.RESOURCES: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:recursos asignados|asignaci[óo]n de recursos)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:plan plurianual|PPI|plan indicativo)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:trazabilidad program[áa]tica)"
+            ],
+            SectionType.CAPACITY: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:capacidades institucionales|capacidad institucional)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:talento humano|recurso humano|personal)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:procesos institucionales|sistemas de informaci[óo]n)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cuellos de botella|restricciones institucionales)"
+            ],
+            SectionType.BUDGET: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:presupuesto|recursos (?:financieros|econ[óo]micos))",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:financiaci[óo]n|inversi[óo]n|gasto(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:costeo|asignaci[óo]n (?:presupuestal|de recursos))"
+            ],
+            SectionType.PARTICIPATION: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:participaci[óo]n|gobernanza|concertaci[óo]n)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:mesa(?:s)? (?:t[ée]cnica(?:s)?|participativa(?:s)?))",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:di[áa]logo(?:s)?|consulta(?:s)?)"
+            ],
+
+            # D2: ACTIVIDADES - Formalización, mecanismos causales
+            SectionType.ACTIVITY: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:actividad(?:es)?|acciones?|intervenciones?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:formalizaci[óo]n de actividades|tabla de actividades)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:responsable.*insumo.*output|cronograma.*costo)"
+            ],
+            SectionType.MECHANISM: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:mecanismo(?:s)? causal(?:es)?|v[íi]a causal)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:poblaci[óo]n diana|grupo objetivo)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:causa ra[íi]z|mediador(?:es)?)"
+            ],
+            SectionType.INTERVENTION: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:teor[íi]a de intervenci[óo]n|l[óo]gica de intervenci[óo]n)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:complementariedades|secuenciaci[óo]n)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:riesgos de implementaci[óo]n|cu[ñn]as de implementaci[óo]n)"
+            ],
+            SectionType.STRATEGY: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:estrategia(?:s)?|l[íi]nea(?:s)? (?:de)? acci[óo]n)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:programa(?:s)?|proyecto(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:iniciativa(?:s)?)"
+            ],
+            SectionType.TIMELINE: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cronograma|calendario|plazos)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:tiempos|periodicidad|fechas)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:hitos|milestones|fases)"
+            ],
+
+            # D3: PRODUCTOS - Outputs con indicadores verificables
+            SectionType.PRODUCT: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:producto(?:s)?|output(?:s)?|entregable(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:bien(?:es)? y servicio(?:s)?|prestaci[óo]n de servicios)"
+            ],
+            SectionType.OUTPUT: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:output(?:s)? verificable(?:s)?|producto verificable)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cobertura proporcional|suficiencia relativa)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:trazabilidad presupuestal del producto)"
+            ],
+
+            # D4: RESULTADOS - Outcomes con métricas
+            SectionType.RESULT: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:resultado(?:s)?|outcome(?:s)?|logro(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:encadenamiento causal|v[íi]nculo productos.*resultados)"
+            ],
+            SectionType.OUTCOME: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:outcome(?:s)? con m[ée]trica(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:ventana de maduraci[óo]n|tiempo de efecto)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:nivel de ambici[óo]n|magnitud del cambio)"
+            ],
+            SectionType.INDICATOR: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:indicador(?:es)? de resultado|medici[óo]n de outcome)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:m[ée]trica(?:s)?|f[óo]rmula de c[áa]lculo)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:meta(?:s)? cuantificada(?:s)?)"
+            ],
+            SectionType.MONITORING: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:seguimiento|monitoreo|evaluaci[óo]n)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:control|supervisi[óo]n|vigilancia)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:tablero(?:s)? de (?:control|mando))"
+            ],
+
+            # D5: IMPACTOS - Efectos de largo plazo
+            SectionType.IMPACT: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:impacto(?:s)?|efecto(?:s)? (?:de )?largo plazo)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cambio(?:s)? estructural(?:es)?|transformaci[óo]n sostenible)"
+            ],
+            SectionType.LONG_TERM_EFFECT: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:efecto(?:s)? duradero(?:s)?|sostenibilidad)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:alineaci[óo]n (?:con )?(?:PND|ODS|marco(?:s)? internacionales?))",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:proxy de impacto|indicador(?:es)? proxy)"
+            ],
+
+            # D6: CAUSALIDAD - Teoría de cambio explícita
+            SectionType.CAUSAL_THEORY: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:teor[íi]a de cambio|marco l[óo]gico causal)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:DAG|grafo (?:causal|ac[íi]clico dirigido))",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:diagrama causal|modelo causal)"
+            ],
+            SectionType.CAUSAL_LINK: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:encadenamiento (?:causal|l[óo]gico))",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:validaci[óo]n l[óo]gica|consistencia causal)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:hip[óo]tesis causales|supuestos cr[íi]ticos)"
+            ],
+
+            # Multi-dimensional legacy sections
+            SectionType.VISION: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:visi[óo]n|misi[óo]n)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:escenario(?:s)? deseado(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:futuro(?:s)? deseado(?:s)?)"
+            ],
+            SectionType.OBJECTIVE: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:objetivo(?:s)?|prop[óo]sito(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:finalidad(?:es)?|meta(?:s)? general(?:es)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:logro(?:s)? esperado(?:s)?)"
+            ],
+            SectionType.RESPONSIBILITY: [
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:responsable(?:s)?|encargado(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:entidad(?:es)? (?:responsable|ejecutora)(?:s)?)",
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:actor(?:es)? (?:responsable|institucional)(?:s)?)"
+            ],
+        }
+
+        # Compile all section patterns for efficiency
+        self.compiled_patterns = {
+            section_type: [re.compile(pattern) for pattern in patterns]
+            for section_type, patterns in self.section_patterns.items()
+        }
         
         # Section identification patterns - aligned with DECALOGO dimensions (D1-D6)
         # Based on decalogo-industrial.latest.clean.json structure
