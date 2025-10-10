@@ -32,6 +32,7 @@
 11. [🧪 Testing y Verificación](#-testing-y-verificación)
 12. [🤝 Contribución](#-contribución)
 13. [📚 Documentación Adicional](#-documentación-adicional)
+14. [⚡ Quick Reference (Comandos Comunes)](#-quick-reference-comandos-comunes)
 
 ---
 
@@ -512,11 +513,11 @@ python miniminimoon_orchestrator.py freeze ./config/
 # Verificar sistema con validación end-to-end
 python test_validation_end_to_end.py
 
-# O verificar usando el CLI
+# O verificar usando el CLI con diagnóstico
 python miniminimoon_cli.py diagnostic
 
-# O verificar que todos los módulos se pueden importar
-python -c "from system_validators import SystemValidators; sv = SystemValidators(); print('✓ System validators OK')"
+# O verificar que el sistema está operativo
+python -c "from system_validators import SystemHealthValidator; print('✓ System validators ready')"
 ```
 
 ### Paso 3: Ejecutar Primera Evaluación de PDM
@@ -627,12 +628,9 @@ print('Todas idénticas:', len(set(hashes)) == 1)
 
 ```bash
 # Verificar que hay correspondencia 1:1 entre preguntas y pesos de rúbrica
-python miniminimoon_cli.py rubric-check
-
-# Con archivos específicos:
 python miniminimoon_cli.py rubric-check \
-    --answers output/answers_report.json \
-    --rubric config/RUBRIC_SCORING.json
+    output/answers_report.json \
+    config/RUBRIC_SCORING.json
 ```
 
 **Output esperado (PASSING):**
@@ -972,6 +970,44 @@ python -m pytest -k "critical" -v
 # Ver output completo de errores
 python -m pytest --tb=long test_critical_flows.py
 ```
+
+### Problema 11: Error "No frozen config snapshot"
+
+**Síntoma:**
+```
+RuntimeError: Configuration must be frozen before execution (Gate #1)
+File not found: .immutability_snapshot.json
+```
+
+**Solución:**
+
+```bash
+python miniminimoon_cli.py freeze
+```
+
+### Problema 12: Error "Flow order does not match canonical documentation"
+
+**Causa:** Modificación del orden de ejecución en el orquestador
+
+**Solución:** 
+
+Revisar que el orden en `miniminimoon_orchestrator.py` coincida con `tools/flow_doc.json`. No modificar el orden canónico sin autorización.
+
+### Problema 13: Error "decalogo_pipeline_orchestrator is DEPRECATED"
+
+**Causa:** Intento de usar orquestador deprecado
+
+**Solución:**
+
+```python
+# ❌ PROHIBIDO
+from decalogo_pipeline_orchestrator import DecalogoPipelineOrchestrator
+
+# ✅ CORRECTO
+from miniminimoon_orchestrator import CanonicalDeterministicOrchestrator
+```
+
+Ver `DEPRECATIONS.md` para detalles completos de migración.
 
 ---
 
@@ -1418,39 +1454,6 @@ Output: 300 DPI PNG files suitable for documentation and presentations.
 
 ---
 
-## 🛠️ Troubleshooting
-
-### Error: "No frozen config snapshot"
-
-**Solución:**
-```bash
-python miniminimoon_cli.py freeze
-```
-
-### Error: "Flow order does not match canonical documentation"
-
-**Causa:** Modificación del orden de ejecución en el orquestador
-
-**Solución:** Revisar que el orden en `miniminimoon_orchestrator.py` coincida con `tools/flow_doc.json`
-
-### Error: "Rubric validation FAILED"
-
-**Causa:** Preguntas sin peso o pesos sin pregunta
-
-**Solución:**
-```bash
-python rubric_check.py  # Ver missing/extra
-# Corregir RUBRIC_SCORING.json
-```
-
-### Error: "decalogo_pipeline_orchestrator is DEPRECATED"
-
-**Causa:** Intento de usar orquestador deprecado
-
-**Solución:** Migrar a `CanonicalDeterministicOrchestrator` (ver `DEPRECATIONS.md`)
-
----
-
 ## 📚 Documentación Adicional
 
 - **Visual Architecture Diagrams:** 7 advanced diagrams (see [Visual Architecture section](#-visual-architecture-diagrams))
@@ -1512,3 +1515,69 @@ Ver archivo `LICENSE`
 **Flujos críticos:** 72/72 verificados  
 **Gates de aceptación:** 6/6 activos  
 **Cobertura:** 300/300 preguntas
+
+---
+
+## ⚡ Quick Reference (Comandos Comunes)
+
+### Comandos de Instalación
+```bash
+# Crear entorno virtual con Python 3.10
+python3.10 -m venv venv
+source venv/bin/activate  # Linux/macOS
+# .\venv\Scripts\Activate.ps1  # Windows PowerShell
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Descargar modelos NLP
+python -m spacy download es_core_news_sm
+python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+```
+
+### Comandos de Operación
+```bash
+# 1. Congelar configuración (obligatorio antes de cualquier evaluación)
+python miniminimoon_cli.py freeze
+
+# 2. Evaluar un plan
+python miniminimoon_cli.py evaluate --plan mi_plan.pdf --strict
+
+# 3. Verificar resultados
+python miniminimoon_cli.py verify
+
+# 4. Validar rúbrica
+python miniminimoon_cli.py rubric-check output/answers_report.json config/RUBRIC_SCORING.json
+
+# 5. Generar matriz de trazabilidad
+python miniminimoon_cli.py trace-matrix
+```
+
+### Comandos de Verificación
+```bash
+# Verificar que todos los módulos funcionan
+python test_validation_end_to_end.py
+
+# Diagnóstico completo del sistema
+python miniminimoon_cli.py diagnostic
+
+# Verificar reproducibilidad (triple-run)
+for i in {1..3}; do python miniminimoon_cli.py evaluate --plan test.pdf > run_$i.json; done
+
+# Ver versión y estado
+python miniminimoon_cli.py version
+```
+
+### Comandos de Desarrollo
+```bash
+# Ejecutar tests unitarios
+python -m pytest test_plan_sanitizer.py -v
+python -m pytest test_document_segmenter.py -v
+python -m pytest test_teoria_cambio.py -v
+
+# Verificar todos los tests
+python -m pytest -v
+
+# Ver cobertura de tests
+python -m pytest --cov=. --cov-report=html
+```
