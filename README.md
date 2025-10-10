@@ -847,7 +847,7 @@ python -m spacy download es_core_news_sm
 python -c "import spacy; nlp = spacy.load('es_core_news_sm'); print('OK')"
 
 # Si persiste, instalar manualmente
-pip install https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.6.0/es_core_news_sm-3.6.0-py3-none-any.whl
+pip install https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.8.0/es_core_news_sm-3.8.0-py3-none-any.whl
 ```
 
 ### Problema 6: Archivos de configuración faltantes
