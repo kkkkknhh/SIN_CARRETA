@@ -48,6 +48,69 @@ from collections import Counter
 
 
 # ---------------------------
+# Constants and regex patterns
+# ---------------------------
+
+# Sentence splitting regex - matches sentence-ending punctuation followed by whitespace
+_SENTENCE_SPLIT_REGEX = re.compile(r'(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ])')
+
+# Word extraction regex - matches word characters including accented characters
+_WORD_REGEX = re.compile(r'\b[\w\u00C0-\u017F]+\b')
+
+
+# ---------------------------
+# Enums
+# ---------------------------
+
+class SegmentationType(Enum):
+    """Segmentation strategy types."""
+    SECTION = "section"
+    SEMANTIC = "semantic"
+    HYBRID = "hybrid"
+
+
+class SectionType(Enum):
+    """Section types aligned with DECALOGO dimensions (D1-D6)."""
+    # D1: INSUMOS - Diagnóstico, líneas base, recursos, capacidades
+    DIAGNOSTIC = "diagnostic"
+    BASELINE = "baseline"
+    RESOURCES = "resources"
+    CAPACITY = "capacity"
+    BUDGET = "budget"
+    PARTICIPATION = "participation"
+    
+    # D2: ACTIVIDADES
+    ACTIVITY = "activity"
+    MECHANISM = "mechanism"
+    INTERVENTION = "intervention"
+    STRATEGY = "strategy"
+    TIMELINE = "timeline"
+    
+    # D3: PRODUCTOS
+    PRODUCT = "product"
+    OUTPUT = "output"
+    
+    # D4: RESULTADOS
+    RESULT = "result"
+    OUTCOME = "outcome"
+    INDICATOR = "indicator"
+    MONITORING = "monitoring"
+    
+    # D5: IMPACTOS
+    IMPACT = "impact"
+    LONG_TERM_EFFECT = "long_term_effect"
+    
+    # D6: CAUSALIDAD
+    CAUSAL_THEORY = "causal_theory"
+    CAUSAL_LINK = "causal_link"
+    
+    # Legacy/Multi-dimensional
+    VISION = "vision"
+    OBJECTIVE = "objective"
+    RESPONSIBILITY = "responsibility"
+
+
+# ---------------------------
 # Data structures
 # ---------------------------
 
@@ -607,10 +670,6 @@ class DocumentSegmenter:
         self.compiled_patterns = {}
         for section_type, patterns in self.section_patterns.items():
             self.compiled_patterns[section_type] = [re.compile(pattern) for pattern in patterns]
-    
-    def segment(self, doc_struct: Union[Dict[str, Any], str]) -> List[DocumentSegment]:
-        """
-        Segment a document based on its structured representation or raw text.
 
 
 # ---------------------------
