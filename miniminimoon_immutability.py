@@ -26,6 +26,7 @@ Date: 2025-10-09
 """
 
 import json
+from datetime import datetime, timezone
 import hashlib
 import logging
 from pathlib import Path
@@ -204,7 +205,7 @@ class EnhancedImmutabilityContract:
         snapshot = {
             "version": self.VERSION,
             "orchestrator_version": ORCHESTRATOR_VERSION,
-            "snapshot_timestamp": datetime.utcnow().isoformat() + "Z",
+            "snapshot_timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "snapshot_hash": snapshot_hash,
             "config_dir": str(self.config_dir.absolute()),
             "files": file_hashes,
@@ -491,7 +492,7 @@ class EnhancedImmutabilityContract:
 
         report = {
             "module": "Decatalogo_principal",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "checks": {},
             "status": "unknown"
         }

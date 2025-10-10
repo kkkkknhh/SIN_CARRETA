@@ -23,6 +23,7 @@ Date: 2025-10-05
 """
 
 import json
+from datetime import datetime, timezone
 import hashlib
 import time
 import logging
@@ -453,7 +454,7 @@ class RuntimeTracer:
         return {
             "version": "2.0.0",
             "flow_hash": self.compute_flow_hash(),
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "total_duration_seconds": (
                 (self.end_time - self.start_time)
                 if self.end_time and self.start_time
@@ -721,7 +722,7 @@ class CanonicalFlowValidator:
         )
 
         report = {
-            "validation_timestamp": datetime.utcnow().isoformat() + "Z",
+            "validation_timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "overall_valid": overall_valid,
             "order_validation": order_result,
             "contract_validation": contract_result,
@@ -769,7 +770,7 @@ class FlowDocGenerator:
         doc = {
             "version": "2.1.0",
             "flow_hash": flow_hash,
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
             "description": "Canonical deterministic pipeline flow (16 stages)",
             "total_stages": len(stages),
             "stages": stages

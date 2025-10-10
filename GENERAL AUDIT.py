@@ -12,6 +12,7 @@ Date: 2025-10-08
 """
 
 import json
+from datetime import datetime, timezone
 import sys
 import os
 import hashlib
@@ -88,7 +89,7 @@ class AuditFinding:
     details: Dict[str, Any] = field(default_factory=dict)
     recommendation: str = ""
     impact: str = ""
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     
     def to_dict(self) -> dict:
         return {
@@ -137,7 +138,7 @@ class MiniMiniMoonAuditor:
         self.parallel = parallel
         self.findings: List[AuditFinding] = []
         self.component_health: Dict[str, ComponentHealth] = {}
-        self.audit_start_time = datetime.utcnow()
+        self.audit_start_time = datetime.now(timezone.utc)
         self.test_dir = Path(tempfile.mkdtemp(prefix="miniminimoon_audit_"))
         
         # Setup logging
@@ -1062,7 +1063,7 @@ class MiniMiniMoonAuditor:
         audit_report["summary"] = self._generate_summary()
         
         # Calculate duration
-        audit_end_time = datetime.utcnow()
+        audit_end_time = datetime.now(timezone.utc)
         duration = (audit_end_time - self.audit_start_time).total_seconds()
         audit_report["audit_metadata"]["duration_seconds"] = round(duration, 2)
         
