@@ -15,20 +15,23 @@ from version_validator import (
 class TestVersionValidator:
     """Test version validation functionality."""
     
-    def test_get_python_version_info(self):
+    @staticmethod
+    def test_get_python_version_info():
         """Test version info retrieval."""
         version_info = get_python_version_info()
         assert isinstance(version_info, tuple)
         assert len(version_info) == 3
         assert all(isinstance(v, int) for v in version_info)
     
-    def test_validate_python_310_success(self):
+    @staticmethod
+    def test_validate_python_310_success():
         """Test successful Python 3.10 validation."""
         # Should not raise if actually running Python 3.10
         if sys.version_info.major == 3 and sys.version_info.minor == 10:
             assert validate_python_310() is True
     
-    def test_validate_python_310_failure(self):
+    @staticmethod
+    def test_validate_python_310_failure():
         """Test Python version validation failure."""
         with patch('sys.version_info', (3, 9, 0)):
             with pytest.raises(RuntimeError) as exc_info:
@@ -36,7 +39,8 @@ class TestVersionValidator:
             assert "Python 3.10 required" in str(exc_info.value)
             assert "Found Python 3.9.0" in str(exc_info.value)
     
-    def test_validate_python_310_wrong_major(self):
+    @staticmethod
+    def test_validate_python_310_wrong_major():
         """Test validation with wrong major version."""
         with patch('sys.version_info', (2, 7, 18)):
             with pytest.raises(RuntimeError) as exc_info:
@@ -54,7 +58,8 @@ class TestVersionValidator:
                 assert len(w) == 1
                 assert "NumPy not installed" in str(w[0].message)
     
-    def test_validate_numpy_compatibility_old_version(self):
+    @staticmethod
+    def test_validate_numpy_compatibility_old_version():
         """Test NumPy validation with old version."""
         with patch('version_validator.np') as mock_np:
             mock_np.__version__ = "1.20.0"
@@ -65,7 +70,8 @@ class TestVersionValidator:
                 assert len(w) == 1
                 assert "may not fully support Python 3.10" in str(w[0].message)
     
-    def test_validate_numpy_compatibility_new_version(self):
+    @staticmethod
+    def test_validate_numpy_compatibility_new_version():
         """Test NumPy validation with potentially problematic new version."""
         with patch('version_validator.np') as mock_np:
             mock_np.__version__ = "1.25.0"
@@ -76,7 +82,8 @@ class TestVersionValidator:
                 assert len(w) == 1
                 assert "may have breaking changes" in str(w[0].message)
     
-    def test_validate_numpy_compatibility_good_version(self):
+    @staticmethod
+    def test_validate_numpy_compatibility_good_version():
         """Test NumPy validation with good version."""
         with patch('version_validator.np') as mock_np:
             mock_np.__version__ = "1.23.0"
@@ -91,14 +98,16 @@ class TestVersionValidator:
 class TestCompatibilityChecker:
     """Test the comprehensive compatibility checker."""
     
-    def test_checker_initialization(self):
+    @staticmethod
+    def test_checker_initialization():
         """Test checker can be imported and initialized."""
         from python_310_compatibility_checker import Python310CompatibilityChecker
         checker = Python310CompatibilityChecker()
         assert checker.python_version == sys.version_info
         assert checker.results == []
     
-    def test_critical_modules_defined(self):
+    @staticmethod
+    def test_critical_modules_defined():
         """Test that critical modules are properly defined."""
         from python_310_compatibility_checker import Python310CompatibilityChecker
         checker = Python310CompatibilityChecker()
@@ -111,7 +120,8 @@ class TestCompatibilityChecker:
         # Should have reasonable number of critical modules
         assert len(checker.CRITICAL_MODULES) >= 5
     
-    def test_import_result_structure(self):
+    @staticmethod
+    def test_import_result_structure():
         """Test ImportResult dataclass structure."""
         from python_310_compatibility_checker import ImportResult
         

@@ -78,7 +78,8 @@ class ValidationCache:
         except Exception:
             return None
     
-    def _hashable_value(self, value: Any) -> Any:
+    @staticmethod
+    def _hashable_value(value: Any) -> Any:
         """Convert value to hashable representation"""
         if isinstance(value, (str, int, float, bool, type(None))):
             return value
@@ -209,7 +210,8 @@ class CanonicalFlowValidator:
         self.validation_cache = ValidationCache()
         self._version = "2.0-decatalogo-integrated"
 
-    def _define_contracts(self) -> Dict[str, NodeContract]:
+    @staticmethod
+    def _define_contracts() -> Dict[str, NodeContract]:
         """
         Define contracts for each node in the canonical flow.
 
@@ -442,7 +444,8 @@ class CanonicalFlowValidator:
 
         return contracts
 
-    def validate_decatalogo_integration(self, orchestrator_results: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod
+    def validate_decatalogo_integration(orchestrator_results: Dict[str, Any]) -> Dict[str, Any]:
         """
         Validación especializada para la integración de Decatalogo_principal.py
 

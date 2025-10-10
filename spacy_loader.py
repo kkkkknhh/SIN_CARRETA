@@ -163,7 +163,8 @@ class SpacyModelLoader:
         # Backwards-compat shim uses new logic in load_model
         return self.load_model(model_name)
     
-    def get_degraded_processor(self) -> 'SafeSpacyProcessor':
+    @staticmethod
+    def get_degraded_processor() -> 'SafeSpacyProcessor':
         """
         Get a degraded processor that can handle text without spaCy.
         

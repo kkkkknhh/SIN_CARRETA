@@ -113,7 +113,8 @@ class NodeContract:
 
         return len(errors) == 0, errors
 
-    def _types_compatible(self, actual: str, expected: str) -> bool:
+    @staticmethod
+    def _types_compatible(actual: str, expected: str) -> bool:
         """Check if types are compatible (with some flexibility)"""
         type_mappings = {
             "str": ["str", "string"],

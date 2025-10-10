@@ -2287,8 +2287,8 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 "tipo_contenido": "general",
             }
 
+    @staticmethod
     def _clasificar_tipo_contenido(
-        self,
         dens_num: float,
         dens_fecha: float,
         dens_mon: float,
@@ -2382,8 +2382,9 @@ class ExtractorEvidenciaIndustrialAvanzado:
             )
             self.estructura_documental = {}
 
+    @staticmethod
     def _calcular_densidad_causal_avanzada(
-        self, texto: str
+        texto: str
     ) -> Dict[str, float]:
         """Cálculo avanzado de densidad causal con múltiples indicadores."""
         try:
@@ -2716,8 +2717,9 @@ class ExtractorEvidenciaIndustrialAvanzado:
         except Exception:
             return 0.0
 
+    @staticmethod
     def _evaluar_calidad_contenido(
-        self, texto: str, metadata: Dict[str, Any]
+        texto: str, metadata: Dict[str, Any]
     ) -> float:
         """Evalúa la calidad del contenido basándose en múltiples factores."""
         try:
@@ -2773,8 +2775,9 @@ class ExtractorEvidenciaIndustrialAvanzado:
         except Exception:
             return 0.5
 
+    @staticmethod
     def _diversificar_resultados(
-        self, resultados: List[Dict[str, Any]], top_k: int
+        resultados: List[Dict[str, Any]], top_k: int
     ) -> List[Dict[str, Any]]:
         """Diversifica resultados para evitar redundancia."""
         if len(resultados) <= top_k:

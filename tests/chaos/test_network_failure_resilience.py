@@ -10,7 +10,8 @@ from embedding_model import create_industrial_embedding_model
 class TestNetworkFailureResilience:
     """Test system resilience under network failure conditions."""
     
-    def test_embedding_model_initialization_with_network_error(self):
+    @staticmethod
+    def test_embedding_model_initialization_with_network_error():
         """Test that embedding model handles network errors during initialization."""
         try:
             model = create_industrial_embedding_model(model_tier="basic")
@@ -18,7 +19,8 @@ class TestNetworkFailureResilience:
         except Exception as e:
             pytest.skip(f"Network error during model initialization: {e}")
     
-    def test_model_loading_with_intermittent_failures(self):
+    @staticmethod
+    def test_model_loading_with_intermittent_failures():
         """Test model loading with simulated intermittent network failures."""
         try:
             model = create_industrial_embedding_model(model_tier="basic")
@@ -26,7 +28,8 @@ class TestNetworkFailureResilience:
         except Exception:
             pass
     
-    def test_encoding_continues_despite_partial_failures(self):
+    @staticmethod
+    def test_encoding_continues_despite_partial_failures():
         """Test encoding continues with partial batch failures."""
         model = create_industrial_embedding_model(model_tier="basic")
         

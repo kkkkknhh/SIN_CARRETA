@@ -209,7 +209,8 @@ class DeterminismVerifier:
             logger.error(error_msg)
             return False, error_msg
     
-    def compute_file_hash(self, file_path: Path) -> str:
+    @staticmethod
+    def compute_file_hash(file_path: Path) -> str:
         """
         Compute SHA-256 hash of file contents.
         
@@ -376,7 +377,8 @@ class DeterminismVerifier:
         
         return list(diff)
     
-    def extract_evidence_hash(self, evidence_registry_path: Path) -> str:
+    @staticmethod
+    def extract_evidence_hash(evidence_registry_path: Path) -> str:
         """
         Extract deterministic_hash from evidence_registry.json.
         
@@ -390,7 +392,8 @@ class DeterminismVerifier:
             data = json.load(f)
         return data.get("deterministic_hash", "")
     
-    def extract_flow_hash(self, flow_runtime_path: Path) -> str:
+    @staticmethod
+    def extract_flow_hash(flow_runtime_path: Path) -> str:
         """
         Extract flow_hash from flow_runtime.json.
         
@@ -543,7 +546,8 @@ class DeterminismVerifier:
             self._write_text_report(f, report)
         logger.info(f"✓ Text report exported: {txt_path}")
     
-    def _write_text_report(self, f, report: DeterminismReport):
+    @staticmethod
+    def _write_text_report(f, report: DeterminismReport):
         """Write human-readable text report"""
         f.write("=" * 80 + "\n")
         f.write("DETERMINISM VERIFICATION REPORT\n")

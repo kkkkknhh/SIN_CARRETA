@@ -1187,7 +1187,8 @@ class QuestionnaireEngine:
             logger.error(f"Failed to load thematic points: {e}. Using defaults.")
             return self._create_default_points()
 
-    def _create_default_points(self) -> List[ThematicPoint]:
+    @staticmethod
+    def _create_default_points() -> List[ThematicPoint]:
         """Create default 10 thematic points"""
         return [
             ThematicPoint(id="P1", title="Derechos de las mujeres e igualdad de género",
@@ -1803,7 +1804,8 @@ class QuestionnaireEngine:
             calculation_detail=f"Found {elements_found_count}/{expected_count} elements"
         )
 
-    def _calculate_score(self, found: int, expected: int, rule: ScoringRule) -> float:
+    @staticmethod
+    def _calculate_score(found: int, expected: int, rule: ScoringRule) -> float:
         """Calculate score based on scoring modality"""
         if rule.modality == ScoringModality.TYPE_A:
             # (found / expected) × 3
@@ -1826,7 +1828,8 @@ class QuestionnaireEngine:
             # Default proportional
             return round((found / max(1, expected)) * 3.0, 2)
 
-    def _aggregate_by_dimension(self, results: List[EvaluationResult]) -> Dict[str, DimensionScore]:
+    @staticmethod
+    def _aggregate_by_dimension(results: List[EvaluationResult]) -> Dict[str, DimensionScore]:
         """Aggregate results by dimension"""
         dimensions = {}
 
@@ -1859,7 +1862,8 @@ class QuestionnaireEngine:
 
         return dimension_scores
 
-    def _aggregate_by_point(self, results: List[EvaluationResult]) -> Dict[str, PointScore]:
+    @staticmethod
+    def _aggregate_by_point(results: List[EvaluationResult]) -> Dict[str, PointScore]:
         """Aggregate results by thematic point"""
         points = {}
 
@@ -1917,8 +1921,8 @@ class QuestionnaireEngine:
 
         return point_scores
 
+    @staticmethod
     def _calculate_global_score(
-        self,
         dimension_scores: Dict[str, DimensionScore],
         point_scores: Dict[str, PointScore]
     ) -> GlobalScore:

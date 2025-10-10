@@ -12,7 +12,8 @@ from responsibility_detector import ResponsibilityDetector
 class TestSpacyLoaderResponsibilityFlow:
     """Test integration between SpaCy model loading and responsibility detection."""
     
-    def test_spacy_model_loads_for_responsibility_detection(self):
+    @staticmethod
+    def test_spacy_model_loads_for_responsibility_detection():
         """Test that SpaCy model loads successfully for responsibility detector."""
         loader = SpacyModelLoader(model_name="es_core_news_sm")
         nlp = loader.load()
@@ -26,7 +27,8 @@ class TestSpacyLoaderResponsibilityFlow:
         
         assert isinstance(entities, list)
     
-    def test_degraded_mode_fallback(self):
+    @staticmethod
+    def test_degraded_mode_fallback():
         """Test that responsibility detector works in degraded mode when model fails."""
         detector = ResponsibilityDetector()
         
@@ -39,7 +41,8 @@ class TestSpacyLoaderResponsibilityFlow:
         
         assert isinstance(entities, list)
     
-    def test_ner_entity_extraction_pipeline(self):
+    @staticmethod
+    def test_ner_entity_extraction_pipeline():
         """Test full NER pipeline from model loading to entity extraction."""
         loader = SpacyModelLoader(model_name="es_core_news_sm")
         nlp = loader.load()

@@ -26,7 +26,8 @@ from determinism_verifier import (
 class TestJSONNormalization:
     """Test JSON normalization and hashing"""
     
-    def test_identical_content_different_order(self, tmp_path):
+    @staticmethod
+    def test_identical_content_different_order(tmp_path):
         """Test that identical content with different key order produces same hash"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         
@@ -47,7 +48,8 @@ class TestJSONNormalization:
         
         assert hash1 == hash2, "Hashes should match for identical content with different key order"
     
-    def test_different_whitespace(self, tmp_path):
+    @staticmethod
+    def test_different_whitespace(tmp_path):
         """Test that different whitespace produces same hash"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         
@@ -65,7 +67,8 @@ class TestJSONNormalization:
         
         assert hash1 == hash2, "Hashes should match regardless of whitespace"
     
-    def test_nested_object_normalization(self, tmp_path):
+    @staticmethod
+    def test_nested_object_normalization(tmp_path):
         """Test normalization of nested objects"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         
@@ -95,7 +98,8 @@ class TestJSONNormalization:
 class TestNonDeterministicFieldRemoval:
     """Test removal of non-deterministic fields"""
     
-    def test_timestamp_removal(self, tmp_path):
+    @staticmethod
+    def test_timestamp_removal(tmp_path):
         """Test that timestamps are removed from comparison"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         
@@ -115,7 +119,8 @@ class TestNonDeterministicFieldRemoval:
         
         assert hash1 == hash2, "Timestamps should be ignored in hash computation"
     
-    def test_duration_removal(self, tmp_path):
+    @staticmethod
+    def test_duration_removal(tmp_path):
         """Test that duration fields are removed"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         
@@ -135,7 +140,8 @@ class TestNonDeterministicFieldRemoval:
         
         assert hash1 == hash2, "Duration fields should be ignored"
     
-    def test_nested_timestamp_removal(self, tmp_path):
+    @staticmethod
+    def test_nested_timestamp_removal(tmp_path):
         """Test that nested timestamps are removed"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         
@@ -169,7 +175,8 @@ class TestNonDeterministicFieldRemoval:
 class TestArtifactComparison:
     """Test artifact comparison logic"""
     
-    def test_matching_artifacts(self, tmp_path):
+    @staticmethod
+    def test_matching_artifacts(tmp_path):
         """Test comparison of matching artifacts"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         
@@ -193,7 +200,8 @@ class TestArtifactComparison:
         assert comparison.run1_hash == comparison.run2_hash
         assert len(comparison.diff_lines) == 0, "No diff lines for matching artifacts"
     
-    def test_mismatched_artifacts(self, tmp_path):
+    @staticmethod
+    def test_mismatched_artifacts(tmp_path):
         """Test comparison of mismatched artifacts"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         
@@ -221,7 +229,8 @@ class TestArtifactComparison:
 class TestEvidenceHashExtraction:
     """Test evidence hash extraction"""
     
-    def test_extract_evidence_hash(self, tmp_path):
+    @staticmethod
+    def test_extract_evidence_hash(tmp_path):
         """Test extraction of deterministic hash from evidence registry"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         
@@ -239,7 +248,8 @@ class TestEvidenceHashExtraction:
         
         assert extracted_hash == "abc123def456"
     
-    def test_extract_missing_evidence_hash(self, tmp_path):
+    @staticmethod
+    def test_extract_missing_evidence_hash(tmp_path):
         """Test extraction when hash is missing"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         
@@ -257,7 +267,8 @@ class TestEvidenceHashExtraction:
 class TestFlowHashExtraction:
     """Test flow hash extraction"""
     
-    def test_extract_flow_hash(self, tmp_path):
+    @staticmethod
+    def test_extract_flow_hash(tmp_path):
         """Test extraction of flow hash from runtime"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         
@@ -278,7 +289,8 @@ class TestFlowHashExtraction:
 class TestDiffGeneration:
     """Test diff generation"""
     
-    def test_diff_for_different_values(self, tmp_path):
+    @staticmethod
+    def test_diff_for_different_values(tmp_path):
         """Test diff generation for different values"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         
@@ -299,7 +311,8 @@ class TestDiffGeneration:
         diff_text = "\n".join(diff)
         assert "0.85" in diff_text or "0.90" in diff_text, "Diff should show changed values"
     
-    def test_diff_for_nested_changes(self, tmp_path):
+    @staticmethod
+    def test_diff_for_nested_changes(tmp_path):
         """Test diff for nested structure changes"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         
@@ -332,7 +345,8 @@ class TestDiffGeneration:
 class TestReportGeneration:
     """Test report generation"""
     
-    def test_perfect_match_report(self):
+    @staticmethod
+    def test_perfect_match_report():
         """Test report for perfect match"""
         comparisons = [
             ArtifactComparison("test1.json", "hash1", "hash1", True, 100, 100),
@@ -359,7 +373,8 @@ class TestReportGeneration:
         assert report.flow_hash_match
         assert len(report.execution_errors) == 0
     
-    def test_mismatch_report(self):
+    @staticmethod
+    def test_mismatch_report():
         """Test report for mismatches"""
         comparisons = [
             ArtifactComparison("test1.json", "hash1", "hash1", True, 100, 100),
@@ -385,7 +400,8 @@ class TestReportGeneration:
         assert not report.evidence_hash_match
         assert not report.flow_hash_match
     
-    def test_execution_error_report(self):
+    @staticmethod
+    def test_execution_error_report():
         """Test report with execution errors"""
         report = DeterminismReport(
             timestamp="2024-01-01T00:00:00Z",
@@ -410,7 +426,8 @@ class TestReportGeneration:
 class TestReportExport:
     """Test report export functionality"""
     
-    def test_json_export(self, tmp_path):
+    @staticmethod
+    def test_json_export(tmp_path):
         """Test JSON report export"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         verifier.output_dir.mkdir(parents=True, exist_ok=True)
@@ -444,7 +461,8 @@ class TestReportExport:
             assert loaded["perfect_match"] is True
             assert loaded["evidence_hash_match"] is True
     
-    def test_text_report_content(self, tmp_path):
+    @staticmethod
+    def test_text_report_content(tmp_path):
         """Test text report contains expected sections"""
         verifier = DeterminismVerifier(tmp_path / "dummy.pdf", tmp_path)
         verifier.output_dir.mkdir(parents=True, exist_ok=True)

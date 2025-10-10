@@ -310,8 +310,9 @@ class ContradictionDetector:
                 )
         return matches
 
+    @staticmethod
     def _convert_competence_issue(
-        self, segment_type: str, issue: Dict[str, Any]
+        segment_type: str, issue: Dict[str, Any]
     ) -> CompetenceValidation:
         risk_level = (
             RiskLevel.HIGH

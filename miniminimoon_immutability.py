@@ -106,7 +106,8 @@ class EnhancedImmutabilityContract:
 
         return cls(config_dir=config_dir, snapshot_path=snapshot_path)
 
-    def _compute_file_hash(self, filepath: Path) -> str:
+    @staticmethod
+    def _compute_file_hash(filepath: Path) -> str:
         """
         Compute SHA-256 hash of a file.
 

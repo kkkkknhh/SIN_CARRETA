@@ -42,7 +42,8 @@ class TestSystemHealthValidator:
         # Cleanup
         shutil.rmtree(temp_dir, ignore_errors=True)
     
-    def test_pre_execution_validation_success(self, temp_repo):
+    @staticmethod
+    def test_pre_execution_validation_success(temp_repo):
         """Test pre-execution validation with all checks passing"""
         validator = SystemHealthValidator(str(temp_repo))
         result = validator.validate_pre_execution()
@@ -51,7 +52,8 @@ class TestSystemHealthValidator:
         assert "errors" in result
         assert "checks" in result
     
-    def test_pre_execution_missing_rubric(self):
+    @staticmethod
+    def test_pre_execution_missing_rubric():
         """Test pre-execution validation detects missing rubric"""
         temp_dir = Path(tempfile.mkdtemp(prefix="validator_test_"))
         (temp_dir / "tools").mkdir(exist_ok=True)
@@ -65,12 +67,14 @@ class TestSystemHealthValidator:
         
         shutil.rmtree(temp_dir, ignore_errors=True)
     
-    def test_validate_question_id_format_valid(self, temp_repo):
+    @staticmethod
+    def test_validate_question_id_format_valid(temp_repo):
         """Test question ID format validation with valid rubric"""
         validator = SystemHealthValidator(str(temp_repo))
         validator.validate_question_id_format()
     
-    def test_validate_question_id_format_malformed_ids(self):
+    @staticmethod
+    def test_validate_question_id_format_malformed_ids():
         """Test detection of malformed question IDs"""
         temp_dir = Path(tempfile.mkdtemp(prefix="validator_test_"))
         
@@ -94,7 +98,8 @@ class TestSystemHealthValidator:
         
         shutil.rmtree(temp_dir, ignore_errors=True)
     
-    def test_validate_question_id_format_count_mismatch(self):
+    @staticmethod
+    def test_validate_question_id_format_count_mismatch():
         """Test detection of question count mismatch"""
         temp_dir = Path(tempfile.mkdtemp(prefix="validator_test_"))
         
@@ -113,7 +118,8 @@ class TestSystemHealthValidator:
         
         shutil.rmtree(temp_dir, ignore_errors=True)
     
-    def test_validate_question_id_format_missing_rubric(self):
+    @staticmethod
+    def test_validate_question_id_format_missing_rubric():
         """Test validation with missing rubric file"""
         temp_dir = Path(tempfile.mkdtemp(prefix="validator_test_"))
         
@@ -126,7 +132,8 @@ class TestSystemHealthValidator:
         
         shutil.rmtree(temp_dir, ignore_errors=True)
     
-    def test_validate_question_id_format_empty_weights(self):
+    @staticmethod
+    def test_validate_question_id_format_empty_weights():
         """Test validation with empty weights section"""
         temp_dir = Path(tempfile.mkdtemp(prefix="validator_test_"))
         
@@ -142,7 +149,8 @@ class TestSystemHealthValidator:
         
         shutil.rmtree(temp_dir, ignore_errors=True)
     
-    def test_pre_execution_validates_question_ids(self, temp_repo):
+    @staticmethod
+    def test_pre_execution_validates_question_ids(temp_repo):
         """Test that pre-execution includes question ID validation"""
         weights = {"D1-Q1": 0.005, "invalid-id": 0.005}
         (temp_repo / "rubric_scoring.json").write_text(json.dumps({"weights": weights}))
@@ -153,7 +161,8 @@ class TestSystemHealthValidator:
         assert result["ok"] is False
         assert any("malformed" in err.lower() for err in result["errors"])
     
-    def test_post_execution_validation_success(self, temp_repo):
+    @staticmethod
+    def test_post_execution_validation_success(temp_repo):
         """Test post-execution validation with valid artifacts"""
         # Create artifacts directory
         artifacts_dir = temp_repo / "artifacts"
@@ -185,7 +194,8 @@ class TestSystemHealthValidator:
         assert result["ok"] is True
         assert result["ok_coverage"] is True
     
-    def test_post_execution_insufficient_coverage(self, temp_repo):
+    @staticmethod
+    def test_post_execution_insufficient_coverage(temp_repo):
         """Test post-execution validation detects insufficient coverage"""
         artifacts_dir = temp_repo / "artifacts"
         artifacts_dir.mkdir(exist_ok=True)
@@ -294,7 +304,8 @@ class TestBatchPostExecutionValidation:
         import shutil
         shutil.rmtree(temp_dir, ignore_errors=True)
     
-    def test_post_execution_all_documents_success(self, artifacts_dir):
+    @staticmethod
+    def test_post_execution_all_documents_success(artifacts_dir):
         """Test validation with all documents processed successfully"""
         batch_results = []
         
@@ -334,7 +345,8 @@ class TestBatchPostExecutionValidation:
         assert result["hash_consistency_ok"] is True
         assert result["throughput_docs_per_hour"] > 0
     
-    def test_post_execution_insufficient_coverage(self, artifacts_dir):
+    @staticmethod
+    def test_post_execution_insufficient_coverage(artifacts_dir):
         """Test detection of insufficient coverage"""
         batch_results = []
         
@@ -365,7 +377,8 @@ class TestBatchPostExecutionValidation:
         assert result["coverage_failed"] == 1
         assert any("insufficient coverage" in err for err in result["errors"])
     
-    def test_post_execution_hash_inconsistency(self, artifacts_dir):
+    @staticmethod
+    def test_post_execution_hash_inconsistency(artifacts_dir):
         """Test detection of hash inconsistency across documents"""
         batch_results = []
         
