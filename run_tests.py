@@ -5,8 +5,9 @@ Tests the feasibility scorer functionality.
 """
 
 import sys
+from typing import Any
 
-from feasibility_scorer import ComponentType, FeasibilityScorer
+from feasibility_scorer import ComponentType, FeasibilityConfig, FeasibilityScorer
 
 
 class TestRunner:
@@ -54,8 +55,22 @@ class TestRunner:
         return self.tests_failed == 0
 
 
+def make_scorer(**overrides: Any) -> FeasibilityScorer:
+    """Create a feasibility scorer with explicit configuration overrides."""
+
+    config_kwargs = {
+        "enable_parallel": True,
+        "n_jobs": 8,
+        "backend": "loky",
+        "seed": 42,
+        "backend_options": {},
+    }
+    config_kwargs.update(overrides)
+    return FeasibilityScorer(FeasibilityConfig(**config_kwargs))
+
+
 def test_high_quality_indicators():
-    scorer = FeasibilityScorer()
+    scorer = make_scorer()
     runner = TestRunner()
 
     # High quality indicator with all components
@@ -82,7 +97,7 @@ def test_high_quality_indicators():
 
 
 def test_mandatory_requirements():
-    scorer = FeasibilityScorer()
+    scorer = make_scorer()
     runner = TestRunner()
 
     # Only baseline - should get 0 score
@@ -109,7 +124,7 @@ def test_mandatory_requirements():
 
 
 def test_spanish_patterns():
-    scorer = FeasibilityScorer()
+    scorer = make_scorer()
     runner = TestRunner()
 
     # Test with simpler, clearer patterns
@@ -127,7 +142,7 @@ def test_spanish_patterns():
 
 
 def test_english_patterns():
-    scorer = FeasibilityScorer()
+    scorer = make_scorer()
     runner = TestRunner()
 
     english_texts = [
@@ -144,7 +159,7 @@ def test_english_patterns():
 
 
 def test_numerical_detection():
-    scorer = FeasibilityScorer()
+    scorer = make_scorer()
     runner = TestRunner()
 
     numerical_texts = [
@@ -165,7 +180,7 @@ def test_numerical_detection():
 
 
 def test_date_detection():
-    scorer = FeasibilityScorer()
+    scorer = make_scorer()
     runner = TestRunner()
 
     date_texts = [
@@ -185,7 +200,7 @@ def test_date_detection():
 
 
 def test_insufficient_indicators():
-    scorer = FeasibilityScorer()
+    scorer = make_scorer()
     runner = TestRunner()
 
     insufficient_texts = [
@@ -207,7 +222,7 @@ def test_insufficient_indicators():
 
 
 def test_batch_scoring():
-    scorer = FeasibilityScorer()
+    scorer = make_scorer()
     runner = TestRunner()
 
     indicators = [
@@ -221,7 +236,7 @@ def test_batch_scoring():
     runner.assert_equal(len(results_sequential), 3, "Should return 3 results")
 
     # Test with parallel processing disabled
-    scorer_seq = FeasibilityScorer(enable_parallel=False)
+    scorer_seq = make_scorer(enable_parallel=False, n_jobs=1, backend="threading")
     results_disabled = scorer_seq.batch_score(indicators)
     runner.assert_equal(len(results_disabled), 3,
                         "Should work with parallel disabled")
@@ -240,7 +255,7 @@ def test_batch_scoring():
 
 
 def test_batch_scoring_with_monitoring():
-    scorer = FeasibilityScorer()
+    scorer = make_scorer()
     runner = TestRunner()
 
     indicators = [
