@@ -1181,7 +1181,9 @@ class QuestionnaireEngine:
     def _load_thematic_points(self) -> List[ThematicPoint]:
         """Load the 10 thematic points from the authoritative JSON"""
 
-        json_path = Path(__file__).parent / "decalogo_industrial.json"
+        # Use central path resolver
+        from repo_paths import get_decalogo_path
+        json_path = get_decalogo_path()
 
         if not json_path.exists():
             logger.warning(f"JSON file not found: {json_path}. Creating default points.")

@@ -16,8 +16,9 @@ class QuestionnaireSystemDemo:
     """Demostración del sistema completo orientado por cuestionario"""
 
     def __init__(self):
-        self.project_root = Path(__file__).parent
-        self.decalogo_path = self.project_root / "decalogo_industrial.json"
+        # Use central path resolver
+        from repo_paths import get_decalogo_path
+        self.decalogo_path = get_decalogo_path()
         self.knowledge_base = defaultdict(list)
         self.execution_trace = []
 
@@ -38,7 +39,7 @@ class QuestionnaireSystemDemo:
         with open(self.decalogo_path) as f:
             decalogo = json.load(f)
 
-        print("✅ Archivo cargado: decalogo_industrial.json")
+        print(f"✅ Archivo cargado: {self.decalogo_path.name}")
         print(f"✅ Total de preguntas: {decalogo['total']}")
         print(f"✅ Schema: {decalogo['schema']}")
         print(f"✅ Versión: {decalogo['version']}")

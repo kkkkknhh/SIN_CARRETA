@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Validation script for decalogo-industrial.latest.clean.json and dnp-standards.latest.clean.json
+Validation script for canonical JSON artifacts
 
 This script validates that:
-1. Both JSON files are in the correct location (repository root)
+1. Both JSON files are in the correct canonical locations
 2. All Python modules that reference these files can find them correctly
 3. The paths resolve correctly from all locations in the codebase
 
-Per issue requirements: Ensure the files are in the right location and verify all
-invocations match the available version in the current path.
+Canonical locations:
+- /bundles/decalogo-industrial.latest.clean.json
+- /standards/dnp-standards.latest.clean.json
 """
 
 import json
@@ -22,45 +23,46 @@ class FileLocationValidator:
     """Validator for JSON file locations and references."""
     
     def __init__(self):
-        self.repo_root = Path(__file__).parent.resolve()
-        self.industrial_file = "decalogo-industrial.latest.clean.json"
-        self.dnp_file = "dnp-standards.latest.clean.json"
+        # Use central path resolver
+        from repo_paths import get_decalogo_path, get_dnp_path, REPO_ROOT
+        
+        self.repo_root = REPO_ROOT
+        self.decalogo_path = get_decalogo_path()
+        self.dnp_path = get_dnp_path()
         self.errors = []
         self.warnings = []
         
-    def validate_file_exists(self, filename: str) -> bool:
-        """Validate that a JSON file exists in the repository root."""
-        file_path = self.repo_root / filename
-        if not file_path.exists():
-            self.errors.append(f"❌ {filename} not found at {file_path}")
+    def validate_file_exists(self, filepath: Path, name: str) -> bool:
+        """Validate that a JSON file exists at the canonical location."""
+        if not filepath.exists():
+            self.errors.append(f"❌ {name} not found at {filepath}")
             return False
-        print(f"✓ {filename} found at {file_path}")
+        print(f"✓ {name} found at {filepath}")
         return True
     
-    def validate_json_structure(self, filename: str) -> bool:
+    def validate_json_structure(self, filepath: Path, name: str) -> bool:
         """Validate that a JSON file has valid structure."""
-        file_path = self.repo_root / filename
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(filepath, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
             # Check basic structure
-            if filename == self.industrial_file:
+            if "decalogo" in name.lower():
                 if not isinstance(data, dict):
-                    self.errors.append(f"❌ {filename} should be a dict")
+                    self.errors.append(f"❌ {name} should be a dict")
                     return False
                 if 'questions' not in data:
-                    self.errors.append(f"❌ {filename} missing 'questions' key")
+                    self.errors.append(f"❌ {name} missing 'questions' key")
                     return False
                 questions = data.get('questions', [])
-                print(f"✓ {filename} has valid structure with {len(questions)} questions")
+                print(f"✓ {name} has valid structure with {len(questions)} questions")
                 return True
             
-            elif filename == self.dnp_file:
+            elif "dnp" in name.lower():
                 if not isinstance(data, dict):
-                    self.errors.append(f"❌ {filename} should be a dict")
+                    self.errors.append(f"❌ {name} should be a dict")
                     return False
-                print(f"✓ {filename} has valid structure")
+                print(f"✓ {name} has valid structure")
                 return True
                 
         except json.JSONDecodeError as e:
@@ -170,18 +172,18 @@ class FileLocationValidator:
         
         print("1. Validating file existence...")
         print("-" * 80)
-        exists_industrial = self.validate_file_exists(self.industrial_file)
-        exists_dnp = self.validate_file_exists(self.dnp_file)
+        exists_decalogo = self.validate_file_exists(self.decalogo_path, "decalogo-industrial")
+        exists_dnp = self.validate_file_exists(self.dnp_path, "dnp-standards")
         print()
         
-        if not (exists_industrial and exists_dnp):
+        if not (exists_decalogo and exists_dnp):
             print("❌ Critical files missing!")
             return False
         
         print("2. Validating JSON structure...")
         print("-" * 80)
-        valid_industrial = self.validate_json_structure(self.industrial_file)
-        valid_dnp = self.validate_json_structure(self.dnp_file)
+        valid_decalogo = self.validate_json_structure(self.decalogo_path, "decalogo-industrial")
+        valid_dnp = self.validate_json_structure(self.dnp_path, "dnp-standards")
         print()
         
         print("3. Validating module imports...")
@@ -216,10 +218,10 @@ class FileLocationValidator:
         
         if not self.errors:
             print("\n✅ ALL VALIDATIONS PASSED")
-            print("\nThe JSON files are in the correct location and all references resolve correctly.")
+            print("\nThe JSON files are in the correct canonical locations and all references resolve correctly.")
             print(f"\nCanonical locations:")
-            print(f"  - {self.industrial_file}: {self.repo_root / self.industrial_file}")
-            print(f"  - {self.dnp_file}: {self.repo_root / self.dnp_file}")
+            print(f"  - Decalogo: {self.decalogo_path}")
+            print(f"  - DNP: {self.dnp_path}")
             return True
         else:
             print("\n❌ VALIDATION FAILED")

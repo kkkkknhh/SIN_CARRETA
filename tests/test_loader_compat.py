@@ -7,11 +7,12 @@ from pdm_contra.bridges.decalogo_loader_adapter import load_decalogos
 
 
 def test_loader_returns_bundle() -> None:
+    # Use canonical paths
     bundle = load_decalogos(
         [
             "decalogo-full.latest.clean.json",
-            "decalogo-industrial.latest.clean.json",
-            "dnp-standards.latest.clean.json",
+            "bundles/decalogo-industrial.latest.clean.json",
+            "standards/dnp-standards.latest.clean.json",
         ],
         crosswalk_path="crosswalk.latest.json",
     )
