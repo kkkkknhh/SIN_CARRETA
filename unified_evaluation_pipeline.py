@@ -82,7 +82,8 @@ class UnifiedEvaluationPipeline:
 
         logger.info("✅ Unified Evaluation Pipeline initialized")
 
-    def _load_config(self, config_path: str) -> Dict[str, Any]:
+    @staticmethod
+    def _load_config(config_path: str) -> Dict[str, Any]:
         """Load system configuration"""
         if not Path(config_path).exists():
             logger.warning(f"Config file not found: {config_path}, using defaults")
@@ -326,8 +327,8 @@ class UnifiedEvaluationPipeline:
 
         return final_results
 
+    @staticmethod
     def _run_decalogo_evaluation(
-        self,
         pdm_path: str,
         evidence_registry: EvidenceRegistry,
         municipality: str,
@@ -514,8 +515,8 @@ class UnifiedEvaluationPipeline:
                 "evidence_consumed": False
             }
 
+    @staticmethod
     def _export_results(
-        self,
         results: Dict[str, Any],
         output_dir: str,
         evidence_registry: EvidenceRegistry

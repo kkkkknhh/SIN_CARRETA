@@ -17,38 +17,45 @@ from connection_stability_analyzer import (
 class TestConnectionMetrics:
     """Test ConnectionMetrics dataclass"""
     
-    def test_metrics_initialization(self):
+    @staticmethod
+    def test_metrics_initialization():
         metrics = ConnectionMetrics(connection_id="test_connection")
         assert metrics.connection_id == "test_connection"
         assert metrics.retry_count == 0
         assert metrics.error_count == 0
         assert metrics.success_count == 0
     
-    def test_error_rate_calculation(self):
+    @staticmethod
+    def test_error_rate_calculation():
         metrics = ConnectionMetrics(connection_id="test")
         metrics.total_attempts = 10
         metrics.error_count = 3
         assert metrics.error_rate == 0.3
     
-    def test_error_rate_zero_attempts(self):
+    @staticmethod
+    def test_error_rate_zero_attempts():
         metrics = ConnectionMetrics(connection_id="test")
         assert metrics.error_rate == 0.0
     
-    def test_avg_backoff_delay(self):
+    @staticmethod
+    def test_avg_backoff_delay():
         metrics = ConnectionMetrics(connection_id="test")
         metrics.backoff_delays = [100, 200, 300]
         assert metrics.avg_backoff_delay == 200.0
     
-    def test_avg_backoff_delay_empty(self):
+    @staticmethod
+    def test_avg_backoff_delay_empty():
         metrics = ConnectionMetrics(connection_id="test")
         assert metrics.avg_backoff_delay == 0.0
     
-    def test_max_backoff_delay(self):
+    @staticmethod
+    def test_max_backoff_delay():
         metrics = ConnectionMetrics(connection_id="test")
         metrics.backoff_delays = [100, 500, 200]
         assert metrics.max_backoff_delay == 500.0
     
-    def test_avg_latency(self):
+    @staticmethod
+    def test_avg_latency():
         metrics = ConnectionMetrics(connection_id="test")
         metrics.success_count = 5
         metrics.total_latency_ms = 1000.0
@@ -58,7 +65,8 @@ class TestConnectionMetrics:
 class TestFlowSpecification:
     """Test FlowSpecification dataclass"""
     
-    def test_flow_spec_creation(self):
+    @staticmethod
+    def test_flow_spec_creation():
         spec = FlowSpecification(
             flow_id="test_flow",
             source="node_a",
@@ -73,7 +81,8 @@ class TestFlowSpecification:
         assert spec.target == "node_b"
         assert spec.cardinality == "1:N"
     
-    def test_validate_cardinality_1_to_1(self):
+    @staticmethod
+    def test_validate_cardinality_1_to_1():
         spec = FlowSpecification(
             flow_id="test",
             source="a",
@@ -90,7 +99,8 @@ class TestFlowSpecification:
         assert is_valid is False
         assert "1:1" in msg
     
-    def test_validate_cardinality_1_to_n(self):
+    @staticmethod
+    def test_validate_cardinality_1_to_n():
         spec = FlowSpecification(
             flow_id="test",
             source="a",
@@ -110,13 +120,15 @@ class TestFlowSpecification:
 class TestConnectionStabilityAnalyzer:
     """Test ConnectionStabilityAnalyzer class"""
     
-    def test_analyzer_initialization(self):
+    @staticmethod
+    def test_analyzer_initialization():
         analyzer = ConnectionStabilityAnalyzer()
         assert analyzer.flow_specifications is not None
         assert analyzer.connection_metrics == {}
         assert analyzer.verdicts == {}
     
-    def test_get_or_create_metrics(self):
+    @staticmethod
+    def test_get_or_create_metrics():
         analyzer = ConnectionStabilityAnalyzer()
         metrics = analyzer.get_or_create_metrics("test_connection")
         assert metrics.connection_id == "test_connection"
@@ -124,7 +136,8 @@ class TestConnectionStabilityAnalyzer:
         same_metrics = analyzer.get_or_create_metrics("test_connection")
         assert same_metrics is metrics
     
-    def test_track_retry_attempt(self):
+    @staticmethod
+    def test_track_retry_attempt():
         analyzer = ConnectionStabilityAnalyzer()
         analyzer.track_retry_attempt("test_conn", 100.0)
         
@@ -133,7 +146,8 @@ class TestConnectionStabilityAnalyzer:
         assert metrics.total_attempts == 1
         assert 100.0 in metrics.backoff_delays
     
-    def test_track_attempt_success(self):
+    @staticmethod
+    def test_track_attempt_success():
         analyzer = ConnectionStabilityAnalyzer()
         analyzer.track_attempt("test_conn", success=True, latency_ms=50.0)
         
@@ -142,7 +156,8 @@ class TestConnectionStabilityAnalyzer:
         assert metrics.error_count == 0
         assert metrics.total_latency_ms == 50.0
     
-    def test_track_attempt_failure(self):
+    @staticmethod
+    def test_track_attempt_failure():
         analyzer = ConnectionStabilityAnalyzer()
         analyzer.track_attempt("test_conn", success=False)
         
@@ -150,34 +165,40 @@ class TestConnectionStabilityAnalyzer:
         assert metrics.success_count == 0
         assert metrics.error_count == 1
     
-    def test_validate_interface_no_spec(self):
+    @staticmethod
+    def test_validate_interface_no_spec():
         analyzer = ConnectionStabilityAnalyzer()
         is_valid, errors = analyzer.validate_interface("unknown_source", "unknown_target", {})
         assert is_valid is True
         assert errors == []
     
-    def test_validate_type_string(self):
+    @staticmethod
+    def test_validate_type_string():
         analyzer = ConnectionStabilityAnalyzer()
         assert analyzer._validate_type("text", DataType.RAW_TEXT) is True
         assert analyzer._validate_type(123, DataType.RAW_TEXT) is False
     
-    def test_validate_type_list(self):
+    @staticmethod
+    def test_validate_type_list():
         analyzer = ConnectionStabilityAnalyzer()
         assert analyzer._validate_type([], DataType.SEGMENTS) is True
         assert analyzer._validate_type("text", DataType.SEGMENTS) is False
     
-    def test_validate_type_dict(self):
+    @staticmethod
+    def test_validate_type_dict():
         analyzer = ConnectionStabilityAnalyzer()
         assert analyzer._validate_type({}, DataType.METADATA) is True
         assert analyzer._validate_type([], DataType.METADATA) is False
     
-    def test_verify_cardinality_no_spec(self):
+    @staticmethod
+    def test_verify_cardinality_no_spec():
         analyzer = ConnectionStabilityAnalyzer()
         is_valid, msg = analyzer.verify_cardinality("unknown_conn", 5)
         assert is_valid is True
         assert msg == ""
     
-    def test_capture_schema_mismatch(self):
+    @staticmethod
+    def test_capture_schema_mismatch():
         analyzer = ConnectionStabilityAnalyzer()
         analyzer.capture_schema_mismatch(
             connection_id="test_conn",
@@ -194,7 +215,8 @@ class TestConnectionStabilityAnalyzer:
         assert "field2" in mismatch.missing_fields
         assert "field3" in mismatch.extra_fields
     
-    def test_analyze_connection_stability(self):
+    @staticmethod
+    def test_analyze_connection_stability():
         analyzer = ConnectionStabilityAnalyzer()
         analyzer.track_attempt("test_conn", success=True, latency_ms=100.0)
         analyzer.track_attempt("test_conn", success=True, latency_ms=150.0)
@@ -207,7 +229,8 @@ class TestConnectionStabilityAnalyzer:
         assert analysis["error_count"] == 1
         assert analysis["error_rate"] == pytest.approx(0.333, rel=0.01)
     
-    def test_is_connection_stable_good(self):
+    @staticmethod
+    def test_is_connection_stable_good():
         analyzer = ConnectionStabilityAnalyzer()
         metrics = ConnectionMetrics(connection_id="test")
         metrics.total_attempts = 100
@@ -216,7 +239,8 @@ class TestConnectionStabilityAnalyzer:
         
         assert analyzer._is_connection_stable(metrics) is True
     
-    def test_is_connection_stable_high_error_rate(self):
+    @staticmethod
+    def test_is_connection_stable_high_error_rate():
         analyzer = ConnectionStabilityAnalyzer()
         metrics = ConnectionMetrics(connection_id="test")
         metrics.total_attempts = 100
@@ -225,7 +249,8 @@ class TestConnectionStabilityAnalyzer:
         
         assert analyzer._is_connection_stable(metrics) is False
     
-    def test_is_connection_stable_high_retry_rate(self):
+    @staticmethod
+    def test_is_connection_stable_high_retry_rate():
         analyzer = ConnectionStabilityAnalyzer()
         metrics = ConnectionMetrics(connection_id="test")
         metrics.total_attempts = 100
@@ -233,7 +258,8 @@ class TestConnectionStabilityAnalyzer:
         
         assert analyzer._is_connection_stable(metrics) is False
     
-    def test_is_connection_stable_schema_mismatches(self):
+    @staticmethod
+    def test_is_connection_stable_schema_mismatches():
         analyzer = ConnectionStabilityAnalyzer()
         metrics = ConnectionMetrics(connection_id="test")
         metrics.total_attempts = 100
@@ -241,7 +267,8 @@ class TestConnectionStabilityAnalyzer:
         
         assert analyzer._is_connection_stable(metrics) is True
     
-    def test_identify_stability_issues(self):
+    @staticmethod
+    def test_identify_stability_issues():
         analyzer = ConnectionStabilityAnalyzer()
         metrics = ConnectionMetrics(connection_id="test")
         metrics.total_attempts = 100
@@ -257,7 +284,8 @@ class TestConnectionStabilityAnalyzer:
         assert any("schema" in issue.lower() for issue in issues)
         assert any("backoff" in issue.lower() for issue in issues)
     
-    def test_generate_verdict_stable_suitable(self):
+    @staticmethod
+    def test_generate_verdict_stable_suitable():
         analyzer = ConnectionStabilityAnalyzer()
         analyzer.track_attempt("test_conn", success=True, latency_ms=100.0)
         analyzer.track_attempt("test_conn", success=True, latency_ms=120.0)
@@ -270,7 +298,8 @@ class TestConnectionStabilityAnalyzer:
         assert verdict.suitability_score > 0.9
         assert verdict.verdict_status == "STABLE_SUITABLE"
     
-    def test_generate_verdict_unstable(self):
+    @staticmethod
+    def test_generate_verdict_unstable():
         analyzer = ConnectionStabilityAnalyzer()
         for _ in range(5):
             analyzer.track_attempt("test_conn", success=False)
@@ -281,7 +310,8 @@ class TestConnectionStabilityAnalyzer:
         assert verdict.is_stable is False
         assert len(verdict.violations) > 0
     
-    def test_generate_verdict_unsuitable(self):
+    @staticmethod
+    def test_generate_verdict_unsuitable():
         analyzer = ConnectionStabilityAnalyzer()
         analyzer.track_attempt("test_conn", success=True)
         metrics = analyzer.get_or_create_metrics("test_conn")
@@ -293,7 +323,8 @@ class TestConnectionStabilityAnalyzer:
         assert len(verdict.violations) > 0
         assert any("schema" in v.lower() for v in verdict.violations)
     
-    def test_generate_report_structure(self):
+    @staticmethod
+    def test_generate_report_structure():
         analyzer = ConnectionStabilityAnalyzer()
         analyzer.track_attempt("conn1", success=True)
         analyzer.track_attempt("conn2", success=False)
@@ -310,7 +341,8 @@ class TestConnectionStabilityAnalyzer:
         assert "stability_rate" in report["summary"]
         assert "suitability_rate" in report["summary"]
     
-    def test_generate_report_categories(self):
+    @staticmethod
+    def test_generate_report_categories():
         analyzer = ConnectionStabilityAnalyzer()
         
         analyzer.track_attempt("good_conn", success=True)
@@ -325,7 +357,8 @@ class TestConnectionStabilityAnalyzer:
         assert "unstable_suitable" in categories
         assert "unstable_unsuitable" in categories
     
-    def test_export_report(self, tmp_path):
+    @staticmethod
+    def test_export_report(tmp_path):
         analyzer = ConnectionStabilityAnalyzer()
         analyzer.track_attempt("test_conn", success=True)
         
@@ -339,7 +372,8 @@ class TestConnectionStabilityAnalyzer:
         
         assert loaded_report["summary"]["total_connections"] == 1
     
-    def test_factory_function(self):
+    @staticmethod
+    def test_factory_function():
         analyzer = create_connection_stability_analyzer()
         assert isinstance(analyzer, ConnectionStabilityAnalyzer)
 
@@ -347,7 +381,8 @@ class TestConnectionStabilityAnalyzer:
 class TestIntegration:
     """Integration tests for full workflow"""
     
-    def test_full_validation_workflow(self):
+    @staticmethod
+    def test_full_validation_workflow():
         analyzer = ConnectionStabilityAnalyzer()
         
         analyzer.track_attempt("flow1", success=True, latency_ms=100)
@@ -378,7 +413,8 @@ class TestIntegration:
         assert flow2_verdict["status"] == "UNSTABLE_UNSUITABLE"
         assert len(flow2_verdict["violations"]) > 0
     
-    def test_multiple_schema_mismatches(self):
+    @staticmethod
+    def test_multiple_schema_mismatches():
         analyzer = ConnectionStabilityAnalyzer()
         
         for i in range(3):
@@ -395,7 +431,8 @@ class TestIntegration:
         assert verdict.is_suitable is False
         assert len(verdict.schema_mismatches) == 3
     
-    def test_cardinality_tracking(self):
+    @staticmethod
+    def test_cardinality_tracking():
         analyzer = ConnectionStabilityAnalyzer()
         
         flow_spec = FlowSpecification(

@@ -11,12 +11,14 @@ from teoria_cambio import TeoriaCambio, CausalElement, CausalElementType
 class TestTeoriaCambioContract:
     """Contract tests for TeoriaCambio interface."""
     
-    def test_initialization_contract(self):
+    @staticmethod
+    def test_initialization_contract():
         """Contract: TeoriaCambio must initialize without arguments."""
         tc = TeoriaCambio()
         assert tc is not None
     
-    def test_construir_grafo_causal_contract(self):
+    @staticmethod
+    def test_construir_grafo_causal_contract():
         """Contract: construir_grafo_causal must accept list of CausalElement."""
         tc = TeoriaCambio()
         
@@ -33,7 +35,8 @@ class TestTeoriaCambioContract:
         assert grafo is not None
         assert isinstance(grafo, nx.DiGraph)
     
-    def test_invalidar_cache_grafo_contract(self):
+    @staticmethod
+    def test_invalidar_cache_grafo_contract():
         """Contract: invalidar_cache_grafo must be callable."""
         tc = TeoriaCambio()
         
@@ -52,7 +55,8 @@ class TestTeoriaCambioContract:
         assert grafo1 is not None
         assert grafo2 is not None
     
-    def test_graph_structure_contract(self):
+    @staticmethod
+    def test_graph_structure_contract():
         """Contract: Constructed graph must have valid structure."""
         tc = TeoriaCambio()
         
@@ -75,7 +79,8 @@ class TestTeoriaCambioContract:
         assert len(grafo.nodes) > 0
         assert all(isinstance(node, str) for node in grafo.nodes)
     
-    def test_multiple_elements_contract(self):
+    @staticmethod
+    def test_multiple_elements_contract():
         """Contract: Must handle multiple interconnected elements."""
         tc = TeoriaCambio()
         

@@ -10,19 +10,22 @@ from responsibility_detector import ResponsibilityDetector, EntityType
 class TestResponsibilityDetectorContract:
     """Contract tests for ResponsibilityDetector interface."""
     
-    def test_detector_initialization_contract(self):
+    @staticmethod
+    def test_detector_initialization_contract():
         """Contract: Detector must initialize without errors."""
         detector = ResponsibilityDetector()
         assert detector is not None
     
-    def test_detect_entities_contract(self):
+    @staticmethod
+    def test_detect_entities_contract():
         """Contract: detect_entities() must return list."""
         detector = ResponsibilityDetector()
         result = detector.detect_entities("test text")
         
         assert isinstance(result, list)
     
-    def test_evaluate_responsibility_clarity_contract(self):
+    @staticmethod
+    def test_evaluate_responsibility_clarity_contract():
         """Contract: evaluate_responsibility_clarity() must return dict."""
         detector = ResponsibilityDetector()
         text = "La Alcaldía Municipal coordinará el programa."
@@ -31,7 +34,8 @@ class TestResponsibilityDetectorContract:
         
         assert isinstance(result, dict)
     
-    def test_responsibility_entity_structure_contract(self):
+    @staticmethod
+    def test_responsibility_entity_structure_contract():
         """Contract: ResponsibilityEntity must have required attributes."""
         detector = ResponsibilityDetector()
         text = "La Alcaldía Municipal coordinará el programa."
@@ -45,21 +49,24 @@ class TestResponsibilityDetectorContract:
             assert isinstance(entity.confidence, float)
             assert 0.0 <= entity.confidence <= 1.0
     
-    def test_entity_type_enum_contract(self):
+    @staticmethod
+    def test_entity_type_enum_contract():
         """Contract: EntityType must be properly defined enum."""
         assert hasattr(EntityType, 'GOVERNMENT')
         assert hasattr(EntityType, 'POSITION')
         assert hasattr(EntityType, 'INSTITUTION')
         assert hasattr(EntityType, 'PERSON')
     
-    def test_empty_text_handling_contract(self):
+    @staticmethod
+    def test_empty_text_handling_contract():
         """Contract: Detector must handle empty text gracefully."""
         detector = ResponsibilityDetector()
         
         entities = detector.detect_entities("")
         assert isinstance(entities, list)
     
-    def test_none_input_handling_contract(self):
+    @staticmethod
+    def test_none_input_handling_contract():
         """Contract: Detector must handle None input gracefully."""
         detector = ResponsibilityDetector()
         
@@ -69,7 +76,8 @@ class TestResponsibilityDetectorContract:
         except (TypeError, AttributeError):
             pass
     
-    def test_entity_detection_monotonicity_contract(self):
+    @staticmethod
+    def test_entity_detection_monotonicity_contract():
         """Contract: More responsibility text should yield more entities."""
         detector = ResponsibilityDetector()
         

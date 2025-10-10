@@ -329,7 +329,8 @@ class ConnectionStabilityAnalyzer:
         
         return len(errors) == 0, errors
     
-    def _validate_type(self, value: Any, expected_type: DataType) -> bool:
+    @staticmethod
+    def _validate_type(value: Any, expected_type: DataType) -> bool:
         """Validate value matches expected data type"""
         type_validators = {
             DataType.RAW_TEXT: lambda v: isinstance(v, str),

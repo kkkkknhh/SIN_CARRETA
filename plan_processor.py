@@ -173,7 +173,8 @@ class PlanProcessor:
 
         return {k: list(v) for k, v in point_evidence.items()}
 
-    def _extract_metadata(self, text: str) -> Dict[str, Any]:
+    @staticmethod
+    def _extract_metadata(text: str) -> Dict[str, Any]:
         """Extracts key metadata from the first part of the document."""
         title_match = re.search(r"(?i)^(?:plan\s+de\s+desarrollo\s+)?(.*?)(?:\n|\.|\d{4})", text[:1000])
         title = title_match.group(1).strip() if title_match and len(
