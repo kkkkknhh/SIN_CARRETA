@@ -7,19 +7,27 @@ on:
     branches: [ main, develop ]
   workflow_dispatch:
 
+permissions:
+  actions: read
+  checks: write
+  contents: write
+  issues: write
+  pull-requests: write
+  statuses: write
+
 jobs:
   validate-integration:
     name: Validate 11 Canonical Nodes + 5 Target Components
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.10'
         cache: 'pip'
         
     - name: Install dependencies
@@ -38,8 +46,75 @@ jobs:
           --output reports/canonical_integration_validation.json \
           --dashboard-output reports/dashboard_metrics.json \
           --baseline-output reports/baseline_metrics.json
-      continue-on-error: true
-          
+
+    - name: Validate validation report artifacts
+      if: always()
+      run: |
+        set -euo pipefail
+        REPORT="reports/canonical_integration_validation.json"
+        DASHBOARD="reports/dashboard_metrics.json"
+
+        if [ ! -f "$REPORT" ]; then
+          echo "::error::Canonical integration validation report is missing" >&2
+          exit 1
+        fi
+
+        if ! python3 -c "import json; json.load(open('$REPORT'))"; then
+          echo "::error::Canonical integration validation report is malformed" >&2
+          exit 1
+        fi
+
+        python3 - <<'PY'
+from __future__ import annotations
+import json
+import sys
+from pathlib import Path
+
+report_path = Path("reports/canonical_integration_validation.json")
+
+try:
+    data = json.loads(report_path.read_text())
+except Exception as exc:  # pragma: no cover - defensive
+    print(f"::error::Failed to parse {report_path}: {exc}")
+    sys.exit(1)
+
+required_keys = {
+    "overall_success",
+    "passed_nodes",
+    "failed_nodes",
+    "total_nodes",
+    "performance_metrics",
+}
+missing = [key for key in required_keys if key not in data]
+if missing:
+    print(f"::error::Validation report missing required fields: {', '.join(missing)}")
+    sys.exit(1)
+
+performance_required = {
+    "average_node_time_ms",
+    "total_validation_time_ms",
+    "cached_validations",
+}
+performance = data.get("performance_metrics", {})
+perf_missing = [key for key in performance_required if key not in performance]
+if perf_missing:
+    print(
+        "::error::Performance metrics missing required fields: "
+        f"{', '.join(perf_missing)}"
+    )
+    sys.exit(1)
+PY
+
+        if [ ! -f "$DASHBOARD" ]; then
+          echo "::error::Dashboard metrics report is missing" >&2
+          exit 1
+        fi
+
+        if ! python3 -c "import json; json.load(open('$DASHBOARD'))"; then
+          echo "::error::Dashboard metrics report is malformed" >&2
+          exit 1
+        fi
+
     - name: Upload validation reports
       if: always()
       uses: actions/upload-artifact@v4
@@ -75,6 +150,7 @@ jobs:
       with:
         script: |
           const fs = require('fs');
+          const core = require('@actions/core');
           
           let status = '❌ FAILED';
           let body = '## Canonical Integration Validation Failed\n\nCould not load validation report.';
@@ -145,12 +221,20 @@ jobs:
             body = `## Canonical Integration Validation ⚠️ ERROR\n\n**Error parsing validation report**: ${error.message}\n\nPlease check workflow logs for details.`;
           }
           
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: body
-          });
+          try {
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+          } catch (error) {
+            if (error.message && error.message.includes('Resource not accessible by integration')) {
+              core.warning('Insufficient permissions to post PR comment. Skipping comment creation.');
+            } else {
+              throw error;
+            }
+          }
           
     - name: Check validation status
       if: steps.validation.outcome == 'failure'
@@ -164,6 +248,7 @@ jobs:
       with:
         script: |
           const fs = require('fs');
+          const core = require('@actions/core');
           let conclusion = 'failure';
           let summary = 'Validation failed';
           
@@ -175,15 +260,23 @@ jobs:
             summary = 'Could not parse validation report';
           }
           
-          await github.rest.checks.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            name: 'Canonical Integration Validation',
-            head_sha: context.sha,
-            status: 'completed',
-            conclusion: conclusion,
-            output: {
-              title: 'Canonical Integration Validation',
-              summary: summary
+          try {
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Canonical Integration Validation',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: conclusion,
+              output: {
+                title: 'Canonical Integration Validation',
+                summary: summary
+              }
+            });
+          } catch (error) {
+            if (error.message && error.message.includes('Resource not accessible by integration')) {
+              core.warning('Insufficient permissions to create check run. Skipping check creation.');
+            } else {
+              throw error;
             }
-          });
+          }

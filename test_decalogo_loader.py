@@ -46,10 +46,10 @@ class TestDecalogoLoader(unittest.TestCase):
     
     def test_get_question_by_id(self):
         """Test retrieving specific question."""
-        question = get_question_by_id("D1-Q1")
+        question = get_question_by_id("P1-D1-Q1")
         if question:
             self.assertIn("id", question)
-            self.assertEqual(question["id"], "D1-Q1")
+            self.assertEqual(question["id"], "P1-D1-Q1")
     
     def test_get_dimension_weight(self):
         """Test retrieving dimension weight."""

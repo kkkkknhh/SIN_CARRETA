@@ -235,86 +235,77 @@ class ResponsibilityDetector:
         # Find government institutions (highest priority)
         for pattern in self.compiled_government_patterns:
             for match in pattern.finditer(text):
-                entity_text = match.group(0).strip()
-                
-                # Calculate confidence based on length and specificity
-                confidence = 0.8  # High base confidence for government patterns
-                if len(entity_text.split()) > 2:
-                    confidence += 0.1
-                if any(keyword in entity_text.lower() for keyword in ["ministerio", "secretaría", "dirección"]):
-                    confidence += 0.1
-                
-                # Extract context
-                context_start = max(0, match.start() - context_window)
-                context_end = min(len(text), match.end() + context_window)
-                context_text = text[context_start:context_end]
-                
-                entity = ResponsibilityEntity(
-                    text=entity_text,
+                entity = self._create_entity_from_match(
+                    match, text, context_window,
                     entity_type=EntityType.GOVERNMENT,
-                    confidence=min(confidence, 1.0),
-                    start_pos=match.start(),
-                    end_pos=match.end(),
-                    context=context_text,
+                    base_confidence=0.8,
+                    boost_keywords=["ministerio", "secretaría", "dirección"]
                 )
-                
                 entities.append(entity)
         
         # Find positions
         for pattern in self.compiled_position_patterns:
             for match in pattern.finditer(text):
-                entity_text = match.group(0).strip()
-                
-                # Calculate confidence
-                confidence = 0.75  # Base confidence for position patterns
-                if len(entity_text.split()) > 2:
-                    confidence += 0.1
-                if any(keyword in entity_text.lower() for keyword in ["alcalde", "gobernador", "director"]):
-                    confidence += 0.1
-                
-                # Extract context
-                context_start = max(0, match.start() - context_window)
-                context_end = min(len(text), match.end() + context_window)
-                context_text = text[context_start:context_end]
-                
-                entity = ResponsibilityEntity(
-                    text=entity_text,
+                entity = self._create_entity_from_match(
+                    match, text, context_window,
                     entity_type=EntityType.POSITION,
-                    confidence=min(confidence, 1.0),
-                    start_pos=match.start(),
-                    end_pos=match.end(),
-                    context=context_text,
+                    base_confidence=0.75,
+                    boost_keywords=["alcalde", "gobernador", "director"]
                 )
-                
                 entities.append(entity)
         
         # Find institutions (lower priority)
         for pattern in self.compiled_institution_patterns:
             for match in pattern.finditer(text):
-                entity_text = match.group(0).strip()
-                
-                # Calculate confidence
-                confidence = 0.7  # Base confidence for institution patterns
-                if len(entity_text.split()) > 2:
-                    confidence += 0.1
-                
-                # Extract context
-                context_start = max(0, match.start() - context_window)
-                context_end = min(len(text), match.end() + context_window)
-                context_text = text[context_start:context_end]
-                
-                entity = ResponsibilityEntity(
-                    text=entity_text,
+                entity = self._create_entity_from_match(
+                    match, text, context_window,
                     entity_type=EntityType.INSTITUTION,
-                    confidence=min(confidence, 1.0),
-                    start_pos=match.start(),
-                    end_pos=match.end(),
-                    context=context_text,
+                    base_confidence=0.7,
+                    boost_keywords=None
                 )
-                
                 entities.append(entity)
         
         return entities
+    
+    def _create_entity_from_match(self, match, text: str, context_window: int,
+                                   entity_type: 'EntityType', base_confidence: float,
+                                   boost_keywords: Optional[List[str]] = None) -> 'ResponsibilityEntity':
+        """
+        Create a ResponsibilityEntity from a regex match.
+        
+        Args:
+            match: Regex match object
+            text: Full text being processed
+            context_window: Number of characters to include around match for context
+            entity_type: Type of entity (GOVERNMENT, POSITION, or INSTITUTION)
+            base_confidence: Base confidence score for this entity type
+            boost_keywords: Keywords that increase confidence if found in entity text
+            
+        Returns:
+            ResponsibilityEntity object
+        """
+        entity_text = match.group(0).strip()
+        
+        # Calculate confidence based on length and specificity
+        confidence = base_confidence
+        if len(entity_text.split()) > 2:
+            confidence += 0.1
+        if boost_keywords and any(keyword in entity_text.lower() for keyword in boost_keywords):
+            confidence += 0.1
+        
+        # Extract context
+        context_start = max(0, match.start() - context_window)
+        context_end = min(len(text), match.end() + context_window)
+        context_text = text[context_start:context_end]
+        
+        return ResponsibilityEntity(
+            text=entity_text,
+            entity_type=entity_type,
+            confidence=min(confidence, 1.0),
+            start_pos=match.start(),
+            end_pos=match.end(),
+            context=context_text,
+        )
     
     def _merge_entities(self, entities1: List[ResponsibilityEntity], 
                         entities2: List[ResponsibilityEntity]) -> List[ResponsibilityEntity]:

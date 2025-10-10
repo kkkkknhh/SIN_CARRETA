@@ -28,7 +28,14 @@ import sys
 import traceback
 from typing import Any, Dict
 
-CLI_VERSION = "1.0.0"
+try:
+    from miniminimoon_orchestrator import CanonicalDeterministicOrchestrator
+
+    ORCHESTRATOR_VERSION = CanonicalDeterministicOrchestrator.VERSION
+except Exception:  # pragma: no cover - best effort during CLI bootstrap
+    ORCHESTRATOR_VERSION = "unknown"
+
+CLI_VERSION = f"2.2.0 (orchestrator {ORCHESTRATOR_VERSION})"
 
 
 def _print_json(obj: Dict[str, Any]) -> None:
@@ -37,48 +44,72 @@ def _print_json(obj: Dict[str, Any]) -> None:
 
 def cmd_freeze(args: argparse.Namespace) -> int:
     from miniminimoon_immutability import EnhancedImmutabilityContract
-    repo = str(pathlib.Path(args.repo).resolve())
+
+    repo_path = pathlib.Path(args.repo).resolve()
     try:
-        immut = EnhancedImmutabilityContract(repo)
+        immut = EnhancedImmutabilityContract.from_repo_root(repo_path)
         out = immut.freeze_configuration()
-        _print_json({"ok": True, "action": "freeze", "repo": repo, "snapshot": out})
+        _print_json({
+            "ok": True,
+            "action": "freeze",
+            "repo": str(repo_path),
+            "config_dir": str(immut.config_dir),
+            "snapshot": out
+        })
         return 0
     except Exception as e:
-        _print_json({"ok": False, "action": "freeze", "repo": repo, "error": str(e)})
+        _print_json({
+            "ok": False,
+            "action": "freeze",
+            "repo": str(repo_path),
+            "error": str(e)
+        })
         return 1
 
 
 def cmd_evaluate(args: argparse.Namespace) -> int:
-    from unified_evaluation_pipeline import UnifiedEvaluationPipeline
-    repo = str(pathlib.Path(args.repo).resolve())
-    rubric = args.rubric
+    from miniminimoon_orchestrator import UnifiedEvaluationPipeline
+
+    repo_path = pathlib.Path(args.repo).resolve()
+    config_dir = repo_path / "config"
+    artifacts_dir = repo_path / "artifacts"
     plan_path = str(pathlib.Path(args.plan_path).resolve())
     strict = bool(args.strict)
+
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
     try:
-        pipe = UnifiedEvaluationPipeline(repo_root=repo, rubric_path=rubric)
-        bundle = pipe.evaluate(plan_path)
+        pipe = UnifiedEvaluationPipeline(
+            config_dir=config_dir,
+            flow_doc_path=None
+        )
+        bundle = pipe.evaluate(plan_path, output_dir=artifacts_dir)
         result = {
             "ok": True,
             "action": "evaluate",
-            "repo": repo,
+            "repo": str(repo_path),
             "plan_path": plan_path,
-            "artifacts_dir": str(pathlib.Path(repo) / "artifacts"),
-            "results": bundle.get("results", {}),
+            "artifacts_dir": str(artifacts_dir),
+            "pipeline_results": bundle.get("pipeline_results", {}),
             "pre_validation": bundle.get("pre_validation", {}),
-            "post_validation": bundle.get("post_validation", {})
+            "post_validation": bundle.get("post_validation", {}),
+            "bundle_timestamp": bundle.get("bundle_timestamp"),
+            "orchestrator_version": bundle.get("pipeline_results", {}).get("orchestrator_version"),
+            "stages_completed": bundle.get("pipeline_results", {}).get("stages_completed", [])
         }
+        # Backwards compatibility for callers expecting "results"
+        result["results"] = result["pipeline_results"]
         _print_json(result)
         # Si strict está activo, reforzamos fallos por gates incompletos (aunque Unified ya lanza)
         if strict:
             post = bundle.get("post_validation", {})
-            if not post.get("ok", False):
+            if not post.get("post_validation_ok", False):
                 return 2
         return 0
     except Exception as e:
         _print_json({
             "ok": False,
             "action": "evaluate",
-            "repo": repo,
+            "repo": str(repo_path),
             "plan_path": plan_path,
             "error": str(e),
             "traceback": traceback.format_exc().splitlines()[-10:]
@@ -316,7 +347,13 @@ def cmd_diagnostic(args: argparse.Namespace) -> int:
 
 
 def cmd_version(_args: argparse.Namespace) -> int:
-    _print_json({"ok": True, "action": "version", "cli_version": CLI_VERSION})
+    payload = {
+        "ok": True,
+        "action": "version",
+        "cli_version": CLI_VERSION,
+        "orchestrator_version": ORCHESTRATOR_VERSION
+    }
+    _print_json(payload)
     return 0
 
 

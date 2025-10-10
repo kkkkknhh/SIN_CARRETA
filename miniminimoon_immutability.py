@@ -1,13 +1,18 @@
 # coding=utf-8
 """
-MINIMINIMOON Enhanced Immutability Contract (v2.0)
+MINIMINIMOON Enhanced Immutability Contract (v2.2)
 ==================================================
 
-Configuration freezing and verification system for deterministic pipeline execution.
+Configuration freezing and verification system aligned with the
+``CanonicalDeterministicOrchestrator`` v2.2.0 16-stage flow.
 
-Flow #16: miniminimoon_orchestrator → miniminimoon_immutability (control gate)
-Flow #55: freeze_configuration() → .immutability_snapshot.json
-Gate #1: verify_frozen_config() == True before any pipeline execution
+Flow #1  : Configuration validation (this module)
+Flow #13 : DECALOGO_LOAD requires frozen bundle manifests
+Flow #15 : QUESTIONNAIRE_EVAL depends on RUBRIC_SCORING.json weights
+Flow #16 : ANSWER_ASSEMBLY expects identical rubric weights for deterministic scoring
+
+Gate #1  : ``verify_frozen_config()`` MUST return ``True`` before any pipeline execution.
+Snapshot : ``freeze_configuration()`` → ``.immutability_snapshot.json``
 
 Architecture:
 - Focuses on configuration files (JSON), not Python code
@@ -16,8 +21,8 @@ Architecture:
 - Single snapshot file: .immutability_snapshot.json
 
 Author: System Architect
-Version: 2.0.0 (Flow-Aligned)
-Date: 2025-10-05
+Version: 2.2.0 (Ultimate Flow Alignment)
+Date: 2025-10-09
 """
 
 import json
@@ -26,6 +31,13 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
+
+try:
+    from miniminimoon_orchestrator import CanonicalDeterministicOrchestrator
+
+    ORCHESTRATOR_VERSION = CanonicalDeterministicOrchestrator.VERSION
+except Exception:  # pragma: no cover - orchestrator import is optional here
+    ORCHESTRATOR_VERSION = "unknown"
 
 # Configure logging
 logging.basicConfig(
@@ -45,10 +57,9 @@ class EnhancedImmutabilityContract:
     3. Enforce gate #1: no execution without valid frozen config
 
     Critical files monitored:
-    - DECALOGO_FULL.json
-    - decalogo_industrial.json
-    - dnp-standards.latest.clean.json
-    - RUBRIC_SCORING.json
+    - RUBRIC_SCORING.json (stage 15/16 rubric alignment)
+    - Optional DECALOGO manifests (stage 13 bundle integrity)
+    - Optional embedding.yaml overrides
     """
 
     # Snapshot file location
@@ -56,20 +67,20 @@ class EnhancedImmutabilityContract:
 
     # Critical configuration files (must exist and be frozen)
     CRITICAL_CONFIGS = [
-        "DECALOGO_FULL.json",
-        "decalogo_industrial.json",
-        "dnp-standards.latest.clean.json",
         "RUBRIC_SCORING.json"
     ]
 
     # Optional configuration files (snapshot if present)
     OPTIONAL_CONFIGS = [
+        "decalogo_manifest.json",
+        "decalogo_weights.json",
+        "embedding.yaml",
         "decalogo_contexto_avanzado.json",
         "ontologia_politicas.json",
         "teoria_cambio_config.json"
     ]
 
-    VERSION = "2.0.0"
+    VERSION = "2.2.0"
 
     def __init__(self, config_dir: Optional[Path] = None, snapshot_path: Optional[Path] = None):
         """
@@ -84,6 +95,16 @@ class EnhancedImmutabilityContract:
         self.logger = logging.getLogger(__name__)
 
         self.logger.debug(f"Immutability contract initialized (config_dir={self.config_dir})")
+
+    @classmethod
+    def from_repo_root(cls, repo_root: Path) -> "EnhancedImmutabilityContract":
+        """Factory aligned with repository layout (config/, artifacts/, etc.)."""
+
+        repo_root = Path(repo_root).resolve()
+        config_dir = repo_root / "config"
+        snapshot_path = repo_root / cls.SNAPSHOT_FILE
+
+        return cls(config_dir=config_dir, snapshot_path=snapshot_path)
 
     def _compute_file_hash(self, filepath: Path) -> str:
         """
@@ -181,6 +202,7 @@ class EnhancedImmutabilityContract:
         # Create snapshot record
         snapshot = {
             "version": self.VERSION,
+            "orchestrator_version": ORCHESTRATOR_VERSION,
             "snapshot_timestamp": datetime.utcnow().isoformat() + "Z",
             "snapshot_hash": snapshot_hash,
             "config_dir": str(self.config_dir.absolute()),
@@ -368,6 +390,7 @@ class EnhancedImmutabilityContract:
             return {
                 "exists": True,
                 "version": snapshot.get("version"),
+                "orchestrator_version": snapshot.get("orchestrator_version"),
                 "snapshot_hash": snapshot.get("snapshot_hash"),
                 "timestamp": snapshot.get("snapshot_timestamp"),
                 "file_count": snapshot.get("file_count"),

@@ -1,3 +1,4 @@
+# coding=utf-8
 """
 Plan Sanitizer Module
 
@@ -22,6 +23,9 @@ from text_processor import (
     normalize_text,
     clean_policy_text,
     )
+
+# Import file reading utility
+from json_utils import safe_read_text_file
 
 # Configure logging
 logging.basicConfig(
@@ -227,17 +231,8 @@ class PlanSanitizer:
         """
         input_path = Path(input_path)
         
-        try:
-            with open(input_path, 'r', encoding='utf-8') as f:
-                text = f.read()
-        except UnicodeDecodeError:
-            # Try alternate encodings if utf-8 fails
-            try:
-                with open(input_path, 'r', encoding='latin-1') as f:
-                    text = f.read()
-            except Exception as e:
-                logger.error(f"Failed to read file with latin-1 encoding: {e}")
-                raise
+        # Use utility function for safe file reading with encoding fallback
+        text = safe_read_text_file(input_path)
         
         sanitized_text = self.sanitize_text(text)
         

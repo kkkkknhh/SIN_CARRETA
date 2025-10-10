@@ -31,126 +31,65 @@ _CACHE_LOCK = threading.RLock()
 DEFAULT_TEMPLATE_PATH = Path(__file__).parent / "decalogo-industrial.latest.clean.json"
 
 # Fallback template in case file access fails
+# Minimal template matching the actual file structure
 DECALOGO_INDUSTRIAL_TEMPLATE = {
-    "version": "1.0.0",
-    "metadata": {
-        "name": "DECALOGO_INDUSTRIAL",
-        "description": "Template for industrial-grade decalogo evaluation",
-        "created": "2024-01-01",
-        "updated": "2024-01-01"
-    },
-    "dimensions": [
+    "version": "1.0",
+    "schema": "decalogo_causal_questions_v1",
+    "total": 6,
+    "questions": [
         {
-            "id": "DE-1",
-            "name": "Coherencia Estratégica",
-            "description": "Evalúa la articulación lógica entre diagnóstico, estrategias y resultados",
-            "weight": 0.30,
-            "questions": [
-                {
-                    "id": "1",
-                    "text": "¿El diagnóstico identifica brechas y retos?",
-                    "weight": 0.15
-                },
-                {
-                    "id": "2",
-                    "text": "¿Las estrategias responden a los retos identificados?",
-                    "weight": 0.20
-                },
-                {
-                    "id": "3",
-                    "text": "¿Los resultados tienen líneas base y metas?",
-                    "weight": 0.25
-                },
-                {
-                    "id": "4",
-                    "text": "¿Existe un encadenamiento lógico en la cadena de valor?",
-                    "weight": 0.20
-                },
-                {
-                    "id": "5",
-                    "text": "¿Los indicadores son relevantes y específicos?",
-                    "weight": 0.10
-                },
-                {
-                    "id": "6",
-                    "text": "¿Existe un marco lógico completo?",
-                    "weight": 0.10
-                }
-            ]
+            "id": "D1-Q1",
+            "dimension": "D1",
+            "question_no": 1,
+            "point_code": "P1",
+            "point_title": "Sample Policy Point 1",
+            "prompt": "Sample diagnostic question with baseline data requirements",
+            "hints": ["sample hint 1", "sample hint 2"]
         },
         {
-            "id": "DE-2",
-            "name": "Inclusión Temática",
-            "description": "Evalúa la incorporación de temas clave en el plan de desarrollo",
-            "weight": 0.25,
-            "questions": [
-                {
-                    "id": "1",
-                    "text": "¿Se articulan con Plan Nacional de Desarrollo?",
-                    "weight": 0.30
-                },
-                {
-                    "id": "2",
-                    "text": "¿Se incorpora presupuesto para cada componente?",
-                    "weight": 0.40
-                },
-                {
-                    "id": "3",
-                    "text": "¿Se incorporan los ODS en objetivos/indicadores?",
-                    "weight": 0.30
-                }
-            ]
+            "id": "D1-Q2",
+            "dimension": "D1",
+            "question_no": 2,
+            "point_code": "P1",
+            "point_title": "Sample Policy Point 1",
+            "prompt": "Sample question about problem magnitude and data quality",
+            "hints": ["sample hint 1", "sample hint 2"]
         },
         {
-            "id": "DE-3",
-            "name": "Proceso Participativo",
-            "description": "Evalúa la inclusión de la ciudadanía en la formulación del plan",
-            "weight": 0.20,
-            "questions": [
-                {
-                    "id": "1",
-                    "text": "¿Hay evidencia de participación ciudadana?",
-                    "weight": 0.60
-                },
-                {
-                    "id": "2",
-                    "text": "¿Se identifican grupos sociales específicos?",
-                    "weight": 0.40
-                }
-            ]
+            "id": "D2-Q6",
+            "dimension": "D2",
+            "question_no": 6,
+            "point_code": "P1",
+            "point_title": "Sample Policy Point 1",
+            "prompt": "Sample question about activities and instruments",
+            "hints": ["sample hint 1", "sample hint 2"]
         },
         {
-            "id": "DE-4",
-            "name": "Orientación a Resultados",
-            "description": "Evalúa la factibilidad y medición de resultados del plan",
-            "weight": 0.25,
-            "questions": [
-                {
-                    "id": "1",
-                    "text": "¿Los productos tienen KPI medibles?",
-                    "weight": 0.20
-                },
-                {
-                    "id": "2",
-                    "text": "¿Los resultados tienen líneas base?",
-                    "weight": 0.15
-                },
-                {
-                    "id": "3",
-                    "text": "¿Existen entidades responsables por resultado?",
-                    "weight": 0.15
-                },
-                {
-                    "id": "4",
-                    "text": "¿Los recursos son suficientes para resultados?",
-                    "weight": 0.30
-                },
-                {
-                    "id": "5",
-                    "text": "¿Se articula con planes de largo plazo?",
-                    "weight": 0.20
-                }
-            ]
+            "id": "D1-Q1",
+            "dimension": "D1",
+            "question_no": 1,
+            "point_code": "P2",
+            "point_title": "Sample Policy Point 2",
+            "prompt": "Sample diagnostic question with baseline data requirements",
+            "hints": ["sample hint 1", "sample hint 2"]
+        },
+        {
+            "id": "D1-Q2",
+            "dimension": "D1",
+            "question_no": 2,
+            "point_code": "P2",
+            "point_title": "Sample Policy Point 2",
+            "prompt": "Sample question about problem magnitude and data quality",
+            "hints": ["sample hint 1", "sample hint 2"]
+        },
+        {
+            "id": "D2-Q6",
+            "dimension": "D2",
+            "question_no": 6,
+            "point_code": "P2",
+            "point_title": "Sample Policy Point 2",
+            "prompt": "Sample question about activities and instruments",
+            "hints": ["sample hint 1", "sample hint 2"]
         }
     ]
 }
@@ -258,11 +197,18 @@ if __name__ == "__main__":
     # Example usage
     template = get_decalogo_industrial()
     print(f"Loaded DECALOGO_INDUSTRIAL template version: {template.get('version', 'unknown')}")
-    print(f"Dimensions: {len(template.get('dimensions', []))}")
+    print(f"Schema: {template.get('schema', 'unknown')}")
+    print(f"Total questions: {template.get('total', 0)}")
+    print(f"Actual questions: {len(template.get('questions', []))}")
     
-    # Display dimension information
-    for dim in template.get('dimensions', []):
-        print(f"- {dim.get('id')}: {dim.get('name')} ({len(dim.get('questions', []))} questions)")
+    # Display sample question information
+    if template.get('questions'):
+        sample_q = template['questions'][0]
+        print(f"\nSample question structure:")
+        print(f"- ID: {sample_q.get('id')}")
+        print(f"- Dimension: {sample_q.get('dimension')}")
+        print(f"- Point: {sample_q.get('point_code')} - {sample_q.get('point_title')}")
+        print(f"- Prompt: {sample_q.get('prompt', '')[:60]}...")
 
 
 def load_dnp_standards(path: Optional[str] = None) -> Dict[str, Any]:

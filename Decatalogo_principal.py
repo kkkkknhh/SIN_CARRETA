@@ -2198,938 +2198,937 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 }
                 metadata_valida.append(metadata)
 
-            if textos_validos:
-                try:
-                    # Embeddings en lotes para optimización
-                    embeddings_lotes = []
+        if textos_validos:
+            try:
+                # Embeddings en lotes para optimización
+                embeddings_lotes = []
 
-                    for i in range(0, len(textos_validos), self.batch_size):
-                        lote = textos_validos[i: i + self.batch_size]
-                        embeddings_lote = EMBEDDING_MODEL.encode(
-                            lote,
-                            convert_to_tensor=True,
-                            batch_size=min(self.batch_size, len(lote)),
-                            precision=self.precision,
-                        )
-                        embeddings_lotes.append(embeddings_lote)
-
-                    # Concatenar embeddings
-                    self.embeddings_doc = torch.cat(embeddings_lotes, dim=0)
-                    self.embeddings_metadata = metadata_valida
-
-                    log_info_with_text(
-                        self.logger,
-                        f"✅ Embeddings avanzados precomputados: {len(textos_validos)} segmentos",
+                for i in range(0, len(textos_validos), self.batch_size):
+                    lote = textos_validos[i: i + self.batch_size]
+                    embeddings_lote = EMBEDDING_MODEL.encode(
+                        lote,
+                        convert_to_tensor=True,
+                        batch_size=min(self.batch_size, len(lote)),
                     )
+                    embeddings_lotes.append(embeddings_lote)
 
-                except Exception as e:
-                    log_error_with_text(
-                        self.logger, f"❌ Error precomputando embeddings: {e}"
-                    )
-                    self.embeddings_doc = torch.tensor([])
-            else:
-                self.embeddings_doc = torch.tensor([])
-                log_warning_with_text(
-                    self.logger, "⚠️ Textos insuficientes para embeddings avanzados"
+                # Concatenar embeddings
+                self.embeddings_doc = torch.cat(embeddings_lotes, dim=0)
+                self.embeddings_metadata = metadata_valida
+
+                log_info_with_text(
+                    self.logger,
+                    f"✅ Embeddings avanzados precomputados: {len(textos_validos)} segmentos",
                 )
 
-            def _extraer_caracteristicas_texto(self, texto: str) -> Dict[str, Any]:
-                """Extrae características avanzadas del texto."""
-                try:
-                    # Análisis numérico
-                    numeros = re.findall(r"\d+(?:[.,]\d+)*", texto)
-                    densidad_numerica = len(
-                        numeros) / max(1, len(texto.split())) * 100
+            except Exception as e:
+                log_error_with_text(
+                    self.logger, f"❌ Error precomputando embeddings: {e}"
+                )
+                self.embeddings_doc = torch.tensor([])
+        else:
+            self.embeddings_doc = torch.tensor([])
+            log_warning_with_text(
+                self.logger, "⚠️ Textos insuficientes para embeddings avanzados"
+            )
 
-                    # Análisis de fechas
-                    fechas = re.findall(
-                        r"\b(20\d{2}|\d{1,2}/\d{1,2}/\d{2,4}|\d{1,2}-\d{1,2}-\d{2,4})\b",
-                        texto,
-                    )
-                    densidad_fechas = len(fechas) / \
-                        max(1, len(texto.split())) * 100
+    def _extraer_caracteristicas_texto(self, texto: str) -> Dict[str, Any]:
+        """Extrae características avanzadas del texto."""
+        try:
+            # Análisis numérico
+            numeros = re.findall(r"\d+(?:[.,]\d+)*", texto)
+            densidad_numerica = len(numeros) / max(1, len(texto.split())) * 100
 
-                    # Análisis monetario
-                    montos = re.findall(
-                        r"\$[\d,.]+(?: millones?| mil(?:es)?| billones?)?|COP\s*[\d,.]+",
-                        texto,
-                    )
-                    densidad_monetaria = len(
-                        montos) / max(1, len(texto.split())) * 100
+            # Análisis de fechas
+            fechas = re.findall(
+                r"\b(20\d{2}|\d{1,2}/\d{1,2}/\d{2,4}|\d{1,2}-\d{1,2}-\d{2,4})\b",
+                texto,
+            )
+            densidad_fechas = len(fechas) / max(1, len(texto.split())) * 100
 
-                    # Complejidad sintáctica (aproximada)
-                    oraciones = re.split(r"[.!?]+", texto)
-                    palabras_por_oracion = [
-                        len(oracion.split()) for oracion in oraciones if oracion.strip()
-                    ]
-                    complejidad_sintactica = (
-                        np.mean(
-                            palabras_por_oracion) if palabras_por_oracion else 0
-                    )
+            # Análisis monetario
+            montos = re.findall(
+                r"\$[\d,.]+(?: millones?| mil(?:es)?| billones?)?|COP\s*[\d,.]+",
+                texto,
+            )
+            densidad_monetaria = len(montos) / max(1, len(texto.split())) * 100
 
-                    # Clasificación de tipo de contenido
-                    tipo_contenido = self._clasificar_tipo_contenido(
-                        densidad_numerica,
-                        densidad_fechas,
-                        densidad_monetaria,
-                        complejidad_sintactica,
-                    )
+            # Complejidad sintáctica (aproximada)
+            oraciones = re.split(r"[.!?]+", texto)
+            palabras_por_oracion = [
+                len(oracion.split()) for oracion in oraciones if oracion.strip()
+            ]
+            complejidad_sintactica = (
+                np.mean(palabras_por_oracion) if palabras_por_oracion else 0
+            )
 
-                    return {
-                        "densidad_numerica": densidad_numerica,
-                        "densidad_fechas": densidad_fechas,
-                        "densidad_monetaria": densidad_monetaria,
-                        "complejidad_sintactica": complejidad_sintactica,
-                        "tipo_contenido": tipo_contenido,
+            # Clasificación de tipo de contenido
+            tipo_contenido = self._clasificar_tipo_contenido(
+                densidad_numerica,
+                densidad_fechas,
+                densidad_monetaria,
+                complejidad_sintactica,
+            )
+
+            return {
+                "densidad_numerica": densidad_numerica,
+                "densidad_fechas": densidad_fechas,
+                "densidad_monetaria": densidad_monetaria,
+                "complejidad_sintactica": complejidad_sintactica,
+                "tipo_contenido": tipo_contenido,
+            }
+
+        except Exception:
+            return {
+                "densidad_numerica": 0.0,
+                "densidad_fechas": 0.0,
+                "densidad_monetaria": 0.0,
+                "complejidad_sintactica": 10.0,
+                "tipo_contenido": "general",
+            }
+
+    def _clasificar_tipo_contenido(
+        self,
+        dens_num: float,
+        dens_fecha: float,
+        dens_mon: float,
+        complejidad: float,
+    ) -> str:
+        """Clasifica el tipo de contenido basado en características."""
+        if dens_mon > 2.0 or dens_num > 5.0:
+            return "presupuestal_financiero"
+        elif dens_fecha > 2.0:
+            return "cronogramas_plazos"
+        elif complejidad > 20:
+            return "normativo_legal"
+        elif dens_num > 1.0:
+            return "indicadores_metricas"
+        else:
+            return "narrativo_descriptivo"
+
+    def _precomputar_tfidf(self):
+        """Precomputa matriz TF-IDF para análisis lexical."""
+        try:
+            if self.textos_originales:
+                self.tfidf_matrix = self.vectorizer_tfidf.fit_transform(
+                    self.textos_originales
+                )
+                log_info_with_text(
+                    self.logger,
+                    f"✅ Matriz TF-IDF precomputada: {self.tfidf_matrix.shape}",
+                )
+        except Exception as e:
+            log_error_with_text(
+                self.logger, f"❌ Error precomputando TF-IDF: {e}"
+            )
+            self.tfidf_matrix = None
+
+    def _analizar_estructura_documental(self):
+        """Analiza la estructura general del documento."""
+        try:
+            # Análisis de distribución de tipos de contenido
+            tipos_contenido = [
+                meta["tipo_contenido_estimado"]
+                for meta in self.embeddings_metadata
+            ]
+
+            from collections import Counter
+
+            distribucion_tipos = Counter(tipos_contenido)
+
+            # Análisis de densidad de información por página
+            densidades_pagina = defaultdict(list)
+            for meta in self.embeddings_metadata:
+                pagina = meta["pagina"]
+                densidades_pagina[pagina].append(
+                    {
+                        "numerica": meta["densidad_numerica"],
+                        "fechas": meta["densidad_fechas"],
+                        "monetaria": meta["densidad_monetaria"],
                     }
+                )
 
-                except Exception:
-                    return {
-                        "densidad_numerica": 0.0,
-                        "densidad_fechas": 0.0,
-                        "densidad_monetaria": 0.0,
-                        "complejidad_sintactica": 10.0,
-                        "tipo_contenido": "general",
-                    }
-
-            def _clasificar_tipo_contenido(
-                self,
-                dens_num: float,
-                dens_fecha: float,
-                dens_mon: float,
-                complejidad: float,
-            ) -> str:
-                """Clasifica el tipo de contenido basado en características."""
-                if dens_mon > 2.0 or dens_num > 5.0:
-                    return "presupuestal_financiero"
-                elif dens_fecha > 2.0:
-                    return "cronogramas_plazos"
-                elif complejidad > 20:
-                    return "normativo_legal"
-                elif dens_num > 1.0:
-                    return "indicadores_metricas"
-                else:
-                    return "narrativo_descriptivo"
-
-            def _precomputar_tfidf(self):
-                """Precomputa matriz TF-IDF para análisis lexical."""
-                try:
-                    if self.textos_originales:
-                        self.tfidf_matrix = self.vectorizer_tfidf.fit_transform(
-                            self.textos_originales
-                        )
-                        log_info_with_text(
-                            self.logger,
-                            f"✅ Matriz TF-IDF precomputada: {self.tfidf_matrix.shape}",
-                        )
-                except Exception as e:
-                    log_error_with_text(
-                        self.logger, f"❌ Error precomputando TF-IDF: {e}"
-                    )
-                    self.tfidf_matrix = None
-
-            def _analizar_estructura_documental(self):
-                """Analiza la estructura general del documento."""
-                try:
-                    # Análisis de distribución de tipos de contenido
-                    tipos_contenido = [
-                        meta["tipo_contenido_estimado"]
-                        for meta in self.embeddings_metadata
+            # Identificar páginas con alta densidad de información clave
+            paginas_criticas = []
+            for pagina, densidades in densidades_pagina.items():
+                densidad_promedio = np.mean(
+                    [
+                        d["numerica"] + d["fechas"] + d["monetaria"]
+                        for d in densidades
                     ]
+                )
+                if densidad_promedio > 5.0:  # Umbral de criticidad
+                    paginas_criticas.append(pagina)
 
-                    from collections import Counter
-
-                    distribucion_tipos = Counter(tipos_contenido)
-
-                    # Análisis de densidad de información por página
-                    densidades_pagina = defaultdict(list)
-                    for meta in self.embeddings_metadata:
-                        pagina = meta["pagina"]
-                        densidades_pagina[pagina].append(
-                            {
-                                "numerica": meta["densidad_numerica"],
-                                "fechas": meta["densidad_fechas"],
-                                "monetaria": meta["densidad_monetaria"],
-                            }
-                        )
-
-                    # Identificar páginas con alta densidad de información clave
-                    paginas_criticas = []
-                    for pagina, densidades in densidades_pagina.items():
-                        densidad_promedio = np.mean(
-                            [
-                                d["numerica"] + d["fechas"] + d["monetaria"]
-                                for d in densidades
-                            ]
-                        )
-                        if densidad_promedio > 5.0:  # Umbral de criticidad
-                            paginas_criticas.append(pagina)
-
-                    self.estructura_documental = {
-                        "distribucion_tipos_contenido": dict(distribucion_tipos),
-                        "paginas_alta_densidad_info": paginas_criticas,
-                        "total_segmentos": len(self.embeddings_metadata),
-                        "promedio_palabras_segmento": (
-                            np.mean(
-                                [
-                                    meta["longitud_palabras"]
-                                    for meta in self.embeddings_metadata
-                                ]
-                            )
-                            if self.embeddings_metadata
-                            else 0
-                        ),
-                    }
-
-                except Exception as e:
-                    log_warning_with_text(
-                        self.logger, f"⚠️ Error analizando estructura: {e}"
+            self.estructura_documental = {
+                "distribucion_tipos_contenido": dict(distribucion_tipos),
+                "paginas_alta_densidad_info": paginas_criticas,
+                "total_segmentos": len(self.embeddings_metadata),
+                "promedio_palabras_segmento": (
+                    np.mean(
+                        [
+                            meta["longitud_palabras"]
+                            for meta in self.embeddings_metadata
+                        ]
                     )
-                    self.estructura_documental = {}
+                    if self.embeddings_metadata
+                    else 0
+                ),
+            }
 
-            def _calcular_densidad_causal_avanzada(
-                self, texto: str
-            ) -> Dict[str, float]:
-                """Cálculo avanzado de densidad causal con múltiples indicadores."""
-                try:
-                    # Patrones causales básicos
-                    patrones_causales = [
-                        r"\b(porque|debido a|como consecuencia de|en razón de|a causa de|por efecto de)\b",
-                        r"\b(genera|produce|causa|determina|influye en|afecta a|resulta en|conlleva)\b",
-                        r"\b(impacto|efecto|resultado|consecuencia|repercusión|derivación)\b",
-                        r"\b(mejora|aumenta|incrementa|reduce|disminuye|fortalece|debilita|optimiza)\b",
-                        r"\b(siempre que|cuando|si|en caso de que)\b.*\b(entonces|por lo tanto|en consecuencia|se logra)\b",
-                    ]
+        except Exception as e:
+            log_warning_with_text(
+                self.logger, f"⚠️ Error analizando estructura: {e}"
+            )
+            self.estructura_documental = {}
 
-                    # Patrones de correlación
-                    patrones_correlacion = [
-                        r"\b(correlación|asociación|relación|vínculo)\b.*\b(con|entre|hacia)\b",
-                        r"\b(mientras|a medida que|conforme|en tanto que)\b.*\b(más|menos|mayor|menor)\b",
-                    ]
+    def _calcular_densidad_causal_avanzada(
+        self, texto: str
+    ) -> Dict[str, float]:
+        """Cálculo avanzado de densidad causal con múltiples indicadores."""
+        try:
+            # Patrones causales básicos
+            patrones_causales = [
+                r"\b(porque|debido a|como consecuencia de|en razón de|a causa de|por efecto de)\b",
+                r"\b(genera|produce|causa|determina|influye en|afecta a|resulta en|conlleva)\b",
+                r"\b(impacto|efecto|resultado|consecuencia|repercusión|derivación)\b",
+                r"\b(mejora|aumenta|incrementa|reduce|disminuye|fortalece|debilita|optimiza)\b",
+                r"\b(siempre que|cuando|si|en caso de que)\b.*\b(entonces|por lo tanto|en consecuencia|se logra)\b",
+            ]
 
-                    # Patrones temporales
-                    patrones_temporales = [
-                        r"\b(antes|después|durante|posteriormente|previamente|inicialmente|finalmente)\b",
-                        r"\b(primero|segundo|luego|seguido de|en paralelo|simultáneamente)\b",
-                    ]
+            # Patrones de correlación
+            patrones_correlacion = [
+                r"\b(correlación|asociación|relación|vínculo)\b.*\b(con|entre|hacia)\b",
+                r"\b(mientras|a medida que|conforme|en tanto que)\b.*\b(más|menos|mayor|menor)\b",
+            ]
 
-                    # Contar matches por categoría
-                    densidad_causal = sum(
-                        len(re.findall(p, texto.lower())) for p in patrones_causales
+            # Patrones temporales
+            patrones_temporales = [
+                r"\b(antes|después|durante|posteriormente|previamente|inicialmente|finalmente)\b",
+                r"\b(primero|segundo|luego|seguido de|en paralelo|simultáneamente)\b",
+            ]
+
+            # Contar matches por categoría
+            densidad_causal = sum(
+                len(re.findall(p, texto.lower())) for p in patrones_causales
+            )
+            densidad_correlacional = sum(
+                len(re.findall(p, texto.lower())) for p in patrones_correlacion
+            )
+            densidad_temporal = sum(
+                len(re.findall(p, texto.lower())) for p in patrones_temporales
+            )
+
+            # Normalización por longitud del texto
+            num_palabras = len(texto.split())
+            factor_normalizacion = max(1, num_palabras / 100)
+
+            return {
+                "densidad_causal": min(
+                    1.0, densidad_causal / factor_normalizacion
+                ),
+                "densidad_correlacional": min(
+                    1.0, densidad_correlacional / factor_normalizacion
+                ),
+                "densidad_temporal": min(
+                    1.0, densidad_temporal / factor_normalizacion
+                ),
+                "densidad_causal_agregada": min(
+                    1.0,
+                    (
+                        densidad_causal * 0.5
+                        + densidad_correlacional * 0.3
+                        + densidad_temporal * 0.2
                     )
-                    densidad_correlacional = sum(
-                        len(re.findall(p, texto.lower())) for p in patrones_correlacion
-                    )
-                    densidad_temporal = sum(
-                        len(re.findall(p, texto.lower())) for p in patrones_temporales
-                    )
+                    / factor_normalizacion,
+                ),
+            }
 
-                    # Normalización por longitud del texto
-                    num_palabras = len(texto.split())
-                    factor_normalizacion = max(1, num_palabras / 100)
+        except Exception:
+            return {
+                "densidad_causal": 0.0,
+                "densidad_correlacional": 0.0,
+                "densidad_temporal": 0.0,
+                "densidad_causal_agregada": 0.0,
+            }
 
-                    return {
-                        "densidad_causal": min(
-                            1.0, densidad_causal / factor_normalizacion
-                        ),
-                        "densidad_correlacional": min(
-                            1.0, densidad_correlacional / factor_normalizacion
-                        ),
-                        "densidad_temporal": min(
-                            1.0, densidad_temporal / factor_normalizacion
-                        ),
-                        "densidad_causal_agregada": min(
-                            1.0,
-                            (
-                                densidad_causal * 0.5
-                                + densidad_correlacional * 0.3
-                                + densidad_temporal * 0.2
-                            )
-                            / factor_normalizacion,
-                        ),
-                    }
+    def _analizar_sentimientos_texto(self, texto: str) -> Dict[str, float]:
+        """Análisis de sentimientos del texto si está disponible."""
+        if not self.sentiment_analyzer:
+            return {
+                "sentimiento_positivo": 0.5,
+                "sentimiento_negativo": 0.5,
+                "sentimiento_neutral": 0.5,
+            }
 
-                except Exception:
-                    return {
-                        "densidad_causal": 0.0,
-                        "densidad_correlacional": 0.0,
-                        "densidad_temporal": 0.0,
-                        "densidad_causal_agregada": 0.0,
-                    }
+        try:
+            # Fragmentar texto si es muy largo
+            max_length = 512  # Límite típico de modelos de transformers
+            fragmentos = [
+                texto[i: i + max_length]
+                for i in range(0, len(texto), max_length)
+            ]
 
-            def _analizar_sentimientos_texto(self, texto: str) -> Dict[str, float]:
-                """Análisis de sentimientos del texto si está disponible."""
-                if not self.sentiment_analyzer:
-                    return {
-                        "sentimiento_positivo": 0.5,
-                        "sentimiento_negativo": 0.5,
-                        "sentimiento_neutral": 0.5,
-                    }
+            sentimientos_fragmentos = []
+            for fragmento in fragmentos[
+                :3
+            ]:  # Máximo 3 fragmentos para eficiencia
+                if len(fragmento.strip()) > 10:
+                    resultado = self.sentiment_analyzer(fragmento)
+                    sentimientos_fragmentos.append(resultado)
 
-                try:
-                    # Fragmentar texto si es muy largo
-                    max_length = 512  # Límite típico de modelos de transformers
-                    fragmentos = [
-                        texto[i: i + max_length]
-                        for i in range(0, len(texto), max_length)
-                    ]
+            if sentimientos_fragmentos:
+                # Agregar sentimientos de todos los fragmentos
+                sentimientos_agregados = defaultdict(float)
+                for resultado_fragmento in sentimientos_fragmentos:
+                    for item in resultado_fragmento:
+                        sentimientos_agregados[item["label"]
+                                               ] += item["score"]
 
-                    sentimientos_fragmentos = []
-                    for fragmento in fragmentos[
-                        :3
-                    ]:  # Máximo 3 fragmentos para eficiencia
-                        if len(fragmento.strip()) > 10:
-                            resultado = self.sentiment_analyzer(fragmento)
-                            sentimientos_fragmentos.append(resultado)
-
-                    if sentimientos_fragmentos:
-                        # Agregar sentimientos de todos los fragmentos
-                        sentimientos_agregados = defaultdict(float)
-                        for resultado_fragmento in sentimientos_fragmentos:
-                            for item in resultado_fragmento:
-                                sentimientos_agregados[item["label"]
-                                                       ] += item["score"]
-
-                        # Normalizar
-                        total_fragmentos = len(sentimientos_fragmentos)
-                        for key in sentimientos_agregados:
-                            sentimientos_agregados[key] /= total_fragmentos
-
-                        return {
-                            "sentimiento_positivo": sentimientos_agregados.get(
-                                "POSITIVE", sentimientos_agregados.get(
-                                    "LABEL_2", 0.5)
-                            ),
-                            "sentimiento_negativo": sentimientos_agregados.get(
-                                "NEGATIVE", sentimientos_agregados.get(
-                                    "LABEL_0", 0.5)
-                            ),
-                            "sentimiento_neutral": sentimientos_agregados.get(
-                                "NEUTRAL", sentimientos_agregados.get(
-                                    "LABEL_1", 0.5)
-                            ),
-                        }
-
-                except Exception as e:
-                    log_debug_with_text(
-                        self.logger, f"Error en análisis de sentimientos: {e}"
-                    )
+                # Normalizar
+                total_fragmentos = len(sentimientos_fragmentos)
+                for key in sentimientos_agregados:
+                    sentimientos_agregados[key] /= total_fragmentos
 
                 return {
-                    "sentimiento_positivo": 0.5,
-                    "sentimiento_negativo": 0.5,
-                    "sentimiento_neutral": 0.5,
+                    "sentimiento_positivo": sentimientos_agregados.get(
+                        "POSITIVE", sentimientos_agregados.get(
+                            "LABEL_2", 0.5)
+                    ),
+                    "sentimiento_negativo": sentimientos_agregados.get(
+                        "NEGATIVE", sentimientos_agregados.get(
+                            "LABEL_0", 0.5)
+                    ),
+                    "sentimiento_neutral": sentimientos_agregados.get(
+                        "NEUTRAL", sentimientos_agregados.get(
+                            "LABEL_1", 0.5)
+                    ),
                 }
 
-            def buscar_evidencia_causal_avanzada(
-                self,
-                query: str,
-                conceptos_clave: List[str],
-                top_k: int = 10,
-                umbral_certeza: float = 0.7,
-                filtros_tipo_contenido: List[str] = None,
-                pesos_criterios: Dict[str, float] = None,
-            ) -> List[Dict[str, Any]]:
-                """Búsqueda avanzada de evidencia causal con múltiples criterios."""
+        except Exception as e:
+            log_debug_with_text(
+                self.logger, f"Error en análisis de sentimientos: {e}"
+            )
 
-                if (self.embeddings_doc is None) or (self.embeddings_doc.numel() == 0):
-                    log_warning_with_text(
-                        self.logger, "⚠️ Embeddings no disponibles. Usando fallback."
-                    )
-                    return self._buscar_evidencia_fallback(
-                        query, conceptos_clave, top_k, umbral_certeza
-                    )
+        return {
+            "sentimiento_positivo": 0.5,
+            "sentimiento_negativo": 0.5,
+            "sentimiento_neutral": 0.5,
+        }
 
-                try:
-                    # Pesos por defecto
-                    if pesos_criterios is None:
-                        pesos_criterios = {
-                            "similitud_semantica": 0.4,
-                            "relevancia_conceptual": 0.25,
-                            "densidad_causal": 0.2,
-                            "calidad_contenido": 0.15,
-                        }
+    def buscar_evidencia_causal_avanzada(
+        self,
+        query: str,
+        conceptos_clave: List[str],
+        top_k: int = 10,
+        umbral_certeza: float = 0.7,
+        filtros_tipo_contenido: List[str] = None,
+        pesos_criterios: Dict[str, float] = None,
+    ) -> List[Dict[str, Any]]:
+        """Búsqueda avanzada de evidencia causal con múltiples criterios."""
 
-                    # Embedding de la query
-                    q_emb = EMBEDDING_MODEL.encode(
-                        query, convert_to_tensor=True)
+        if (self.embeddings_doc is None) or (self.embeddings_doc.numel() == 0):
+            log_warning_with_text(
+                self.logger, "⚠️ Embeddings no disponibles. Usando fallback."
+            )
+            return self._buscar_evidencia_fallback(
+                query, conceptos_clave, top_k, umbral_certeza
+            )
 
-                    # Calcular similitudes semánticas
-                    similitudes = util.pytorch_cos_sim(
-                        q_emb, self.embeddings_doc)[0]
+        try:
+            # Pesos por defecto
+            if pesos_criterios is None:
+                pesos_criterios = {
+                    "similitud_semantica": 0.4,
+                    "relevancia_conceptual": 0.25,
+                    "densidad_causal": 0.2,
+                    "calidad_contenido": 0.15,
+                }
 
-                    resultados = []
+            # Embedding de la query
+            q_emb = EMBEDDING_MODEL.encode(
+                query, convert_to_tensor=True)
 
-                    # Procesar cada documento
-                    for idx, sim_score in enumerate(similitudes):
-                        if idx >= len(self.textos_originales) or idx >= len(
-                            self.embeddings_metadata
-                        ):
-                            continue
+            # Calcular similitudes semánticas
+            similitudes = util.pytorch_cos_sim(
+                q_emb, self.embeddings_doc)[0]
 
-                        texto = self.textos_originales[idx]
-                        metadata = self.embeddings_metadata[idx]
+            resultados = []
 
-                        # Filtrar por tipo de contenido si se especifica
-                        if (
-                            filtros_tipo_contenido
-                            and metadata["tipo_contenido_estimado"]
-                            not in filtros_tipo_contenido
-                        ):
-                            continue
+            # Procesar cada documento
+            for idx, sim_score in enumerate(similitudes):
+                if idx >= len(self.textos_originales) or idx >= len(
+                    self.embeddings_metadata
+                ):
+                    continue
 
-                        # Relevancia conceptual mejorada
-                        relevancia_conceptual = (
-                            self._calcular_relevancia_conceptual_avanzada(
-                                texto, conceptos_clave
-                            )
-                        )
+                texto = self.textos_originales[idx]
+                metadata = self.embeddings_metadata[idx]
 
-                        # Densidad causal avanzada
-                        densidad_causal_info = self._calcular_densidad_causal_avanzada(
-                            texto
-                        )
+                # Filtrar por tipo de contenido si se especifica
+                if (
+                    filtros_tipo_contenido
+                    and metadata["tipo_contenido_estimado"]
+                    not in filtros_tipo_contenido
+                ):
+                    continue
 
-                        # Calidad del contenido
-                        calidad_contenido = self._evaluar_calidad_contenido(
-                            texto, metadata
-                        )
-
-                        # Análisis de sentimientos
-                        sentimientos = self._analizar_sentimientos_texto(texto)
-
-                        # Score final ponderado
-                        score_final = (
-                            float(sim_score) *
-                            pesos_criterios["similitud_semantica"]
-                            + relevancia_conceptual
-                            * pesos_criterios["relevancia_conceptual"]
-                            + densidad_causal_info["densidad_causal_agregada"]
-                            * pesos_criterios["densidad_causal"]
-                            + calidad_contenido *
-                            pesos_criterios["calidad_contenido"]
-                        )
-
-                        # Crear resultado enriquecido
-                        if score_final >= umbral_certeza:
-                            resultado = {
-                                "texto": texto,
-                                "pagina": metadata["pagina"],
-                                "similitud_semantica": float(sim_score),
-                                "relevancia_conceptual": relevancia_conceptual,
-                                "densidad_causal_agregada": densidad_causal_info[
-                                    "densidad_causal_agregada"
-                                ],
-                                "densidad_causal_detalle": densidad_causal_info,
-                                "calidad_contenido": calidad_contenido,
-                                "score_final": score_final,
-                                "tipo_contenido": metadata["tipo_contenido_estimado"],
-                                "caracteristicas_texto": {
-                                    "longitud_palabras": metadata["longitud_palabras"],
-                                    "densidad_numerica": metadata["densidad_numerica"],
-                                    "densidad_fechas": metadata["densidad_fechas"],
-                                    "densidad_monetaria": metadata[
-                                        "densidad_monetaria"
-                                    ],
-                                    "complejidad_sintactica": metadata[
-                                        "complejidad_sintactica"
-                                    ],
-                                },
-                                "analisis_sentimientos": sentimientos,
-                                "hash_segmento": metadata["hash_contenido"],
-                                "timestamp_extraccion": datetime.now().isoformat(),
-                                "confianza_global": min(
-                                    1.0, score_final * 1.2
-                                ),  # Factor de ajuste de confianza
-                            }
-                            resultados.append(resultado)
-
-                    # Ordenar por score final y aplicar post-procesamiento
-                    resultados_ordenados = sorted(
-                        resultados, key=lambda x: x["score_final"], reverse=True
-                    )
-
-                    # Diversificación de resultados (evitar resultados muy similares)
-                    resultados_diversificados = self._diversificar_resultados(
-                        resultados_ordenados, top_k
-                    )
-
-                    return resultados_diversificados[:top_k]
-
-                except Exception as e:
-                    log_error_with_text(
-                        self.logger, f"❌ Error en búsqueda avanzada: {e}"
-                    )
-                    return self._buscar_evidencia_fallback(
-                        query, conceptos_clave, top_k, umbral_certeza
-                    )
-
-            def _calcular_relevancia_conceptual_avanzada(
-                self, texto: str, conceptos_clave: List[str]
-            ) -> float:
-                """Cálculo avanzado de relevancia conceptual."""
-                if not conceptos_clave:
-                    return 0.0
-
-                try:
-                    texto_lower = texto.lower()
-
-                    # Coincidencias exactas
-                    coincidencias_exactas = sum(
-                        1
-                        for concepto in conceptos_clave
-                        if concepto.lower() in texto_lower
-                    )
-
-                    # Coincidencias parciales (stemming básico)
-                    coincidencias_parciales = 0
-                    for concepto in conceptos_clave:
-                        raiz_concepto = concepto[
-                            : max(4, len(concepto) - 2)
-                        ]  # Stemming básico
-                        if raiz_concepto.lower() in texto_lower:
-                            coincidencias_parciales += (
-                                0.7  # Peso menor para coincidencias parciales
-                            )
-
-                    # Coincidencias semánticas usando ontología
-                    coincidencias_semanticas = 0
-                    for (
-                        categoria,
-                        terminos,
-                    ) in self.ontologia.vocabulario_especializado.items():
-                        conceptos_categoria = set(
-                            concepto.lower() for concepto in conceptos_clave
-                        )
-                        terminos_categoria = set(t.lower() for t in terminos)
-                        interseccion = conceptos_categoria.intersection(
-                            terminos_categoria
-                        )
-                        if interseccion:
-                            coincidencias_semanticas += len(interseccion) * 0.5
-
-                    # Normalización
-                    total_conceptos = len(conceptos_clave)
-                    relevancia = (
-                        coincidencias_exactas
-                        + coincidencias_parciales * 0.7
-                        + coincidencias_semanticas * 0.5
-                    ) / max(1, total_conceptos)
-
-                    return min(1.0, relevancia)
-
-                except Exception:
-                    return 0.0
-
-            def _evaluar_calidad_contenido(
-                self, texto: str, metadata: Dict[str, Any]
-            ) -> float:
-                """Evalúa la calidad del contenido basándose en múltiples factores."""
-                try:
-                    calidad = 0.0
-
-                    # Factor 1: Longitud apropiada
-                    longitud_palabras = metadata["longitud_palabras"]
-                    if 50 <= longitud_palabras <= 500:
-                        calidad += 0.3
-                    elif 20 <= longitud_palabras < 50:
-                        calidad += 0.15
-                    elif longitud_palabras > 500:
-                        calidad += 0.2
-
-                    # Factor 2: Densidad informativa
-                    densidad_total = (
-                        metadata["densidad_numerica"]
-                        + metadata["densidad_fechas"]
-                        + metadata["densidad_monetaria"]
-                    )
-                    if densidad_total > 5:
-                        calidad += 0.3
-                    elif densidad_total > 2:
-                        calidad += 0.2
-                    elif densidad_total > 0.5:
-                        calidad += 0.1
-
-                    # Factor 3: Complejidad sintáctica apropiada
-                    complejidad = metadata["complejidad_sintactica"]
-                    if 10 <= complejidad <= 25:
-                        calidad += 0.2
-                    elif 5 <= complejidad < 10:
-                        calidad += 0.1
-                    elif complejidad > 25:
-                        calidad += 0.15
-
-                    # Factor 4: Tipo de contenido relevante
-                    if metadata["tipo_contenido_estimado"] in [
-                        "indicadores_metricas",
-                        "presupuestal_financiero",
-                    ]:
-                        calidad += 0.2
-                    elif metadata["tipo_contenido_estimado"] in [
-                        "normativo_legal",
-                        "cronogramas_plazos",
-                    ]:
-                        calidad += 0.15
-                    else:
-                        calidad += 0.05
-
-                    return min(1.0, calidad)
-
-                except Exception:
-                    return 0.5
-
-            def _diversificar_resultados(
-                self, resultados: List[Dict[str, Any]], top_k: int
-            ) -> List[Dict[str, Any]]:
-                """Diversifica resultados para evitar redundancia."""
-                if len(resultados) <= top_k:
-                    return resultados
-
-                resultados_diversos = []
-                hashes_vistos = set()
-                paginas_vistas = set()
-
-                for resultado in resultados:
-                    # Evitar duplicados exactos
-                    if resultado["hash_segmento"] in hashes_vistos:
-                        continue
-
-                    # Limitar resultados de la misma página
-                    pagina = resultado["pagina"]
-                    if (
-                        pagina in paginas_vistas
-                        and len(resultados_diversos) >= top_k // 2
-                    ):
-                        continue
-
-                    resultados_diversos.append(resultado)
-                    hashes_vistos.add(resultado["hash_segmento"])
-                    paginas_vistas.add(pagina)
-
-                    if len(resultados_diversos) >= top_k:
-                        break
-
-                return resultados_diversos
-
-            def _buscar_evidencia_fallback(
-                self,
-                query: str,
-                conceptos_clave: List[str],
-                top_k: int,
-                umbral_certeza: float,
-            ) -> List[Dict[str, Any]]:
-                """Método fallback cuando embeddings no están disponibles."""
-                resultados = []
-
-                for i, texto in enumerate(self.textos_originales):
-                    if len(texto.strip()) < 20:
-                        continue
-
-                    # Búsqueda simple basada en palabras clave
-                    relevancia = self._calcular_relevancia_conceptual_avanzada(
+                # Relevancia conceptual mejorada
+                relevancia_conceptual = (
+                    self._calcular_relevancia_conceptual_avanzada(
                         texto, conceptos_clave
                     )
+                )
 
-                    if (
-                        relevancia >= umbral_certeza * 0.5
-                    ):  # Umbral más bajo para fallback
-                        resultados.append(
-                            {
-                                "texto": texto,
-                                "pagina": (
-                                    self.documentos[i][0]
-                                    if i < len(self.documentos)
-                                    else 0
-                                ),
-                                "relevancia_conceptual": relevancia,
-                                "score_final": relevancia,
-                                "metodo": "fallback",
-                            }
-                        )
+                # Densidad causal avanzada
+                densidad_causal_info = self._calcular_densidad_causal_avanzada(
+                    texto
+                )
 
-                return sorted(resultados, key=lambda x: x["score_final"], reverse=True)[
-                    :top_k
+                # Calidad del contenido
+                calidad_contenido = self._evaluar_calidad_contenido(
+                    texto, metadata
+                )
+
+                # Análisis de sentimientos
+                sentimientos = self._analizar_sentimientos_texto(texto)
+
+                # Score final ponderado
+                score_final = (
+                    float(sim_score) *
+                    pesos_criterios["similitud_semantica"]
+                    + relevancia_conceptual
+                    * pesos_criterios["relevancia_conceptual"]
+                    + densidad_causal_info["densidad_causal_agregada"]
+                    * pesos_criterios["densidad_causal"]
+                    + calidad_contenido *
+                    pesos_criterios["calidad_contenido"]
+                )
+
+                # Crear resultado enriquecido
+                if score_final >= umbral_certeza:
+                    resultado = {
+                        "texto": texto,
+                        "pagina": metadata["pagina"],
+                        "similitud_semantica": float(sim_score),
+                        "relevancia_conceptual": relevancia_conceptual,
+                        "densidad_causal_agregada": densidad_causal_info[
+                            "densidad_causal_agregada"
+                        ],
+                        "densidad_causal_detalle": densidad_causal_info,
+                        "calidad_contenido": calidad_contenido,
+                        "score_final": score_final,
+                        "tipo_contenido": metadata["tipo_contenido_estimado"],
+                        "caracteristicas_texto": {
+                            "longitud_palabras": metadata["longitud_palabras"],
+                            "densidad_numerica": metadata["densidad_numerica"],
+                            "densidad_fechas": metadata["densidad_fechas"],
+                            "densidad_monetaria": metadata[
+                                "densidad_monetaria"
+                            ],
+                            "complejidad_sintactica": metadata[
+                                "complejidad_sintactica"
+                            ],
+                        },
+                        "analisis_sentimientos": sentimientos,
+                        "hash_segmento": metadata["hash_contenido"],
+                        "timestamp_extraccion": datetime.now().isoformat(),
+                        "confianza_global": min(
+                            1.0, score_final * 1.2
+                        ),  # Factor de ajuste de confianza
+                    }
+                    resultados.append(resultado)
+
+            # Ordenar por score final y aplicar post-procesamiento
+            resultados_ordenados = sorted(
+                resultados, key=lambda x: x["score_final"], reverse=True
+            )
+
+            # Diversificación de resultados (evitar resultados muy similares)
+            resultados_diversificados = self._diversificar_resultados(
+                resultados_ordenados, top_k
+            )
+
+            return resultados_diversificados[:top_k]
+
+        except Exception as e:
+            log_error_with_text(
+                self.logger, f"❌ Error en búsqueda avanzada: {e}"
+            )
+            return self._buscar_evidencia_fallback(
+                query, conceptos_clave, top_k, umbral_certeza
+            )
+
+    def _calcular_relevancia_conceptual_avanzada(
+        self, texto: str, conceptos_clave: List[str]
+    ) -> float:
+        """Cálculo avanzado de relevancia conceptual."""
+        if not conceptos_clave:
+            return 0.0
+
+        try:
+            texto_lower = texto.lower()
+
+            # Coincidencias exactas
+            coincidencias_exactas = sum(
+                1
+                for concepto in conceptos_clave
+                if concepto.lower() in texto_lower
+            )
+
+            # Coincidencias parciales (stemming básico)
+            coincidencias_parciales = 0
+            for concepto in conceptos_clave:
+                raiz_concepto = concepto[
+                    : max(4, len(concepto) - 2)
+                ]  # Stemming básico
+                if raiz_concepto.lower() in texto_lower:
+                    coincidencias_parciales += (
+                        0.7  # Peso menor para coincidencias parciales
+                    )
+
+            # Coincidencias semánticas usando ontología
+            coincidencias_semanticas = 0
+            for (
+                categoria,
+                terminos,
+            ) in self.ontologia.vocabulario_especializado.items():
+                conceptos_categoria = set(
+                    concepto.lower() for concepto in conceptos_clave
+                )
+                terminos_categoria = set(t.lower() for t in terminos)
+                interseccion = conceptos_categoria.intersection(
+                    terminos_categoria
+                )
+                if interseccion:
+                    coincidencias_semanticas += len(interseccion) * 0.5
+
+            # Normalización
+            total_conceptos = len(conceptos_clave)
+            relevancia = (
+                coincidencias_exactas
+                + coincidencias_parciales * 0.7
+                + coincidencias_semanticas * 0.5
+            ) / max(1, total_conceptos)
+
+            return min(1.0, relevancia)
+
+        except Exception:
+            return 0.0
+
+    def _evaluar_calidad_contenido(
+        self, texto: str, metadata: Dict[str, Any]
+    ) -> float:
+        """Evalúa la calidad del contenido basándose en múltiples factores."""
+        try:
+            calidad = 0.0
+
+            # Factor 1: Longitud apropiada
+            longitud_palabras = metadata["longitud_palabras"]
+            if 50 <= longitud_palabras <= 500:
+                calidad += 0.3
+            elif 20 <= longitud_palabras < 50:
+                calidad += 0.15
+            elif longitud_palabras > 500:
+                calidad += 0.2
+
+            # Factor 2: Densidad informativa
+            densidad_total = (
+                metadata["densidad_numerica"]
+                + metadata["densidad_fechas"]
+                + metadata["densidad_monetaria"]
+            )
+            if densidad_total > 5:
+                calidad += 0.3
+            elif densidad_total > 2:
+                calidad += 0.2
+            elif densidad_total > 0.5:
+                calidad += 0.1
+
+            # Factor 3: Complejidad sintáctica apropiada
+            complejidad = metadata["complejidad_sintactica"]
+            if 10 <= complejidad <= 25:
+                calidad += 0.2
+            elif 5 <= complejidad < 10:
+                calidad += 0.1
+            elif complejidad > 25:
+                calidad += 0.15
+
+            # Factor 4: Tipo de contenido relevante
+            if metadata["tipo_contenido_estimado"] in [
+                "indicadores_metricas",
+                "presupuestal_financiero",
+            ]:
+                calidad += 0.2
+            elif metadata["tipo_contenido_estimado"] in [
+                "normativo_legal",
+                "cronogramas_plazos",
+            ]:
+                calidad += 0.15
+            else:
+                calidad += 0.05
+
+            return min(1.0, calidad)
+
+        except Exception:
+            return 0.5
+
+    def _diversificar_resultados(
+        self, resultados: List[Dict[str, Any]], top_k: int
+    ) -> List[Dict[str, Any]]:
+        """Diversifica resultados para evitar redundancia."""
+        if len(resultados) <= top_k:
+            return resultados
+
+        resultados_diversos = []
+        hashes_vistos = set()
+        paginas_vistas = set()
+
+        for resultado in resultados:
+            # Evitar duplicados exactos
+            if resultado["hash_segmento"] in hashes_vistos:
+                continue
+
+            # Limitar resultados de la misma página
+            pagina = resultado["pagina"]
+            if (
+                pagina in paginas_vistas
+                and len(resultados_diversos) >= top_k // 2
+            ):
+                continue
+
+            resultados_diversos.append(resultado)
+            hashes_vistos.add(resultado["hash_segmento"])
+            paginas_vistas.add(pagina)
+
+            if len(resultados_diversos) >= top_k:
+                break
+
+        return resultados_diversos
+
+    def _buscar_evidencia_fallback(
+        self,
+        query: str,
+        conceptos_clave: List[str],
+        top_k: int,
+        umbral_certeza: float,
+    ) -> List[Dict[str, Any]]:
+        """Método fallback cuando embeddings no están disponibles."""
+        resultados = []
+
+        for i, texto in enumerate(self.textos_originales):
+            if len(texto.strip()) < 20:
+                continue
+
+            # Búsqueda simple basada en palabras clave
+            relevancia = self._calcular_relevancia_conceptual_avanzada(
+                texto, conceptos_clave
+            )
+
+            if (
+                relevancia >= umbral_certeza * 0.5
+            ):  # Umbral más bajo para fallback
+                resultados.append(
+                    {
+                        "texto": texto,
+                        "pagina": (
+                            self.documentos[i][0]
+                            if i < len(self.documentos)
+                            else 0
+                        ),
+                        "relevancia_conceptual": relevancia,
+                        "score_final": relevancia,
+                        "metodo": "fallback",
+                    }
+                )
+
+        return sorted(resultados, key=lambda x: x["score_final"], reverse=True)[
+            :top_k
+        ]
+
+
+# -------------------- Main function --------------------
+def main():
+    """Función principal del sistema de evaluación."""
+    parser = argparse.ArgumentParser(
+        description="Sistema Integral de Evaluación de Cadenas de Valor en Planes de Desarrollo Municipal"
+    )
+    parser.add_argument(
+        "--input", required=True, help="Archivo PDF del plan de desarrollo"
+    )
+    parser.add_argument(
+        "--output",
+        default="evaluacion_industrial.json",
+        help="Archivo de resultados",
+    )
+    parser.add_argument(
+        "--device",
+        default="cpu",
+        help="Dispositivo de procesamiento (cpu/cuda)",
+    )
+    parser.add_argument(
+        "--batch_size",
+        default=16,
+        type=int,
+        help="Tamaño del lote de procesamiento",
+    )
+    parser.add_argument(
+        "--umbral",
+        default=0.7,
+        type=float,
+        help="Umbral de certeza para evidencias",
+    )
+
+    args = parser.parse_args()
+
+    LOGGER.info("=" * 80)
+    LOGGER.info(
+        "Sistema de Evaluación de Políticas Públicas - Versión Industrial 9.0"
+    )
+    LOGGER.info("=" * 80)
+
+    # Cargar documento
+    documentos = []
+    if PDFPLUMBER_AVAILABLE and args.input.endswith(".pdf"):
+        try:
+            with pdfplumber.open(args.input) as pdf:
+                for i, page in enumerate(pdf.pages):
+                    texto = page.extract_text()
+                    if texto:
+                        documentos.append((i + 1, texto))
+            LOGGER.info(
+                f"✅ PDF cargado: {len(documentos)} páginas extraídas"
+            )
+        except Exception as e:
+            LOGGER.error(f"❌ Error cargando PDF: {e}")
+            return 1
+    else:
+        # Fallback para pruebas sin PDF
+        documentos = [
+            (
+                1,
+                "Plan de Desarrollo Municipal 2024-2027 con enfoque en desarrollo sostenible...",
+            ),
+            (
+                2,
+                "Presupuesto: $500 millones para inversión social y desarrollo territorial...",
+            ),
+        ]
+        LOGGER.warning(
+            "⚠️ Usando documentos de ejemplo (PDF no disponible)")
+
+    # Inicializar sistema
+    try:
+        # Crear extractor de evidencia
+        extractor = ExtractorEvidenciaIndustrialAvanzado(
+            documentos, Path(args.input).stem
+        )
+
+        # Crear contexto del decálogo
+        contexto = obtener_decalogo_contexto_avanzado()
+
+        # Evaluar cada dimensión
+        resultados_evaluacion = {}
+
+        for dimension_id, dimension in contexto.dimensiones_por_id.items():
+            LOGGER.info(f"📊 Evaluando: {dimension.nombre}")
+
+            # Buscar evidencias
+            conceptos = [e.id for e in dimension.eslabones]
+            evidencias = extractor.buscar_evidencia_causal_avanzada(
+                query=dimension.nombre,
+                conceptos_clave=conceptos,
+                top_k=5,
+                umbral_certeza=args.umbral,
+            )
+
+            # Evaluar coherencia
+            coherencia = dimension.evaluar_coherencia_causal_avanzada(evidence_registry=None)
+
+            # Calcular KPIs
+            kpis = dimension.calcular_kpi_global_avanzado(evidence_registry=None)
+
+            # Generar matriz de riesgos
+            riesgos = dimension.generar_matriz_riesgos_avanzada(evidence_registry=None)
+
+            resultados_evaluacion[dimension.nombre] = {
+                "dimension_id": dimension_id,
+                "cluster": dimension.cluster,
+                "coherencia": coherencia,
+                "kpis": kpis,
+                "evidencias_encontradas": len(evidencias),
+                "evidencias_detalle": evidencias[
+                    :3
+                ],  # Top 3 para el reporte
+                "riesgos": {
+                    k: v["clasificacion"] for k, v in riesgos.items()
+                },
+                "prioridad_estrategica": dimension.prioridad_estrategica,
+                "complejidad_implementacion": dimension.complejidad_implementacion,
+            }
+
+        # Calcular métricas globales
+        metricas_globales = {
+            "coherencia_promedio": np.mean(
+                [
+                    r["coherencia"]["coherencia_global"]
+                    for r in resultados_evaluacion.values()
                 ]
+            ),
+            "kpi_promedio": np.mean(
+                [
+                    r["kpis"]["kpi_global_ajustado"]
+                    for r in resultados_evaluacion.values()
+                ]
+            ),
+            "evidencias_totales": sum(
+                [
+                    r["evidencias_encontradas"]
+                    for r in resultados_evaluacion.values()
+                ]
+            ),
+            "timestamp_evaluacion": datetime.now().isoformat(),
+            "configuracion": {
+                "umbral_certeza": args.umbral,
+                "batch_size": args.batch_size,
+                "device": args.device,
+            },
+        }
 
-            # -------------------- Main function --------------------
-            def main():
-                """Función principal del sistema de evaluación."""
-                parser = argparse.ArgumentParser(
-                    description="Sistema Integral de Evaluación de Cadenas de Valor en Planes de Desarrollo Municipal"
-                )
-                parser.add_argument(
-                    "--input", required=True, help="Archivo PDF del plan de desarrollo"
-                )
-                parser.add_argument(
-                    "--output",
-                    default="evaluacion_industrial.json",
-                    help="Archivo de resultados",
-                )
-                parser.add_argument(
-                    "--device",
-                    default="cpu",
-                    help="Dispositivo de procesamiento (cpu/cuda)",
-                )
-                parser.add_argument(
-                    "--batch_size",
-                    default=16,
-                    type=int,
-                    help="Tamaño del lote de procesamiento",
-                )
-                parser.add_argument(
-                    "--umbral",
-                    default=0.7,
-                    type=float,
-                    help="Umbral de certeza para evidencias",
-                )
+        # Guardar resultados
+        resultado_final = {
+            "metadata": {
+                "archivo_evaluado": args.input,
+                "fecha_evaluacion": datetime.now().isoformat(),
+                "version_sistema": "9.0-industrial-frontier",
+            },
+            "metricas_globales": metricas_globales,
+            "evaluacion_dimensiones": resultados_evaluacion,
+            "interdependencias": contexto.calcular_interdependencias_avanzadas(),
+        }
 
-                args = parser.parse_args()
+        with open(args.output, "w", encoding="utf-8") as f:
+            json.dump(
+                resultado_final,
+                f,
+                indent=2,
+                ensure_ascii=False,
+                default=str,
+            )
 
-                LOGGER.info("=" * 80)
-                LOGGER.info(
-                    "Sistema de Evaluación de Políticas Públicas - Versión Industrial 9.0"
-                )
-                LOGGER.info("=" * 80)
+        LOGGER.info(f"✅ Evaluación completada: {args.output}")
+        LOGGER.info(
+            f"📈 Coherencia global: {metricas_globales['coherencia_promedio']:.2%}"
+        )
+        LOGGER.info(
+            f"📊 KPI global: {metricas_globales['kpi_promedio']:.2%}"
+        )
 
-                # Cargar documento
-                documentos = []
-                if PDFPLUMBER_AVAILABLE and args.input.endswith(".pdf"):
-                    try:
-                        with pdfplumber.open(args.input) as pdf:
-                            for i, page in enumerate(pdf.pages):
-                                texto = page.extract_text()
-                                if texto:
-                                    documentos.append((i + 1, texto))
-                        LOGGER.info(
-                            f"✅ PDF cargado: {len(documentos)} páginas extraídas"
-                        )
-                    except Exception as e:
-                        LOGGER.error(f"❌ Error cargando PDF: {e}")
-                        return 1
-                else:
-                    # Fallback para pruebas sin PDF
-                    documentos = [
-                        (
-                            1,
-                            "Plan de Desarrollo Municipal 2024-2027 con enfoque en desarrollo sostenible...",
-                        ),
-                        (
-                            2,
-                            "Presupuesto: $500 millones para inversión social y desarrollo territorial...",
-                        ),
-                    ]
-                    LOGGER.warning(
-                        "⚠️ Usando documentos de ejemplo (PDF no disponible)")
+        return 0
 
-                # Inicializar sistema
-                try:
-                    # Crear extractor de evidencia
-                    extractor = ExtractorEvidenciaIndustrialAvanzado(
-                        documentos, Path(args.input).stem
+    except Exception as e:
+        LOGGER.error(f"❌ Error en evaluación: {e}")
+        return 1
+
+
+# Cache functions
+_DECALOGO_CONTEXTO_AVANZADO_CACHE: Optional[DecalogoContextoAvanzado] = None
+
+
+def obtener_decalogo_contexto_avanzado() -> DecalogoContextoAvanzado:
+    """Obtiene el contexto avanzado del decálogo con análisis completo."""
+    global _DECALOGO_CONTEXTO_AVANZADO_CACHE
+
+    if _DECALOGO_CONTEXTO_AVANZADO_CACHE is not None:
+        return _DECALOGO_CONTEXTO_AVANZADO_CACHE
+
+    try:
+        # Construcción de dimensiones por ID
+        dimensiones_por_id = {
+            d.id: d for d in DECALOGO_INDUSTRIAL_AVANZADO}
+
+        # Construcción de clusters avanzados
+        clusters_por_id = {}
+        cluster_por_dimension = {}
+
+        # Definiciones de clusters
+        cluster_definitions = {
+            "CLUSTER_1": {
+                "titulo": "CLUSTER 1: PAZ TERRITORIAL Y SEGURIDAD HUMANA INTEGRAL",
+                "descripcion_extendida": "Cluster de paz y seguridad...",
+                "puntos": [1, 5, 8],
+                "logica": "Lógica de agrupación basada en paz territorial...",
+                "teoria_cambio_cluster": {
+                    "hipotesis_principal": "La consolidación de la paz requiere protección efectiva",
+                    "supuestos_criticos": [
+                        "Voluntad política",
+                        "Participación comunitaria",
+                    ],
+                },
+                "interconexiones": {"1-5": 0.8, "1-8": 0.7, "5-8": 0.9},
+                "complejidad_agregada": 2.1,
+                "prioridad_politica": 2.8,
+            }
+        }
+
+        for cluster_id, data in cluster_definitions.items():
+            metadata = ClusterMetadataAvanzada(
+                cluster_id=cluster_id,
+                titulo=data["titulo"],
+                descripcion_extendida=data["descripcion_extendida"],
+                puntos=data["puntos"],
+                logica_agrupacion=data["logica"],
+                teoria_cambio_cluster=data["teoria_cambio_cluster"],
+                interconexiones=data["interconexiones"],
+                complejidad_agregada=data["complejidad_agregada"],
+                prioridad_politica=data["prioridad_politica"],
+            )
+
+            clusters_por_id[cluster_id] = metadata
+
+            for punto_id in data["puntos"]:
+                cluster_por_dimension[punto_id] = metadata
+
+        # Construcción de matriz de interdependencias
+        n_dims = len(dimensiones_por_id)
+        matriz_interdependencias = np.zeros((n_dims, n_dims))
+
+        for i, dim in dimensiones_por_id.items():
+            for j in dim.interdependencias:
+                if 1 <= j <= n_dims:
+                    matriz_interdependencias[i - 1, j - 1] = 1.0
+                    matriz_interdependencias[j - 1, i - 1] = (
+                        0.7  # Relación asimétrica
                     )
 
-                    # Crear contexto del decálogo
-                    contexto = obtener_decalogo_contexto_avanzado()
+        # Carga de ontología avanzada
+        ontologia_avanzada = (
+            OntologiaPoliticasAvanzada.cargar_ontologia_avanzada()
+        )
 
-                    # Evaluar cada dimensión
-                    resultados_evaluacion = {}
+        # Construcción del contexto
+        contexto = DecalogoContextoAvanzado(
+            dimensiones_por_id=dimensiones_por_id,
+            clusters_por_id=clusters_por_id,
+            cluster_por_dimension=cluster_por_dimension,
+            matriz_interdependencias=matriz_interdependencias,
+            ontologia=ontologia_avanzada,
+        )
 
-                    for dimension_id, dimension in contexto.dimensiones_por_id.items():
-                        LOGGER.info(f"📊 Evaluando: {dimension.nombre}")
+        _DECALOGO_CONTEXTO_AVANZADO_CACHE = contexto
+        LOGGER.info(
+            "✅ Contexto avanzado del decálogo construido exitosamente"
+        )
 
-                        # Buscar evidencias
-                        conceptos = [e.id for e in dimension.eslabones]
-                        evidencias = extractor.buscar_evidencia_causal_avanzada(
-                            query=dimension.nombre,
-                            conceptos_clave=conceptos,
-                            top_k=5,
-                            umbral_certeza=args.umbral,
-                        )
+        return contexto
 
-                        # Evaluar coherencia usando EvidenceRegistry si está disponible
-                        coherencia = dimension.evaluar_coherencia_causal_avanzada(evidence_registry=None)
+    except Exception as e:
+        LOGGER.error(
+            f"❌ Error construyendo contexto avanzado: {e}")
+        raise SystemExit(
+            "Fallo en construcción de contexto avanzado del decálogo"
+        )
 
-                        # Calcular KPIs usando EvidenceRegistry si está disponible
-                        kpis = dimension.calcular_kpi_global_avanzado(evidence_registry=None)
 
-                        # Generar matriz de riesgos usando EvidenceRegistry si está disponible
-                        riesgos = dimension.generar_matriz_riesgos_avanzada(evidence_registry=None)
-
-                        resultados_evaluacion[dimension.nombre] = {
-                            "dimension_id": dimension_id,
-                            "cluster": dimension.cluster,
-                            "coherencia": coherencia,
-                            "kpis": kpis,
-                            "evidencias_encontradas": len(evidencias),
-                            "evidencias_detalle": evidencias[
-                                :3
-                            ],  # Top 3 para el reporte
-                            "riesgos": {
-                                k: v["clasificacion"] for k, v in riesgos.items()
-                            },
-                            "prioridad_estrategica": dimension.prioridad_estrategica,
-                            "complejidad_implementacion": dimension.complejidad_implementacion,
-                        }
-
-                    # Calcular métricas globales
-                    metricas_globales = {
-                        "coherencia_promedio": np.mean(
-                            [
-                                r["coherencia"]["coherencia_global"]
-                                for r in resultados_evaluacion.values()
-                            ]
-                        ),
-                        "kpi_promedio": np.mean(
-                            [
-                                r["kpis"]["kpi_global_ajustado"]
-                                for r in resultados_evaluacion.values()
-                            ]
-                        ),
-                        "evidencias_totales": sum(
-                            [
-                                r["evidencias_encontradas"]
-                                for r in resultados_evaluacion.values()
-                            ]
-                        ),
-                        "timestamp_evaluacion": datetime.now().isoformat(),
-                        "configuracion": {
-                            "umbral_certeza": args.umbral,
-                            "batch_size": args.batch_size,
-                            "device": args.device,
-                        },
-                    }
-
-                    # Guardar resultados
-                    resultado_final = {
-                        "metadata": {
-                            "archivo_evaluado": args.input,
-                            "fecha_evaluacion": datetime.now().isoformat(),
-                            "version_sistema": "9.0-industrial-frontier",
-                        },
-                        "metricas_globales": metricas_globales,
-                        "evaluacion_dimensiones": resultados_evaluacion,
-                        "interdependencias": contexto.calcular_interdependencias_avanzadas(),
-                    }
-
-                    with open(args.output, "w", encoding="utf-8") as f:
-                        json.dump(
-                            resultado_final,
-                            f,
-                            indent=2,
-                            ensure_ascii=False,
-                            default=str,
-                        )
-
-                    LOGGER.info(f"✅ Evaluación completada: {args.output}")
-                    LOGGER.info(
-                        f"📈 Coherencia global: {metricas_globales['coherencia_promedio']:.2%}"
-                    )
-                    LOGGER.info(
-                        f"📊 KPI global: {metricas_globales['kpi_promedio']:.2%}"
-                    )
-
-                    return 0
-
-                except Exception as e:
-                    LOGGER.error(f"❌ Error en evaluación: {e}")
-                    return 1
-
-            # Cache functions
-            _DECALOGO_CONTEXTO_AVANZADO_CACHE: Optional[DecalogoContextoAvanzado] = None
-
-            def obtener_decalogo_contexto_avanzado() -> DecalogoContextoAvanzado:
-                """Obtiene el contexto avanzado del decálogo con análisis completo."""
-                global _DECALOGO_CONTEXTO_AVANZADO_CACHE
-
-                if _DECALOGO_CONTEXTO_AVANZADO_CACHE is not None:
-                    return _DECALOGO_CONTEXTO_AVANZADO_CACHE
-
-                try:
-                    # Construcción de dimensiones por ID
-                    dimensiones_por_id = {
-                        d.id: d for d in DECALOGO_INDUSTRIAL_AVANZADO}
-
-                    # Construcción de clusters avanzados
-                    clusters_por_id = {}
-                    cluster_por_dimension = {}
-
-                    # Definiciones de clusters
-                    cluster_definitions = {
-                        "CLUSTER_1": {
-                            "titulo": "CLUSTER 1: PAZ TERRITORIAL Y SEGURIDAD HUMANA INTEGRAL",
-                            "descripcion_extendida": "Cluster de paz y seguridad...",
-                            "puntos": [1, 5, 8],
-                            "logica": "Lógica de agrupación basada en paz territorial...",
-                            "teoria_cambio_cluster": {
-                                "hipotesis_principal": "La consolidación de la paz requiere protección efectiva",
-                                "supuestos_criticos": [
-                                    "Voluntad política",
-                                    "Participación comunitaria",
-                                ],
-                            },
-                            "interconexiones": {"1-5": 0.8, "1-8": 0.7, "5-8": 0.9},
-                            "complejidad_agregada": 2.1,
-                            "prioridad_politica": 2.8,
-                        }
-                    }
-
-                    for cluster_id, data in cluster_definitions.items():
-                        metadata = ClusterMetadataAvanzada(
-                            cluster_id=cluster_id,
-                            titulo=data["titulo"],
-                            descripcion_extendida=data["descripcion_extendida"],
-                            puntos=data["puntos"],
-                            logica_agrupacion=data["logica"],
-                            teoria_cambio_cluster=data["teoria_cambio_cluster"],
-                            interconexiones=data["interconexiones"],
-                            complejidad_agregada=data["complejidad_agregada"],
-                            prioridad_politica=data["prioridad_politica"],
-                        )
-
-                        clusters_por_id[cluster_id] = metadata
-
-                        for punto_id in data["puntos"]:
-                            cluster_por_dimension[punto_id] = metadata
-
-                    # Construcción de matriz de interdependencias
-                    n_dims = len(dimensiones_por_id)
-                    matriz_interdependencias = np.zeros((n_dims, n_dims))
-
-                    for i, dim in dimensiones_por_id.items():
-                        for j in dim.interdependencias:
-                            if 1 <= j <= n_dims:
-                                matriz_interdependencias[i - 1, j - 1] = 1.0
-                                matriz_interdependencias[j - 1, i - 1] = (
-                                    0.7  # Relación asimétrica
-                                )
-
-                    # Carga de ontología avanzada
-                    ontologia_avanzada = (
-                        OntologiaPoliticasAvanzada.cargar_ontologia_avanzada()
-                    )
-
-                    # Construcción del contexto
-                    contexto = DecalogoContextoAvanzado(
-                        dimensiones_por_id=dimensiones_por_id,
-                        clusters_por_id=clusters_por_id,
-                        cluster_por_dimension=cluster_por_dimension,
-                        matriz_interdependencias=matriz_interdependencias,
-                        ontologia=ontologia_avanzada,
-                    )
-
-                    _DECALOGO_CONTEXTO_AVANZADO_CACHE = contexto
-                    LOGGER.info(
-                        "✅ Contexto avanzado del decálogo construido exitosamente"
-                    )
-
-                    return contexto
-
-                except Exception as e:
-                    LOGGER.error(
-                        f"❌ Error construyendo contexto avanzado: {e}")
-                    raise SystemExit(
-                        "Fallo en construcción de contexto avanzado del decálogo"
-                    )
-
-            if __name__ == "__main__":
-                sys.exit(main())
+if __name__ == "__main__":
+    sys.exit(main())
