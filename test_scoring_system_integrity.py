@@ -20,7 +20,7 @@ from evaluation.reliability_calibration import (
     ReliabilityCalibrator,
     reliability_weighted_score,
 )
-from feasibility_scorer import FeasibilityScorer
+from feasibility_scorer import FeasibilityConfig, FeasibilityScorer
 from output_quality_assessor import validate_output_quality
 from questionnaire_engine import QuestionnaireEngine
 
@@ -63,8 +63,9 @@ def test_canonical_pipeline_order_and_feasibility_position() -> None:
 
 @pytest.fixture()
 def feasibility_scorer() -> FeasibilityScorer:
-    scorer = FeasibilityScorer()
-    scorer.configure_parallel(enable_parallel=False)
+    config = FeasibilityConfig(enable_parallel=False, n_jobs=1, backend="threading")
+    scorer = FeasibilityScorer(config)
+    scorer.log_configuration("test_fixture")
     return scorer
 
 

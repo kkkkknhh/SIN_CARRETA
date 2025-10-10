@@ -135,24 +135,39 @@ class MonetaryAnalysis:
 
 
 class MonetaryDetector:
-    """
-    Industrial-grade monetary value detector with provenance tracking.
+    """Industrial-grade monetary value detector with auditable registry integration."""
 
-    **NORMALIZED OUTPUTS**: Strict schema with confidence and impact weights.
-    **EVIDENCE REGISTRY**: Auto-registration with question mapping.
-    """
-    
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize detector with default configuration."""
-        self.evidence_registry = None
+
         self.logger = logging.getLogger(__name__)
+        self.evidence_registry: Optional[Any] = None
 
         # Compile all regex patterns
         self.patterns = self._compile_patterns()
+        self._trace_state("Initialized")
 
-    def attach_evidence_registry(self, evidence_registry) -> None:
+    def attach_evidence_registry(self, evidence_registry: Any) -> None:
         """Attach an evidence registry for optional auto-registration support."""
+
+        if not hasattr(evidence_registry, "register"):
+            raise TypeError("Evidence registry must expose a 'register' method")
         self.evidence_registry = evidence_registry
+        self._trace_state("Registry attached")
+
+    def detach_evidence_registry(self) -> None:
+        """Detach the currently configured evidence registry."""
+
+        self.evidence_registry = None
+        self._trace_state("Registry detached")
+
+    def _trace_state(self, event: str) -> None:
+        registry_type = type(self.evidence_registry).__name__ if self.evidence_registry else "None"
+        self.logger.info(
+            "[MonetaryDetector] %s | registry=%s",
+            event,
+            registry_type,
+        )
 
     @staticmethod
     def _compile_patterns() -> Dict[str, re.Pattern]:

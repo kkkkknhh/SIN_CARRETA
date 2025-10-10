@@ -57,6 +57,14 @@ Examples:
         help=f"Number of parallel workers for processing (default: {min(os.cpu_count() or 1, 8)})",
     )
 
+    parser.add_argument(
+        "--parallel-backend",
+        type=str,
+        default="loky",
+        choices=["loky", "threading", "ray", "dask"],
+        help="Parallel execution backend for feasibility scoring (default: loky)",
+    )
+
     # Device selection for computation
     parser.add_argument(
         "--device",
@@ -117,6 +125,13 @@ Examples:
         "--config",
         type=str,
         help="Path to JSON configuration file (overrides command-line options)",
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Deterministic seed for feasibility scoring (default: 42)",
     )
 
     parser.add_argument(
@@ -225,7 +240,7 @@ def setup_logging(verbose: bool = False):
 def run_feasibility_mode(args: argparse.Namespace) -> int:
     """Execute feasibility scoring mode."""
     try:
-        from feasibility_scorer import FeasibilityScorer
+        from feasibility_scorer import FeasibilityConfig, FeasibilityScorer
     except ImportError as exc:
         LOGGER.exception("Required module not available for feasibility mode")
         return 1
@@ -235,12 +250,21 @@ def run_feasibility_mode(args: argparse.Namespace) -> int:
         f"Configuration: input={args.input}, outdir={args.outdir}, workers={args.workers}, device={args.device}, precision={args.precision}, topk={args.topk}, umbral={args.umbral}, max_segmentos={args.max_segmentos}"
     )
 
-    scorer = FeasibilityScorer()
-    scorer.configure_parallel(
-        enable_parallel=(args.workers or 0) > 1,
-        n_jobs=args.workers,
-        backend="loky",
-    )
+    file_config: Dict[str, Any] = {}
+    if args.config:
+        loaded_config = load_config_file(args.config)
+        file_config = loaded_config.get("feasibility", loaded_config)
+
+    config_kwargs = {
+        "enable_parallel": file_config.get("enable_parallel", (args.workers or 0) > 1),
+        "n_jobs": file_config.get("n_jobs", args.workers),
+        "backend": file_config.get("backend", args.parallel_backend),
+        "seed": file_config.get("seed", args.seed),
+        "backend_options": file_config.get("backend_options", {}),
+    }
+
+    scorer = FeasibilityScorer(FeasibilityConfig(**config_kwargs))
+    scorer.log_configuration("cli_startup")
 
     input_path = Path(args.input)
     text_files = []

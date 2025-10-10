@@ -11,7 +11,23 @@ from typing import Any, Dict, List
 
 import pytest
 
-from feasibility_scorer import ComponentType, FeasibilityScorer
+from feasibility_scorer import ComponentType, FeasibilityConfig, FeasibilityScorer
+
+
+def make_scorer(**overrides: Any) -> FeasibilityScorer:
+    """Factory to create feasibility scorers with explicit configuration."""
+
+    config_kwargs = {
+        "enable_parallel": overrides.pop("enable_parallel", True),
+        "n_jobs": overrides.pop("n_jobs", 8),
+        "backend": overrides.pop("backend", "loky"),
+        "seed": overrides.pop("seed", 42),
+        "backend_options": overrides.pop("backend_options", {}),
+    }
+    config = FeasibilityConfig(**config_kwargs)
+    scorer = FeasibilityScorer(config)
+    scorer.log_configuration("test_fixture", overrides or None)
+    return scorer
 
 
 class TestDataset:
@@ -165,7 +181,7 @@ class TestFeasibilityScorer:
 
     @pytest.fixture
     def scorer(self):
-        return FeasibilityScorer()
+        return make_scorer()
 
     @staticmethod
     def test_high_quality_indicators(scorer):
@@ -402,8 +418,7 @@ class TestFeasibilityScorer:
         assert len(results_extended) == 15
 
         # Test with parallel disabled
-        scorer_no_parallel = FeasibilityScorer()
-        scorer_no_parallel.configure_parallel(enable_parallel=False)
+        scorer_no_parallel = make_scorer(enable_parallel=False, n_jobs=1, backend="threading")
         results_no_parallel = scorer_no_parallel.batch_score(indicators)
         assert len(results_no_parallel) == 3
 
@@ -411,19 +426,17 @@ class TestFeasibilityScorer:
     def test_parallel_processing_configuration():
         """Test parallel processing configuration and backend selection."""
         # Test default configuration
-        scorer = FeasibilityScorer()
+        scorer = make_scorer()
         assert scorer.n_jobs <= 8
         assert scorer.backend == "loky"
 
         # Test custom configuration
-        scorer_custom = FeasibilityScorer()
-        scorer_custom.configure_parallel(n_jobs=4, backend="threading")
+        scorer_custom = make_scorer(n_jobs=4, backend="threading")
         assert scorer_custom.n_jobs == 4
         assert scorer_custom.backend == "threading"
 
         # Test with parallel disabled
-        scorer_disabled = FeasibilityScorer()
-        scorer_disabled.configure_parallel(enable_parallel=False)
+        scorer_disabled = make_scorer(enable_parallel=False, n_jobs=1, backend="threading")
         assert not scorer_disabled.enable_parallel
 
     @staticmethod
@@ -658,7 +671,7 @@ class TestCalcularCalidadEvidencia:
 
     @pytest.fixture
     def scorer(self):
-        return FeasibilityScorer()
+        return make_scorer()
 
     @staticmethod
     def test_empty_and_edge_cases(scorer):
@@ -913,7 +926,7 @@ class TestAtomicReportGeneration:
 
     @pytest.fixture
     def scorer(self):
-        return FeasibilityScorer()
+        return make_scorer()
 
     @pytest.fixture
     def test_indicators(self):
@@ -1143,8 +1156,7 @@ class TestAtomicReportGeneration:
 def test_feasibility_scorer_picklable_roundtrip():
     """FeasibilityScorer instances should survive pickle/unpickle."""
 
-    scorer = FeasibilityScorer()
-    scorer.configure_parallel(enable_parallel=False)
+    scorer = make_scorer(enable_parallel=False, n_jobs=1, backend="threading")
     payload = pickle.dumps(scorer)
     restored = pickle.loads(payload)
 
