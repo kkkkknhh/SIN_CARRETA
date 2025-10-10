@@ -593,8 +593,6 @@ class DocumentSegmenter:
             for section_type, patterns in self.section_patterns.items()
         }
         
-        # Section identification patterns - aligned with DECALOGO dimensions (D1-D6)
-        # Based on decalogo-industrial.latest.clean.json structure
         self.section_patterns = {
             # D1: INSUMOS - Diagnóstico, líneas base, recursos, capacidades
             SectionType.DIAGNOSTIC: [
