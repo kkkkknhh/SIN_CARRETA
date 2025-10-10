@@ -17,6 +17,7 @@ Output includes entity type, confidence, and role classification for comprehensi
 evaluation of institutional responsibility definition in plans.
 """
 
+import inspect
 import logging
 import re
 from dataclasses import dataclass
@@ -95,25 +96,28 @@ class ResponsibilityDetector:
     **EVIDENCE REGISTRY**: Automatically registers findings with applicable questions.
     """
     
-    def __init__(self, model_name: str = "es_core_news_sm", evidence_registry=None):
-        """
-        Initialize the responsibility detector.
-        
-        Args:
-            model_name: SpaCy model to use
-            evidence_registry: Optional EvidenceRegistry instance for automatic registration
-        """
-        # Initialize spaCy if available
-        self.nlp = None
-        if SPACY_AVAILABLE:
-            try:
-                self.nlp = spacy.load(model_name)
-                logger.info(f"Loaded spaCy model: {model_name}")
-            except Exception as e:
-                logger.warning(f"Error loading spaCy model {model_name}: {e}")
+    DEFAULT_MODEL_NAME = "es_core_news_sm"
 
-        self.evidence_registry = evidence_registry
+    def __init__(self, *args, **kwargs) -> None:
+        """Initialize the detector with default configuration."""
         self.logger = logging.getLogger(__name__)
+        self.model_name = kwargs.pop("model_name", self.DEFAULT_MODEL_NAME)
+        self.evidence_registry = kwargs.pop("evidence_registry", None)
+
+        model_loader = kwargs.pop("model_loader", None)
+        if args:
+            if len(args) > 1:
+                raise TypeError("ResponsibilityDetector accepts at most one positional argument")
+            model_loader = args[0]
+
+        if kwargs:
+            unexpected = ", ".join(sorted(kwargs))
+            raise TypeError(f"Unexpected keyword arguments: {unexpected}")
+
+        if model_loader is not None:
+            self.nlp = self._load_from_model_loader(model_loader)
+        else:
+            self.nlp = self._load_spacy_model(self.model_name)
 
         # Define patterns for different entity types
         
@@ -155,6 +159,42 @@ class ResponsibilityDetector:
         self.compiled_position_patterns = [re.compile(p) for p in self.position_patterns]
         self.compiled_institution_patterns = [re.compile(p) for p in self.institution_patterns]
         self.compiled_role_patterns = [re.compile(p) for p in self.role_patterns]
+
+    def attach_evidence_registry(self, evidence_registry) -> None:
+        """Attach an evidence registry after initialization."""
+        self.evidence_registry = evidence_registry
+
+    def use_spacy_model(self, model_name: str) -> None:
+        """Load a different spaCy model after instantiation."""
+        self.model_name = model_name
+        self.nlp = self._load_spacy_model(model_name)
+
+    def _load_spacy_model(self, model_name: str):
+        """Load a spaCy model, returning ``None`` on failure or absence."""
+        if not SPACY_AVAILABLE:
+            return None
+        try:
+            model = spacy.load(model_name)
+            self.logger.info("Loaded spaCy model: %s", model_name)
+            return model
+        except Exception as exc:  # pragma: no cover - defensive logging
+            self.logger.warning("Error loading spaCy model %s: %s", model_name, exc)
+            return None
+
+    def _load_from_model_loader(self, model_loader):
+        """Load the NLP pipeline using an injected loader for testing compatibility."""
+        load_callable = getattr(model_loader, "load_model", None)
+        if callable(load_callable):
+            return load_callable(self.model_name)
+        if callable(model_loader):  # pragma: no cover - graceful fallback
+            return model_loader(self.model_name)
+        raise TypeError("model_loader must be callable or expose a load_model method")
+
+    __signature__ = inspect.Signature(
+        parameters=[
+            inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD),
+        ]
+    )
     
     def detect_entities(self, text: str, context_window: int = 100) -> List[ResponsibilityEntity]:
         """
