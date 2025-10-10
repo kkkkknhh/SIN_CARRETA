@@ -57,7 +57,8 @@ class TestStressTest:
         import shutil
         shutil.rmtree(temp_dir, ignore_errors=True)
     
-    def test_stress_concurrent_uploads(self, stress_documents: List[Path]):
+    @staticmethod
+    def test_stress_concurrent_uploads(stress_documents: List[Path]):
         """Test 50 concurrent uploads with memory monitoring"""
         if not PSUTIL_AVAILABLE:
             pytest.skip("psutil not available - skipping stress test")

@@ -72,7 +72,8 @@ class BatchJobManager:
         
         logger.info(f"BatchJobManager initialized with Redis at {redis_host}:{redis_port}")
     
-    def get_job_key(self, job_id: str) -> str:
+    @staticmethod
+    def get_job_key(job_id: str) -> str:
         """Get Redis key for job data"""
         return f"job:{job_id}"
     

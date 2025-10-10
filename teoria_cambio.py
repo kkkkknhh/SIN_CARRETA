@@ -218,7 +218,8 @@ class TeoriaCambio:
         self._cached_graph = None
         self._cached_hash = None
     
-    def _calculate_elementos_hash(self, elementos: List[CausalElement]) -> str:
+    @staticmethod
+    def _calculate_elementos_hash(elementos: List[CausalElement]) -> str:
         """Calculate deterministic hash for a list of elements."""
         if not elementos:
             return "empty"
@@ -232,7 +233,8 @@ class TeoriaCambio:
         
         return hashlib.sha256(hash_input.encode('utf-8')).hexdigest()
     
-    def _crear_grafo_causal(self, elementos: List[CausalElement]) -> nx.DiGraph:
+    @staticmethod
+    def _crear_grafo_causal(elementos: List[CausalElement]) -> nx.DiGraph:
         """
         Create causal graph from elements.
         
@@ -545,8 +547,8 @@ class TeoriaCambio:
         
         return gaps
     
+    @staticmethod
     def generar_recomendaciones(
-        self, 
         elementos: List[CausalElement], 
         missing_components: List[CausalElementType],
         logical_gaps: List[str],
@@ -616,7 +618,8 @@ class TeoriaCambio:
         
         return recommendations
     
-    def _calcular_coherencia(self, G: nx.DiGraph, elementos: List[CausalElement]) -> float:
+    @staticmethod
+    def _calcular_coherencia(G: nx.DiGraph, elementos: List[CausalElement]) -> float:
         """Calculate coherence score of the logical framework."""
         if not elementos:
             return 0.0
@@ -715,8 +718,9 @@ class TeoriaCambio:
             logger.warning(f"Error validating causal structure: {e}")
             return None
     
+    @staticmethod
     def _determinar_calidad(
-        self, completeness_score: float, coherence_score: float, 
+        completeness_score: float, coherence_score: float, 
         causal_p_value: Optional[float], logical_gaps: List[str]
     ) -> LogicModelQuality:
         """Determine overall logical framework quality."""
@@ -746,7 +750,8 @@ class TeoriaCambio:
         else:
             return LogicModelQuality.INVALID
     
-    def _classify_chain_quality(self, score: float) -> str:
+    @staticmethod
+    def _classify_chain_quality(score: float) -> str:
         """Classify value chain quality based on score."""
         if score >= 0.8:
             return "Excelente"
@@ -762,7 +767,8 @@ class TeoriaCambio:
     # ==========================
     # Métodos mínimos para tests
     # ==========================
-    def _obtener_categoria_nodo(self, nodo: str, grafo: nx.DiGraph) -> CategoriaCausal:
+    @staticmethod
+    def _obtener_categoria_nodo(nodo: str, grafo: nx.DiGraph) -> CategoriaCausal:
         """Inferir categoría del nodo por nombre o posición topológica."""
         # Intentar por nombre
         cat = CategoriaCausal.from_text(nodo)
@@ -776,7 +782,8 @@ class TeoriaCambio:
                 return CategoriaCausal.IMPACTOS
         return cat
 
-    def _es_conexion_valida(self, origen: CategoriaCausal, destino: CategoriaCausal) -> bool:
+    @staticmethod
+    def _es_conexion_valida(origen: CategoriaCausal, destino: CategoriaCausal) -> bool:
         """Conexión válida si avanza 1 o 2 categorías hacia adelante."""
         diff = destino.value - origen.value
         return 1 <= diff <= 2

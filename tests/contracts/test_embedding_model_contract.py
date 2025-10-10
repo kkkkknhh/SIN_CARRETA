@@ -11,13 +11,15 @@ from embedding_model import IndustrialEmbeddingModel, create_industrial_embeddin
 class TestEmbeddingModelContract:
     """Contract tests for IndustrialEmbeddingModel interface."""
     
-    def test_model_initialization_contract(self):
+    @staticmethod
+    def test_model_initialization_contract():
         """Contract: Model must initialize without errors."""
         model = create_industrial_embedding_model(model_tier="basic")
         assert model is not None
         assert isinstance(model, IndustrialEmbeddingModel)
     
-    def test_encode_single_text_contract(self):
+    @staticmethod
+    def test_encode_single_text_contract():
         """Contract: encode() must accept single text and return numpy array."""
         model = create_industrial_embedding_model(model_tier="basic")
         result = model.encode(["test text"])
@@ -26,7 +28,8 @@ class TestEmbeddingModelContract:
         assert result.ndim == 2
         assert result.shape[0] == 1
     
-    def test_encode_batch_contract(self):
+    @staticmethod
+    def test_encode_batch_contract():
         """Contract: encode() must handle batch inputs."""
         model = create_industrial_embedding_model(model_tier="basic")
         texts = ["text 1", "text 2", "text 3"]
@@ -35,7 +38,8 @@ class TestEmbeddingModelContract:
         assert isinstance(result, np.ndarray)
         assert result.shape[0] == len(texts)
     
-    def test_embedding_dimension_consistency_contract(self):
+    @staticmethod
+    def test_embedding_dimension_consistency_contract():
         """Contract: All embeddings must have same dimension."""
         model = create_industrial_embedding_model(model_tier="basic")
         texts = ["short", "medium length text", "a very long text " * 10]
@@ -45,7 +49,8 @@ class TestEmbeddingModelContract:
             for j in range(i + 1, len(embeddings)):
                 assert len(item) == len(embeddings[j])
     
-    def test_deterministic_encoding_contract(self):
+    @staticmethod
+    def test_deterministic_encoding_contract():
         """Contract: Same text must produce same embedding."""
         model = create_industrial_embedding_model(model_tier="basic")
         text = "deterministic test"
@@ -55,7 +60,8 @@ class TestEmbeddingModelContract:
         
         np.testing.assert_array_almost_equal(embedding1, embedding2, decimal=5)
     
-    def test_empty_input_handling_contract(self):
+    @staticmethod
+    def test_empty_input_handling_contract():
         """Contract: Model must handle empty input gracefully."""
         model = create_industrial_embedding_model(model_tier="basic")
         result = model.encode([])
@@ -63,7 +69,8 @@ class TestEmbeddingModelContract:
         assert isinstance(result, np.ndarray)
         assert result.shape[0] == 0
     
-    def test_diagnostics_contract(self):
+    @staticmethod
+    def test_diagnostics_contract():
         """Contract: get_comprehensive_diagnostics() must return dict."""
         model = create_industrial_embedding_model(model_tier="basic")
         diagnostics = model.get_comprehensive_diagnostics()

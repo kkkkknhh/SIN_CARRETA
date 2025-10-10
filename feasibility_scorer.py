@@ -256,19 +256,23 @@ class FeasibilityScorer:
                 ))
         return matches
 
-    def _detect_units(self, text: str) -> List[DetectionResult]:
+    @staticmethod
+    def _detect_units(text: str) -> List[DetectionResult]:
         # Add unit detection logic if needed
         return []
 
-    def _detect_responsibles(self, text: str) -> List[DetectionResult]:
+    @staticmethod
+    def _detect_responsibles(text: str) -> List[DetectionResult]:
         # Add responsible entity detection logic if needed
         return []
 
-    def _detect_dates(self, text: str) -> List[DetectionResult]:
+    @staticmethod
+    def _detect_dates(text: str) -> List[DetectionResult]:
         # Add date detection logic if needed
         return []
 
-    def _extract_numeric(self, match) -> Optional[float]:
+    @staticmethod
+    def _extract_numeric(match) -> Optional[float]:
         for group in match.groups():
             try:
                 val = float(str(group).replace(',', '.').replace('%', ''))
@@ -325,8 +329,9 @@ class FeasibilityScorer:
             components=components,
         )
 
+    @staticmethod
     def _calculate_feasibility_score(
-        self, has_baseline: bool, has_target: bool, has_timeframe: bool,
+        has_baseline: bool, has_target: bool, has_timeframe: bool,
         has_quantitative_target: bool, has_unit: bool, has_responsible: bool
     ) -> float:
         """
@@ -585,7 +590,8 @@ class FeasibilityScorer:
         # Cap at 1.0
         return min(1.0, score)
 
-    def _normalize_text(self, text: str) -> str:
+    @staticmethod
+    def _normalize_text(text: str) -> str:
         """Normalize Unicode text for consistent pattern matching."""
         import unicodedata
         return unicodedata.normalize("NFKC", text)

@@ -166,7 +166,8 @@ class EvidenceRegistry:
 
             return evidence_id
 
-    def _generate_evidence_id(self, evidence: CanonicalEvidence) -> str:
+    @staticmethod
+    def _generate_evidence_id(evidence: CanonicalEvidence) -> str:
         """
         Generate deterministic evidence ID.
 

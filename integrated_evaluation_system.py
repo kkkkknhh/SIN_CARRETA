@@ -183,7 +183,8 @@ class IntegratedEvaluationSystem:
         
         return integrated_results
     
-    def _log_orchestrator_summary(self, results: Dict[str, Any]):
+    @staticmethod
+    def _log_orchestrator_summary(results: Dict[str, Any]):
         """Log resumen de resultados del orchestrator"""
         logger.info("\n  Resumen MINIMINIMOON:")
         logger.info(f"    • Responsabilidades detectadas: {len(results.get('responsibilities', []))}")
@@ -195,7 +196,8 @@ class IntegratedEvaluationSystem:
         eval_score = results.get('evaluation', {}).get('global_score', 0)
         logger.info(f"    • Score global Decálogo: {eval_score:.2f}")
     
-    def _log_questionnaire_summary(self, results: Dict[str, Any]):
+    @staticmethod
+    def _log_questionnaire_summary(results: Dict[str, Any]):
         """Log resumen de resultados del questionnaire"""
         summary = results.get("global_summary", {})
         logger.info("\n  Resumen Questionnaire Engine:")
@@ -280,8 +282,8 @@ class IntegratedEvaluationSystem:
             )
         }
     
+    @staticmethod
     def _generate_priority_actions(
-        self, 
         orchestrator_results: Dict[str, Any],
         questionnaire_results: Dict[str, Any],
         weakest_dimension: str
@@ -308,8 +310,8 @@ class IntegratedEvaluationSystem:
         
         return actions[:5]  # Máximo 5 acciones
     
+    @staticmethod
     def _export_results(
-        self, 
         results: Dict[str, Any], 
         pdm_path: str,
         output_dir: Optional[str] = None

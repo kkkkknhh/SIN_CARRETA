@@ -12,7 +12,8 @@ from dag_validation import validate_dag_acyclicity
 class TestTeoriaCambioDAGFlow:
     """Test integration between theory of change and DAG validation."""
     
-    def test_teoria_cambio_creates_valid_dag(self):
+    @staticmethod
+    def test_teoria_cambio_creates_valid_dag():
         """Test that TeoriaCambio generates a valid acyclic graph."""
         tc = TeoriaCambio()
         
@@ -31,7 +32,8 @@ class TestTeoriaCambioDAGFlow:
         is_acyclic, details = validate_dag_acyclicity(grafo, num_samples=100, seed=42)
         assert is_acyclic, f"Graph should be acyclic: {details}"
     
-    def test_complex_teoria_cambio_dag_validation(self):
+    @staticmethod
+    def test_complex_teoria_cambio_dag_validation():
         """Test DAG validation with complex multi-path theory of change."""
         tc = TeoriaCambio()
         
@@ -81,7 +83,8 @@ class TestTeoriaCambioDAGFlow:
         assert is_acyclic, "Complex graph should remain acyclic"
         assert len(grafo.nodes) >= 11
     
-    def test_cache_invalidation_preserves_dag_property(self):
+    @staticmethod
+    def test_cache_invalidation_preserves_dag_property():
         """Test that cache invalidation maintains DAG structure."""
         tc = TeoriaCambio()
         

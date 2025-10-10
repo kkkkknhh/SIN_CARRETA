@@ -127,7 +127,8 @@ class PipelineOrchestrator:
         # Load available components
         self._load_components()
     
-    def _build_question_mapping(self) -> Dict[str, DecalogoQuestion]:
+    @staticmethod
+    def _build_question_mapping() -> Dict[str, DecalogoQuestion]:
         """
         Build comprehensive mapping of all DECALOGO questions.
         
@@ -589,7 +590,8 @@ class PipelineOrchestrator:
         
         return evaluations
     
-    def _evaluate_question(self, question: DecalogoQuestion, evidence: List[EvidenceItem]) -> DecalogoEvaluation:
+    @staticmethod
+    def _evaluate_question(question: DecalogoQuestion, evidence: List[EvidenceItem]) -> DecalogoEvaluation:
         """
         Evaluate a DECALOGO question based on collected evidence.
         

@@ -193,7 +193,8 @@ class ResponsibilityDetector:
         
         return all_entities
     
-    def _extract_spacy_entities(self, doc: "Doc", context_window: int) -> List[ResponsibilityEntity]:
+    @staticmethod
+    def _extract_spacy_entities(doc: "Doc", context_window: int) -> List[ResponsibilityEntity]:
         """Extract entities using spaCy NER."""
         entities = []
         
@@ -267,7 +268,8 @@ class ResponsibilityDetector:
         
         return entities
     
-    def _create_entity_from_match(self, match, text: str, context_window: int,
+    @staticmethod
+    def _create_entity_from_match(match, text: str, context_window: int,
                                    entity_type: 'EntityType', base_confidence: float,
                                    boost_keywords: Optional[List[str]] = None) -> 'ResponsibilityEntity':
         """
@@ -307,7 +309,8 @@ class ResponsibilityDetector:
             context=context_text,
         )
     
-    def _merge_entities(self, entities1: List[ResponsibilityEntity], 
+    @staticmethod
+    def _merge_entities(entities1: List[ResponsibilityEntity], 
                         entities2: List[ResponsibilityEntity]) -> List[ResponsibilityEntity]:
         """
         Merge entities from different sources, resolving overlaps by keeping the higher confidence one.
@@ -392,7 +395,8 @@ class ResponsibilityDetector:
         
         return entities
     
-    def evaluate_responsibility_clarity(self, entities: List[ResponsibilityEntity]) -> Dict[str, Any]:
+    @staticmethod
+    def evaluate_responsibility_clarity(entities: List[ResponsibilityEntity]) -> Dict[str, Any]:
         """
         Evaluate overall clarity of responsibility definition based on detected entities.
         
@@ -546,7 +550,8 @@ class ResponsibilityDetector:
 
         return responsibilities
 
-    def _calculate_confidence(self, ent, context: Dict) -> float:
+    @staticmethod
+    def _calculate_confidence(ent, context: Dict) -> float:
         """Calcular confidence DETERMINISTA basado en señales"""
         confidence = 0.5
 
@@ -565,7 +570,8 @@ class ResponsibilityDetector:
 
         return min(1.0, confidence)
 
-    def _map_to_questions(self, ent, context: Dict) -> List[str]:
+    @staticmethod
+    def _map_to_questions(ent, context: Dict) -> List[str]:
         """Mapear detección a preguntas específicas del cuestionario"""
         questions = []
 

@@ -150,7 +150,8 @@ class MonetaryDetector:
         # Compile all regex patterns
         self.patterns = self._compile_patterns()
 
-    def _compile_patterns(self) -> Dict[str, re.Pattern]:
+    @staticmethod
+    def _compile_patterns() -> Dict[str, re.Pattern]:
         """Compile all regex patterns for monetary detection."""
         # Define regex patterns for different monetary formats
         
@@ -297,7 +298,8 @@ class MonetaryDetector:
 
         return matches
 
-    def _parse_amount(self, text: str) -> float:
+    @staticmethod
+    def _parse_amount(text: str) -> float:
         """
         Parse amount from text, handling different numeric formats.
 
@@ -461,7 +463,8 @@ class MonetaryDetector:
         
         return ""
     
-    def _calculate_confidence(self, text: str, amount: float, category) -> float:
+    @staticmethod
+    def _calculate_confidence(text: str, amount: float, category) -> float:
         """Calcular confidence DETERMINISTA"""
         confidence = 0.7  # Base
 
@@ -479,7 +482,8 @@ class MonetaryDetector:
         
         return min(1.0, confidence)
 
-    def _calculate_impact_weight(self, amount: float, category) -> float:
+    @staticmethod
+    def _calculate_impact_weight(amount: float, category) -> float:
         """Calcular peso de impacto relativo basado en monto y categoría"""
         # Normalizar por magnitud (log scale)
         if amount == 0:
@@ -502,7 +506,8 @@ class MonetaryDetector:
 
         return magnitude * multiplier
 
-    def _map_to_questions(self, category, timeframe, amount: float) -> List[str]:
+    @staticmethod
+    def _map_to_questions(category, timeframe, amount: float) -> List[str]:
         """Mapear detección a preguntas específicas del cuestionario"""
         questions = []
 

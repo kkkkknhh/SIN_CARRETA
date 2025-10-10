@@ -45,7 +45,8 @@ class ResponsibilityDetectorWithCalibration:
         if enable_ground_truth_collection:
             self.gt_collector = create_ground_truth_collector(self.detector_name)
     
-    def _detect_raw(self, text: str) -> Dict[str, Any]:
+    @staticmethod
+    def _detect_raw(text: str) -> Dict[str, Any]:
         """
         Base detection method (simplified for example).
         
