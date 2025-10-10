@@ -130,16 +130,50 @@ class FeasibilityScorer:
     **EVIDENCE REGISTRY**: Auto-registration.
     """
 
-    def __init__(self, enable_parallel: bool = True, seed: int = 42, evidence_registry=None, n_jobs: int = -1, backend: str = "loky"):
-        """Initialize with DETERMINISTIC configuration."""
-        self.enable_parallel = enable_parallel
-        self.seed = seed
-        self.evidence_registry = evidence_registry
-        self.n_jobs = min(n_jobs if n_jobs > 0 else 8, 8)  # Cap at 8 jobs
-        self.backend = backend
+    def __init__(self):
+        """Initialize with deterministic defaults and no external dependencies."""
+        self.enable_parallel = True
+        self.seed = 42
+        self.evidence_registry = None
+        self.n_jobs = 8  # Cap parallel workers to avoid runaway CPU usage
+        self.backend = "loky"
         self.logger = logger  # Use module-level logger
 
-        # Fijar seed para reproducibilidad
+        self._seed_random_generators(self.seed)
+
+    def configure_parallel(
+        self,
+        *,
+        enable_parallel: Optional[bool] = None,
+        n_jobs: Optional[int] = None,
+        backend: Optional[str] = None,
+    ) -> None:
+        """Configure parallel execution behaviour after initialization."""
+
+        if enable_parallel is not None:
+            self.enable_parallel = enable_parallel
+
+        if n_jobs is not None:
+            self.n_jobs = min(n_jobs if n_jobs and n_jobs > 0 else self.n_jobs, 8)
+
+        if backend is not None:
+            self.backend = backend
+
+    def set_seed(self, seed: int) -> None:
+        """Update the random seed ensuring reproducibility across components."""
+
+        self.seed = seed
+        self._seed_random_generators(seed)
+
+    def attach_evidence_registry(self, evidence_registry) -> None:
+        """Attach an evidence registry for optional auto-registration."""
+
+        self.evidence_registry = evidence_registry
+
+    @staticmethod
+    def _seed_random_generators(seed: int) -> None:
+        """Seed Python and NumPy random generators in a single place."""
+
         np.random.seed(seed)
         random.seed(seed)
 

@@ -221,7 +221,8 @@ def test_batch_scoring():
     runner.assert_equal(len(results_sequential), 3, "Should return 3 results")
 
     # Test with parallel processing disabled
-    scorer_seq = FeasibilityScorer(enable_parallel=False)
+    scorer_seq = FeasibilityScorer()
+    scorer_seq.configure_parallel(enable_parallel=False)
     results_disabled = scorer_seq.batch_score(indicators)
     runner.assert_equal(len(results_disabled), 3,
                         "Should work with parallel disabled")

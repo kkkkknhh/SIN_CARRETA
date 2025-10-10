@@ -402,7 +402,8 @@ class TestFeasibilityScorer:
         assert len(results_extended) == 15
 
         # Test with parallel disabled
-        scorer_no_parallel = FeasibilityScorer(enable_parallel=False)
+        scorer_no_parallel = FeasibilityScorer()
+        scorer_no_parallel.configure_parallel(enable_parallel=False)
         results_no_parallel = scorer_no_parallel.batch_score(indicators)
         assert len(results_no_parallel) == 3
 
@@ -415,12 +416,14 @@ class TestFeasibilityScorer:
         assert scorer.backend == "loky"
 
         # Test custom configuration
-        scorer_custom = FeasibilityScorer(n_jobs=4, backend="threading")
+        scorer_custom = FeasibilityScorer()
+        scorer_custom.configure_parallel(n_jobs=4, backend="threading")
         assert scorer_custom.n_jobs == 4
         assert scorer_custom.backend == "threading"
 
         # Test with parallel disabled
-        scorer_disabled = FeasibilityScorer(enable_parallel=False)
+        scorer_disabled = FeasibilityScorer()
+        scorer_disabled.configure_parallel(enable_parallel=False)
         assert not scorer_disabled.enable_parallel
 
     @staticmethod
@@ -1140,7 +1143,8 @@ class TestAtomicReportGeneration:
 def test_feasibility_scorer_picklable_roundtrip():
     """FeasibilityScorer instances should survive pickle/unpickle."""
 
-    scorer = FeasibilityScorer(enable_parallel=False)
+    scorer = FeasibilityScorer()
+    scorer.configure_parallel(enable_parallel=False)
     payload = pickle.dumps(scorer)
     restored = pickle.loads(payload)
 

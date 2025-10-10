@@ -142,13 +142,17 @@ class MonetaryDetector:
     **EVIDENCE REGISTRY**: Auto-registration with question mapping.
     """
     
-    def __init__(self, evidence_registry=None):
-        """Initialize detector with optional evidence registry for auto-registration."""
-        self.evidence_registry = evidence_registry
+    def __init__(self):
+        """Initialize detector with default configuration."""
+        self.evidence_registry = None
         self.logger = logging.getLogger(__name__)
 
         # Compile all regex patterns
         self.patterns = self._compile_patterns()
+
+    def attach_evidence_registry(self, evidence_registry) -> None:
+        """Attach an evidence registry for optional auto-registration support."""
+        self.evidence_registry = evidence_registry
 
     @staticmethod
     def _compile_patterns() -> Dict[str, re.Pattern]:

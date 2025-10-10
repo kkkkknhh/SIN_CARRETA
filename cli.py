@@ -235,8 +235,11 @@ def run_feasibility_mode(args: argparse.Namespace) -> int:
         f"Configuration: input={args.input}, outdir={args.outdir}, workers={args.workers}, device={args.device}, precision={args.precision}, topk={args.topk}, umbral={args.umbral}, max_segmentos={args.max_segmentos}"
     )
 
-    scorer = FeasibilityScorer(
-        enable_parallel=args.workers > 1, n_jobs=args.workers, backend="loky"
+    scorer = FeasibilityScorer()
+    scorer.configure_parallel(
+        enable_parallel=(args.workers or 0) > 1,
+        n_jobs=args.workers,
+        backend="loky",
     )
 
     input_path = Path(args.input)

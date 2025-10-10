@@ -63,7 +63,9 @@ def test_canonical_pipeline_order_and_feasibility_position() -> None:
 
 @pytest.fixture()
 def feasibility_scorer() -> FeasibilityScorer:
-    return FeasibilityScorer(enable_parallel=False)
+    scorer = FeasibilityScorer()
+    scorer.configure_parallel(enable_parallel=False)
+    return scorer
 
 
 def test_feasibility_scorer_outputs_are_normalized(feasibility_scorer: FeasibilityScorer) -> None:
