@@ -484,8 +484,10 @@ if __name__ == "__main__":
     manager.register_playbook("cpu_throttling", cpu_throttling_playbook)
 
     # Test circuit breaker behavior
-    def flaky_operation(fail_count=[0]):
+    def flaky_operation(fail_count=None):
         """Simulated flaky operation"""
+        if fail_count is None:
+            fail_count = [0]
         fail_count[0] += 1
         if fail_count[0] < 4:
             raise Exception(f"Simulated failure {fail_count[0]}")
