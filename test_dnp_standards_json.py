@@ -5,7 +5,9 @@ from pathlib import Path
 
 def test_dnp_standards_json_is_valid():
     """Test that dnp-standards.latest.clean.json is valid JSON"""
-    json_path = Path(__file__).parent / "dnp-standards.latest.clean.json"
+    # Use central path resolver
+    from repo_paths import get_dnp_path
+    json_path = get_dnp_path()
     
     with open(json_path, 'r', encoding='utf-8') as f:
         content = f.read()
@@ -25,7 +27,9 @@ def test_dnp_standards_json_is_valid():
 
 def test_milagros_line_has_escaped_quotes():
     """Test that the 'milagros' line has properly escaped quotes"""
-    json_path = Path(__file__).parent / "dnp-standards.latest.clean.json"
+    # Use central path resolver
+    from repo_paths import get_dnp_path
+    json_path = get_dnp_path()
     
     with open(json_path, 'r', encoding='utf-8') as f:
         lines = f.readlines()

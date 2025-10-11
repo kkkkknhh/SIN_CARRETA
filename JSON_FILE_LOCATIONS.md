@@ -4,74 +4,90 @@
 
 The following JSON files are the canonical sources of truth for the system:
 
-### Repository Root
+### Canonical Directories
 ```
 /home/runner/work/SIN_CARRETA/SIN_CARRETA/
-├── decalogo-industrial.latest.clean.json  (210,775 bytes, 300 questions)
-└── dnp-standards.latest.clean.json        (79,737 bytes)
+├── bundles/
+│   └── decalogo-industrial.latest.clean.json  (210,775 bytes, 300 questions)
+└── standards/
+    └── dnp-standards.latest.clean.json        (79,737 bytes)
 ```
 
-**These files MUST remain in the repository root** to ensure all modules can reference them correctly.
+**These files MUST remain in these canonical locations** (`/bundles/` and `/standards/`) to ensure all modules can reference them correctly through the central path resolver.
 
-## Path Resolution Patterns
+## Path Resolution Pattern
 
-### 1. Direct Module Loading (`decalogo_loader.py`)
+### Central Path Resolver (`repo_paths.py`)
 
-The primary loader module uses `Path(__file__).parent` to resolve paths relative to the module location:
+All code MUST use the central path resolver to access these files:
 
 ```python
-# decalogo_loader.py (line 31)
-DEFAULT_TEMPLATE_PATH = Path(__file__).parent / "decalogo-industrial.latest.clean.json"
+# Import the resolver
+from repo_paths import get_decalogo_path, get_dnp_path
 
-# decalogo_loader.py (line 224)
-standards_path = Path(path) if path else (Path(__file__).parent / "dnp-standards.latest.clean.json")
+# Get canonical paths
+decalogo_path = get_decalogo_path()  # Returns /bundles/decalogo-industrial.latest.clean.json
+dnp_path = get_dnp_path()            # Returns /standards/dnp-standards.latest.clean.json
+
+# Optional: Override with environment variables (filename must still be canonical)
+import os
+decalogo_path = get_decalogo_path(os.getenv("DECALOGO_PATH_OVERRIDE"))
+dnp_path = get_dnp_path(os.getenv("DNP_PATH_OVERRIDE"))
 ```
 
-**Resolution:** Both files resolve to repository root since `decalogo_loader.py` is in the root.
+**Direct path construction is forbidden.** All code must use the resolver functions.
 
-### 2. Configuration-Based Loading (`pdm_contra/config/decalogo.yaml`)
+### Legacy Pattern (DEPRECATED)
+
+The old pattern of using `Path(__file__).parent / "decalogo-industrial.latest.clean.json"` has been replaced by the central resolver.
+
+### Configuration-Based Loading (`pdm_contra/config/decalogo.yaml`)
 
 The PDM configuration uses relative paths from the config directory:
 
 ```yaml
 # pdm_contra/config/decalogo.yaml
 paths:
-  full: "../../decalogo-industrial.latest.clean.json"
-  industrial: "../../decalogo-industrial.latest.clean.json"
-  dnp: "../../dnp-standards.latest.clean.json"
+  full: "../../bundles/decalogo-industrial.latest.clean.json"
+  industrial: "../../bundles/decalogo-industrial.latest.clean.json"
+  dnp: "../../standards/dnp-standards.latest.clean.json"
 ```
 
 **Resolution:**
 - Config directory: `pdm_contra/config/`
-- `../../` navigates up two levels to repository root
+- `../../bundles/` navigates up two levels then into bundles/
+- `../../standards/` navigates up two levels then into standards/
 
-### 3. Test Files
+### Test Files
 
-Test files use two patterns:
-
-#### Pattern A: Repository Root Reference
-```python
-# test_decalogo_alignment_fix.py (line 46)
-cls.repo_root = Path('/home/runner/work/SIN_CARRETA/SIN_CARRETA')
-cls.industrial_path = cls.repo_root / 'decalogo-industrial.latest.clean.json'
-```
-
-#### Pattern B: Parent Directory Reference
-```python
-# verify_decalogo_alignment.py (line 202)
-decalogo_path = Path(__file__).parent / "decalogo-industrial.latest.clean.json"
-```
-
-**Both patterns resolve correctly** when the test files are in the repository root.
-
-### 4. Pipeline and Orchestrator References
+Test files should use the central resolver:
 
 ```python
-# unified_evaluation_pipeline.py (line 351)
-decalogo_json = Path("decalogo-industrial.latest.clean.json")
+# Recommended pattern
+from repo_paths import get_decalogo_path, get_dnp_path
+
+class TestDecalogoLoading(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.industrial_path = get_decalogo_path()
+        cls.dnp_path = get_dnp_path()
 ```
 
-This pattern works when the script is run from the repository root directory.
+**Legacy patterns (DEPRECATED):** Direct path construction has been replaced by the central resolver.
+
+### Pipeline and Orchestrator References
+
+Pipelines and orchestrators should use the central resolver:
+
+```python
+# unified_evaluation_pipeline.py
+from repo_paths import get_decalogo_path
+
+def run_evaluation(self):
+    decalogo_json = get_decalogo_path()
+    with open(decalogo_json, 'r', encoding='utf-8') as f:
+        decalogo_data = json.load(f)
+```
 
 ## File Reference Audit
 
@@ -122,25 +138,26 @@ The main orchestrator does not directly reference these JSON files. Instead, it 
 from decalogo_loader import get_decalogo_industrial, load_dnp_standards
 
 # Load the canonical data
-industrial_data = get_decalogo_industrial()  # Loads from root
-dnp_data = load_dnp_standards()              # Loads from root
+industrial_data = get_decalogo_industrial()  # Loads from /bundles/
+dnp_data = load_dnp_standards()              # Loads from /standards/
 ```
 
 **Benefits:**
-1. **Centralized loading** - Single source of truth
+1. **Centralized loading** - Single source of truth via `repo_paths.py`
 2. **Fallback mechanism** - In-memory templates if files unavailable
 3. **Thread-safe caching** - Efficient repeated access
 4. **Path abstraction** - Modules don't need to know absolute paths
+5. **Validation guards** - Runtime checks ensure canonical filenames
 
 ## Version Management
 
 The system maintains two types of files:
 
 ### Latest (Working Copies)
-- `decalogo-industrial.latest.clean.json`
-- `dnp-standards.latest.clean.json`
+- `/bundles/decalogo-industrial.latest.clean.json`
+- `/standards/dnp-standards.latest.clean.json`
 
-These are in the **repository root** and are the canonical working versions.
+These are in the **canonical directories** and are the canonical working versions.
 
 ### Versioned (Generated Outputs)
 - `pdm_contra/config/out/decalogo-industrial.v1.0.0.clean.json`
@@ -150,55 +167,82 @@ These are generated by `pdm_contra/decalogo_alignment.py` and represent frozen v
 
 ## Migration Notes
 
+**All path resolution now goes through the central resolver (`repo_paths.py`)**
+
 If the files need to be moved in the future:
 
-1. **Update `decalogo_loader.py`:**
-   - Change `DEFAULT_TEMPLATE_PATH` (line 31)
-   - Change `standards_path` calculation (line 224)
+1. **Update `repo_paths.py`:**
+   - Change `BUNDLES_DIR` and `STANDARDS_DIR` constants
+   - Change `DECALOGO_PATH` and `DNP_PATH` assignments
 
 2. **Update `pdm_contra/config/decalogo.yaml`:**
    - Adjust relative paths in `paths` section
 
-3. **Update test files** that use absolute paths
+3. **No changes needed in other files** - they use the central resolver
 
 4. **Run validation:**
    ```bash
+   python3 tools/check_canonical_paths.py
    python3 validate_json_file_locations.py
    ```
 
 ## Best Practices
 
-1. **Always use the loader functions:**
+1. **Always use the central path resolver:**
+   ```python
+   from repo_paths import get_decalogo_path, get_dnp_path
+   ```
+   
+   Or use the high-level loader:
    ```python
    from decalogo_loader import get_decalogo_industrial, load_dnp_standards
    ```
 
-2. **Don't hardcode absolute paths** - Use relative paths from `__file__`
+2. **Never hardcode paths** - Use the resolver functions
 
 3. **Run validation after changes** - Ensure all references still work
 
-4. **Keep files in repository root** - Unless there's a compelling reason to move them
+4. **Keep files in canonical locations** - `/bundles/` and `/standards/`
+
+5. **Use pre-commit hooks** - Automatically validate paths before commits
+
+## Validation
+
+### Pre-commit Hook
+
+The repository includes a pre-commit hook that validates canonical paths:
+
+```bash
+# Install pre-commit hooks
+pre-commit install
+
+# Run manually
+pre-commit run check-canonical-paths --all-files
+```
+
+### CI Validation
+
+GitHub Actions automatically validates paths on every push and PR via the `canonical-integration.yml` workflow.
 
 ## Troubleshooting
 
 ### Issue: "File not found" errors
 
 **Check:**
-1. Are you running from the repository root?
-2. Is the file name spelled correctly?
-3. Does the module use the correct path pattern?
+1. Are the files in `/bundles/` and `/standards/`?
+2. Are you using the central resolver (`repo_paths.py`)?
+3. Is the filename exactly correct (case-sensitive)?
 
 **Solution:**
 ```python
-from pathlib import Path
-print(f"Current directory: {Path.cwd()}")
-print(f"Script location: {Path(__file__).parent}")
+from repo_paths import get_decalogo_path, get_dnp_path
+print(f"Decalogo path: {get_decalogo_path()}")
+print(f"DNP path: {get_dnp_path()}")
 ```
 
-### Issue: "Invalid JSON" errors
+### Issue: "Non-canonical reference" errors
 
 **Check:**
-1. Is the JSON file corrupted?
 2. Are there syntax errors?
 
 **Solution:**

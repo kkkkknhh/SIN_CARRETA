@@ -1,13 +1,14 @@
 # JSON File Location Documentation Suite
 
-This directory contains comprehensive documentation verifying that `decalogo-industrial.latest.clean.json` and `dnp-standards.latest.clean.json` are in the correct location and properly referenced throughout the codebase.
+This directory contains comprehensive documentation verifying that the canonical JSON artifacts are in the correct locations (`/bundles/` and `/standards/`) and properly referenced throughout the codebase via the central path resolver.
 
 ## 📋 Quick Status
 
-✅ **Files are in the correct location** (repository root)  
-✅ **All references work correctly** (33 references in 12 files)  
+✅ **Files are in canonical locations** (`/bundles/` and `/standards/`)  
+✅ **All references use central path resolver** (`repo_paths.py`)  
 ✅ **All tests pass** (100% success rate)  
-✅ **Full documentation available**
+✅ **Full documentation available**  
+✅ **Pre-commit and CI validation active**
 
 ## 📚 Documentation Files
 
@@ -21,45 +22,59 @@ This directory contains comprehensive documentation verifying that `decalogo-ind
 
 ### 🔧 Tools
 - **[validate_json_file_locations.py](validate_json_file_locations.py)** - Automated validation script
+- **[tools/check_canonical_paths.py](tools/check_canonical_paths.py)** - Canonical path checker (CI integration)
 
 ## 🚀 Quick Start
 
 ### Validate Everything Works
 ```bash
+# Validate file locations and structure
 python3 validate_json_file_locations.py
+
+# Check for non-canonical path references
+python3 tools/check_canonical_paths.py
 ```
 
 Expected output:
 ```
+✅ OK: All paths are canonical
 ✅ ALL VALIDATIONS PASSED
 ```
 
 ### Quick Checks
 ```bash
-# Check files exist
-ls -lh decalogo-industrial.latest.clean.json dnp-standards.latest.clean.json
+# Check files exist in canonical locations
+ls -lh bundles/decalogo-industrial.latest.clean.json
+ls -lh standards/dnp-standards.latest.clean.json
 
 # Test loader works
 python3 -c "from decalogo_loader import get_decalogo_industrial; print(f'{len(get_decalogo_industrial()[\"questions\"])} questions')"
+
+# Test path resolver
+python3 -c "from repo_paths import get_decalogo_path, get_dnp_path; print(get_decalogo_path()); print(get_dnp_path())"
 ```
 
 ## 📁 File Locations
 
 ```
 /home/runner/work/SIN_CARRETA/SIN_CARRETA/
-├── decalogo-industrial.latest.clean.json  (210KB, 300 questions) ✓
-└── dnp-standards.latest.clean.json        (79KB) ✓
+├── bundles/
+│   └── decalogo-industrial.latest.clean.json  (210KB, 300 questions) ✓
+└── standards/
+    └── dnp-standards.latest.clean.json        (79KB) ✓
 ```
 
 ## ✅ What Was Verified
 
-- [x] Files exist in repository root
+- [x] Files exist in canonical locations (`/bundles/` and `/standards/`)
 - [x] JSON structure is valid (300 questions)
+- [x] Central path resolver works (`repo_paths.py`)
 - [x] Loader module works (`get_decalogo_industrial`, `load_dnp_standards`)
 - [x] Config paths resolve correctly (`pdm_contra/config/decalogo.yaml`)
-- [x] All 12 files that reference the JSONs can access them
+- [x] All Python files use central resolver
 - [x] Orchestrators use appropriate abstraction
-- [x] All tests pass (7/7 tests successful)
+- [x] Pre-commit hook validates paths
+- [x] CI validates paths on every push
 
 ## 🔍 Key Findings
 

@@ -162,11 +162,11 @@ class MiniMiniMoonAuditor:
             "questionnaire_engine"
         ]
         
-        # Required config files
+        # Required config files (canonical names)
         self.required_configs = [
             "DECALOGO_FULL.json",
-            "decalogo_industrial.json",
-            "dnp-standards.latest.clean.json",
+            "bundles/decalogo-industrial.latest.clean.json",
+            "standards/dnp-standards.latest.clean.json",
             "RUBRIC_SCORING.json"
         ]
         

@@ -67,7 +67,9 @@ def test_key_elements_all_have_patterns():
 def test_alignment_with_canonical_json():
     """Verify alignment with decalogo-industrial.latest.clean.json structure."""
     try:
-        with open('decalogo-industrial.latest.clean.json', 'r', encoding='utf-8') as f:
+        # Use central path resolver
+        from repo_paths import get_decalogo_path
+        with open(get_decalogo_path(), 'r', encoding='utf-8') as f:
             data = json.load(f)
         
         questions = data.get('questions', [])
@@ -101,7 +103,7 @@ def test_alignment_with_canonical_json():
         print("✓ Total questions: 300")
         
     except FileNotFoundError:
-        print("⚠ Warning: decalogo-industrial.latest.clean.json not found, skipping JSON verification")
+        print("⚠ Warning: Canonical JSON not found in /bundles/, skipping JSON verification")
 
 
 def test_dimension_key_mapping():

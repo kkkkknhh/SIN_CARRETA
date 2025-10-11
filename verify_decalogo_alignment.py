@@ -199,7 +199,9 @@ def verify_alignment(data: Dict) -> bool:
 
 def main():
     """Main entry point."""
-    decalogo_path = Path(__file__).parent / "decalogo-industrial.latest.clean.json"
+    # Use central path resolver
+    from repo_paths import get_decalogo_path
+    decalogo_path = get_decalogo_path()
     
     # Allow override from command line
     if len(sys.argv) > 1:

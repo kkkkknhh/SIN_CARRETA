@@ -18,9 +18,12 @@ RESET = '\033[0m'
 
 def load_canonical_standards():
     """Load the canonical JSON standards."""
-    with open('decalogo-industrial.latest.clean.json') as f:
+    # Use central path resolver
+    from repo_paths import get_decalogo_path, get_dnp_path
+    
+    with open(get_decalogo_path()) as f:
         decalogo = json.load(f)
-    with open('dnp-standards.latest.clean.json') as f:
+    with open(get_dnp_path()) as f:
         dnp = json.load(f)
     return decalogo, dnp
 
