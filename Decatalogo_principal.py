@@ -1,17 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-Sistema Integral de Evaluación de Cadenas de Valor en Planes de Desarrollo Municipal
-Versión: 9.0 – Marco Teórico-Institucional con Análisis Causal Multinivel, Frontier AI Capabilities,
-Mathematical Innovation, Sophisticated Evidence Processing y Reporting Industrial.
-Framework basado en IAD + Theory of Change, con triangulación cuali-cuantitativa,
-verificación causal, certeza probabilística y capacidades de frontera.
+Sistema Integral de Evaluación de Cadenas de Valor en Planes de
+Desarrollo Municipal.
+Versión: 9.0 – Marco Teórico-Institucional con Análisis Causal Multinivel,
+Frontier AI Capabilities, Mathematical Innovation, Sophisticated Evidence
+Processing y Reporting Industrial.
+Framework basado en IAD + Theory of Change, con triangulación
+cuali-cuantitativa, verificación causal, certeza probabilística y
+capacidades de frontera.
 Autor: Dr. en Políticas Públicas
-Enfoque: Evaluación estructural con econometría de políticas, minería causal avanzada,
-procesamiento paralelo industrial y reportes masivos granulares.
+Enfoque: Evaluación estructural con econometría de políticas, minería
+causal avanzada, procesamiento paralelo industrial y reportes masivos
+granulares.
 
-ESTRUCTURA CANÓNICA DEL DECÁLOGO (Fuentes: decalogo-industrial.latest.clean.json, 
+ESTRUCTURA CANÓNICA DEL DECÁLOGO (Fuentes:
+decalogo-industrial.latest.clean.json,
 dnp-standards.latest.clean.json):
-- 6 DIMENSIONES (D1-D6): INSUMOS, ACTIVIDADES, PRODUCTOS, RESULTADOS, IMPACTOS, CAUSALIDAD
+- 6 DIMENSIONES (D1-D6): INSUMOS, ACTIVIDADES, PRODUCTOS, RESULTADOS,
+  IMPACTOS, CAUSALIDAD
 - 10 PUNTOS PDET (P1-P10): Áreas temáticas prioritarias
 - 300 PREGUNTAS: 6 dimensiones × 10 puntos × 5 preguntas/combinación
 """
@@ -52,18 +58,13 @@ from sentence_transformers import SentenceTransformer, util
 
 # Módulos matemáticos avanzados
 try:
-    from scipy.cluster.hierarchy import dendrogram, fcluster, linkage
-    from scipy.spatial.distance import cdist
-    from scipy.stats import chi2_contingency, entropy, pearsonr, spearmanr
-
     ADVANCED_STATS_AVAILABLE = True
 except ImportError:
     ADVANCED_STATS_AVAILABLE = False
 
 # Capacidades de frontera en NLP
 try:
-    import transformers
-    from transformers import AutoModel, AutoTokenizer, pipeline
+    from transformers import pipeline
 
     FRONTIER_NLP_AVAILABLE = True
 except ImportError:
@@ -160,27 +161,31 @@ logging.basicConfig(
     handlers=[
         logging.StreamHandler(),
         logging.FileHandler(
-            f"evaluacion_politicas_industrial_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log",
+            f"evaluacion_politicas_industrial_"
+            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.log",
             encoding="utf-8",
         ),
     ],
 )
 LOGGER = logging.getLogger("EvaluacionPoliticasPublicasIndustrial")
 
-# -------------------- Carga de modelos con capacidades de frontera --------------------
+# ------ Carga de modelos con capacidades de frontera ------
 try:
     NLP = spacy.load("es_core_news_lg")
     log_info_with_text(
-        LOGGER, "✅ Modelo SpaCy avanzado cargado (es_core_news_lg)")
+        LOGGER, "✅ Modelo SpaCy avanzado cargado (es_core_news_lg)"
+    )
 except OSError:
     try:
         NLP = spacy.load("es_core_news_sm")
         log_warning_with_text(
-            LOGGER, "⚠️ Usando modelo SpaCy básico (es_core_news_sm)")
+            LOGGER, "⚠️ Usando modelo SpaCy básico (es_core_news_sm)"
+        )
     except OSError as e:
         log_error_with_text(LOGGER, f"❌ Error cargando SpaCy: {e}")
         raise SystemExit(
-            "Modelo SpaCy no disponible. Ejecute: python -m spacy download es_core_news_lg"
+            "Modelo SpaCy no disponible. Ejecute: "
+            "python -m spacy download es_core_news_lg"
         )
 
 try:
@@ -190,7 +195,8 @@ try:
     EMBEDDING_MODEL = to_device(EMBEDDING_MODEL)
     log_info_with_text(LOGGER, "✅ Modelo de embeddings multilingual cargado")
     log_info_with_text(
-        LOGGER, f"✅ Dispositivo: {get_device_config().get_device()}")
+        LOGGER, f"✅ Dispositivo: {get_device_config().get_device()}"
+    )
 except Exception as e:
     log_error_with_text(LOGGER, f"❌ Error cargando embeddings: {e}")
     raise SystemExit(f"Error cargando modelo de embeddings: {e}")
@@ -205,20 +211,26 @@ if FRONTIER_NLP_AVAILABLE:
             return_all_scores=True,
         )
         log_info_with_text(
-            LOGGER, "✅ Pipeline NLP avanzado cargado para análisis de sentimientos"
+            LOGGER,
+            "✅ Pipeline NLP avanzado cargado para análisis de sentimientos"
         )
     except Exception as e:
         log_warning_with_text(
-            LOGGER, f"⚠️ Pipeline NLP avanzado no disponible: {e}")
+            LOGGER, f"⚠️ Pipeline NLP avanzado no disponible: {e}"
+        )
 
 
 # -------------------- Innovaciones matemáticas --------------------
 class MathematicalInnovations:
-    """Clase con innovaciones matemáticas para análisis de políticas públicas."""
+    """Clase con innovaciones matemáticas para análisis de
+    políticas públicas."""
 
     @staticmethod
-    def calculate_causal_strength(graph: nx.DiGraph, source: str, target: str) -> float:
-        """Calcula la fuerza causal entre dos nodos usando innovaciones en teoría de grafos."""
+    def calculate_causal_strength(
+        graph: nx.DiGraph, source: str, target: str
+    ) -> float:
+        """Calcula la fuerza causal entre dos nodos usando innovaciones
+        en teoría de grafos."""
         try:
             if not nx.has_path(graph, source, target):
                 return 0.0
@@ -233,9 +245,10 @@ class MathematicalInnovations:
             for path in paths:
                 path_strength = 1.0
                 for i in range(len(path) - 1):
-                    edge_weight = graph.get_edge_data(path[i], path[i + 1], {}).get(
-                        "weight", 0.5
+                    edge_data = graph.get_edge_data(
+                        path[i], path[i + 1], {}
                     )
+                    edge_weight = edge_data.get("weight", 0.5)
                     path_strength *= edge_weight
 
                 # Penalización por longitud de camino
@@ -258,7 +271,8 @@ class MathematicalInnovations:
     def bayesian_evidence_integration(
         evidences: List[float], priors: List[float]
     ) -> float:
-        """Integración bayesiana de evidencias para cálculo de certeza probabilística."""
+        """Integración bayesiana de evidencias para cálculo de certeza
+        probabilística."""
         if not evidences or not priors:
             return 0.5
 
@@ -272,9 +286,12 @@ class MathematicalInnovations:
 
                 # Aplicación del teorema de Bayes
                 numerator = likelihood * prior
-                denominator = likelihood * prior + \
-                    (1 - likelihood) * (1 - prior)
-                posterior = numerator / denominator if denominator > 0 else prior
+                denominator = (
+                    likelihood * prior + (1 - likelihood) * (1 - prior)
+                )
+                posterior = (
+                    numerator / denominator if denominator > 0 else prior
+                )
 
                 # Regularización para evitar valores extremos
                 posterior = max(0.01, min(0.99, posterior))
@@ -299,11 +316,15 @@ class MathematicalInnovations:
             probabilities = [count / total for count in freq_dist.values()]
 
             # Cálculo de entropía de Shannon
-            entropy_val = -sum(p * np.log2(p) for p in probabilities if p > 0)
+            entropy_val = -sum(
+                p * np.log2(p) for p in probabilities if p > 0
+            )
 
             # Normalización por máxima entropía posible
             max_entropy = np.log2(len(freq_dist))
-            normalized_entropy = entropy_val / max_entropy if max_entropy > 0 else 0.0
+            normalized_entropy = (
+                entropy_val / max_entropy if max_entropy > 0 else 0.0
+            )
 
             return normalized_entropy
 
@@ -384,7 +405,7 @@ class NivelAnalisis(Enum):
 
 class TipoCadenaValor(Enum):
     """Tipos de eslabones en cadena de valor alineados con dimensiones DNP.
-    
+
     Mapeo con dimensiones del decálogo (decalogo-industrial.latest.clean.json
     y dnp-standards.latest.clean.json):
     - D1: INSUMOS
@@ -399,7 +420,10 @@ class TipoCadenaValor(Enum):
     PRODUCTOS = "Bienes/servicios entregables medibles"
     RESULTADOS = "Cambios conductuales/institucionales"
     IMPACTOS = "Bienestar y desarrollo humano sostenible"
-    CAUSALIDAD = "Teoría de cambio, enlaces causales y modelo lógico de intervención"
+    CAUSALIDAD = (
+        "Teoría de cambio, enlaces causales y modelo lógico de "
+        "intervención"
+    )
 
 
 class TipoEvidencia(Enum):
@@ -499,12 +523,18 @@ class TeoriaCambioAvanzada:
             ]
             for mediador in mediadores_disponibles:
                 G.add_edge(
-                    mediador, resultado, weight=0.8 - (i * 0.1), tipo="causal_mediada"
+                    mediador,
+                    resultado,
+                    weight=0.8 - (i * 0.1),
+                    tipo="causal_mediada"
                 )
 
             # Conexión al impacto final
             G.add_edge(
-                resultado, "impactos", weight=0.9 - (i * 0.05), tipo="causal_final"
+                resultado,
+                "impactos",
+                weight=0.9 - (i * 0.05),
+                tipo="causal_final"
             )
 
         # Moderadores como nodos especiales
@@ -535,13 +565,17 @@ class TeoriaCambioAvanzada:
             avg_clustering = nx.average_clustering(G.to_undirected())
 
             # Análisis de caminos causales
-            mediadores = [n for n in G.nodes if G.nodes[n].get(
-                "tipo") == "mediador"]
+            mediadores = [
+                n for n in G.nodes
+                if G.nodes[n].get("tipo") == "mediador"
+            ]
             resultados = [
-                n for n in G.nodes if G.nodes[n].get("tipo") == "resultado_intermedio"
+                n for n in G.nodes
+                if G.nodes[n].get("tipo") == "resultado_intermedio"
             ]
 
-            # Innovación: Cálculo de fuerza causal usando la clase MathematicalInnovations
+            # Innovación: Cálculo de fuerza causal usando la clase
+            # MathematicalInnovations
             fuerza_causal = MathematicalInnovations.calculate_causal_strength(
                 G, "insumos", "impactos"
             )
@@ -619,14 +653,17 @@ class TeoriaCambioAvanzada:
 @dataclass(frozen=True)
 class EslabonCadenaAvanzado:
     """Eslabón de cadena de valor con capacidades avanzadas.
-    
+
     Representa un eslabón en la cadena de valor de políticas públicas.
-    Los tipos de eslabones están alineados con las 6 dimensiones del decálogo:
-    D1=INSUMOS, D2=ACTIVIDADES, D3=PRODUCTOS, D4=RESULTADOS, D5=IMPACTOS, D6=CAUSALIDAD
-    
+    Los tipos de eslabones están alineados con las 6 dimensiones del
+    decálogo:
+    D1=INSUMOS, D2=ACTIVIDADES, D3=PRODUCTOS, D4=RESULTADOS,
+    D5=IMPACTOS, D6=CAUSALIDAD
+
     Fuentes canónicas:
     - decalogo-industrial.latest.clean.json: 300 preguntas estructuradas
-    - dnp-standards.latest.clean.json: mapeo dimensiones y criterios evaluación
+    - dnp-standards.latest.clean.json: mapeo dimensiones y criterios
+      evaluación
     """
 
     id: str
@@ -672,8 +709,8 @@ class EslabonCadenaAvanzado:
 
             # Lead time normalizado
             lead_time = self.calcular_lead_time()
-            lead_time_normalizado = min(
-                1.0, lead_time / 24
+            lead_time_normalizado = (
+                min(1.0, lead_time / 24)
             )  # Normalización por 24 meses
 
             # Factor de stakeholders
@@ -685,7 +722,9 @@ class EslabonCadenaAvanzado:
                 "intensidad_recursos": intensidad_recursos,
                 "lead_time_normalizado": lead_time_normalizado,
                 "factor_stakeholders": factor_stakeholders,
-                "kpi_ponderado": self.kpi_ponderacion / 3.0,  # Normalización
+                "kpi_ponderado": (
+                    self.kpi_ponderacion / 3.0
+                ),  # Normalización
                 "criticidad_global": (
                     complejidad_operativa + riesgo_agregado + lead_time_normalizado
                 )
@@ -894,29 +933,52 @@ class OntologiaPoliticasAvanzada:
             # Patrones lingüísticos avanzados para detección de evidencia
             patrones_linguisticos_especializados = {
                 "indicadores_desempeño": [
-                    r"\b(?:indicador|metric|medidor|parametro|kpi)\b.*\b(?:de|para|del)\b.*\b(?:desempeño|resultado|impacto|logro)\b",
-                    r"\b(?:medir|evaluar|monitorear|seguir|rastrear)\b.*\b(?:progreso|avance|cumplimiento|efectividad)\b",
-                    r"\b(?:linea\s+base|baseline|situacion\s+inicial|punto\s+partida)\b.*\d+",
-                    r"\b(?:meta|objetivo|target|proposito)\b.*\d+.*\b(?:2024|2025|2026|2027|2028)\b",
+                    r"\b(?:indicador|metric|medidor|parametro|kpi)\b.*"
+                    r"\b(?:de|para|del)\b.*"
+                    r"\b(?:desempeño|resultado|impacto|logro)\b",
+                    r"\b(?:medir|evaluar|monitorear|seguir|rastrear)\b.*"
+                    r"\b(?:progreso|avance|cumplimiento|efectividad)\b",
+                    r"\b(?:linea\s+base|baseline|situacion\s+inicial|"
+                    r"punto\s+partida)\b.*\d+",
+                    r"\b(?:meta|objetivo|target|proposito)\b.*\d+.*"
+                    r"\b(?:2024|2025|2026|2027|2028)\b",
                 ],
                 "recursos_financieros": [
-                    r"\$\s*[\d,.]+(?: millones?| mil(?:es)?| billones?)?\b",
-                    r"\bpresupuesto\b.*\$?[\d,.]+(?: millones?| mil(?:es)?| billones?)?",
-                    r"\b(?:inversion|asignacion|destinacion|cofinanciacion)\b.*\$?[\d,.]+(?: millones?| mil(?:es)?)?",
-                    r"\b(?:recursos|fondos|capital|financiacion)\b.*\$?[\d,.]+(?: millones?| mil(?:es)?)?",
-                    r"\bCOP\s*[\d,.]+(?: millones?| mil(?:es)?| billones?)?\b",
+                    r"\$\s*[\d,.]+(?: millones?| mil(?:es)?| "
+                    r"billones?)?\b",
+                    r"\bpresupuesto\b.*\$?[\d,.]+(?: millones?| "
+                    r"mil(?:es)?| billones?)?",
+                    r"\b(?:inversion|asignacion|destinacion|"
+                    r"cofinanciacion)\b.*\$?[\d,.]+(?: millones?| "
+                    r"mil(?:es)?)?",
+                    r"\b(?:recursos|fondos|capital|financiacion)\b.*"
+                    r"\$?[\d,.]+(?: millones?| mil(?:es)?)?",
+                    r"\bCOP\s*[\d,.]+(?: millones?| mil(?:es)?| "
+                    r"billones?)?\b",
                 ],
                 "responsabilidades_institucionales": [
-                    r"\b(?:responsable|encargado|lidera|coordina|gestiona|ejecuta)\b:\s*\w+",
-                    r"\b(?:secretaria|ministerio|departamento|entidad|institucion)\b.*\b(?:responsable|cargo|funcion)\b",
-                    r"\b(?:quien|que)\b.*\b(?:lidera|coordina|ejecuta|implementa)\b",
-                    r"\brol\b.*\b(?:de|del|para)\b.*\b(?:secretaria|ministerio|entidad)\b",
+                    r"\b(?:responsable|encargado|lidera|coordina|"
+                    r"gestiona|ejecuta)\b:\s*\w+",
+                    r"\b(?:secretaria|ministerio|departamento|entidad|"
+                    r"institucion)\b.*\b(?:responsable|cargo|funcion)\b",
+                    r"\b(?:quien|que)\b.*\b(?:lidera|coordina|ejecuta|"
+                    r"implementa)\b",
+                    r"\brol\b.*\b(?:de|del|para)\b.*"
+                    r"\b(?:secretaria|ministerio|entidad)\b",
                 ],
                 "temporalidad_plazos": [
-                    r"\b(?:plazo|cronograma|calendario|programacion|tiempo)\b.*\b(?:de|para|del)\b.*\b(?:implementacion|ejecucion|desarrollo)\b",
-                    r"\b(?:inicio|comienzo|arranque)\b.*\b(?:en|el|durante)\b.*\b(?:20\d{2}|primer|segundo|tercer|cuarto)\b.*\b(?:trimestre|semestre|año)\b",
-                    r"\b(?:duracion|periodo|etapa|fase)\b.*\b(?:de|del)\b.*\b(?:\d+)\b.*\b(?:meses|años|trimestres)\b",
-                    r"\b(?:hasta|para|antes|durante)\b.*\b(?:20\d{2}|diciembre|final|culminacion)\b",
+                    r"\b(?:plazo|cronograma|calendario|programacion|"
+                    r"tiempo)\b.*\b(?:de|para|del)\b.*"
+                    r"\b(?:implementacion|ejecucion|desarrollo)\b",
+                    r"\b(?:inicio|comienzo|arranque)\b.*"
+                    r"\b(?:en|el|durante)\b.*\b(?:20\d{2}|primer|segundo|"
+                    r"tercer|cuarto)\b.*"
+                    r"\b(?:trimestre|semestre|año)\b",
+                    r"\b(?:duracion|periodo|etapa|fase)\b.*"
+                    r"\b(?:de|del)\b.*\b(?:\d+)\b.*"
+                    r"\b(?:meses|años|trimestres)\b",
+                    r"\b(?:hasta|para|antes|durante)\b.*"
+                    r"\b(?:20\d{2}|diciembre|final|culminacion)\b",
                 ],
                 "impactos_resultados": [
                     r"\b(?:impacto|efecto|resultado|consecuencia|cambio)\b.*\b(?:en|sobre|para)\b.*\b(?:poblacion|comunidad|territorio)\b",
@@ -1201,13 +1263,13 @@ class OntologiaPoliticasAvanzada:
 @dataclass(frozen=True)
 class DimensionDecalogoAvanzada:
     """Dimensión del decálogo con capacidades matemáticas de frontera.
-    
+
     Representa una dimensión de evaluación con múltiples eslabones de cadena de valor.
     El sistema de dimensiones está alineado con el estándar DNP de 6 dimensiones:
     D1=INSUMOS, D2=ACTIVIDADES, D3=PRODUCTOS, D4=RESULTADOS, D5=IMPACTOS, D6=CAUSALIDAD
-    
+
     Cada dimensión contiene 50 preguntas (300 total distribuidas en 6 dimensiones × 50).
-    
+
     Fuentes canónicas:
     - decalogo-industrial.latest.clean.json: estructura de 300 preguntas
     - dnp-standards.latest.clean.json: criterios evaluación por dimensión
@@ -1688,7 +1750,7 @@ class DimensionDecalogoAvanzada:
 # -------------------- Sistema de carga del decálogo avanzado --------------------
 def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
     """Carga el decálogo industrial con capacidades avanzadas.
-    
+
     NOTA: Esta función carga un formato interno avanzado que organiza por
     10 puntos PDET (P1-P10), diferente del formato canónico de 6 dimensiones (D1-D6).
     Para acceso a la estructura canónica, usar decalogo_loader.get_decalogo_industrial().
