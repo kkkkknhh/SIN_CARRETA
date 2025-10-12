@@ -212,13 +212,13 @@ def demo_integration():
         
         # Show statistics
         stats = logger.get_statistics()
-        print(f"\n  Accumulated causal relationships:")
+        print("\n  Accumulated causal relationships:")
         for effect_name, stat in sorted(stats.items()):
             print(f"    {effect_name}: {stat['n_observations']} observations, "
                   f"corr={stat['correlation']:.3f}")
         
         # Check if we have enough data for causal estimation
-        print(f"\n  Checking data sufficiency (min_obs=30):")
+        print("\n  Checking data sufficiency (min_obs=30):")
         for effect_name in logger.get_all_effects():
             n_obs = logger.get_observation_count(effect_name)
             sufficient = logger.has_sufficient_data(effect_name, min_obs=30)
@@ -283,7 +283,7 @@ def demo_causal_estimation_after_accumulation():
                     logger.log_effect("timeframe_to_feasibility", 1.0, feasibility, plan_id)
                 logger.log_effect("smart_score_to_feasibility", smart_score, feasibility, plan_id)
         
-        print(f"  Processed indicators from 50 plans")
+        print("  Processed indicators from 50 plans")
         
         # Estimate causal effects
         print("\n  Estimating causal effects (min_obs=30)...")

@@ -38,16 +38,16 @@ def test_plan_processor_initialization():
                             f"Expected 'config_dir' but got '{first_arg.attr}'"
                         assert isinstance(first_arg.value, ast.Name) and first_arg.value.id == "self", \
                             "config_dir should be passed as 'self.config_dir'"
-                        print(f"    ✓ PlanProcessor initialized with self.config_dir")
+                        print("    ✓ PlanProcessor initialized with self.config_dir")
                         found_call = True
                     else:
-                        print(f"    ✓ PlanProcessor initialized with argument")
+                        print("    ✓ PlanProcessor initialized with argument")
                         found_call = True
                 elif len(node.keywords) > 0:
                     # Check if config_dir is passed as keyword argument
                     config_dir_found = any(kw.arg == "config_dir" for kw in node.keywords)
                     assert config_dir_found, "config_dir keyword argument not found"
-                    print(f"    ✓ PlanProcessor initialized with config_dir keyword argument")
+                    print("    ✓ PlanProcessor initialized with config_dir keyword argument")
                     found_call = True
     
     assert found_call, "PlanProcessor instantiation not found in orchestrator"

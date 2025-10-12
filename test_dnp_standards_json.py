@@ -48,7 +48,7 @@ def test_milagros_line_has_escaped_quotes():
         "Line 1109 should not have unescaped quotes around milagros"
     )
 
-    print(f"✅ Line 1109 has properly escaped quotes")
+    print("✅ Line 1109 has properly escaped quotes")
 
 
 if __name__ == "__main__":

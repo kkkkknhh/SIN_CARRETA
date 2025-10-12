@@ -1458,7 +1458,7 @@ def main():
 
         results = pipeline.evaluate(args.plan, output_dir)
 
-        print(f"\n✅ Evaluation completed successfully")
+        print("\n✅ Evaluation completed successfully")
         print(f"📊 Results saved to: {output_dir}")
         print(f"⏱️  Duration: {results['pipeline_results']['runtime_stats']['duration_seconds']:.1f}s")
         print(f"📝 Evidence entries: {results['pipeline_results']['runtime_stats']['evidence_entries']}")

@@ -211,7 +211,7 @@ if __name__ == "__main__":
     # Display sample question information
     if template.get("questions"):
         sample_q = template["questions"][0]
-        print(f"\nSample question structure:")
+        print("\nSample question structure:")
         print(f"- ID: {sample_q.get('id')}")
         print(f"- Dimension: {sample_q.get('dimension')}")
         print(f"- Point: {sample_q.get('point_code')} - {sample_q.get('point_title')}")

@@ -151,14 +151,14 @@ def verify_alignment(data: Dict) -> bool:
         print(f"  ❌ {error}")
     
     if data.get('total') == stats['total_questions']:
-        print(f"  ✓ 'total' field matches actual count")
+        print("  ✓ 'total' field matches actual count")
     else:
         error = f"'total' field ({data.get('total')}) doesn't match actual count ({stats['total_questions']})"
         all_errors.append(error)
         print(f"  ❌ {error}")
     
     if stats['unique_questions'] == stats['total_questions']:
-        print(f"  ✓ No duplicate questions")
+        print("  ✓ No duplicate questions")
     else:
         duplicates = stats['total_questions'] - stats['unique_questions']
         error = f"Found {duplicates} duplicate questions"

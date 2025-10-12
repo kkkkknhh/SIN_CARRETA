@@ -37,7 +37,7 @@ def demo_basic_usage():
     y = 2.0 + 3.5 * x + np.random.normal(0, 0.5, n_samples)
     
     print(f"\nGenerated {n_samples} synthetic observations")
-    print(f"True relationship: y = 2.0 + 3.5*x + noise")
+    print("True relationship: y = 2.0 + 3.5*x + noise")
     
     # Fit Bayesian model
     model = BayesLinearEffect()
@@ -48,7 +48,7 @@ def demo_basic_usage():
     interval = model.beta1_credible_interval(level=0.95)
     is_sig, prob = model.effect_is_significant(threshold=0.0)
     
-    print(f"\nPosterior Results:")
+    print("\nPosterior Results:")
     print(f"  β₀ (intercept): {beta_mean[0]:.3f}")
     print(f"  β₁ (causal effect): {beta_mean[1]:.3f}")
     print(f"  95% Credible Interval for β₁: [{interval[0]:.3f}, {interval[1]:.3f}]")
@@ -59,7 +59,7 @@ def demo_basic_usage():
     x_new = np.array([0.0, 0.5, 1.0])
     y_pred, y_std = model.predict(x_new, return_std=True)
     
-    print(f"\nPredictions with Uncertainty:")
+    print("\nPredictions with Uncertainty:")
     for i, (x_val, y_val, std) in enumerate(zip(x_new, y_pred, y_std)):
         print(f"  x={x_val:.1f}: y={y_val:.3f} ± {std:.3f}")
 
@@ -104,7 +104,7 @@ def demo_effects_logger():
         
         # Show statistics
         stats = logger.get_statistics()
-        print(f"\nAccumulated Effects:")
+        print("\nAccumulated Effects:")
         for effect_name, stat in stats.items():
             print(f"\n  {effect_name}:")
             print(f"    Observations: {stat['n_observations']}")
@@ -153,16 +153,16 @@ def demo_causal_manager():
         if model_A is None:
             print(f"  effect_A: Insufficient data ({logger.get_observation_count('effect_A')}/30)")
         else:
-            print(f"  effect_A: Estimated successfully")
+            print("  effect_A: Estimated successfully")
         
         model_B = manager.estimate_effect("effect_B")
         if model_B is not None:
             summary = model_B.get_summary()
-            print(f"  effect_B: Estimated successfully")
+            print("  effect_B: Estimated successfully")
             print(f"    β₁ = {summary['beta1_mean']:.3f} {summary['beta1_interval_95']}")
             print(f"    Significant: {summary['effect_significant']}")
         else:
-            print(f"  effect_B: Failed to estimate")
+            print("  effect_B: Failed to estimate")
 
 
 def demo_periodic_analysis():
@@ -240,7 +240,7 @@ def demo_integration_with_policy_analysis():
             plan_id="plan_123"
         )
         
-        print(f"  Logged causal observations for plan_123")
+        print("  Logged causal observations for plan_123")
         
         # Check if we have enough data to estimate effects
         n_obs = logger.get_observation_count("responsibility_to_feasibility")

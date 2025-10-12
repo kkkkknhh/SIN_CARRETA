@@ -216,7 +216,7 @@ def example_usage():
     print("Monitoring job status...")
     try:
         final_status = client.wait_for_completion(job_id, timeout=3600)
-        print(f"Job completed!")
+        print("Job completed!")
         print(f"Progress: {final_status['progress']['progress_percentage']}%")
         print()
         
