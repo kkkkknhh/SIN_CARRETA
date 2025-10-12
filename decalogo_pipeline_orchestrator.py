@@ -39,6 +39,7 @@ raise RuntimeError(
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple, Union, Any, Callable
+import logging
 
 # Import knowledge extractors
 try:

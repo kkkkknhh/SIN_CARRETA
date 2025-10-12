@@ -66,10 +66,10 @@ class FileLocationValidator:
                 return True
                 
         except json.JSONDecodeError as e:
-            self.errors.append(f"❌ {filename} has invalid JSON: {e}")
+            self.errors.append(f"❌ {name} has invalid JSON: {e}")
             return False
         except Exception as e:
-            self.errors.append(f"❌ Error reading {filename}: {e}")
+            self.errors.append(f"❌ Error reading {name}: {e}")
             return False
     
     def validate_module_imports(self) -> bool:
