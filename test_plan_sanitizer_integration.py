@@ -99,7 +99,7 @@ def test_comprehensive_dimension_coverage():
     total_matches = 0
     dimensions_with_matches = 0
     
-    for dimension_key in KEY_ELEMENTS.keys():
+    for dimension_key in KEY_ELEMENTS:
         count = sanitizer.stats['key_elements_preserved'].get(dimension_key, 0)
         dim_label = dimension_names[dimension_key]
         status = "✓" if count > 0 else "✗"
@@ -156,7 +156,7 @@ def test_dimension_pattern_uniqueness():
     
     # Show pattern distribution
     print("\nPattern distribution by dimension:")
-    for dimension in KEY_ELEMENTS.keys():
+    for dimension in KEY_ELEMENTS:
         count = len(KEY_ELEMENTS[dimension])
         print(f"  {dimension:15s}: {count} patterns")
     

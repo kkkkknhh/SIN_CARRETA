@@ -242,7 +242,7 @@ class TeoriaCambioIndustrial:
         return dict(zip(hints_flat.keys(), E))
     def _precompute_prompt_embeddings(self) -> Dict[str, np.ndarray]:
         prompts: Dict[str, str] = {}
-        for p in RUBRIC_HINTS.keys():
+        for p in RUBRIC_HINTS:
             for d in DIMENSIONS:
                 for q in range(1, Q_PER_DIM+1):
                     uid = make_question_uid(p, d, q)
