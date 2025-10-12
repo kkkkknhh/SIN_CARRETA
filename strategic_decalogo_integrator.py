@@ -424,10 +424,7 @@ class CausalGraphAnalyzer:
     @staticmethod
     def _is_confounder_on_path(G: nx.DiGraph, confounder: str, path: List[str]) -> bool:
         """Check if confounder affects any node on the path"""
-        for node in path:
-            if G.has_edge(confounder, node):
-                return True
-        return False
+        return any(G.has_edge(confounder, node) for node in path)
 
     @staticmethod
     def _identify_confounders(G: nx.DiGraph) -> Set[str]:
