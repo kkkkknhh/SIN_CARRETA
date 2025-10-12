@@ -493,6 +493,7 @@ TeoriaCambio = TeoriaCambioIndustrial
 # Enum for element types (backward compatibility)
 class CausalElementType:
     """Enum-like class for causal element types."""
+
     ACTIVITY = "activity"
     OUTPUT = "output"
     OUTCOME = "outcome"
@@ -507,6 +508,7 @@ class CausalElementType:
 # Enum for causal categories (backward compatibility)
 class CategoriaCausal:
     """Enum-like class for causal categories."""
+
     INSUMOS = "INSUMOS"
     PROCESOS = "PROCESOS"
     PRODUCTOS = "PRODUCTOS"
@@ -523,4 +525,3 @@ if __name__ == "__main__":
     tc = TeoriaCambioValidator()
     out = tc.verificar_marco_logico_completo(text)
     print(json.dumps(out, ensure_ascii=False, indent=2))
-

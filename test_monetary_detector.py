@@ -223,8 +223,7 @@ class TestMonetaryDetector(unittest.TestCase):
 
     def test_normalize_monetary_expression_single(self):
         """Test single expression normalization convenience method."""
-        assert self.detector.normalize_monetary_expression(
-            "$1.5M") == 1500000.0
+        assert self.detector.normalize_monetary_expression("$1.5M") == 1500000.0
         assert self.detector.normalize_monetary_expression("25%") == 0.25
         assert self.detector.normalize_monetary_expression("500K") == 500000.0
         assert self.detector.normalize_monetary_expression("invalid") is None

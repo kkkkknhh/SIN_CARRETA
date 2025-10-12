@@ -633,4 +633,3 @@ if __name__ == "__main__":
 
 # Alias for backward compatibility
 MonetaryType = MonetaryCategory
-

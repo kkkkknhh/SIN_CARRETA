@@ -220,14 +220,17 @@ class PlanProcessor:
 # Backward compatibility stubs for test_plan_processor.py
 # ============================================================================
 
+
 class ErrorType:
     """Error type enumeration."""
+
     TRANSIENT = "transient"
     PERMANENT = "permanent"
 
 
 class TransientErrorType:
     """Transient error subtypes."""
+
     FILE_PERMISSION = "file_permission"
     NETWORK_TIMEOUT = "network_timeout"
     TEMPORARY_UNAVAILABLE = "temporary_unavailable"
@@ -235,6 +238,7 @@ class TransientErrorType:
 
 class PermanentErrorType:
     """Permanent error subtypes."""
+
     FILE_NOT_FOUND = "file_not_found"
     OUT_OF_MEMORY = "out_of_memory"
     MALFORMED_PDF = "malformed_pdf"
@@ -243,18 +247,20 @@ class PermanentErrorType:
 
 class PlanProcessingError(Exception):
     """Custom exception for plan processing errors."""
+
     pass
 
 
 class RetryConfig:
     """Configuration for retry logic."""
+
     def __init__(
         self,
         max_retries: int = 3,
         base_delay: float = 1.0,
         exponential_base: float = 2.0,
         max_delay: float = 10.0,
-        jitter: bool = False
+        jitter: bool = False,
     ):
         self.max_retries = max_retries
         self.base_delay = base_delay
@@ -265,14 +271,14 @@ class RetryConfig:
 
 class ErrorClassifier:
     """Classifies errors into transient or permanent categories."""
-    
+
     def classify_error(self, error: Exception) -> tuple:
         """
         Classify an error.
-        
+
         Args:
             error: The exception to classify
-            
+
         Returns:
             Tuple of (error_type, specific_type)
         """
@@ -292,35 +298,37 @@ class ErrorClassifier:
 
 class ErrorLogger:
     """Logs errors for debugging and monitoring."""
-    
+
     def __init__(self, log_dir: str = None):
         self.log_dir = log_dir
         self.errors = []
-    
+
     def log_error(self, error: Exception, context: dict = None):
         """Log an error with context."""
-        self.errors.append({
-            "error": str(error),
-            "type": type(error).__name__,
-            "context": context or {}
-        })
+        self.errors.append(
+            {
+                "error": str(error),
+                "type": type(error).__name__,
+                "context": context or {},
+            }
+        )
 
 
 class FeasibilityPlanProcessor:
     """Plan processor with retry logic and error handling."""
-    
+
     def __init__(self, retry_config: RetryConfig = None):
         self.retry_config = retry_config or RetryConfig()
         self.error_classifier = ErrorClassifier()
         self.error_logger = ErrorLogger()
-    
+
     def _calculate_retry_delay(self, attempt: int) -> float:
         """Calculate retry delay with exponential backoff."""
         delay = self.retry_config.base_delay * (
             self.retry_config.exponential_base ** (attempt - 1)
         )
         return min(delay, self.retry_config.max_delay)
-    
+
     def process(self, plan_text: str) -> dict:
         """Process a plan with retry logic."""
         return {"status": "processed", "text_length": len(plan_text)}

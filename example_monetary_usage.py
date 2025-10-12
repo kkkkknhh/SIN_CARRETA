@@ -108,7 +108,9 @@ def main():
     print(f"\nTotal expressions found: {len(results)}")
 
     # Summary statistics
-    currencies = [r for r in results if r.type == MonetaryCategory.CURRENCY and r.currency]
+    currencies = [
+        r for r in results if r.type == MonetaryCategory.CURRENCY and r.currency
+    ]
     percentages = [r for r in results if r.type == MonetaryCategory.PERCENTAGE]
     numerics = [r for r in results if r.type == MonetaryCategory.NUMERIC]
 
