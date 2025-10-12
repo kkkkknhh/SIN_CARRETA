@@ -161,7 +161,7 @@ def performance_monitor(func):
             return result
         except Exception as e:
             logger.metric(f"{func.__name__}_error")
-            logger.error(f"Function {func.__name__} failed: {str(e)}")
+            logger.error("Function %s failed: %s", func.__name__, str(e))
             raise
         finally:
             duration = time.perf_counter() - start_time
@@ -441,7 +441,7 @@ class StatisticalNumericsAnalyzer:
             }
 
         except Exception as e:
-            logger.error(f"Statistical distance computation failed: {str(e)}")
+            logger.error("Statistical distance computation failed: %s", str(e))
             return {'valid': False, 'error': str(e)}
 
 
@@ -485,7 +485,7 @@ class AdvancedMMR:
             method = getattr(cls, f'_{algorithm}', cls._cosine_mmr)
             return method(query_embedding, document_embeddings, k, lambda_param, **kwargs)
         except Exception as e:
-            logger.error(f"MMR reranking failed with {algorithm}: {str(e)}")
+            logger.error("MMR reranking failed with %s: %s", algorithm, str(e))
             # Fallback to simple relevance ranking
             relevance_scores = cosine_similarity(document_embeddings, query_embedding).ravel()
             top_indices = np.argsort(-relevance_scores)[:k]
@@ -714,7 +714,7 @@ class IndustrialEmbeddingModel:
 
             try:
                 start_time = time.perf_counter()
-                logger.info(f"Initializing model: {config.name}")
+                logger.info("Initializing model: %s", config.name)
 
                 # Load model with timeout
                 model = SentenceTransformer(config.name)
@@ -733,11 +733,11 @@ class IndustrialEmbeddingModel:
                     self.model_config = config
 
                 init_time = time.perf_counter() - start_time
-                logger.info(f"Successfully initialized {config.name} in {init_time:.2f}s")
+                logger.info("Successfully initialized %s in %.2fs", config.name, init_time)
 
                 if model_key != preferred_model:
                     self.quality_metrics['model_switches'] += 1
-                    logger.info(f"Using fallback model: {model_key}")
+                    logger.info("Using fallback model: %s", model_key)
 
                 return
 
@@ -822,7 +822,7 @@ class IndustrialEmbeddingModel:
             # Quality validation if requested
             if quality_check:
                 quality_score = self._assess_embedding_quality(embeddings)
-                logger.debug(f"Embedding quality score: {quality_score:.3f}")
+                logger.debug("Embedding quality score: %.3f", quality_score)
 
             # Cache successful results
             if enable_caching and self.embedding_cache and cache_key:
@@ -836,12 +836,12 @@ class IndustrialEmbeddingModel:
                 self.performance_stats['encode_times'].append(encode_time)
                 self.performance_stats['batch_sizes'].append(len(texts))
 
-            logger.debug(f"Encoded {len(texts)} texts in {encode_time:.3f}s")
+            logger.debug("Encoded %s texts in %.3fs", len(texts), encode_time)
             return embeddings
 
         except Exception as e:
             self.quality_metrics['error_count'] += 1
-            logger.error(f"Encoding failed for {len(texts)} texts: {str(e)}")
+            logger.error("Encoding failed for %s texts: %s", len(texts), str(e))
             raise EmbeddingComputationError(f"Failed to encode texts: {str(e)}")
 
     def _calculate_optimal_batch_size(self, num_texts: int) -> int:
@@ -888,7 +888,7 @@ class IndustrialEmbeddingModel:
 
             except Exception as e:
                 if attempt < max_retries - 1:
-                    logger.warning(f"Encoding attempt {attempt + 1} failed: {str(e)}, retrying in {retry_delay}s")
+                    logger.warning("Encoding attempt %s failed: %s, retrying in %ss", attempt + 1, str(e), retry_delay)
                     time.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
 
@@ -935,7 +935,7 @@ class IndustrialEmbeddingModel:
                 self.instruction_profiles[instruction_hash] = profile
 
             except Exception as e:
-                logger.error(f"Failed to create instruction profile: {str(e)}")
+                logger.error("Failed to create instruction profile: %s", str(e))
                 return embeddings
 
         profile = self.instruction_profiles[instruction_hash]
@@ -993,7 +993,7 @@ class IndustrialEmbeddingModel:
             return transformed
 
         except Exception as e:
-            logger.error(f"Instruction transformation failed: {str(e)}")
+            logger.error("Instruction transformation failed: %s", str(e))
             return embeddings
 
     @staticmethod
@@ -1064,7 +1064,7 @@ class IndustrialEmbeddingModel:
             return float(np.clip(quality_score, 0.0, 1.0))
 
         except Exception as e:
-            logger.error(f"Quality assessment failed: {str(e)}")
+            logger.error("Quality assessment failed: %s", str(e))
             return 0.5
 
     @performance_monitor
@@ -1084,13 +1084,13 @@ class IndustrialEmbeddingModel:
         }
 
         if metric not in similarity_functions:
-            logger.warning(f"Unknown metric '{metric}', falling back to cosine")
+            logger.warning("Unknown metric '%s', falling back to cosine", metric)
             metric = 'cosine'
 
         try:
             return similarity_functions[metric](embeddings_a, embeddings_b)
         except Exception as e:
-            logger.error(f"Similarity computation failed: {str(e)}")
+            logger.error("Similarity computation failed: %s", str(e))
             raise EmbeddingComputationError(f"Failed to compute {metric} similarity: {str(e)}")
 
     @performance_monitor
@@ -1120,7 +1120,7 @@ class IndustrialEmbeddingModel:
                 return [idx for idx, _ in results]
 
         except Exception as e:
-            logger.error(f"MMR reranking failed: {str(e)}")
+            logger.error("MMR reranking failed: %s", str(e))
             # Fallback to simple similarity ranking
             try:
                 similarities = self.compute_similarity(
@@ -1134,7 +1134,7 @@ class IndustrialEmbeddingModel:
                 else:
                     return [int(idx) for idx in top_indices]
             except Exception as fallback_error:
-                logger.error(f"Fallback ranking also failed: {str(fallback_error)}")
+                logger.error("Fallback ranking also failed: %s", str(fallback_error))
                 return [] if return_scores else []
 
     def analyze_numeric_semantics(
@@ -1241,7 +1241,7 @@ class IndustrialEmbeddingModel:
                 results.append(result)
 
             except Exception as e:
-                logger.error(f"Numeric semantic analysis failed for pair {i}: {str(e)}")
+                logger.error("Numeric semantic analysis failed for pair %s: %s", i, str(e))
                 results.append({
                     'pair_index': i,
                     'error': str(e),
@@ -1371,11 +1371,11 @@ class IndustrialEmbeddingModel:
                         f"Removed {len(profiles_to_remove)} unused instruction profiles"
                     )
 
-            logger.info(f"Performance optimization completed: {len(optimization_results['changes_made'])} changes made")
+            logger.info("Performance optimization completed: %s changes made", len(optimization_results['changes_made']))
             return optimization_results
 
         except Exception as e:
-            logger.error(f"Performance optimization failed: {str(e)}")
+            logger.error("Performance optimization failed: %s", str(e))
             return {'error': str(e), 'changes_made': []}
 
     def __enter__(self):
@@ -1390,10 +1390,10 @@ class IndustrialEmbeddingModel:
 
             # Log final diagnostics
             final_diagnostics = self.get_comprehensive_diagnostics()
-            logger.info(f"Industrial embedding model shutdown. Final stats: {final_diagnostics['performance_metrics']}")
+            logger.info("Industrial embedding model shutdown. Final stats: %s", final_diagnostics['performance_metrics'])
 
         except Exception as e:
-            logger.error(f"Cleanup failed: {str(e)}")
+            logger.error("Cleanup failed: %s", str(e))
 
 
 # Factory and utility functions
@@ -1433,7 +1433,7 @@ def create_industrial_embedding_model(
         **kwargs
     }
 
-    logger.info(f"Creating industrial embedding model with tier: {model_tier}")
+    logger.info("Creating industrial embedding model with tier: %s", model_tier)
     return IndustrialEmbeddingModel(**config)
 
 

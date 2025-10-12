@@ -572,7 +572,7 @@ class TeoriaCambioAvanzada:
             }
 
         except Exception as e:
-            LOGGER.warning(f"Error en cálculo causal avanzado: {e}")
+            LOGGER.warning("Error en cálculo causal avanzado: %s", e)
             return {
                 "coeficiente_global": 0.5,
                 "robustez_estructural": 0.4,
@@ -1123,7 +1123,7 @@ class OntologiaPoliticasAvanzada:
             LOGGER.info(
                 f"✅ Template ODS avanzado generado: {indicadores_path}")
         except Exception as e:
-            LOGGER.error(f"❌ Error generando template ODS avanzado: {e}")
+            LOGGER.error("❌ Error generando template ODS avanzado: %s", e)
 
         return indicadores_especializados
 
@@ -1306,7 +1306,7 @@ class DimensionDecalogoAvanzada:
             }
 
         except Exception as e:
-            LOGGER.warning(f"Error evaluando coherencia causal avanzada: {e}")
+            LOGGER.warning("Error evaluando coherencia causal avanzada: %s", e)
             return {
                 "coherencia_global": 0.4,
                 "identificabilidad_causal": 0.4,
@@ -1573,7 +1573,7 @@ class DimensionDecalogoAvanzada:
             return matriz_riesgos
 
         except Exception as e:
-            LOGGER.warning(f"Error generando matriz de riesgos avanzada: {e}")
+            LOGGER.warning("Error generando matriz de riesgos avanzada: %s", e)
             return {
                 e.id: {
                     "riesgos_especificos": ["Error en análisis de riesgos"],
@@ -1782,7 +1782,7 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
             return decalogos
 
         except Exception as e:
-            LOGGER.error(f"❌ Error cargando decálogo avanzado: {e}")
+            LOGGER.error("❌ Error cargando decálogo avanzado: %s", e)
             raise SystemExit("Fallo en carga de decálogo avanzado")
 
     # Generar template avanzado si no existe
@@ -1955,7 +1955,7 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(template_avanzado, f, indent=2, ensure_ascii=False)
 
-    LOGGER.info(f"✅ Template avanzado de decálogo generado: {json_path}")
+    LOGGER.info("✅ Template avanzado de decálogo generado: %s", json_path)
     LOGGER.warning(
         "⚠️ COMPLETE Y VALIDE MANUALMENTE 'decalogo_industrial_avanzado.json'"
     )
@@ -2903,7 +2903,7 @@ def main():
                 f"✅ PDF cargado: {len(documentos)} páginas extraídas"
             )
         except Exception as e:
-            LOGGER.error(f"❌ Error cargando PDF: {e}")
+            LOGGER.error("❌ Error cargando PDF: %s", e)
             return 1
     else:
         # Fallback para pruebas sin PDF
@@ -2934,7 +2934,7 @@ def main():
         resultados_evaluacion = {}
 
         for dimension_id, dimension in contexto.dimensiones_por_id.items():
-            LOGGER.info(f"📊 Evaluando: {dimension.nombre}")
+            LOGGER.info("📊 Evaluando: %s", dimension.nombre)
 
             # Buscar evidencias
             conceptos = [e.id for e in dimension.eslabones]
@@ -3019,7 +3019,7 @@ def main():
                 default=str,
             )
 
-        LOGGER.info(f"✅ Evaluación completada: {args.output}")
+        LOGGER.info("✅ Evaluación completada: %s", args.output)
         LOGGER.info(
             f"📈 Coherencia global: {metricas_globales['coherencia_promedio']:.2%}"
         )
@@ -3030,7 +3030,7 @@ def main():
         return 0
 
     except Exception as e:
-        LOGGER.error(f"❌ Error en evaluación: {e}")
+        LOGGER.error("❌ Error en evaluación: %s", e)
         return 1
 
 
