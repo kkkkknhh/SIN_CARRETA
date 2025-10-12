@@ -51,7 +51,10 @@ def temp_dirs():
     temp_staging = Path(tempfile.mkdtemp())
     temp_results = Path(tempfile.mkdtemp())
 
-    with patch("api.server.STAGING_DIR", temp_staging), patch("api.server.RESULTS_DIR", temp_results):
+    with (
+        patch("api.server.STAGING_DIR", temp_staging),
+        patch("api.server.RESULTS_DIR", temp_results),
+    ):
         yield temp_staging, temp_results
 
     shutil.rmtree(temp_staging, ignore_errors=True)
