@@ -120,11 +120,12 @@ class PatternMatcher:
 
     @staticmethod
     def _find_in_context(context: str, patterns: List[Pattern[str]]) -> List[str]:
-        found: List[str] = []
-        for pattern in patterns:
-            for match in pattern.finditer(context):
-                found.append(match.group().strip())
-        return sorted(set(found))
+        found = {
+            match.group().strip()
+            for pattern in patterns
+            for match in pattern.finditer(context)
+        }
+        return sorted(found)
 
 
 __all__ = ["PatternMatcher"]

@@ -104,7 +104,7 @@ class PlanProcessor:
         for code, keywords in point_keywords.items():
             # Create a large OR pattern, prioritizing longer phrases first
             # Use word boundaries for precise matching
-            sorted_keywords = sorted(list(keywords), key=len, reverse=True)
+            sorted_keywords = sorted(keywords, key=len, reverse=True)
             pattern_str = "|".join(r'\b' + re.escape(kw) + r'\b' for kw in sorted_keywords if kw)
             self.point_patterns[code] = re.compile(f"(?i)({pattern_str})")
 
