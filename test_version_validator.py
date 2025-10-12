@@ -29,28 +29,33 @@ def _fake_numpy(version: str) -> types.ModuleType:
 
 
 class TestInternalHelpers:
-    def test_parse_ver_basic(self):
+    @staticmethod
+    def test_parse_ver_basic():
         assert _parse_ver("1.2.3") == (1, 2, 3)
 
-    def test_parse_ver_extra_tags(self):
+    @staticmethod
+    def test_parse_ver_extra_tags():
         assert _parse_ver("1.21.0rc1") == (1, 21, 0)
         assert _parse_ver("2.0.0+cpu") == (2, 0, 0)
         assert _parse_ver("0.9") == (0, 9, 0)
 
-    def test_cmp(self):
+    @staticmethod
+    def test_cmp():
         assert _cmp("1.2.3", "1.2.3") == 0
         assert _cmp("1.2.4", "1.2.3") == 1
         assert _cmp("1.2.3", "1.3.0") == -1
 
 
 class TestPythonGate:
-    def test_python_gate_matches_runtime(self):
+    @staticmethod
+    def test_python_gate_matches_runtime():
         major, minor = REQUIRED_PYTHON
         # This test passes in environments that actually match REQUIRED_PYTHON.
         if sys.version_info.major == major and sys.version_info.minor == minor:
             validate_environment(strict=True)  # should not raise
 
-    def test_python_gate_mismatch_raises(self, monkeypatch):
+    @staticmethod
+    def test_python_gate_mismatch_raises(monkeypatch):
         major, minor = REQUIRED_PYTHON
         wrong_minor = 9 if minor != 9 else 8
         class FakeVersion:
@@ -67,7 +72,8 @@ class TestPythonGate:
 
 
 class TestNumpyGate:
-    def test_numpy_not_installed_raises(self, monkeypatch):
+    @staticmethod
+    def test_numpy_not_installed_raises(monkeypatch):
         # Remove numpy from sys.modules and make import fail
         monkeypatch.dict(sys.modules, {"numpy": None}, clear=False)
         with pytest.raises(EnvironmentValidationError) as exc:
@@ -79,7 +85,8 @@ class TestNumpyGate:
         # Ensure message carries actionable hint
         assert "pip install" in str(err)
 
-    def test_numpy_old_version_raises(self, monkeypatch):
+    @staticmethod
+    def test_numpy_old_version_raises(monkeypatch):
         old = "1.20.0"
         monkeypatch.dict(sys.modules, {"numpy": _fake_numpy(old)}, clear=False)
         # Force Python gate to pass by mirroring current runtime major/minor
@@ -96,7 +103,8 @@ class TestNumpyGate:
         assert issue.found == old
         assert f">= {NUMPY_MIN}" in issue.required
 
-    def test_numpy_good_version_passes(self, monkeypatch):
+    @staticmethod
+    def test_numpy_good_version_passes(monkeypatch):
         # Pick a version that satisfies >= NUMPY_MIN and (if set) < NUMPY_MAX_EXCL
         good = "1.23.0"
         if NUMPY_MAX_EXCL is not None and _cmp(good, NUMPY_MAX_EXCL) >= 0:
@@ -113,7 +121,8 @@ class TestNumpyGate:
         # Should not raise in strict mode if only NumPy gate is relevant and satisfied
         validate_environment(strict=True)
 
-    def test_numpy_upper_bound_enforced_when_configured(self, monkeypatch):
+    @staticmethod
+    def test_numpy_upper_bound_enforced_when_configured(monkeypatch):
         if NUMPY_MAX_EXCL is None:
             pytest.skip("Upper bound not configured; skip test.")
         bad = NUMPY_MAX_EXCL
@@ -133,7 +142,8 @@ class TestNumpyGate:
 
 
 class TestAggregatedReporting:
-    def test_multiple_issues_aggregate(self, monkeypatch):
+    @staticmethod
+    def test_multiple_issues_aggregate(monkeypatch):
         # Force wrong Python minor AND missing numpy
         class FakeVersion:
             major = sys.version_info.major
@@ -151,7 +161,8 @@ class TestAggregatedReporting:
 
 
 class TestCLI:
-    def test_cli_ok(self, monkeypatch, capsys):
+    @staticmethod
+    def test_cli_ok(monkeypatch, capsys):
         # Make both gates pass
         class FakeVersion:
             major = REQUIRED_PYTHON[0]
@@ -165,7 +176,8 @@ class TestCLI:
         assert rc == 0
         assert "Environment validation: OK" in captured.out
 
-    def test_cli_fail(self, monkeypatch, capsys):
+    @staticmethod
+    def test_cli_fail(monkeypatch, capsys):
         # Force failure
         class FakeVersion:
             major = REQUIRED_PYTHON[0]

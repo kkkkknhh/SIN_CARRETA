@@ -204,13 +204,15 @@ class CausalPatternDetector:
     # ------------------------------------------------------------------
     # Helper methods
     # ------------------------------------------------------------------
-    def _normalise_text(self, text: Optional[str]) -> str:
+    @staticmethod
+    def _normalise_text(text: Optional[str]) -> str:
         if not text:
             return ""
         normalised = unicodedata.normalize("NFC", text)
         return normalised.strip()
 
-    def _extract_sentence(self, text: str, start: int, end: int) -> str:
+    @staticmethod
+    def _extract_sentence(text: str, start: int, end: int) -> str:
         """Return the sentence that contains ``text[start:end]``."""
 
         left = text.rfind(".", 0, start)
@@ -258,7 +260,8 @@ class CausalPatternDetector:
 
         return float(max(0.1, min(1.0, confidence)))
 
-    def _analyse_context(self, sentence: str) -> Dict[str, bool]:
+    @staticmethod
+    def _analyse_context(sentence: str) -> Dict[str, bool]:
         sentence_lower = sentence.lower()
         return {
             "question": "?" in sentence,
@@ -285,7 +288,8 @@ class CausalPatternDetector:
             ),
         }
 
-    def _build_confidence_distribution(self, values: Iterable[float]) -> Dict[str, int]:
+    @staticmethod
+    def _build_confidence_distribution(values: Iterable[float]) -> Dict[str, int]:
         buckets = {
             "0.0-0.25": 0,
             "0.25-0.5": 0,
