@@ -16,7 +16,7 @@ def test_import_does_not_trigger_post_install_setup(monkeypatch):
     instantiation_counter = {"count": 0}
 
     class _SentinelTransformer:
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *_args, **_kwargs):
             instantiation_counter["count"] += 1
             raise RuntimeError(
                 "SentenceTransformer should not be instantiated on import"
