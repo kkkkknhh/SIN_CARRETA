@@ -1236,7 +1236,7 @@ class CanonicalDeterministicOrchestrator:
         # Stage 13: DECALOGO_LOAD (NEW - explicit loading stage)
         decalogo_load_result = self._run_stage(
             PipelineStage.DECALOGO_LOAD,
-            lambda: self._load_decalogo_extractor(),
+            self._load_decalogo_extractor,
             results["stages_completed"]
         )
         results["evaluations"]["decalogo_load"] = decalogo_load_result
@@ -1252,7 +1252,7 @@ class CanonicalDeterministicOrchestrator:
         # Stage 15: QUESTIONNAIRE_EVAL
         questionnaire_eval = self._run_stage(
             PipelineStage.QUESTIONNAIRE_EVAL,
-            lambda: self._parallel_questionnaire_evaluation(),
+            self._parallel_questionnaire_evaluation,
             results["stages_completed"]
         )
         results["evaluations"]["questionnaire"] = questionnaire_eval
