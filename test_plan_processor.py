@@ -54,8 +54,7 @@ class TestErrorClassifier(unittest.TestCase):
 
     def test_memory_error_classified_as_permanent(self):
         classifier = ErrorClassifier()
-        error_type, specific = classifier.classify_error(
-            MemoryError("Out of memory"))
+        error_type, specific = classifier.classify_error(MemoryError("Out of memory"))
         self.assertEqual(error_type, ErrorType.PERMANENT)
         self.assertEqual(specific, PermanentErrorType.OUT_OF_MEMORY)
 
@@ -76,8 +75,7 @@ class TestErrorClassifier(unittest.TestCase):
 
     def test_unknown_error_defaults_to_transient(self):
         classifier = ErrorClassifier()
-        error_type, specific = classifier.classify_error(
-            RuntimeError("Unknown error"))
+        error_type, specific = classifier.classify_error(RuntimeError("Unknown error"))
         self.assertEqual(error_type, ErrorType.TRANSIENT)
         self.assertEqual(specific, TransientErrorType.IO_ERROR)
 
@@ -142,14 +140,16 @@ class TestRetryLogic(unittest.TestCase):
 
     def test_retry_config_calculates_correct_delays(self):
         config = RetryConfig(
-            base_delay=1.0, exponential_base=2.0, max_delay=10.0, jitter=False)
+            base_delay=1.0, exponential_base=2.0, max_delay=10.0, jitter=False
+        )
         processor = FeasibilityPlanProcessor(retry_config=config)
 
         self.assertEqual(processor._calculate_retry_delay(1), 1.0)
         self.assertEqual(processor._calculate_retry_delay(2), 2.0)
         self.assertEqual(processor._calculate_retry_delay(3), 4.0)
-        self.assertEqual(processor._calculate_retry_delay(5),
-                         10.0)  # Capped at max_delay
+        self.assertEqual(
+            processor._calculate_retry_delay(5), 10.0
+        )  # Capped at max_delay
 
     def test_permanent_error_no_retry(self):
         processor = FeasibilityPlanProcessor()
@@ -183,8 +183,7 @@ class TestRetryLogic(unittest.TestCase):
 
     def test_successful_processing_after_retry(self):
         """Test success after transient failures."""
-        config = RetryConfig(
-            max_retries=3, base_delay=0.1)  # Allow more retries
+        config = RetryConfig(max_retries=3, base_delay=0.1)  # Allow more retries
         processor = FeasibilityPlanProcessor(retry_config=config)
 
         # Mock the implementation to fail twice then succeed
@@ -267,8 +266,7 @@ class TestFeasibilityPlanProcessor(unittest.TestCase):
             ({"indicators": ["Indicator 1"]}, "plan_1"),
             ({"indicators": ["Indicator 2"]}, "plan_2"),
             (
-                {"simulate_file_not_found": True,
-                    "indicators": ["Indicator 3"]},
+                {"simulate_file_not_found": True, "indicators": ["Indicator 3"]},
                 "plan_3",
             ),
         ]
@@ -293,8 +291,7 @@ class TestIntegration(unittest.TestCase):
             )
 
             # Process plan that will fail with transient error
-            plan_data = {"simulate_permission_error": True,
-                         "indicators": ["test"]}
+            plan_data = {"simulate_permission_error": True, "indicators": ["test"]}
             result = processor.process_plan(plan_data, "error_test_plan")
 
             self.assertFalse(result.success)
@@ -313,8 +310,7 @@ class TestIntegration(unittest.TestCase):
                 self.assertIn("Permission denied", content)
                 # Check for attempt information
                 self.assertTrue(
-                    "attempt:" in content.lower()
-                    or "attempt_number" in content.lower()
+                    "attempt:" in content.lower() or "attempt_number" in content.lower()
                 )
 
     def test_sample_plans_processing(self):
@@ -323,7 +319,9 @@ class TestIntegration(unittest.TestCase):
         sample_plans = create_sample_plans()
 
         # Convert sample plans to (plan_data, plan_id) tuples
-        plan_tuples = [(plan, plan.get("id", f"plan_{i}")) for i, plan in enumerate(sample_plans)]
+        plan_tuples = [
+            (plan, plan.get("id", f"plan_{i}")) for i, plan in enumerate(sample_plans)
+        ]
         results = processor.batch_process_plans(plan_tuples)
 
         self.assertEqual(len(results), len(sample_plans))
@@ -362,8 +360,7 @@ class TestIntegration(unittest.TestCase):
         result = processor.process_plan(plan_data)
 
         self.assertTrue(result.success)
-        self.assertFalse(
-            result.result_data["processing_metadata"]["scorer_available"])
+        self.assertFalse(result.result_data["processing_metadata"]["scorer_available"])
 
 
 class TestErrorScenarios(unittest.TestCase):
@@ -417,8 +414,7 @@ class TestErrorScenarios(unittest.TestCase):
             processor = FeasibilityPlanProcessor(
                 log_directory=f"test_logs_{processor_id}"
             )
-            plan_data = {"indicators": [
-                f"Indicator for processor {processor_id}"]}
+            plan_data = {"indicators": [f"Indicator for processor {processor_id}"]}
             return processor.process_plan(plan_data, f"plan_{processor_id}")
 
         # Process plans concurrently

@@ -35,7 +35,7 @@ from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
-os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Explicitly indicate that no post-install setup has been performed at import time.
 # Tests rely on this flag being present and False on module import.
@@ -54,6 +54,7 @@ class EmbeddingConfig:
 
     Only the fields required by tests are included to avoid heavy coupling.
     """
+
     calibration_card: Optional[str] = None
     precision: str = "fp32"
     model_name: Optional[str] = None
@@ -95,8 +96,8 @@ class ProductionLogger:
         if not self.logger.handlers:
             handler = logging.StreamHandler()
             formatter = logging.Formatter(
-                '%(asctime)s.%(msecs)03d [%(levelname)s] %(name)s:%(lineno)d - %(message)s',
-                datefmt='%Y-%m-%d %H:%M:%S'
+                "%(asctime)s.%(msecs)03d [%(levelname)s] %(name)s:%(lineno)d - %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
             )
             handler.setFormatter(formatter)
             self.logger.addHandler(handler)
@@ -172,22 +173,26 @@ def performance_monitor(func):
 
 class EmbeddingModelError(Exception):
     """Base exception for embedding model operations."""
+
     pass
 
 
 class ModelInitializationError(EmbeddingModelError):
     """Exception raised when model initialization fails."""
+
     pass
 
 
 class EmbeddingComputationError(EmbeddingModelError):
     """Exception raised during embedding computation."""
+
     pass
 
 
 @dataclass
 class ModelConfiguration:
     """Configuration for embedding models with performance characteristics."""
+
     name: str
     batch_size: int
     dimension: int
@@ -203,6 +208,7 @@ class ModelConfiguration:
 @dataclass
 class InstructionProfile:
     """Profile for instruction-based transformations."""
+
     instruction_hash: str
     embedding: np.ndarray
     usage_count: int = 0
@@ -226,7 +232,8 @@ class AdaptiveCache:
         """Remove expired entries."""
         current_time = time.time()
         expired_keys = [
-            key for key, access_time in self._access_times.items()
+            key
+            for key, access_time in self._access_times.items()
             if current_time - access_time > self.ttl_seconds
         ]
         for key in expired_keys:
@@ -252,7 +259,8 @@ class AdaptiveCache:
             if len(self._cache) >= self.max_size:
                 # Evict least recently used with lowest access count
                 scores = {
-                    k: self._access_counts[k] / (time.time() - self._access_times.get(k, 0) + 1)
+                    k: self._access_counts[k]
+                    / (time.time() - self._access_times.get(k, 0) + 1)
                     for k in self._cache.keys()
                 }
                 worst_key = min(scores.keys(), key=lambda k: scores[k])
@@ -271,7 +279,7 @@ class AdaptiveCache:
                 "size": len(self._cache),
                 "max_size": self.max_size,
                 "total_accesses": sum(self._access_counts.values()),
-                "unique_keys": len(self._access_counts)
+                "unique_keys": len(self._access_counts),
             }
 
 
@@ -280,26 +288,33 @@ class StatisticalNumericsAnalyzer:
 
     # Comprehensive numeric pattern recognition
     NUMERIC_PATTERNS = {
-        'integers': re.compile(r'(?<!\w)-?\b\d{1,20}\b(?!\w)'),
-        'decimals': re.compile(r'(?<!\w)-?\b\d{1,10}[.,]\d{1,10}\b(?!\w)'),
-        'percentages': re.compile(r'\b\d{1,3}(?:[.,]\d{1,4})?%'),
-        'currency_usd': re.compile(r'\$\s*\d{1,3}(?:,?\d{3})*(?:\.\d{2})?'),
-        'currency_eur': re.compile(r'€\s*\d{1,3}(?:[.,]?\d{3})*(?:[.,]\d{2})?'),
-        'scientific': re.compile(r'\b\d+(?:\.\d+)?[eE][+-]?\d+\b'),
-        'ratios': re.compile(r'\b\d+:\d+(?::\d+)*\b'),
-        'ranges': re.compile(r'\b\d+(?:[.,]\d+)?\s*[-–—]\s*\d+(?:[.,]\d+)?\b'),
-        'ordinals': re.compile(r'\b\d{1,3}(?:st|nd|rd|th)\b', re.IGNORECASE),
-        'fractions': re.compile(r'\b\d+/\d+\b'),
-        'units_metric': re.compile(r'\b\d+(?:[.,]\d+)?\s*(?:km|m|cm|mm|kg|g|mg|l|ml)\b', re.IGNORECASE),
-        'units_imperial': re.compile(r'\b\d+(?:[.,]\d+)?\s*(?:miles?|feet|ft|inches?|in|pounds?|lbs?|ounces?|oz)\b',
-                                     re.IGNORECASE),
-        'time_units': re.compile(
-            r'\b\d+(?:[.,]\d+)?\s*(?:years?|months?|weeks?|days?|hours?|hrs?|minutes?|mins?|seconds?|secs?)\b',
-            re.IGNORECASE)
+        "integers": re.compile(r"(?<!\w)-?\b\d{1,20}\b(?!\w)"),
+        "decimals": re.compile(r"(?<!\w)-?\b\d{1,10}[.,]\d{1,10}\b(?!\w)"),
+        "percentages": re.compile(r"\b\d{1,3}(?:[.,]\d{1,4})?%"),
+        "currency_usd": re.compile(r"\$\s*\d{1,3}(?:,?\d{3})*(?:\.\d{2})?"),
+        "currency_eur": re.compile(r"€\s*\d{1,3}(?:[.,]?\d{3})*(?:[.,]\d{2})?"),
+        "scientific": re.compile(r"\b\d+(?:\.\d+)?[eE][+-]?\d+\b"),
+        "ratios": re.compile(r"\b\d+:\d+(?::\d+)*\b"),
+        "ranges": re.compile(r"\b\d+(?:[.,]\d+)?\s*[-–—]\s*\d+(?:[.,]\d+)?\b"),
+        "ordinals": re.compile(r"\b\d{1,3}(?:st|nd|rd|th)\b", re.IGNORECASE),
+        "fractions": re.compile(r"\b\d+/\d+\b"),
+        "units_metric": re.compile(
+            r"\b\d+(?:[.,]\d+)?\s*(?:km|m|cm|mm|kg|g|mg|l|ml)\b", re.IGNORECASE
+        ),
+        "units_imperial": re.compile(
+            r"\b\d+(?:[.,]\d+)?\s*(?:miles?|feet|ft|inches?|in|pounds?|lbs?|ounces?|oz)\b",
+            re.IGNORECASE,
+        ),
+        "time_units": re.compile(
+            r"\b\d+(?:[.,]\d+)?\s*(?:years?|months?|weeks?|days?|hours?|hrs?|minutes?|mins?|seconds?|secs?)\b",
+            re.IGNORECASE,
+        ),
     }
 
     @classmethod
-    def extract_comprehensive_numerics(cls, text: str) -> Dict[str, List[Dict[str, Any]]]:
+    def extract_comprehensive_numerics(
+        cls, text: str
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """Extract all numeric information with context and metadata."""
         results = {}
 
@@ -316,13 +331,15 @@ class StatisticalNumericsAnalyzer:
                         end_pos = min(len(text), match.end() + 20)
                         context = text[start_pos:end_pos].strip()
 
-                        matches.append({
-                            'raw_text': raw_value,
-                            'numeric_value': cleaned_value,
-                            'position': (match.start(), match.end()),
-                            'context': context,
-                            'pattern_type': pattern_name
-                        })
+                        matches.append(
+                            {
+                                "raw_text": raw_value,
+                                "numeric_value": cleaned_value,
+                                "position": (match.start(), match.end()),
+                                "context": context,
+                                "pattern_type": pattern_name,
+                            }
+                        )
                 except (ValueError, OverflowError, AttributeError):
                     continue
 
@@ -335,55 +352,60 @@ class StatisticalNumericsAnalyzer:
         """Clean and convert numeric string to float."""
         try:
             # Remove common prefixes/suffixes
-            cleaned = re.sub(r'[$€£¥%]', '', raw)
-            cleaned = re.sub(r'\b(?:st|nd|rd|th)\b', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"[$€£¥%]", "", raw)
+            cleaned = re.sub(r"\b(?:st|nd|rd|th)\b", "", cleaned, flags=re.IGNORECASE)
             cleaned = re.sub(
-                r'\b(?:km|m|cm|mm|kg|g|mg|l|ml|miles?|feet|ft|inches?|in|pounds?|lbs?|ounces?|oz|years?|months?|weeks?|days?|hours?|hrs?|minutes?|mins?|seconds?|secs?)\b',
-                '', cleaned, flags=re.IGNORECASE)
+                r"\b(?:km|m|cm|mm|kg|g|mg|l|ml|miles?|feet|ft|inches?|in|pounds?|lbs?|ounces?|oz|years?|months?|weeks?|days?|hours?|hrs?|minutes?|mins?|seconds?|secs?)\b",
+                "",
+                cleaned,
+                flags=re.IGNORECASE,
+            )
 
             # Handle ratios
-            if ':' in cleaned:
-                parts = cleaned.split(':')
+            if ":" in cleaned:
+                parts = cleaned.split(":")
                 return float(parts[0]) / float(parts[1]) if len(parts) == 2 else None
 
             # Handle fractions
-            if '/' in cleaned and pattern_type == 'fractions':
-                parts = cleaned.split('/')
+            if "/" in cleaned and pattern_type == "fractions":
+                parts = cleaned.split("/")
                 return float(parts[0]) / float(parts[1]) if len(parts) == 2 else None
 
             # Handle ranges (return midpoint)
-            if any(sep in cleaned for sep in ['-', '–', '—']):
-                for sep in ['-', '–', '—']:
+            if any(sep in cleaned for sep in ["-", "–", "—"]):
+                for sep in ["-", "–", "—"]:
                     if sep in cleaned:
                         parts = cleaned.split(sep)
                         if len(parts) == 2:
                             try:
-                                low = float(parts[0].strip().replace(',', ''))
-                                high = float(parts[1].strip().replace(',', ''))
+                                low = float(parts[0].strip().replace(",", ""))
+                                high = float(parts[1].strip().replace(",", ""))
                                 return (low + high) / 2
                             except ValueError:
                                 continue
                         break
 
             # Standard numeric conversion
-            cleaned = cleaned.replace(',', '').strip()
+            cleaned = cleaned.replace(",", "").strip()
             return float(cleaned) if cleaned else None
 
         except (ValueError, ZeroDivisionError):
             return None
 
     @classmethod
-    def compute_statistical_distances(cls, nums1: List[float], nums2: List[float]) -> Dict[str, float]:
+    def compute_statistical_distances(
+        cls, nums1: List[float], nums2: List[float]
+    ) -> Dict[str, float]:
         """Compute comprehensive statistical distance metrics."""
         if not nums1 or not nums2:
-            return {'valid': False}
+            return {"valid": False}
 
         # Align sequences by length
         min_len = min(len(nums1), len(nums2))
         n1, n2 = np.array(nums1[:min_len]), np.array(nums2[:min_len])
 
         if min_len == 0:
-            return {'valid': False}
+            return {"valid": False}
 
         try:
             # Basic distance metrics
@@ -392,12 +414,18 @@ class StatisticalNumericsAnalyzer:
 
             # Statistical tests
             try:
-                ks_stat, ks_pvalue = stats.ks_2samp(n1, n2) if min_len > 1 else (0.0, 1.0)
+                ks_stat, ks_pvalue = (
+                    stats.ks_2samp(n1, n2) if min_len > 1 else (0.0, 1.0)
+                )
             except:
                 ks_stat, ks_pvalue = 0.0, 1.0
 
             try:
-                mw_stat, mw_pvalue = stats.mannwhitneyu(n1, n2, alternative='two-sided') if min_len > 1 else (0.0, 1.0)
+                mw_stat, mw_pvalue = (
+                    stats.mannwhitneyu(n1, n2, alternative="two-sided")
+                    if min_len > 1
+                    else (0.0, 1.0)
+                )
             except:
                 mw_stat, mw_pvalue = 0.0, 1.0
 
@@ -418,53 +446,56 @@ class StatisticalNumericsAnalyzer:
                     return 0.0
 
             return {
-                'valid': True,
-                'count': min_len,
-                'max_absolute_diff': float(np.max(abs_diffs)),
-                'mean_absolute_diff': float(np.mean(abs_diffs)),
-                'max_relative_diff': float(np.max(rel_diffs)),
-                'mean_relative_diff': float(np.mean(rel_diffs)),
-                'euclidean_distance': float(np.linalg.norm(abs_diffs)),
-                'cosine_similarity': float(np.dot(n1, n2) / (np.linalg.norm(n1) * np.linalg.norm(n2) + 1e-12)),
-                'pearson_correlation': float(np.corrcoef(n1, n2)[0, 1]) if min_len > 1 and np.var(
-                    n1) > 1e-12 and np.var(n2) > 1e-12 else 0.0,
-                'kolmogorov_smirnov_statistic': float(ks_stat),
-                'kolmogorov_smirnov_pvalue': float(ks_pvalue),
-                'mann_whitney_statistic': float(mw_stat),
-                'mann_whitney_pvalue': float(mw_pvalue),
-                'moment_differences': {
-                    'mean_diff': abs(safe_moment(n1, 1) - safe_moment(n2, 1)),
-                    'variance_diff': abs(safe_moment(n1, 2) - safe_moment(n2, 2)),
-                    'skewness_diff': abs(safe_moment(n1, 3) - safe_moment(n2, 3)),
-                    'kurtosis_diff': abs(safe_moment(n1, 4) - safe_moment(n2, 4))
-                }
+                "valid": True,
+                "count": min_len,
+                "max_absolute_diff": float(np.max(abs_diffs)),
+                "mean_absolute_diff": float(np.mean(abs_diffs)),
+                "max_relative_diff": float(np.max(rel_diffs)),
+                "mean_relative_diff": float(np.mean(rel_diffs)),
+                "euclidean_distance": float(np.linalg.norm(abs_diffs)),
+                "cosine_similarity": float(
+                    np.dot(n1, n2) / (np.linalg.norm(n1) * np.linalg.norm(n2) + 1e-12)
+                ),
+                "pearson_correlation": float(np.corrcoef(n1, n2)[0, 1])
+                if min_len > 1 and np.var(n1) > 1e-12 and np.var(n2) > 1e-12
+                else 0.0,
+                "kolmogorov_smirnov_statistic": float(ks_stat),
+                "kolmogorov_smirnov_pvalue": float(ks_pvalue),
+                "mann_whitney_statistic": float(mw_stat),
+                "mann_whitney_pvalue": float(mw_pvalue),
+                "moment_differences": {
+                    "mean_diff": abs(safe_moment(n1, 1) - safe_moment(n2, 1)),
+                    "variance_diff": abs(safe_moment(n1, 2) - safe_moment(n2, 2)),
+                    "skewness_diff": abs(safe_moment(n1, 3) - safe_moment(n2, 3)),
+                    "kurtosis_diff": abs(safe_moment(n1, 4) - safe_moment(n2, 4)),
+                },
             }
 
         except Exception as e:
             logger.error("Statistical distance computation failed: %s", str(e))
-            return {'valid': False, 'error': str(e)}
+            return {"valid": False, "error": str(e)}
 
 
 class AdvancedMMR:
     """Advanced Maximal Marginal Relevance with multiple diversity algorithms."""
 
     DIVERSITY_ALGORITHMS = {
-        'cosine_mmr': 'Standard MMR with cosine similarity',
-        'euclidean_mmr': 'MMR with Euclidean distance diversity',
-        'angular_mmr': 'MMR with angular diversity',
-        'clustering_mmr': 'MMR with cluster-aware diversity',
-        'entropy_mmr': 'MMR with information-theoretic diversity'
+        "cosine_mmr": "Standard MMR with cosine similarity",
+        "euclidean_mmr": "MMR with Euclidean distance diversity",
+        "angular_mmr": "MMR with angular diversity",
+        "clustering_mmr": "MMR with cluster-aware diversity",
+        "entropy_mmr": "MMR with information-theoretic diversity",
     }
 
     @classmethod
     def rerank_documents(
-            cls,
-            query_embedding: np.ndarray,
-            document_embeddings: np.ndarray,
-            k: int,
-            algorithm: str = 'cosine_mmr',
-            lambda_param: float = 0.7,
-            **kwargs
+        cls,
+        query_embedding: np.ndarray,
+        document_embeddings: np.ndarray,
+        k: int,
+        algorithm: str = "cosine_mmr",
+        lambda_param: float = 0.7,
+        **kwargs,
     ) -> List[Tuple[int, float]]:
         """
         Advanced MMR re-ranking with multiple diversity algorithms.
@@ -482,12 +513,16 @@ class AdvancedMMR:
             query_embedding = query_embedding.reshape(1, -1)
 
         try:
-            method = getattr(cls, f'_{algorithm}', cls._cosine_mmr)
-            return method(query_embedding, document_embeddings, k, lambda_param, **kwargs)
+            method = getattr(cls, f"_{algorithm}", cls._cosine_mmr)
+            return method(
+                query_embedding, document_embeddings, k, lambda_param, **kwargs
+            )
         except Exception as e:
             logger.error("MMR reranking failed with %s: %s", algorithm, str(e))
             # Fallback to simple relevance ranking
-            relevance_scores = cosine_similarity(document_embeddings, query_embedding).ravel()
+            relevance_scores = cosine_similarity(
+                document_embeddings, query_embedding
+            ).ravel()
             top_indices = np.argsort(-relevance_scores)[:k]
             return [(int(idx), float(relevance_scores[idx])) for idx in top_indices]
 
@@ -508,12 +543,19 @@ class AdvancedMMR:
         # Iteratively select remaining documents
         while candidates and len(selected) < k:
             best_idx = None
-            best_score = float('-inf')
+            best_score = float("-inf")
 
             for candidate_idx in candidates:
                 relevance = relevance_scores[candidate_idx]
-                max_similarity = np.max([similarity_matrix[candidate_idx, sel_idx] for sel_idx, _ in selected])
-                mmr_score = lambda_param * relevance - (1 - lambda_param) * max_similarity
+                max_similarity = np.max(
+                    [
+                        similarity_matrix[candidate_idx, sel_idx]
+                        for sel_idx, _ in selected
+                    ]
+                )
+                mmr_score = (
+                    lambda_param * relevance - (1 - lambda_param) * max_similarity
+                )
 
                 if mmr_score > best_score:
                     best_score = mmr_score
@@ -540,20 +582,26 @@ class AdvancedMMR:
 
         while candidates and len(selected) < k:
             best_idx = None
-            best_score = float('-inf')
+            best_score = float("-inf")
 
             for candidate_idx in candidates:
                 relevance = relevance_scores[candidate_idx]
 
                 # Compute minimum Euclidean distance to selected documents
-                min_distance = min([
-                    np.linalg.norm(doc_embs[candidate_idx] - doc_embs[sel_idx])
-                    for sel_idx, _ in selected
-                ])
+                min_distance = min(
+                    [
+                        np.linalg.norm(doc_embs[candidate_idx] - doc_embs[sel_idx])
+                        for sel_idx, _ in selected
+                    ]
+                )
 
                 # Normalize distance to [0,1] range for combination with relevance
-                normalized_distance = min_distance / (np.sqrt(doc_embs.shape[1]) + 1e-12)
-                mmr_score = lambda_param * relevance + (1 - lambda_param) * normalized_distance
+                normalized_distance = min_distance / (
+                    np.sqrt(doc_embs.shape[1]) + 1e-12
+                )
+                mmr_score = (
+                    lambda_param * relevance + (1 - lambda_param) * normalized_distance
+                )
 
                 if mmr_score > best_score:
                     best_score = mmr_score
@@ -566,7 +614,9 @@ class AdvancedMMR:
         return selected
 
     @classmethod
-    def _clustering_mmr(cls, query_emb, doc_embs, k, lambda_param, min_clusters=2, **kwargs):
+    def _clustering_mmr(
+        cls, query_emb, doc_embs, k, lambda_param, min_clusters=2, **kwargs
+    ):
         """MMR with cluster-aware diversity."""
         if len(doc_embs) < min_clusters:
             return cls._cosine_mmr(query_emb, doc_embs, k, lambda_param)
@@ -588,17 +638,21 @@ class AdvancedMMR:
         # Select documents considering cluster diversity
         while candidates and len(selected) < k:
             best_idx = None
-            best_score = float('-inf')
+            best_score = float("-inf")
 
             for candidate_idx in candidates:
                 relevance = relevance_scores[candidate_idx]
                 candidate_cluster = cluster_labels[candidate_idx]
 
                 # Penalize over-representation of clusters
-                cluster_penalty = cluster_counts[candidate_cluster] / (len(selected) + 1)
+                cluster_penalty = cluster_counts[candidate_cluster] / (
+                    len(selected) + 1
+                )
                 diversity_bonus = 1.0 - cluster_penalty
 
-                mmr_score = lambda_param * relevance + (1 - lambda_param) * diversity_bonus
+                mmr_score = (
+                    lambda_param * relevance + (1 - lambda_param) * diversity_bonus
+                )
 
                 if mmr_score > best_score:
                     best_score = mmr_score
@@ -627,43 +681,43 @@ class IndustrialEmbeddingModel:
 
     # Production model configurations
     MODEL_CONFIGURATIONS = {
-        'primary_large': ModelConfiguration(
+        "primary_large": ModelConfiguration(
             name="sentence-transformers/all-mpnet-base-v2",
             batch_size=16,
             dimension=768,
             max_seq_length=384,
             quality_tier="premium",
             memory_footprint_mb=420,
-            avg_encode_time_ms=45.0
+            avg_encode_time_ms=45.0,
         ),
-        'secondary_efficient': ModelConfiguration(
+        "secondary_efficient": ModelConfiguration(
             name="sentence-transformers/all-MiniLM-L6-v2",
             batch_size=32,
             dimension=384,
             max_seq_length=256,
             quality_tier="standard",
             memory_footprint_mb=90,
-            avg_encode_time_ms=12.0
+            avg_encode_time_ms=12.0,
         ),
-        'fallback_fast': ModelConfiguration(
+        "fallback_fast": ModelConfiguration(
             name="sentence-transformers/paraphrase-MiniLM-L3-v2",
             batch_size=64,
             dimension=384,
             max_seq_length=128,
             quality_tier="basic",
             memory_footprint_mb=45,
-            avg_encode_time_ms=8.0
-        )
+            avg_encode_time_ms=8.0,
+        ),
     }
 
     def __init__(
-            self,
-            preferred_model: str = 'primary_large',
-            enable_adaptive_caching: bool = True,
-            cache_size: int = 50000,
-            enable_instruction_learning: bool = True,
-            thread_pool_size: int = 4,
-            performance_monitoring: bool = True
+        self,
+        preferred_model: str = "primary_large",
+        enable_adaptive_caching: bool = True,
+        cache_size: int = 50000,
+        enable_instruction_learning: bool = True,
+        thread_pool_size: int = 4,
+        performance_monitoring: bool = True,
     ):
         """Initialize industrial embedding model."""
 
@@ -673,7 +727,11 @@ class IndustrialEmbeddingModel:
         self.tokenizer = None
 
         # Advanced caching system
-        self.embedding_cache = AdaptiveCache(cache_size, ttl_seconds=7200) if enable_adaptive_caching else None
+        self.embedding_cache = (
+            AdaptiveCache(cache_size, ttl_seconds=7200)
+            if enable_adaptive_caching
+            else None
+        )
         self.instruction_profiles = {}
 
         # Performance and monitoring
@@ -687,11 +745,11 @@ class IndustrialEmbeddingModel:
 
         # Quality assessment
         self.quality_metrics = {
-            'total_embeddings': 0,
-            'cache_hits': 0,
-            'model_switches': 0,
-            'instruction_applications': 0,
-            'error_count': 0
+            "total_embeddings": 0,
+            "cache_hits": 0,
+            "model_switches": 0,
+            "instruction_applications": 0,
+            "error_count": 0,
         }
 
         # Thread safety
@@ -703,7 +761,9 @@ class IndustrialEmbeddingModel:
 
     def _initialize_model_hierarchy(self, preferred_model: str) -> None:
         """Initialize embedding model with intelligent fallback."""
-        models_to_try = [preferred_model] + [k for k in self.MODEL_CONFIGURATIONS.keys() if k != preferred_model]
+        models_to_try = [preferred_model] + [
+            k for k in self.MODEL_CONFIGURATIONS.keys() if k != preferred_model
+        ]
 
         initialization_errors = []
 
@@ -720,11 +780,15 @@ class IndustrialEmbeddingModel:
                 model = SentenceTransformer(config.name)
 
                 # Validation embedding to ensure model works
-                test_embedding = model.encode(["Industrial embedding system validation"], normalize_embeddings=True)
+                test_embedding = model.encode(
+                    ["Industrial embedding system validation"],
+                    normalize_embeddings=True,
+                )
 
                 if test_embedding.shape[1] != config.dimension:
                     logger.warning(
-                        f"Dimension mismatch for {config.name}: expected {config.dimension}, got {test_embedding.shape[1]}")
+                        f"Dimension mismatch for {config.name}: expected {config.dimension}, got {test_embedding.shape[1]}"
+                    )
                     config.dimension = test_embedding.shape[1]
 
                 # Success - store model and configuration
@@ -733,10 +797,12 @@ class IndustrialEmbeddingModel:
                     self.model_config = config
 
                 init_time = time.perf_counter() - start_time
-                logger.info("Successfully initialized %s in %.2fs", config.name, init_time)
+                logger.info(
+                    "Successfully initialized %s in %.2fs", config.name, init_time
+                )
 
                 if model_key != preferred_model:
-                    self.quality_metrics['model_switches'] += 1
+                    self.quality_metrics["model_switches"] += 1
                     logger.info("Using fallback model: %s", model_key)
 
                 return
@@ -749,18 +815,20 @@ class IndustrialEmbeddingModel:
 
         # If all models failed
         error_summary = "\n".join(initialization_errors)
-        raise ModelInitializationError(f"Failed to initialize any embedding model:\n{error_summary}")
+        raise ModelInitializationError(
+            f"Failed to initialize any embedding model:\n{error_summary}"
+        )
 
     @performance_monitor
     def encode(
-            self,
-            texts: Union[str, List[str]],
-            batch_size: Optional[int] = None,
-            normalize_embeddings: bool = True,
-            instruction: Optional[str] = None,
-            instruction_strength: float = 0.4,
-            enable_caching: bool = True,
-            quality_check: bool = False
+        self,
+        texts: Union[str, List[str]],
+        batch_size: Optional[int] = None,
+        normalize_embeddings: bool = True,
+        instruction: Optional[str] = None,
+        instruction_strength: float = 0.4,
+        enable_caching: bool = True,
+        quality_check: bool = False,
     ) -> np.ndarray:
         """
         Encode texts with advanced features and monitoring.
@@ -792,14 +860,16 @@ class IndustrialEmbeddingModel:
                 str(hash(tuple(texts))),
                 str(normalize_embeddings),
                 instruction or "",
-                str(instruction_strength)
+                str(instruction_strength),
             ]
-            cache_key = hashlib.sha256("|".join(cache_components).encode()).hexdigest()[:16]
+            cache_key = hashlib.sha256("|".join(cache_components).encode()).hexdigest()[
+                :16
+            ]
 
             cached_result = self.embedding_cache.get(cache_key)
             if cached_result is not None:
-                self.quality_metrics['cache_hits'] += 1
-                logger.metric('embedding_cache_hit')
+                self.quality_metrics["cache_hits"] += 1
+                logger.metric("embedding_cache_hit")
                 return cached_result
 
         try:
@@ -817,7 +887,7 @@ class IndustrialEmbeddingModel:
                 embeddings = self._apply_advanced_instruction_transform(
                     embeddings, instruction, instruction_strength
                 )
-                self.quality_metrics['instruction_applications'] += 1
+                self.quality_metrics["instruction_applications"] += 1
 
             # Quality validation if requested
             if quality_check:
@@ -829,18 +899,18 @@ class IndustrialEmbeddingModel:
                 self.embedding_cache.put(cache_key, embeddings)
 
             # Update metrics
-            self.quality_metrics['total_embeddings'] += len(texts)
+            self.quality_metrics["total_embeddings"] += len(texts)
             encode_time = time.perf_counter() - start_time
 
             if self._enable_monitoring:
-                self.performance_stats['encode_times'].append(encode_time)
-                self.performance_stats['batch_sizes'].append(len(texts))
+                self.performance_stats["encode_times"].append(encode_time)
+                self.performance_stats["batch_sizes"].append(len(texts))
 
             logger.debug("Encoded %s texts in %.3fs", len(texts), encode_time)
             return embeddings
 
         except Exception as e:
-            self.quality_metrics['error_count'] += 1
+            self.quality_metrics["error_count"] += 1
             logger.error("Encoding failed for %s texts: %s", len(texts), str(e))
             raise EmbeddingComputationError(f"Failed to encode texts: {str(e)}")
 
@@ -857,10 +927,7 @@ class IndustrialEmbeddingModel:
             return base_batch_size
 
     def _encode_with_recovery(
-            self,
-            texts: List[str],
-            batch_size: int,
-            normalize: bool
+        self, texts: List[str], batch_size: int, normalize: bool
     ) -> np.ndarray:
         """Encode with automatic error recovery and retry logic."""
         max_retries = 3
@@ -874,7 +941,7 @@ class IndustrialEmbeddingModel:
                         batch_size=batch_size,
                         normalize_embeddings=normalize,
                         show_progress_bar=False,
-                        convert_to_numpy=True
+                        convert_to_numpy=True,
                     )
 
                 # Ensure correct data type and shape
@@ -882,26 +949,31 @@ class IndustrialEmbeddingModel:
 
                 if embeddings.shape[0] != len(texts):
                     raise EmbeddingComputationError(
-                        f"Shape mismatch: expected {len(texts)} embeddings, got {embeddings.shape[0]}")
+                        f"Shape mismatch: expected {len(texts)} embeddings, got {embeddings.shape[0]}"
+                    )
 
                 return embeddings
 
             except Exception as e:
                 if attempt < max_retries - 1:
-                    logger.warning("Encoding attempt %s failed: %s, retrying in %ss", attempt + 1, str(e), retry_delay)
+                    logger.warning(
+                        "Encoding attempt %s failed: %s, retrying in %ss",
+                        attempt + 1,
+                        str(e),
+                        retry_delay,
+                    )
                     time.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
 
                     # Try reducing batch size on retry
                     batch_size = max(1, batch_size // 2)
                 else:
-                    raise EmbeddingComputationError(f"All encoding attempts failed: {str(e)}")
+                    raise EmbeddingComputationError(
+                        f"All encoding attempts failed: {str(e)}"
+                    )
 
     def _apply_advanced_instruction_transform(
-            self,
-            embeddings: np.ndarray,
-            instruction: str,
-            strength: float
+        self, embeddings: np.ndarray, instruction: str, strength: float
     ) -> np.ndarray:
         """Apply sophisticated instruction-based transformation with learning."""
 
@@ -924,7 +996,7 @@ class IndustrialEmbeddingModel:
                     instruction_hash=instruction_hash,
                     embedding=instruction_embedding,
                     usage_count=0,
-                    effectiveness_score=0.5  # Default neutral effectiveness
+                    effectiveness_score=0.5,  # Default neutral effectiveness
                 )
 
                 # Assess instruction semantic coherence
@@ -967,9 +1039,11 @@ class IndustrialEmbeddingModel:
 
             # Weighted combination with adaptive strength
             transformed = (
-                    (1.0 - adaptive_strength) * embeddings +
-                    adaptive_strength * projection_matrix +
-                    0.1 * adaptive_strength * orthogonal_component  # Preserve some orthogonality
+                (1.0 - adaptive_strength) * embeddings
+                + adaptive_strength * projection_matrix
+                + 0.1
+                * adaptive_strength
+                * orthogonal_component  # Preserve some orthogonality
             )
 
             # Advanced re-normalization with numerical stability
@@ -986,8 +1060,8 @@ class IndustrialEmbeddingModel:
                 # Update effectiveness score with exponential moving average
                 alpha = 0.1
                 profile.effectiveness_score = (
-                        alpha * quality_improvement +
-                        (1 - alpha) * profile.effectiveness_score
+                    alpha * quality_improvement
+                    + (1 - alpha) * profile.effectiveness_score
                 )
 
             return transformed
@@ -997,7 +1071,9 @@ class IndustrialEmbeddingModel:
             return embeddings
 
     @staticmethod
-    def _assess_instruction_coherence(instruction_emb: np.ndarray, embeddings: np.ndarray) -> float:
+    def _assess_instruction_coherence(
+        instruction_emb: np.ndarray, embeddings: np.ndarray
+    ) -> float:
         """Assess semantic coherence between instruction and embeddings."""
         try:
             similarities = embeddings @ instruction_emb
@@ -1008,9 +1084,7 @@ class IndustrialEmbeddingModel:
 
     @staticmethod
     def _assess_transformation_quality(
-            original: np.ndarray,
-            transformed: np.ndarray,
-            instruction_emb: np.ndarray
+        original: np.ndarray, transformed: np.ndarray, instruction_emb: np.ndarray
     ) -> float:
         """Assess quality of instruction transformation."""
         try:
@@ -1019,7 +1093,9 @@ class IndustrialEmbeddingModel:
             transformed_alignment = np.mean(np.abs(transformed @ instruction_emb))
 
             # Measure preservation of original information
-            similarity_preservation = np.mean(np.diag(cosine_similarity(original, transformed)))
+            similarity_preservation = np.mean(
+                np.diag(cosine_similarity(original, transformed))
+            )
 
             # Combined quality score
             alignment_improvement = transformed_alignment - original_alignment
@@ -1069,39 +1145,40 @@ class IndustrialEmbeddingModel:
 
     @performance_monitor
     def compute_similarity(
-            self,
-            embeddings_a: np.ndarray,
-            embeddings_b: np.ndarray,
-            metric: str = 'cosine'
+        self, embeddings_a: np.ndarray, embeddings_b: np.ndarray, metric: str = "cosine"
     ) -> np.ndarray:
         """Compute similarity with multiple distance metrics."""
 
         similarity_functions = {
-            'cosine': cosine_similarity,
-            'euclidean': lambda a, b: 1.0 / (1.0 + euclidean_distances(a, b)),
-            'manhattan': lambda a, b: 1.0 / (1.0 + np.sum(np.abs(a[:, None, :] - b[None, :, :]), axis=2)),
-            'angular': lambda a, b: 1.0 - np.arccos(np.clip(cosine_similarity(a, b), -1, 1)) / np.pi
+            "cosine": cosine_similarity,
+            "euclidean": lambda a, b: 1.0 / (1.0 + euclidean_distances(a, b)),
+            "manhattan": lambda a, b: 1.0
+            / (1.0 + np.sum(np.abs(a[:, None, :] - b[None, :, :]), axis=2)),
+            "angular": lambda a, b: 1.0
+            - np.arccos(np.clip(cosine_similarity(a, b), -1, 1)) / np.pi,
         }
 
         if metric not in similarity_functions:
             logger.warning("Unknown metric '%s', falling back to cosine", metric)
-            metric = 'cosine'
+            metric = "cosine"
 
         try:
             return similarity_functions[metric](embeddings_a, embeddings_b)
         except Exception as e:
             logger.error("Similarity computation failed: %s", str(e))
-            raise EmbeddingComputationError(f"Failed to compute {metric} similarity: {str(e)}")
+            raise EmbeddingComputationError(
+                f"Failed to compute {metric} similarity: {str(e)}"
+            )
 
     @performance_monitor
     def rerank_with_mmr(
-            self,
-            query_embedding: np.ndarray,
-            document_embeddings: np.ndarray,
-            k: int,
-            algorithm: str = 'cosine_mmr',
-            lambda_param: float = 0.7,
-            return_scores: bool = True
+        self,
+        query_embedding: np.ndarray,
+        document_embeddings: np.ndarray,
+        k: int,
+        algorithm: str = "cosine_mmr",
+        lambda_param: float = 0.7,
+        return_scores: bool = True,
     ) -> Union[List[int], List[Tuple[int, float]]]:
         """Advanced MMR re-ranking with multiple algorithms."""
 
@@ -1111,7 +1188,7 @@ class IndustrialEmbeddingModel:
                 document_embeddings=document_embeddings,
                 k=k,
                 algorithm=algorithm,
-                lambda_param=lambda_param
+                lambda_param=lambda_param,
             )
 
             if return_scores:
@@ -1124,8 +1201,7 @@ class IndustrialEmbeddingModel:
             # Fallback to simple similarity ranking
             try:
                 similarities = self.compute_similarity(
-                    document_embeddings,
-                    query_embedding.reshape(1, -1)
+                    document_embeddings, query_embedding.reshape(1, -1)
                 ).ravel()
                 top_indices = np.argsort(-similarities)[:k]
 
@@ -1138,10 +1214,10 @@ class IndustrialEmbeddingModel:
                 return [] if return_scores else []
 
     def analyze_numeric_semantics(
-            self,
-            text_pairs: List[Tuple[str, str]],
-            instruction: Optional[str] = None,
-            detailed_analysis: bool = True
+        self,
+        text_pairs: List[Tuple[str, str]],
+        instruction: Optional[str] = None,
+        detailed_analysis: bool = True,
     ) -> List[Dict[str, Any]]:
         """
         Comprehensive numeric semantic analysis for text pairs.
@@ -1160,9 +1236,7 @@ class IndustrialEmbeddingModel:
             try:
                 # Generate embeddings for the pair
                 embeddings = self.encode(
-                    [text1, text2],
-                    instruction=instruction,
-                    quality_check=True
+                    [text1, text2], instruction=instruction, quality_check=True
                 )
 
                 # Semantic similarity
@@ -1181,73 +1255,99 @@ class IndustrialEmbeddingModel:
 
                 for numeric_type in set(numerics1.keys()) | set(numerics2.keys()):
                     if numeric_type in numerics1 and numeric_type in numerics2:
-                        values1 = [item['numeric_value'] for item in numerics1[numeric_type] if
-                                   item['numeric_value'] is not None]
-                        values2 = [item['numeric_value'] for item in numerics2[numeric_type] if
-                                   item['numeric_value'] is not None]
+                        values1 = [
+                            item["numeric_value"]
+                            for item in numerics1[numeric_type]
+                            if item["numeric_value"] is not None
+                        ]
+                        values2 = [
+                            item["numeric_value"]
+                            for item in numerics2[numeric_type]
+                            if item["numeric_value"] is not None
+                        ]
 
                         stats = analyzer.compute_statistical_distances(values1, values2)
                         statistical_analysis[numeric_type] = stats
 
                         # Risk assessment
-                        if stats.get('valid', False):
+                        if stats.get("valid", False):
                             high_semantic_sim = semantic_similarity > 0.85
-                            significant_numeric_diff = stats.get('max_relative_diff', 0) > 0.25
+                            significant_numeric_diff = (
+                                stats.get("max_relative_diff", 0) > 0.25
+                            )
 
-                            if high_semantic_sim and significant_numeric_diff and len(values1) > 0:
-                                overall_risk_indicators.append({
-                                    'type': numeric_type,
-                                    'risk_level': 'high',
-                                    'semantic_similarity': semantic_similarity,
-                                    'max_relative_diff': stats['max_relative_diff']
-                                })
+                            if (
+                                high_semantic_sim
+                                and significant_numeric_diff
+                                and len(values1) > 0
+                            ):
+                                overall_risk_indicators.append(
+                                    {
+                                        "type": numeric_type,
+                                        "risk_level": "high",
+                                        "semantic_similarity": semantic_similarity,
+                                        "max_relative_diff": stats["max_relative_diff"],
+                                    }
+                                )
 
                 # Comprehensive result
                 result = {
-                    'pair_index': i,
-                    'texts': {'text1': text1, 'text2': text2},
-                    'semantic_similarity': semantic_similarity,
-                    'instruction_used': instruction,
-                    'extracted_numerics': {
-                        'text1': numerics1,
-                        'text2': numerics2
+                    "pair_index": i,
+                    "texts": {"text1": text1, "text2": text2},
+                    "semantic_similarity": semantic_similarity,
+                    "instruction_used": instruction,
+                    "extracted_numerics": {"text1": numerics1, "text2": numerics2},
+                    "statistical_analysis": statistical_analysis,
+                    "risk_assessment": {
+                        "overall_risk_level": "high"
+                        if overall_risk_indicators
+                        else "low",
+                        "risk_indicators": overall_risk_indicators,
+                        "confusion_potential": len(overall_risk_indicators) > 0,
                     },
-                    'statistical_analysis': statistical_analysis,
-                    'risk_assessment': {
-                        'overall_risk_level': 'high' if overall_risk_indicators else 'low',
-                        'risk_indicators': overall_risk_indicators,
-                        'confusion_potential': len(overall_risk_indicators) > 0
-                    }
                 }
 
                 if detailed_analysis:
                     # Additional detailed metrics
-                    result['detailed_metrics'] = {
-                        'embedding_quality_scores': [
+                    result["detailed_metrics"] = {
+                        "embedding_quality_scores": [
                             self._assess_embedding_quality(embeddings[0:1]),
-                            self._assess_embedding_quality(embeddings[1:2])
+                            self._assess_embedding_quality(embeddings[1:2]),
                         ],
-                        'semantic_coherence': self._assess_instruction_coherence(
+                        "semantic_coherence": self._assess_instruction_coherence(
                             embeddings[0], embeddings[1:2]
-                        ) if instruction else None,
-                        'numeric_complexity': {
-                            'text1_numeric_types': len(numerics1),
-                            'text2_numeric_types': len(numerics2),
-                            'total_numbers_text1': sum(len(items) for items in numerics1.values()),
-                            'total_numbers_text2': sum(len(items) for items in numerics2.values())
-                        }
+                        )
+                        if instruction
+                        else None,
+                        "numeric_complexity": {
+                            "text1_numeric_types": len(numerics1),
+                            "text2_numeric_types": len(numerics2),
+                            "total_numbers_text1": sum(
+                                len(items) for items in numerics1.values()
+                            ),
+                            "total_numbers_text2": sum(
+                                len(items) for items in numerics2.values()
+                            ),
+                        },
                     }
 
                 results.append(result)
 
             except Exception as e:
-                logger.error("Numeric semantic analysis failed for pair %s: %s", i, str(e))
-                results.append({
-                    'pair_index': i,
-                    'error': str(e),
-                    'semantic_similarity': 0.0,
-                    'risk_assessment': {'overall_risk_level': 'unknown', 'confusion_potential': False}
-                })
+                logger.error(
+                    "Numeric semantic analysis failed for pair %s: %s", i, str(e)
+                )
+                results.append(
+                    {
+                        "pair_index": i,
+                        "error": str(e),
+                        "semantic_similarity": 0.0,
+                        "risk_assessment": {
+                            "overall_risk_level": "unknown",
+                            "confusion_potential": False,
+                        },
+                    }
+                )
 
         return results
 
@@ -1255,40 +1355,40 @@ class IndustrialEmbeddingModel:
         """Get comprehensive system diagnostics and performance metrics."""
 
         diagnostics = {
-            'model_info': {
-                'name': self.model_config.name,
-                'dimension': self.model_config.dimension,
-                'quality_tier': self.model_config.quality_tier,
-                'max_sequence_length': self.model_config.max_seq_length,
-                'memory_footprint_mb': self.model_config.memory_footprint_mb
+            "model_info": {
+                "name": self.model_config.name,
+                "dimension": self.model_config.dimension,
+                "quality_tier": self.model_config.quality_tier,
+                "max_sequence_length": self.model_config.max_seq_length,
+                "memory_footprint_mb": self.model_config.memory_footprint_mb,
             },
-            'performance_metrics': {
+            "performance_metrics": {
                 **self.quality_metrics,
-                'cache_hit_rate': (
-                        self.quality_metrics['cache_hits'] /
-                        max(self.quality_metrics['total_embeddings'], 1)
+                "cache_hit_rate": (
+                    self.quality_metrics["cache_hits"]
+                    / max(self.quality_metrics["total_embeddings"], 1)
                 ),
-                'error_rate': (
-                        self.quality_metrics['error_count'] /
-                        max(self.quality_metrics['total_embeddings'], 1)
-                )
+                "error_rate": (
+                    self.quality_metrics["error_count"]
+                    / max(self.quality_metrics["total_embeddings"], 1)
+                ),
             },
-            'system_status': {
-                'model_loaded': self.model is not None,
-                'cache_enabled': self.embedding_cache is not None,
-                'instruction_learning_enabled': self.instruction_learning_enabled,
-                'thread_pool_active': not self.thread_pool._shutdown,
-                'monitoring_enabled': self._enable_monitoring
+            "system_status": {
+                "model_loaded": self.model is not None,
+                "cache_enabled": self.embedding_cache is not None,
+                "instruction_learning_enabled": self.instruction_learning_enabled,
+                "thread_pool_active": not self.thread_pool._shutdown,
+                "monitoring_enabled": self._enable_monitoring,
             },
-            'resource_utilization': {
-                'instruction_profiles_count': len(self.instruction_profiles),
-                'thread_pool_size': self.thread_pool._max_workers,
-            }
+            "resource_utilization": {
+                "instruction_profiles_count": len(self.instruction_profiles),
+                "thread_pool_size": self.thread_pool._max_workers,
+            },
         }
 
         # Cache diagnostics
         if self.embedding_cache:
-            diagnostics['cache_diagnostics'] = self.embedding_cache.stats()
+            diagnostics["cache_diagnostics"] = self.embedding_cache.stats()
 
         # Performance statistics
         if self._enable_monitoring and self.performance_stats:
@@ -1296,61 +1396,68 @@ class IndustrialEmbeddingModel:
             for metric_name, values in self.performance_stats.items():
                 if values:
                     perf_stats[metric_name] = {
-                        'count': len(values),
-                        'mean': float(np.mean(values)),
-                        'std': float(np.std(values)),
-                        'min': float(np.min(values)),
-                        'max': float(np.max(values)),
-                        'p95': float(np.percentile(values, 95))
+                        "count": len(values),
+                        "mean": float(np.mean(values)),
+                        "std": float(np.std(values)),
+                        "min": float(np.min(values)),
+                        "max": float(np.max(values)),
+                        "p95": float(np.percentile(values, 95)),
                     }
-            diagnostics['performance_statistics'] = perf_stats
+            diagnostics["performance_statistics"] = perf_stats
 
         # Instruction learning diagnostics
         if self.instruction_profiles:
             instruction_stats = {
-                'total_profiles': len(self.instruction_profiles),
-                'average_usage_count': np.mean([p.usage_count for p in self.instruction_profiles.values()]),
-                'average_effectiveness': np.mean([p.effectiveness_score for p in self.instruction_profiles.values()]),
-                'most_used_instruction': max(
-                    self.instruction_profiles.values(),
-                    key=lambda p: p.usage_count
-                ).instruction_hash[:8]
+                "total_profiles": len(self.instruction_profiles),
+                "average_usage_count": np.mean(
+                    [p.usage_count for p in self.instruction_profiles.values()]
+                ),
+                "average_effectiveness": np.mean(
+                    [p.effectiveness_score for p in self.instruction_profiles.values()]
+                ),
+                "most_used_instruction": max(
+                    self.instruction_profiles.values(), key=lambda p: p.usage_count
+                ).instruction_hash[:8],
             }
-            diagnostics['instruction_learning'] = instruction_stats
+            diagnostics["instruction_learning"] = instruction_stats
 
         # Logger metrics
-        diagnostics['logger_metrics'] = logger.get_metrics()
+        diagnostics["logger_metrics"] = logger.get_metrics()
 
         return diagnostics
 
     def optimize_performance(self, target_latency_ms: float = 100.0) -> Dict[str, Any]:
         """Automatically optimize performance settings based on usage patterns."""
 
-        optimization_results = {'changes_made': [], 'performance_impact': {}}
+        optimization_results = {"changes_made": [], "performance_impact": {}}
 
         try:
             # Analyze current performance
             current_metrics = self.get_comprehensive_diagnostics()
 
-            if 'performance_statistics' in current_metrics:
-                encode_stats = current_metrics['performance_statistics'].get('encode', {})
-                avg_latency_ms = encode_stats.get('mean', 0) * 1000
+            if "performance_statistics" in current_metrics:
+                encode_stats = current_metrics["performance_statistics"].get(
+                    "encode", {}
+                )
+                avg_latency_ms = encode_stats.get("mean", 0) * 1000
 
                 # Optimize batch size if latency is too high
                 if avg_latency_ms > target_latency_ms * 1.5:
                     new_batch_size = max(1, int(self.model_config.batch_size * 0.8))
                     if new_batch_size != self.model_config.batch_size:
                         self.model_config.batch_size = new_batch_size
-                        optimization_results['changes_made'].append(
+                        optimization_results["changes_made"].append(
                             f"Reduced batch size to {new_batch_size} for lower latency"
                         )
 
                 # Increase cache size if hit rate is low
-                cache_hit_rate = current_metrics['performance_metrics']['cache_hit_rate']
+                cache_hit_rate = current_metrics["performance_metrics"][
+                    "cache_hit_rate"
+                ]
                 if cache_hit_rate < 0.3 and self.embedding_cache:
                     # Double cache size
                     self.embedding_cache.max_size *= 2
-                    optimization_results['changes_made'].append(
+                    optimization_results["changes_made"].append(
                         f"Increased cache size to {self.embedding_cache.max_size}"
                     )
 
@@ -1359,24 +1466,29 @@ class IndustrialEmbeddingModel:
                 # Remove least used profiles older than 1 hour
                 current_time = time.time()
                 profiles_to_remove = [
-                    hash_key for hash_key, profile in self.instruction_profiles.items()
-                    if (current_time - profile.last_used) > 3600 and profile.usage_count < 3
+                    hash_key
+                    for hash_key, profile in self.instruction_profiles.items()
+                    if (current_time - profile.last_used) > 3600
+                    and profile.usage_count < 3
                 ]
 
                 for hash_key in profiles_to_remove:
                     del self.instruction_profiles[hash_key]
 
                 if profiles_to_remove:
-                    optimization_results['changes_made'].append(
+                    optimization_results["changes_made"].append(
                         f"Removed {len(profiles_to_remove)} unused instruction profiles"
                     )
 
-            logger.info("Performance optimization completed: %s changes made", len(optimization_results['changes_made']))
+            logger.info(
+                "Performance optimization completed: %s changes made",
+                len(optimization_results["changes_made"]),
+            )
             return optimization_results
 
         except Exception as e:
             logger.error("Performance optimization failed: %s", str(e))
-            return {'error': str(e), 'changes_made': []}
+            return {"error": str(e), "changes_made": []}
 
     def __enter__(self):
         """Context manager entry."""
@@ -1390,7 +1502,10 @@ class IndustrialEmbeddingModel:
 
             # Log final diagnostics
             final_diagnostics = self.get_comprehensive_diagnostics()
-            logger.info("Industrial embedding model shutdown. Final stats: %s", final_diagnostics['performance_metrics'])
+            logger.info(
+                "Industrial embedding model shutdown. Final stats: %s",
+                final_diagnostics["performance_metrics"],
+            )
 
         except Exception as e:
             logger.error("Cleanup failed: %s", str(e))
@@ -1398,10 +1513,10 @@ class IndustrialEmbeddingModel:
 
 # Factory and utility functions
 def create_industrial_embedding_model(
-        model_tier: str = "premium",
-        enable_advanced_features: bool = True,
-        cache_size: int = 50000,
-        **kwargs
+    model_tier: str = "premium",
+    enable_advanced_features: bool = True,
+    cache_size: int = 50000,
+    **kwargs,
 ) -> IndustrialEmbeddingModel:
     """
     Factory function to create industrial-grade embedding model.
@@ -1419,18 +1534,18 @@ def create_industrial_embedding_model(
     model_mapping = {
         "premium": "primary_large",
         "standard": "secondary_efficient",
-        "basic": "fallback_fast"
+        "basic": "fallback_fast",
     }
 
     preferred_model = model_mapping.get(model_tier, "primary_large")
 
     config = {
-        'preferred_model': preferred_model,
-        'enable_adaptive_caching': enable_advanced_features,
-        'cache_size': cache_size,
-        'enable_instruction_learning': enable_advanced_features,
-        'performance_monitoring': enable_advanced_features,
-        **kwargs
+        "preferred_model": preferred_model,
+        "enable_adaptive_caching": enable_advanced_features,
+        "cache_size": cache_size,
+        "enable_instruction_learning": enable_advanced_features,
+        "performance_monitoring": enable_advanced_features,
+        **kwargs,
     }
 
     logger.info("Creating industrial embedding model with tier: %s", model_tier)
@@ -1445,7 +1560,6 @@ def production_deployment_example():
 
     # Create model with context manager for proper cleanup
     with create_industrial_embedding_model(model_tier="premium") as model:
-
         # Real-world document corpus
         documents = [
             "The quarterly financial report shows revenue increased by 23.5% to $2.8 million this fiscal period.",
@@ -1457,7 +1571,7 @@ def production_deployment_example():
             "Employee satisfaction surveys indicate 87% positive feedback on workplace culture initiatives implemented last quarter.",
             "Customer retention rates improved to 94.2% following the launch of our enhanced support program last month.",
             "Environmental sustainability efforts reduced carbon emissions by 18.3% compared to baseline measurements.",
-            "Market research indicates consumer preference shifting toward eco-friendly products with 76% adoption rate."
+            "Market research indicates consumer preference shifting toward eco-friendly products with 76% adoption rate.",
         ]
 
         # Complex query with instruction
@@ -1470,7 +1584,7 @@ def production_deployment_example():
 
         print("\nModel Configuration:")
         diagnostics = model.get_comprehensive_diagnostics()
-        model_info = diagnostics['model_info']
+        model_info = diagnostics["model_info"]
         for key, value in model_info.items():
             print(f"  {key}: {value}")
 
@@ -1485,13 +1599,11 @@ def production_deployment_example():
             documents,
             instruction=instruction,
             instruction_strength=0.45,
-            quality_check=True
+            quality_check=True,
         )
 
         query_embedding = model.encode(
-            query,
-            instruction=instruction,
-            instruction_strength=0.45
+            query, instruction=instruction, instruction_strength=0.45
         )
 
         encoding_time = time.perf_counter() - start_time
@@ -1502,8 +1614,7 @@ def production_deployment_example():
 
         # Standard similarity ranking
         similarities = model.compute_similarity(
-            document_embeddings,
-            query_embedding.reshape(1, -1)
+            document_embeddings, query_embedding.reshape(1, -1)
         ).ravel()
 
         standard_ranking = np.argsort(-similarities)
@@ -1516,7 +1627,7 @@ def production_deployment_example():
             print()
 
         # Advanced MMR with different algorithms
-        mmr_algorithms = ['cosine_mmr', 'euclidean_mmr', 'clustering_mmr']
+        mmr_algorithms = ["cosine_mmr", "euclidean_mmr", "clustering_mmr"]
 
         for algorithm in mmr_algorithms:
             print(f"\n{f'MMR Ranking ({algorithm}):':<40}")
@@ -1528,11 +1639,13 @@ def production_deployment_example():
                 k=5,
                 algorithm=algorithm,
                 lambda_param=0.7,
-                return_scores=True
+                return_scores=True,
             )
 
             for i, (doc_idx, score) in enumerate(mmr_results):
-                print(f"{i + 1}. MMR Score: {score:.4f} | Sim: {similarities[doc_idx]:.4f}")
+                print(
+                    f"{i + 1}. MMR Score: {score:.4f} | Sim: {similarities[doc_idx]:.4f}"
+                )
                 print(f"   {documents[doc_idx]}")
                 print()
 
@@ -1542,18 +1655,18 @@ def production_deployment_example():
 
         # Analyze potentially confusing document pairs
         test_pairs = [
-            (documents[0], documents[1]),  # Similar financial reports with different numbers
+            (
+                documents[0],
+                documents[1],
+            ),  # Similar financial reports with different numbers
             (documents[4], documents[5]),  # Similar supply chain reports
-            (documents[2], documents[3])  # Similar AI technology descriptions
+            (documents[2], documents[3]),  # Similar AI technology descriptions
         ]
 
         numeric_analysis = model.analyze_numeric_semantics(
-            test_pairs,
-            instruction=instruction,
-            detailed_analysis=True
+            test_pairs, instruction=instruction, detailed_analysis=True
         )
 
         for i, analysis in enumerate(numeric_analysis):
             print(f"\nPair {i + 1} Analysis:")
             print(f"  Semantic Similarity: {analysis['semantic_similarity']:.4f}")
-            

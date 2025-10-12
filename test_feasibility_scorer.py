@@ -220,27 +220,23 @@ class TestFeasibilityScorer:
                     f"Missing component {expected_component} in '{indicator_data['text']}'"
                 )
 
-
     @staticmethod
     def _assert_indicator_results(result, indicator_data):
         """
         Helper method to assert common indicator result properties.
-        
+
         Args:
             result: FeasibilityScorer result object
             indicator_data: Expected indicator data dictionary
         """
-        assert (
-            abs(result.feasibility_score - indicator_data["expected_score"]) <= 0.15
-        )
+        assert abs(result.feasibility_score - indicator_data["expected_score"]) <= 0.15
         assert result.quality_tier == indicator_data["expected_tier"]
         assert (
             result.has_quantitative_baseline
             == indicator_data["has_quantitative_baseline"]
         )
         assert (
-            result.has_quantitative_target
-            == indicator_data["has_quantitative_target"]
+            result.has_quantitative_target == indicator_data["has_quantitative_target"]
         )
 
     @staticmethod
@@ -418,7 +414,9 @@ class TestFeasibilityScorer:
         assert len(results_extended) == 15
 
         # Test with parallel disabled
-        scorer_no_parallel = make_scorer(enable_parallel=False, n_jobs=1, backend="threading")
+        scorer_no_parallel = make_scorer(
+            enable_parallel=False, n_jobs=1, backend="threading"
+        )
         results_no_parallel = scorer_no_parallel.batch_score(indicators)
         assert len(results_no_parallel) == 3
 
@@ -436,7 +434,9 @@ class TestFeasibilityScorer:
         assert scorer_custom.backend == "threading"
 
         # Test with parallel disabled
-        scorer_disabled = make_scorer(enable_parallel=False, n_jobs=1, backend="threading")
+        scorer_disabled = make_scorer(
+            enable_parallel=False, n_jobs=1, backend="threading"
+        )
         assert not scorer_disabled.enable_parallel
 
     @staticmethod
@@ -1166,7 +1166,10 @@ def test_feasibility_scorer_picklable_roundtrip():
     original_score = scorer.calculate_feasibility_score(sample_text)
     restored_score = restored.calculate_feasibility_score(sample_text)
 
-    assert pytest.approx(original_score.feasibility_score) == restored_score.feasibility_score
+    assert (
+        pytest.approx(original_score.feasibility_score)
+        == restored_score.feasibility_score
+    )
     assert original_score.components_detected == restored_score.components_detected
 
 
