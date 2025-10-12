@@ -124,7 +124,7 @@ def trace_test_flow(
     except Exception as e:
         status = "FAILED"
         error = str(e)
-        result = None
+        _result = None
     finally:
         # Stop tracing
         tracer.stop_tracing()

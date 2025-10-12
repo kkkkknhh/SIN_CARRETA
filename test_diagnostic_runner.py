@@ -180,7 +180,7 @@ def test_contract_validator_output_validation():
     assert valid is True
 
     # Invalid output (None)
-    valid, errors = validator.validate_output(PipelineStage.SANITIZATION, None)
+    valid, _errors = validator.validate_output(PipelineStage.SANITIZATION, None)
     assert valid is False
 
 
@@ -271,7 +271,7 @@ def test_diagnostic_wrapper_metrics_collection(mock_orchestrator):
 
 def test_diagnostic_wrapper_preserves_determinism(mock_orchestrator):
     """Test that wrapper preserves deterministic execution."""
-    wrapper = DiagnosticWrapper(mock_orchestrator)
+    _wrapper = DiagnosticWrapper(mock_orchestrator)
 
     # Execute same method twice
     result1 = mock_orchestrator._sanitize({"text": "test"})
@@ -470,7 +470,7 @@ def test_performance_overhead_minimal(mock_orchestrator):
     mock_orchestrator._sanitize.return_value = {"sanitized_text": "test"}
 
     # Execute with wrapper
-    wrapper = DiagnosticWrapper(mock_orchestrator)
+    _wrapper = DiagnosticWrapper(mock_orchestrator)
     start = time.perf_counter()
     for _ in range(100):
         mock_orchestrator._sanitize({"text": "test"})
