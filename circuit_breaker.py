@@ -133,6 +133,23 @@ class CircuitBreaker:
         elapsed = datetime.now() - self.opened_at
         return elapsed.total_seconds() >= self.config.timeout_seconds
 
+    def _check_circuit_state(self):
+        """
+        Check circuit state and handle OPEN state transitions.
+        
+        Raises:
+            CircuitBreakerError: If circuit is OPEN and cannot be reset
+        """
+        if self.state == CircuitState.OPEN:
+            if self._should_attempt_reset():
+                self._transition_to(CircuitState.HALF_OPEN)
+            else:
+                self.metrics.rejected_calls += 1
+                raise CircuitBreakerError(
+                    f"Circuit '{self.name}' is OPEN. "
+                    f"Retry after {self.config.timeout_seconds}s"
+                )
+
     def call(self, func: Callable, *args, **kwargs) -> Any:
         """
         Execute function with circuit breaker protection.
@@ -142,17 +159,7 @@ class CircuitBreaker:
         """
         with self.lock:
             self.metrics.total_calls += 1
-
-            # Check circuit state
-            if self.state == CircuitState.OPEN:
-                if self._should_attempt_reset():
-                    self._transition_to(CircuitState.HALF_OPEN)
-                else:
-                    self.metrics.rejected_calls += 1
-                    raise CircuitBreakerError(
-                        f"Circuit '{self.name}' is OPEN. "
-                        f"Retry after {self.config.timeout_seconds}s"
-                    )
+            self._check_circuit_state()
 
         # Execute the function
         start_time = time.time()
@@ -209,26 +216,23 @@ class CircuitBreaker:
             f"Circuit '{self.name}' failure #{self.metrics.consecutive_failures}: {exception}"
         )
 
-        # Open circuit if threshold reached
-        if self.state == CircuitState.CLOSED:
-            if self.metrics.consecutive_failures >= self.config.failure_threshold:
-                self._transition_to(CircuitState.OPEN)
-
-        # Go back to OPEN if failure in HALF_OPEN
-        elif self.state == CircuitState.HALF_OPEN:
+        # Transition to OPEN if:
+        # - Circuit is CLOSED and failure threshold reached
+        # - Circuit is HALF_OPEN (any failure immediately opens it)
+        should_open = (
+            (self.state == CircuitState.CLOSED and 
+             self.metrics.consecutive_failures >= self.config.failure_threshold) or
+            self.state == CircuitState.HALF_OPEN
+        )
+        
+        if should_open:
             self._transition_to(CircuitState.OPEN)
 
     async def call_async(self, func: Callable, *args, **kwargs) -> Any:
         """Async version of call"""
         with self.lock:
             self.metrics.total_calls += 1
-
-            if self.state == CircuitState.OPEN:
-                if self._should_attempt_reset():
-                    self._transition_to(CircuitState.HALF_OPEN)
-                else:
-                    self.metrics.rejected_calls += 1
-                    raise CircuitBreakerError(f"Circuit '{self.name}' is OPEN")
+            self._check_circuit_state()
 
         start_time = time.time()
         try:
