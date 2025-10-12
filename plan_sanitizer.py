@@ -19,14 +19,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Mapping, Optional, Set, Tuple, Union
 
-# Import utility functions from text_processor
-from text_processor import (
-    normalize_text,
-    clean_policy_text,
-    )
-
 # Import file reading utility
 from json_utils import safe_read_text_file
+
+# Import utility functions from text_processor
+from text_processor import (
+    clean_policy_text,
+    normalize_text,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -131,7 +131,11 @@ class PlanSanitizerConfig:
     def from_legacy(cls, **legacy: Any) -> "PlanSanitizerConfig":
         """Create a configuration object from strict legacy keyword inputs."""
 
-        allowed: Set[str] = {"preserve_structure", "tag_key_elements", "aggressive_cleaning"}
+        allowed: Set[str] = {
+            "preserve_structure",
+            "tag_key_elements",
+            "aggressive_cleaning",
+        }
         normalised: Dict[str, bool] = {}
         unknown: Set[str] = set()
 
@@ -147,9 +151,15 @@ class PlanSanitizerConfig:
 
         default = cls()
         return cls(
-            preserve_structure=normalised.get("preserve_structure", default.preserve_structure),
-            tag_key_elements=normalised.get("tag_key_elements", default.tag_key_elements),
-            aggressive_cleaning=normalised.get("aggressive_cleaning", default.aggressive_cleaning),
+            preserve_structure=normalised.get(
+                "preserve_structure", default.preserve_structure
+            ),
+            tag_key_elements=normalised.get(
+                "tag_key_elements", default.tag_key_elements
+            ),
+            aggressive_cleaning=normalised.get(
+                "aggressive_cleaning", default.aggressive_cleaning
+            ),
         )
 
     def as_dict(self) -> Dict[str, bool]:
@@ -227,58 +237,58 @@ class PlanSanitizer:
     def sanitize_text(self, text: str) -> str:
         """
         Sanitize text while preserving key elements.
-        
+
         Args:
             text: Raw text to sanitize
-            
+
         Returns:
             Sanitized text with key elements preserved
         """
         if not text:
             return ""
-        
+
         # Track statistics
         self.stats["total_chars_before"] = len(text)
         self.stats["key_elements_preserved"] = {k: 0 for k in KEY_ELEMENTS.keys()}
-        
+
         # First, normalize text
         normalized_text = normalize_text(text)
-        
+
         # Detect and mark key elements before cleaning
         if self.tag_key_elements:
             normalized_text = self._tag_key_elements(normalized_text)
-            
+
         # Preserve structure if needed
         if self.preserve_structure:
             normalized_text = self._preserve_structure(normalized_text)
-        
+
         # Clean the text while preserving marked elements
         cleaned_text = clean_policy_text(normalized_text)
 
         # Update statistics
         self.stats["total_chars_after"] = len(cleaned_text)
-        
+
         return cleaned_text
 
     def _tag_key_elements(self, text: str) -> str:
         """
         Tag key policy elements to ensure they're preserved during cleaning.
-        
+
         Args:
             text: Text to process
-            
+
         Returns:
             Text with key elements tagged
         """
         processed_text = text
-        
+
         for element_type, patterns in self.key_element_patterns.items():
             for pattern in patterns:
                 matches = list(pattern.finditer(processed_text))
-                
+
                 # Track matches for statistics
                 self.stats["key_elements_preserved"][element_type] = len(matches)
-                
+
                 # Process matches from end to start to avoid position shifts
                 for match in reversed(matches):
                     start, end = match.span()
@@ -286,27 +296,27 @@ class PlanSanitizer:
                     context_start = max(0, start - 100)
                     context_end = min(len(processed_text), end + 300)
                     context = processed_text[context_start:context_end]
-                    
+
                     # Keep this context block protected from aggressive cleaning
                     if self.aggressive_cleaning:
                         # Mark the context with special tags
                         processed_text = (
-                            processed_text[:context_start] +
-                            f"__PRESERVE_START_{element_type}__" +
-                            context +
-                            f"__PRESERVE_END_{element_type}__" +
-                            processed_text[context_end:]
+                            processed_text[:context_start]
+                            + f"__PRESERVE_START_{element_type}__"
+                            + context
+                            + f"__PRESERVE_END_{element_type}__"
+                            + processed_text[context_end:]
                         )
-        
+
         return processed_text
 
     def _preserve_structure(self, text: str) -> str:
         """
         Preserve document structure elements like headings, lists, and tables.
-        
+
         Args:
             text: Text to process
-            
+
         Returns:
             Text with structure elements preserved
         """
@@ -314,7 +324,7 @@ class PlanSanitizer:
         heading_pattern = re.compile(r"(?m)^(?:[\d.]+\s+)?([A-Z][A-Za-z\s]{3,60})$")
         matches = list(heading_pattern.finditer(text))
         self.stats["structure_elements_preserved"] = len(matches)
-        
+
         # Mark headings from end to start to avoid position shifts
         processed_text = text
         for match in reversed(matches):
@@ -322,55 +332,61 @@ class PlanSanitizer:
             heading_text = match.group(1)
             # Mark as heading
             processed_text = (
-                processed_text[:start] +
-                f"\n__HEADING_START__{heading_text}__HEADING_END__\n" +
-                processed_text[end:]
+                processed_text[:start]
+                + f"\n__HEADING_START__{heading_text}__HEADING_END__\n"
+                + processed_text[end:]
             )
-        
+
         return processed_text
-    
-    def sanitize_file(self, input_path: Union[str, Path], output_path: Optional[Union[str, Path]] = None) -> str:
+
+    def sanitize_file(
+        self,
+        input_path: Union[str, Path],
+        output_path: Optional[Union[str, Path]] = None,
+    ) -> str:
         """
         Sanitize a file containing plan text.
-        
+
         Args:
             input_path: Path to input file
             output_path: Optional path to output file (if None, returns text without saving)
-            
+
         Returns:
             Sanitized text
         """
         input_path = Path(input_path)
-        
+
         # Use utility function for safe file reading with encoding fallback
         text = safe_read_text_file(input_path)
-        
+
         sanitized_text = self.sanitize_text(text)
-        
+
         if output_path:
             output_path = Path(output_path)
             # Ensure output directory exists
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(output_path, 'w', encoding='utf-8') as f:
+
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(sanitized_text)
-                
+
             logger.info("Sanitized text saved to %s", output_path)
-        
+
         return sanitized_text
-    
+
     def get_sanitization_stats(self) -> Dict[str, any]:
         """
         Get statistics from the most recent sanitization operation.
-        
+
         Returns:
             Dictionary with sanitization statistics
         """
         if self.stats["total_chars_before"] > 0:
-            reduction_pct = 100 - (self.stats["total_chars_after"] / self.stats["total_chars_before"] * 100)
+            reduction_pct = 100 - (
+                self.stats["total_chars_after"] / self.stats["total_chars_before"] * 100
+            )
         else:
             reduction_pct = 0
-        
+
         self.stats["reduction_percentage"] = round(reduction_pct, 2)
         return self.stats
 
@@ -383,11 +399,11 @@ def create_plan_sanitizer(
 ) -> PlanSanitizer:
     """
     Create a preconfigured plan sanitizer.
-    
+
     Args:
         preserve_structure: Whether to preserve document structure
         tag_key_elements: Whether to tag key elements
-        
+
     Returns:
         Configured PlanSanitizer instance
     """
@@ -398,7 +414,7 @@ def create_plan_sanitizer(
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     sanitizer = create_plan_sanitizer()
-    
+
     # Example text with key elements that should be preserved
     sample_text = """
     PLAN DE DESARROLLO MUNICIPAL 2020-2023
@@ -425,11 +441,11 @@ if __name__ == "__main__":
     
     El plan contará con un tablero de control para seguimiento trimestral.
     """
-    
+
     sanitized = sanitizer.sanitize_text(sample_text)
     print("\nSanitized text:")
     print(sanitized)
-    
+
     stats = sanitizer.get_sanitization_stats()
     print("\nSanitization statistics:")
     for stat_key, stat_value in stats.items():
