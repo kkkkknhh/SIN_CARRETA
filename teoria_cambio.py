@@ -239,7 +239,7 @@ class TeoriaCambioIndustrial:
     def _precompute_hint_embeddings(self) -> Dict[str, np.ndarray]:
         hints_flat = {p: " ".join(hints) for p, hints in RUBRIC_HINTS.items()}
         E = self.embed.encode(list(hints_flat.values()))
-        return {p: e for p, e in zip(hints_flat.keys(), E)}
+        return dict(zip(hints_flat.keys(), E))
     def _precompute_prompt_embeddings(self) -> Dict[str, np.ndarray]:
         prompts: Dict[str, str] = {}
         for p in RUBRIC_HINTS.keys():
@@ -248,7 +248,7 @@ class TeoriaCambioIndustrial:
                     uid = make_question_uid(p, d, q)
                     prompts[uid] = f"{p} {d} pregunta {q}"
         E = self.embed.encode(list(prompts.values()))
-        return {uid: e for uid, e in zip(prompts.keys(), E)}
+        return dict(zip(prompts.keys(), E))
 
     # segmentación P#
     def segment_text_by_policy(self, text: str) -> Dict[str, List[str]]:
