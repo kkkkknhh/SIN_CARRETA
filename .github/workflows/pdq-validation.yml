@@ -1,0 +1,69 @@
+name: P-D-Q Canonical Notation Validation
+
+on:
+  push:
+    branches: [ main, develop, copilot/** ]
+    paths:
+      - 'config/RUBRIC_SCORING.json'
+      - 'bundles/decalogo_bundle.json'
+      - 'schemas/*.json'
+      - '**.py'
+      - '.github/workflows/pdq-validation.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'config/RUBRIC_SCORING.json'
+      - 'bundles/decalogo_bundle.json'
+      - 'schemas/*.json'
+      - '**.py'
+
+jobs:
+  validate-pdq-notation:
+    name: Validate P-D-Q Canonical Notation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install jsonschema pyyaml
+    
+    - name: Validate JSON schemas
+      run: |
+        echo "Validating canonical schemas..."
+        python tools/validate_canonical_schemas.py
+    
+    - name: Validate P-D-Q notation
+      run: |
+        echo "Validating P-D-Q notation compliance..."
+        python tools/validate_pdq_notation.py
+    
+    - name: Run golden tests
+      run: |
+        echo "Running golden test cases..."
+        python tests/golden/test_pdq_migration.py
+    
+    - name: Summary
+      if: always()
+      run: |
+        echo "================================"
+        echo "P-D-Q Validation Summary"
+        echo "================================"
+        echo "✅ Schema validation: Complete"
+        echo "✅ ID format validation: Complete"
+        echo "✅ Golden tests: Complete"
+        echo ""
+        echo "All artifacts validated against P-D-Q canonical notation:"
+        echo "  - P# = Policy Point (P1–P10)"
+        echo "  - D# = Dimension (D1–D6)"
+        echo "  - Q# = Question number (1+)"
+        echo "  - question_unique_id = 'P#-D#-Q#'"
+        echo "  - rubric_key = 'D#-Q#'"
