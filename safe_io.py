@@ -88,9 +88,7 @@ def safe_write_text(
         if e.errno == errno.ENOSPC:
             pass  # Fall through to memory storage
         else:
-            return WriteResult(
-                status="error", error=f"OS error: {e}"
-            )
+            return WriteResult(status="error", error=f"OS error: {e}")
     except Exception as e:
         return WriteResult(status="error", error=str(e))
 

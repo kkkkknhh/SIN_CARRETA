@@ -76,6 +76,7 @@ class DocumentPreValidator:
         # Basic validation checks
         try:
             import os
+
             if not os.path.exists(document_path):
                 result["valid"] = False
                 result["errors"].append(f"File not found: {document_path}")
@@ -106,9 +107,7 @@ class ResourceMonitor:
     def get_metrics(self) -> Dict[str, Any]:
         """Get current resource metrics."""
         elapsed = time.time() - self.start_time
-        throughput = (
-            self.documents_processed / elapsed if elapsed > 0 else 0
-        )
+        throughput = self.documents_processed / elapsed if elapsed > 0 else 0
 
         return {
             "elapsed_seconds": elapsed,
@@ -170,7 +169,9 @@ class CircuitBreakerWrapper:
 
             if self.failure_count >= self.failure_threshold:
                 self.state = "open"
-                logger.error(f"Circuit breaker opened after {self.failure_count} failures")
+                logger.error(
+                    f"Circuit breaker opened after {self.failure_count} failures"
+                )
 
             raise e
 

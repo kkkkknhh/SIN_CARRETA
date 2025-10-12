@@ -17,12 +17,10 @@ def main():
     # Run the same test multiple times
     results = []
     for i in range(5):
-        result = validator.calculate_acyclicity_pvalue_advanced(
-            plan_name, 200
-        )
+        result = validator.calculate_acyclicity_pvalue_advanced(plan_name, 200)
         results.append(result)
         print(
-            f"Run {i+1}: seed={result['seed']}, "
+            f"Run {i + 1}: seed={result['seed']}, "
             f"p-value={result['p_value']:.4f}, "
             f"acyclic_count={result['acyclic_count']}"
         )
@@ -30,9 +28,9 @@ def main():
     # Verify all results are identical
     first_result = results[0]
     all_identical = all(
-        r['seed'] == first_result['seed'] and
-        r['p_value'] == first_result['p_value'] and
-        r['acyclic_count'] == first_result['acyclic_count']
+        r["seed"] == first_result["seed"]
+        and r["p_value"] == first_result["p_value"]
+        and r["acyclic_count"] == first_result["acyclic_count"]
         for r in results[1:]
     )
 
@@ -49,7 +47,7 @@ def main():
         print(f"{plan}: seed={result['seed']}, p-value={result['p_value']:.4f}")
 
     # Verify seeds are different
-    seeds = [r['seed'] for r in different_results]
+    seeds = [r["seed"] for r in different_results]
     all_seeds_different = len(set(seeds)) == len(seeds)
 
     print(f"All seeds different: {all_seeds_different}")
@@ -59,5 +57,4 @@ def main():
 
 if __name__ == "__main__":
     success = main()
-    print(f"\nReproducibility verification: "
-          f"{'PASSED' if success else 'FAILED'}")
+    print(f"\nReproducibility verification: {'PASSED' if success else 'FAILED'}")
