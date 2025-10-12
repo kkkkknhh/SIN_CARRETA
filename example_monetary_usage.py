@@ -6,7 +6,7 @@ This module demonstrates how to use the MonetaryDetector to find and normalize
 monetary amounts, percentages, and numeric values with scales in Spanish text.
 """
 
-from monetary_detector import MonetaryType, create_monetary_detector
+from monetary_detector import MonetaryCategory, create_monetary_detector
 
 
 def main():
@@ -108,9 +108,11 @@ def main():
     print(f"\nTotal expressions found: {len(results)}")
 
     # Summary statistics
-    currencies = [r for r in results if r.type == MonetaryType.CURRENCY and r.currency]
-    percentages = [r for r in results if r.type == MonetaryType.PERCENTAGE]
-    numerics = [r for r in results if r.type == MonetaryType.NUMERIC]
+    currencies = [
+        r for r in results if r.type == MonetaryCategory.CURRENCY and r.currency
+    ]
+    percentages = [r for r in results if r.type == MonetaryCategory.PERCENTAGE]
+    numerics = [r for r in results if r.type == MonetaryCategory.NUMERIC]
 
     print(f"  - Currency amounts: {len(currencies)}")
     print(f"  - Percentages: {len(percentages)}")

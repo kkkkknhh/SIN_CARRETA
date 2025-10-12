@@ -486,6 +486,36 @@ class TeoriaCambioIndustrial:
 # Fachada esperada por el orquestador
 TeoriaCambioValidator = TeoriaCambioIndustrial
 
+# Alias for backward compatibility
+TeoriaCambio = TeoriaCambioIndustrial
+
+
+# Enum for element types (backward compatibility)
+class CausalElementType:
+    """Enum-like class for causal element types."""
+
+    ACTIVITY = "activity"
+    OUTPUT = "output"
+    OUTCOME = "outcome"
+    IMPACT = "impact"
+    INSUMO = "insumo"
+    PROCESO = "proceso"
+    PRODUCTO = "producto"
+    RESULTADO = "resultado"
+    IMPACTO = "impacto"
+
+
+# Enum for causal categories (backward compatibility)
+class CategoriaCausal:
+    """Enum-like class for causal categories."""
+
+    INSUMOS = "INSUMOS"
+    PROCESOS = "PROCESOS"
+    PRODUCTOS = "PRODUCTOS"
+    RESULTADOS = "RESULTADOS"
+    IMPACTOS = "IMPACTOS"
+
+
 # CLI de prueba manual
 if __name__ == "__main__":
     test_text = " ".join(sys.argv[1:]).strip() or (
