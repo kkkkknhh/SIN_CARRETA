@@ -112,7 +112,7 @@ def main():
     print(f"  - Numeric with scales: {len(numerics)}")
     
     if currencies:
-        unique_currencies = set(r.currency for r in currencies)
+        unique_currencies = {r.currency for r in currencies}
         print(f"  - Unique currencies: {', '.join(sorted(unique_currencies))}")
 
 

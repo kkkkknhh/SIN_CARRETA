@@ -175,7 +175,7 @@ class TestEmbeddingModelPool(unittest.TestCase):
                 t.join()
             
             self.assertEqual(len(errors), 0, f"Errors: {errors}")
-            self.assertEqual(len(set(id(m) for m in models)), 1, "All models should be the same instance")
+            self.assertEqual(len({id(m) for m in models}), 1, "All models should be the same instance")
             MockModel.assert_called_once()
 
 
@@ -426,7 +426,7 @@ class TestThreadSafeSharedResources(unittest.TestCase):
         
         self.assertEqual(len(errors), 0, f"Errors: {errors}")
         # All workers should get the same model instance
-        model_ids = set(id(m) for _, m in results)
+        model_ids = {id(m) for _, m in results}
         self.assertEqual(len(model_ids), 1)
 
 

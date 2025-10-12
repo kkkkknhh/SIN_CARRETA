@@ -2614,10 +2614,8 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 categoria,
                 terminos,
             ) in self.ontologia.vocabulario_especializado.items():
-                conceptos_categoria = set(
-                    concepto.lower() for concepto in conceptos_clave
-                )
-                terminos_categoria = set(t.lower() for t in terminos)
+                conceptos_categoria = {concepto.lower() for concepto in conceptos_clave}
+                terminos_categoria = {t.lower() for t in terminos}
                 interseccion = conceptos_categoria.intersection(terminos_categoria)
                 if interseccion:
                     coincidencias_semanticas += len(interseccion) * 0.5

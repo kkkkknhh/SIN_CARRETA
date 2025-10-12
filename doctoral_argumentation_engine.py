@@ -1106,8 +1106,8 @@ class DoctoralArgumentationEngine:
         - Addresses conflicts
         """
         # Analyze evidence convergence
-        source_types = set(e.evidence_type for e in evidence_list)
-        source_modules = set(e.source_module for e in evidence_list)
+        source_types = {e.evidence_type for e in evidence_list}
+        source_modules = {e.source_module for e in evidence_list}
 
         synthesis = (
             f"Synthesizing across {len(source_modules)} independent analytical modules "
