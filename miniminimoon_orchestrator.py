@@ -44,11 +44,11 @@ import threading
 import time
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from validate_teoria_cambio import execute_industrial_validation_detailed
 
@@ -66,10 +66,10 @@ try:
 except ImportError:
     TORCH_AVAILABLE = False
 
-
 # ============================================================================
 # THREAD-SAFE UTILITIES
 # ============================================================================
+
 
 class ThreadSafeLRUCache:
     """Thread-safe LRU cache with TTL support."""
@@ -123,6 +123,7 @@ class EmbeddingModelPool:
         with cls._instance_lock:
             if cls._model_instance is None:
                 from embedding_model import IndustrialEmbeddingModel as EmbeddingModel
+
                 cls._model_instance = EmbeddingModel()
 
         return cls._model_instance
@@ -131,6 +132,7 @@ class EmbeddingModelPool:
 # ============================================================================
 # DATA STRUCTURES
 # ============================================================================
+
 
 @dataclass
 class EvidenceEntry:
@@ -145,8 +147,10 @@ class EvidenceEntry:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_hash(self) -> str:
-        content_str = json.dumps(self.content, sort_keys=True, ensure_ascii=False, default=str)
-        return hashlib.sha256(content_str.encode('utf-8')).hexdigest()[:16]
+        content_str = json.dumps(
+            self.content, sort_keys=True, ensure_ascii=False, default=str
+        )
+        return hashlib.sha256(content_str.encode("utf-8")).hexdigest()[:16]
 
 
 class EvidenceRegistry:
@@ -189,15 +193,15 @@ class EvidenceRegistry:
         sorted_eids = sorted(self._evidence.keys())
         hash_inputs = [self._evidence[eid].to_hash() for eid in sorted_eids]
         combined = "|".join(hash_inputs)
-        return hashlib.sha256(combined.encode('utf-8')).hexdigest()
+        return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
     def export(self, path: Path):
         data = {
             "evidence_count": len(self._evidence),
             "deterministic_hash": self.deterministic_hash(),
-            "evidence": {eid: asdict(entry) for eid, entry in self._evidence.items()}
+            "evidence": {eid: asdict(entry) for eid, entry in self._evidence.items()},
         }
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
 
@@ -228,7 +232,7 @@ class RuntimeTracer:
 
     def compute_flow_hash(self) -> str:
         stages_str = "|".join(self.stages)
-        return hashlib.sha256(stages_str.encode('utf-8')).hexdigest()
+        return hashlib.sha256(stages_str.encode("utf-8")).hexdigest()
 
     def export(self) -> dict:
         return {
@@ -237,7 +241,9 @@ class RuntimeTracer:
             "stage_count": len(self.stages),
             "stage_timestamps": self.stage_timestamps,
             "errors": self.stage_errors,
-            "duration_seconds": (self.end_time - self.start_time) if self.end_time else None
+            "duration_seconds": (self.end_time - self.start_time)
+            if self.end_time
+            else None,
         }
 
 
@@ -279,7 +285,7 @@ class CanonicalFlowValidator:
             "actual_stages": actual_stages,
             "missing_stages": list(set(self.CANONICAL_ORDER) - set(actual_stages)),
             "extra_stages": list(set(actual_stages) - set(self.CANONICAL_ORDER)),
-            "flow_hash": runtime_trace.compute_flow_hash()
+            "flow_hash": runtime_trace.compute_flow_hash(),
         }
 
         if not result["flow_valid"]:
@@ -288,7 +294,9 @@ class CanonicalFlowValidator:
                 f"missing={result['missing_stages']}, extra={result['extra_stages']}"
             )
         else:
-            self.logger.info("✓ Flow validation PASSED (gate #2): canonical order preserved")
+            self.logger.info(
+                "✓ Flow validation PASSED (gate #2): canonical order preserved"
+            )
 
         return result
 
@@ -296,6 +304,7 @@ class CanonicalFlowValidator:
 # ============================================================================
 # ANSWER ASSEMBLER
 # ============================================================================
+
 
 class AnswerAssembler:
     """Assembles final answers from evidence and evaluation results."""
@@ -310,7 +319,7 @@ class AnswerAssembler:
 
     @staticmethod
     def _load_rubric(path: Path) -> Dict[str, Any]:
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             rubric = json.load(f)
 
         if "questions" not in rubric:
@@ -334,15 +343,27 @@ class AnswerAssembler:
             error_parts = []
             if missing:
                 sample = sorted(missing)[:10]
-                error_parts.append(f"missing weights for {len(missing)} questions: {sample}")
+                error_parts.append(
+                    f"missing weights for {len(missing)} questions: {sample}"
+                )
             if extra:
                 sample = sorted(extra)[:10]
-                error_parts.append(f"extra weights for {len(extra)} non-existent questions: {sample}")
-            raise ValueError("Rubric validation FAILED (gate #5): " + "; ".join(error_parts))
+                error_parts.append(
+                    f"extra weights for {len(extra)} non-existent questions: {sample}"
+                )
+            raise ValueError(
+                "Rubric validation FAILED (gate #5): " + "; ".join(error_parts)
+            )
 
-        self.logger.info("✓ Rubric validated (gate #5): %s questions with %s weights", len(questions), len(weights))
+        self.logger.info(
+            "✓ Rubric validated (gate #5): %s questions with %s weights",
+            len(questions),
+            len(weights),
+        )
 
-    def assemble(self, evidence_registry: Any, evaluation_results: Dict[str, Any]) -> Dict[str, Any]:
+    def assemble(
+        self, evidence_registry: Any, evaluation_results: Dict[str, Any]
+    ) -> Dict[str, Any]:
         question_scores = evaluation_results.get("question_scores", [])
         question_answers = []
 
@@ -354,7 +375,9 @@ class AnswerAssembler:
             if question_unique_id.startswith("D") and "-" in question_unique_id:
                 dimension = question_unique_id.split("-")[0]
 
-            evidence_list = self._get_evidence_for_question(evidence_registry, question_unique_id)
+            evidence_list = self._get_evidence_for_question(
+                evidence_registry, question_unique_id
+            )
             evidence_ids = [
                 e.metadata.get("evidence_id", "") if hasattr(e, "metadata") else ""
                 for e in evidence_list
@@ -362,7 +385,9 @@ class AnswerAssembler:
 
             weight = self.weights.get(question_unique_id, 0.0)
             if weight == 0.0 and question_unique_id:
-                self.logger.warning("No rubric weight found for question '%s'", question_unique_id)
+                self.logger.warning(
+                    "No rubric weight found for question '%s'", question_unique_id
+                )
 
             confidence = self._calculate_confidence(evidence_list, score)
             reasoning = self._generate_reasoning(dimension, evidence_list, score)
@@ -380,13 +405,15 @@ class AnswerAssembler:
                 "rationale": reasoning,
                 "supporting_quotes": quotes,
                 "caveats": caveats,
-                "scoring_modality": self._get_scoring_modality(question_unique_id)
+                "scoring_modality": self._get_scoring_modality(question_unique_id),
             }
 
             question_answers.append(question_answer)
 
         total_weight = sum(qa["rubric_weight"] for qa in question_answers)
-        weighted_score = sum(qa["raw_score"] * qa["rubric_weight"] for qa in question_answers)
+        weighted_score = sum(
+            qa["raw_score"] * qa["rubric_weight"] for qa in question_answers
+        )
 
         global_summary = {
             "answered_questions": len(question_answers),
@@ -395,21 +422,23 @@ class AnswerAssembler:
             "weighted_score": weighted_score,
             "average_confidence": (
                 sum(qa["confidence"] for qa in question_answers) / len(question_answers)
-                if question_answers else 0.0
-            )
+                if question_answers
+                else 0.0
+            ),
         }
 
-        return {
-            "question_answers": question_answers,
-            "global_summary": global_summary
-        }
+        return {"question_answers": question_answers, "global_summary": global_summary}
 
-    def _get_evidence_for_question(self, evidence_registry: Any, question_unique_id: str) -> List[Any]:
-        if hasattr(evidence_registry, 'get_evidence_for_question'):
+    def _get_evidence_for_question(
+        self, evidence_registry: Any, question_unique_id: str
+    ) -> List[Any]:
+        if hasattr(evidence_registry, "get_evidence_for_question"):
             return evidence_registry.get_evidence_for_question(question_unique_id)
 
         matching = []
-        if hasattr(evidence_registry, 'registry') and hasattr(evidence_registry.registry, '_evidence'):
+        if hasattr(evidence_registry, "registry") and hasattr(
+            evidence_registry.registry, "_evidence"
+        ):
             for entry in evidence_registry.registry._evidence.values():
                 stored_id = entry.metadata.get("question_unique_id", "")
                 if self._standardize_question_id(stored_id) == question_unique_id:
@@ -433,8 +462,7 @@ class AnswerAssembler:
             return 0.3
 
         avg_evidence_conf = sum(
-            e.confidence if hasattr(e, "confidence") else 0.5
-            for e in evidence
+            e.confidence if hasattr(e, "confidence") else 0.5 for e in evidence
         ) / len(evidence)
 
         evidence_factor = min(len(evidence) / 3.0, 1.0)
@@ -475,8 +503,7 @@ class AnswerAssembler:
             caveats.append("Based on single evidence source")
 
         low_conf_evidence = [
-            e for e in evidence
-            if hasattr(e, "confidence") and e.confidence < 0.5
+            e for e in evidence if hasattr(e, "confidence") and e.confidence < 0.5
         ]
         if low_conf_evidence:
             caveats.append(f"{len(low_conf_evidence)} low-confidence evidence pieces")
@@ -493,14 +520,16 @@ class AnswerAssembler:
 
         evidence_types = []
         for e in evidence:
-            if hasattr(e, 'stage'):
+            if hasattr(e, "stage"):
                 evidence_types.append(e.stage)
-            elif hasattr(e, 'metadata') and isinstance(e.metadata, dict):
-                stage = e.metadata.get('stage', 'unknown')
+            elif hasattr(e, "metadata") and isinstance(e.metadata, dict):
+                stage = e.metadata.get("stage", "unknown")
                 evidence_types.append(stage)
 
         evidence_types = sorted(set(evidence_types))
-        evidence_summary = ", ".join(evidence_types[:3]) if evidence_types else "mixed sources"
+        evidence_summary = (
+            ", ".join(evidence_types[:3]) if evidence_types else "mixed sources"
+        )
 
         if score > 0.7:
             return f"Strong evidence from {evidence_summary} supports high compliance in {dimension}."
@@ -516,11 +545,11 @@ class AnswerAssembler:
         if not raw_id:
             return raw_id
 
-        if re.match(r'^D\d+-Q\d+$', raw_id):
+        if re.match(r"^D\d+-Q\d+$", raw_id):
             return raw_id
 
-        dim_match = re.search(r'D(\d+)', raw_id, re.IGNORECASE)
-        q_match = re.search(r'Q(\d+)', raw_id, re.IGNORECASE)
+        dim_match = re.search(r"D(\d+)", raw_id, re.IGNORECASE)
+        q_match = re.search(r"Q(\d+)", raw_id, re.IGNORECASE)
 
         if dim_match and q_match:
             return f"D{dim_match.group(1)}-Q{q_match.group(1)}"
@@ -532,6 +561,7 @@ class AnswerAssembler:
 # SYSTEM VALIDATORS
 # ============================================================================
 
+
 class SystemValidators:
     """Pre and post validation checks."""
 
@@ -540,26 +570,27 @@ class SystemValidators:
         self.logger = logging.getLogger(__name__)
 
     def run_pre_checks(self) -> Dict[str, Any]:
-        results = {
-            "pre_validation_ok": True,
-            "checks": []
-        }
+        results = {"pre_validation_ok": True, "checks": []}
 
         # Check rubric exists
         rubric_path = self.config_dir / "RUBRIC_SCORING.json"
         if not rubric_path.exists():
             results["pre_validation_ok"] = False
-            results["checks"].append({
-                "name": "rubric_exists",
-                "status": "FAIL",
-                "message": f"RUBRIC_SCORING.json not found at {rubric_path}"
-            })
+            results["checks"].append(
+                {
+                    "name": "rubric_exists",
+                    "status": "FAIL",
+                    "message": f"RUBRIC_SCORING.json not found at {rubric_path}",
+                }
+            )
         else:
-            results["checks"].append({
-                "name": "rubric_exists",
-                "status": "PASS",
-                "message": "RUBRIC_SCORING.json found"
-            })
+            results["checks"].append(
+                {
+                    "name": "rubric_exists",
+                    "status": "PASS",
+                    "message": "RUBRIC_SCORING.json found",
+                }
+            )
 
         if results["pre_validation_ok"]:
             self.logger.info("✓ Pre-validation PASSED: all gates OK")
@@ -569,40 +600,45 @@ class SystemValidators:
         return results
 
     def run_post_checks(self, results: Dict[str, Any]) -> Dict[str, Any]:
-        post_results = {
-            "post_validation_ok": True,
-            "checks": []
-        }
+        post_results = {"post_validation_ok": True, "checks": []}
 
         # Check evidence hash
         if "evidence_hash" not in results:
             post_results["post_validation_ok"] = False
-            post_results["checks"].append({
-                "name": "evidence_hash_present",
-                "status": "FAIL",
-                "message": "No evidence_hash in results"
-            })
+            post_results["checks"].append(
+                {
+                    "name": "evidence_hash_present",
+                    "status": "FAIL",
+                    "message": "No evidence_hash in results",
+                }
+            )
         else:
-            post_results["checks"].append({
-                "name": "evidence_hash_present",
-                "status": "PASS",
-                "message": f"Evidence hash: {results['evidence_hash'][:16]}..."
-            })
+            post_results["checks"].append(
+                {
+                    "name": "evidence_hash_present",
+                    "status": "PASS",
+                    "message": f"Evidence hash: {results['evidence_hash'][:16]}...",
+                }
+            )
 
         # Check flow order
         if "validation" in results and not results["validation"].get("flow_valid"):
             post_results["post_validation_ok"] = False
-            post_results["checks"].append({
-                "name": "flow_order_valid",
-                "status": "FAIL",
-                "message": "Flow order does not match canonical documentation"
-            })
+            post_results["checks"].append(
+                {
+                    "name": "flow_order_valid",
+                    "status": "FAIL",
+                    "message": "Flow order does not match canonical documentation",
+                }
+            )
         else:
-            post_results["checks"].append({
-                "name": "flow_order_valid",
-                "status": "PASS",
-                "message": "Flow order matches canonical doc"
-            })
+            post_results["checks"].append(
+                {
+                    "name": "flow_order_valid",
+                    "status": "PASS",
+                    "message": "Flow order matches canonical doc",
+                }
+            )
 
         # Check coverage
         answers = results.get("evaluations", {}).get("answers_report", {})
@@ -610,17 +646,21 @@ class SystemValidators:
 
         if total_questions < 300:
             post_results["post_validation_ok"] = False
-            post_results["checks"].append({
-                "name": "coverage_300",
-                "status": "FAIL",
-                "message": f"Only {total_questions}/300 questions answered"
-            })
+            post_results["checks"].append(
+                {
+                    "name": "coverage_300",
+                    "status": "FAIL",
+                    "message": f"Only {total_questions}/300 questions answered",
+                }
+            )
         else:
-            post_results["checks"].append({
-                "name": "coverage_300",
-                "status": "PASS",
-                "message": f"{total_questions}/300 questions answered"
-            })
+            post_results["checks"].append(
+                {
+                    "name": "coverage_300",
+                    "status": "PASS",
+                    "message": f"{total_questions}/300 questions answered",
+                }
+            )
 
         if post_results["post_validation_ok"]:
             self.logger.info("✓ Post-validation PASSED: all gates OK")
@@ -633,6 +673,7 @@ class SystemValidators:
 # ============================================================================
 # ORCHESTRATOR
 # ============================================================================
+
 
 class CanonicalDeterministicOrchestrator:
     """
@@ -650,16 +691,16 @@ class CanonicalDeterministicOrchestrator:
     VERSION = "2.2.0-ultimate"
 
     def __init__(
-            self,
-            config_dir: Path,
-            enable_validation: bool = True,
-            flow_doc_path: Optional[Path] = None,
-            log_level: str = "INFO",
-            intermediate_cache_ttl: int = 900,
-            document_cache_ttl: int = 900,
-            intermediate_cache_size: int = 64,
-            document_cache_size: int = 16,
-            enable_document_result_cache: bool = True
+        self,
+        config_dir: Path,
+        enable_validation: bool = True,
+        flow_doc_path: Optional[Path] = None,
+        log_level: str = "INFO",
+        intermediate_cache_ttl: int = 900,
+        document_cache_ttl: int = 900,
+        intermediate_cache_size: int = 64,
+        document_cache_size: int = 16,
+        enable_document_result_cache: bool = True,
     ):
         self.config_dir = Path(config_dir)
         self.enable_validation = enable_validation
@@ -669,7 +710,7 @@ class CanonicalDeterministicOrchestrator:
         # Setup logging
         logging.basicConfig(
             level=getattr(logging, log_level),
-            format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         )
         self.logger = logging.getLogger(__name__)
 
@@ -681,12 +722,10 @@ class CanonicalDeterministicOrchestrator:
 
         # Initialize caches
         self.intermediate_cache = ThreadSafeLRUCache(
-            max_size=intermediate_cache_size,
-            ttl_seconds=intermediate_cache_ttl
+            max_size=intermediate_cache_size, ttl_seconds=intermediate_cache_ttl
         )
         self.document_result_cache = ThreadSafeLRUCache(
-            max_size=document_cache_size,
-            ttl_seconds=document_cache_ttl
+            max_size=document_cache_size, ttl_seconds=document_cache_ttl
         )
 
         # Initialize pipeline components (stages 1-11)
@@ -708,7 +747,9 @@ class CanonicalDeterministicOrchestrator:
         # Warmup models
         self.warmup_models()
 
-        self.logger.info("CanonicalDeterministicOrchestrator %s initialized", self.VERSION)
+        self.logger.info(
+            "CanonicalDeterministicOrchestrator %s initialized", self.VERSION
+        )
 
     def _set_deterministic_seeds(self):
         """Set seeds for deterministic behavior."""
@@ -732,16 +773,16 @@ class CanonicalDeterministicOrchestrator:
 
     def _init_pipeline_components(self):
         """Initialize pipeline processing components (stages 1-11)."""
-        from plan_sanitizer import PlanSanitizer
-        from plan_processor import PlanProcessor
-        from document_segmenter import DocumentSegmenter
-        from responsibility_detector import ResponsibilityDetector
-        from contradiction_detector import ContradictionDetector
-        from monetary_detector import MonetaryDetector
-        from feasibility_scorer import FeasibilityScorer
         from causal_pattern_detector import CausalPatternDetector
-        from teoria_cambio import TeoriaCambioValidator
+        from contradiction_detector import ContradictionDetector
         from dag_validation import DAGValidator
+        from document_segmenter import DocumentSegmenter
+        from feasibility_scorer import FeasibilityScorer
+        from monetary_detector import MonetaryDetector
+        from plan_processor import PlanProcessor
+        from plan_sanitizer import PlanSanitizer
+        from responsibility_detector import ResponsibilityDetector
+        from teoria_cambio import TeoriaCambioValidator
 
         self.plan_sanitizer = PlanSanitizer()
         self.plan_processor = PlanProcessor(self.config_dir)
@@ -764,13 +805,11 @@ class CanonicalDeterministicOrchestrator:
         rubric_path = self.config_dir / "RUBRIC_SCORING.json"
 
         self.questionnaire_engine = QuestionnaireEngine(
-            evidence_registry=self.evidence_registry,
-            rubric_path=rubric_path
+            evidence_registry=self.evidence_registry, rubric_path=rubric_path
         )
 
         self.answer_assembler = AnswerAssembler(
-            rubric_path=rubric_path,
-            evidence_registry=self.evidence_registry
+            rubric_path=rubric_path, evidence_registry=self.evidence_registry
         )
 
         self.logger.info("Evaluators initialized (questionnaire + assembler)")
@@ -845,7 +884,9 @@ class CanonicalDeterministicOrchestrator:
         if not question_ids or not hasattr(engine, "evaluate_question"):
             return engine.evaluate()
 
-        self.logger.info("Parallel questionnaire evaluation over %s questions", len(question_ids))
+        self.logger.info(
+            "Parallel questionnaire evaluation over %s questions", len(question_ids)
+        )
 
         results_map: Dict[str, Any] = {}
 
@@ -870,14 +911,16 @@ class CanonicalDeterministicOrchestrator:
         return {
             "question_results": ordered,
             "question_count": len(ordered),
-            "metadata": {"parallel": True, "max_workers": 4}
+            "metadata": {"parallel": True, "max_workers": 4},
         }
 
     def _execute_teoria_cambio_stage(self, segments: List[Any]) -> Dict[str, Any]:
         """Run teoría de cambio validation with industrial report."""
         industrial_report = execute_industrial_validation_detailed()
 
-        framework_analysis = self.teoria_cambio_validator.verificar_marco_logico_completo(segments)
+        framework_analysis = (
+            self.teoria_cambio_validator.verificar_marco_logico_completo(segments)
+        )
 
         if not industrial_report.get("success", False):
             self.logger.warning(
@@ -907,37 +950,56 @@ class CanonicalDeterministicOrchestrator:
                         stage=stage.value,
                         content=item,
                         source_segment_ids=[],
-                        confidence=item.get('confidence', 0.8) if isinstance(item, dict) else 0.8
+                        confidence=item.get("confidence", 0.8)
+                        if isinstance(item, dict)
+                        else 0.8,
                     )
 
                     self.evidence_registry.register(entry)
                 except (TypeError, AttributeError) as e:
-                    self.logger.warning("Could not process item in stage %s: %s", stage.value, e)
+                    self.logger.warning(
+                        "Could not process item in stage %s: %s", stage.value, e
+                    )
 
-        register_evidence(PipelineStage.RESPONSIBILITY, all_inputs.get('responsibilities', []), 'resp')
-        register_evidence(PipelineStage.MONETARY, all_inputs.get('monetary', []), 'money')
+        register_evidence(
+            PipelineStage.RESPONSIBILITY, all_inputs.get("responsibilities", []), "resp"
+        )
+        register_evidence(
+            PipelineStage.MONETARY, all_inputs.get("monetary", []), "money"
+        )
 
-        feasibility_report = all_inputs.get('feasibility')
+        feasibility_report = all_inputs.get("feasibility")
         if isinstance(feasibility_report, dict):
-            register_evidence(PipelineStage.FEASIBILITY, feasibility_report.get('indicators', []), 'feas')
+            register_evidence(
+                PipelineStage.FEASIBILITY,
+                feasibility_report.get("indicators", []),
+                "feas",
+            )
 
-        causal_report = all_inputs.get('causal_patterns')
+        causal_report = all_inputs.get("causal_patterns")
         if isinstance(causal_report, dict):
-            register_evidence(PipelineStage.CAUSAL, causal_report.get('patterns', []), 'causal')
+            register_evidence(
+                PipelineStage.CAUSAL, causal_report.get("patterns", []), "causal"
+            )
 
-        teoria_result = all_inputs.get('toc_graph')
+        teoria_result = all_inputs.get("toc_graph")
         if isinstance(teoria_result, dict):
-            framework_entry = teoria_result.get('toc_graph')
+            framework_entry = teoria_result.get("toc_graph")
             if isinstance(framework_entry, dict):
-                register_evidence(PipelineStage.TEORIA, [framework_entry], 'toc')
+                register_evidence(PipelineStage.TEORIA, [framework_entry], "toc")
 
-            industrial_validation = teoria_result.get('industrial_validation')
+            industrial_validation = teoria_result.get("industrial_validation")
             if isinstance(industrial_validation, dict):
-                industrial_metrics = industrial_validation.get('metrics')
+                industrial_metrics = industrial_validation.get("metrics")
                 if isinstance(industrial_metrics, list) and industrial_metrics:
-                    register_evidence(PipelineStage.TEORIA, industrial_metrics, 'toc_metric')
+                    register_evidence(
+                        PipelineStage.TEORIA, industrial_metrics, "toc_metric"
+                    )
 
-        self.logger.info("Evidence registry built with %s entries", len(self.evidence_registry._evidence))
+        self.logger.info(
+            "Evidence registry built with %s entries",
+            len(self.evidence_registry._evidence),
+        )
 
         return {"status": "built", "entries": len(self.evidence_registry._evidence)}
 
@@ -951,7 +1013,10 @@ class CanonicalDeterministicOrchestrator:
         self.logger.info("Loading Decálogo extractor and bundle...")
 
         try:
-            from Decatalogo_principal import ExtractorEvidenciaIndustrialAvanzado, BUNDLE
+            from Decatalogo_principal import (
+                BUNDLE,
+                ExtractorEvidenciaIndustrialAvanzado,
+            )
 
             self.decatalogo_extractor = ExtractorEvidenciaIndustrialAvanzado(BUNDLE)
 
@@ -965,7 +1030,7 @@ class CanonicalDeterministicOrchestrator:
                 "status": "loaded",
                 "bundle_version": BUNDLE.get("version", "unknown"),
                 "categories_count": len(BUNDLE.get("categories", [])),
-                "extractor_type": type(self.decatalogo_extractor).__name__
+                "extractor_type": type(self.decatalogo_extractor).__name__,
             }
 
         except ImportError as e:
@@ -975,10 +1040,14 @@ class CanonicalDeterministicOrchestrator:
             self.logger.error("Failed to initialize Decatalogo extractor: %s", e)
             raise
 
-    def _execute_decalogo_evaluation(self, evidence_registry: EvidenceRegistry) -> Dict[str, Any]:
+    def _execute_decalogo_evaluation(
+        self, evidence_registry: EvidenceRegistry
+    ) -> Dict[str, Any]:
         """Execute Decálogo evaluation (Stage 14: DECALOGO_EVAL)."""
         if self.decatalogo_extractor is None:
-            raise RuntimeError("Decatalogo extractor not loaded. Stage 13 (DECALOGO_LOAD) must run first.")
+            raise RuntimeError(
+                "Decatalogo extractor not loaded. Stage 13 (DECALOGO_LOAD) must run first."
+            )
 
         self.logger.info("Executing Decálogo evaluation...")
         evaluation = self.decatalogo_extractor.evaluate_from_evidence(evidence_registry)
@@ -990,10 +1059,10 @@ class CanonicalDeterministicOrchestrator:
         """Assemble final answers report (Stage 16: ANSWER_ASSEMBLY)."""
         self.logger.info("Assembling final answers report...")
 
-        questionnaire_eval = evaluation_inputs.get('questionnaire_eval', {})
+        questionnaire_eval = evaluation_inputs.get("questionnaire_eval", {})
 
         rubric_path = self.config_dir / "RUBRIC_SCORING.json"
-        with open(rubric_path, 'r', encoding='utf-8') as f:
+        with open(rubric_path, "r", encoding="utf-8") as f:
             rubric = json.load(f)
         weights = rubric.get("weights", {})
 
@@ -1004,12 +1073,16 @@ class CanonicalDeterministicOrchestrator:
                 standardized_id = self._standardize_question_id(raw_id)
 
                 if standardized_id not in weights:
-                    self.logger.warning("Question ID '%s' not found in rubric weights", standardized_id)
+                    self.logger.warning(
+                        "Question ID '%s' not found in rubric weights", standardized_id
+                    )
 
-                question_scores.append({
-                    "question_unique_id": standardized_id,
-                    "score": result.get("score", 0.0)
-                })
+                question_scores.append(
+                    {
+                        "question_unique_id": standardized_id,
+                        "score": result.get("score", 0.0),
+                    }
+                )
 
         evaluation_results = {"question_scores": question_scores}
 
@@ -1023,30 +1096,39 @@ class CanonicalDeterministicOrchestrator:
                     stored_id = entry.metadata.get("question_unique_id", "")
                     if self._standardize_question_id(stored_id) == question_unique_id:
                         from collections import namedtuple
-                        MockEvidence = namedtuple('MockEvidence', ['confidence', 'metadata'])
-                        matching.append(MockEvidence(
-                            confidence=entry.confidence,
-                            metadata=entry.metadata
-                        ))
+
+                        MockEvidence = namedtuple(
+                            "MockEvidence", ["confidence", "metadata"]
+                        )
+                        matching.append(
+                            MockEvidence(
+                                confidence=entry.confidence, metadata=entry.metadata
+                            )
+                        )
                 return matching
 
             @staticmethod
             def _standardize_question_id(raw_id: str) -> str:
                 import re
+
                 if not raw_id:
                     return raw_id
-                if re.match(r'^D\d+-Q\d+$', raw_id):
+                if re.match(r"^D\d+-Q\d+$", raw_id):
                     return raw_id
-                dim_match = re.search(r'D(\d+)', raw_id, re.IGNORECASE)
-                q_match = re.search(r'Q(\d+)', raw_id, re.IGNORECASE)
+                dim_match = re.search(r"D(\d+)", raw_id, re.IGNORECASE)
+                q_match = re.search(r"Q(\d+)", raw_id, re.IGNORECASE)
                 if dim_match and q_match:
                     return f"D{dim_match.group(1)}-Q{q_match.group(1)}"
                 return raw_id
 
         registry_adapter = RegistryAdapter(self.evidence_registry)
-        final_report = self.answer_assembler.assemble(registry_adapter, evaluation_results)
+        final_report = self.answer_assembler.assemble(
+            registry_adapter, evaluation_results
+        )
 
-        total_questions = final_report.get("global_summary", {}).get("answered_questions", 0)
+        total_questions = final_report.get("global_summary", {}).get(
+            "answered_questions", 0
+        )
         if total_questions < 300:
             self.logger.warning("Coverage is %s/300 questions", total_questions)
         else:
@@ -1062,11 +1144,11 @@ class CanonicalDeterministicOrchestrator:
         if not raw_id:
             return raw_id
 
-        if re.match(r'^D\d+-Q\d+$', raw_id):
+        if re.match(r"^D\d+-Q\d+$", raw_id):
             return raw_id
 
-        dim_match = re.search(r'D(\d+)', raw_id, re.IGNORECASE)
-        q_match = re.search(r'Q(\d+)', raw_id, re.IGNORECASE)
+        dim_match = re.search(r"D(\d+)", raw_id, re.IGNORECASE)
+        q_match = re.search(r"Q(\d+)", raw_id, re.IGNORECASE)
 
         if dim_match and q_match:
             return f"D{dim_match.group(1)}-Q{q_match.group(1)}"
@@ -1099,27 +1181,29 @@ class CanonicalDeterministicOrchestrator:
             "start_time": start_time.isoformat(),
             "stages_completed": [],
             "evaluations": {},
-            "runtime_stats": {}
+            "runtime_stats": {},
         }
 
         # Stage 1: Sanitization
-        with open(plan_path, 'r', encoding='utf-8') as f:
+        with open(plan_path, "r", encoding="utf-8") as f:
             raw_text = f.read()
 
         sanitized_text = self._run_stage(
             PipelineStage.SANITIZATION,
             lambda: self.plan_sanitizer.sanitize_text(raw_text),
-            results["stages_completed"]
+            results["stages_completed"],
         )
 
         # Generate document hash for caching
-        doc_hash = hashlib.sha256(sanitized_text.encode('utf-8')).hexdigest()
+        doc_hash = hashlib.sha256(sanitized_text.encode("utf-8")).hexdigest()
         results["document_hash"] = doc_hash
 
         # Check document-level cache
-        cached_full = self.document_result_cache.get(
-            f"docres:{doc_hash}"
-        ) if self.enable_document_result_cache else None
+        cached_full = (
+            self.document_result_cache.get(f"docres:{doc_hash}")
+            if self.enable_document_result_cache
+            else None
+        )
 
         if cached_full:
             self.logger.info("Document-level cached result HIT")
@@ -1134,7 +1218,7 @@ class CanonicalDeterministicOrchestrator:
         _ = self._run_stage(
             PipelineStage.PLAN_PROCESSING,
             lambda: self.plan_processor.process(sanitized_text),
-            results["stages_completed"]
+            results["stages_completed"],
         )
 
         # Stage 3: Segmentation (with caching)
@@ -1143,12 +1227,16 @@ class CanonicalDeterministicOrchestrator:
 
         if segments:
             self.logger.info("Segments cache HIT")
-            self._run_stage(PipelineStage.SEGMENTATION, lambda: segments, results["stages_completed"])
+            self._run_stage(
+                PipelineStage.SEGMENTATION,
+                lambda: segments,
+                results["stages_completed"],
+            )
         else:
             segments = self._run_stage(
                 PipelineStage.SEGMENTATION,
                 lambda: self.document_segmenter.segment(sanitized_text),
-                results["stages_completed"]
+                results["stages_completed"],
             )
             self.intermediate_cache.set(cache_key_segments, segments)
 
@@ -1160,12 +1248,14 @@ class CanonicalDeterministicOrchestrator:
 
         if embeddings:
             self.logger.info("Embeddings cache HIT")
-            self._run_stage(PipelineStage.EMBEDDING, lambda: embeddings, results["stages_completed"])
+            self._run_stage(
+                PipelineStage.EMBEDDING, lambda: embeddings, results["stages_completed"]
+            )
         else:
             embeddings = self._run_stage(
                 PipelineStage.EMBEDDING,
                 lambda: self._encode_segments_dynamic(segment_texts),
-                results["stages_completed"]
+                results["stages_completed"],
             )
             self.intermediate_cache.set(cache_key_embeddings, embeddings)
 
@@ -1173,44 +1263,50 @@ class CanonicalDeterministicOrchestrator:
         responsibilities = self._run_stage(
             PipelineStage.RESPONSIBILITY,
             lambda: self.responsibility_detector.detect_entities(sanitized_text),
-            results["stages_completed"]
+            results["stages_completed"],
         )
 
         contradictions = self._run_stage(
             PipelineStage.CONTRADICTION,
             lambda: self.contradiction_detector.detect_contradictions(sanitized_text),
-            results["stages_completed"]
+            results["stages_completed"],
         )
 
         monetary = self._run_stage(
             PipelineStage.MONETARY,
-            lambda: self.monetary_detector.detect(sanitized_text, plan_name=plan_path.name),
-            results["stages_completed"]
+            lambda: self.monetary_detector.detect(
+                sanitized_text, plan_name=plan_path.name
+            ),
+            results["stages_completed"],
         )
 
         feasibility = self._run_stage(
             PipelineStage.FEASIBILITY,
             lambda: self.feasibility_scorer.evaluate_plan_feasibility(sanitized_text),
-            results["stages_completed"]
+            results["stages_completed"],
         )
 
         causal_patterns = self._run_stage(
             PipelineStage.CAUSAL,
-            lambda: self.causal_pattern_detector.detect_patterns(sanitized_text, plan_name=plan_path.name),
-            results["stages_completed"]
+            lambda: self.causal_pattern_detector.detect_patterns(
+                sanitized_text, plan_name=plan_path.name
+            ),
+            results["stages_completed"],
         )
 
         toc_graph = self._run_stage(
             PipelineStage.TEORIA,
             lambda: self._execute_teoria_cambio_stage(segments),
-            results["stages_completed"]
+            results["stages_completed"],
         )
         results["evaluations"]["teoria_cambio"] = toc_graph
 
         dag_diagnostics = self._run_stage(
             PipelineStage.DAG,
-            lambda: self.dag_validator.calculate_acyclicity_pvalue_advanced(plan_path.name),
-            results["stages_completed"]
+            lambda: self.dag_validator.calculate_acyclicity_pvalue_advanced(
+                plan_path.name
+            ),
+            results["stages_completed"],
         )
 
         # Stage 12: Evidence Registry Build
@@ -1223,20 +1319,20 @@ class CanonicalDeterministicOrchestrator:
             "feasibility": feasibility,
             "causal_patterns": causal_patterns,
             "toc_graph": toc_graph,
-            "dag_diagnostics": dag_diagnostics
+            "dag_diagnostics": dag_diagnostics,
         }
 
         self._run_stage(
             PipelineStage.REGISTRY_BUILD,
             lambda: self._build_evidence_registry(all_detector_outputs),
-            results["stages_completed"]
+            results["stages_completed"],
         )
 
         # Stage 13: DECALOGO_LOAD (NEW - explicit loading stage)
         decalogo_load_result = self._run_stage(
             PipelineStage.DECALOGO_LOAD,
             lambda: self._load_decalogo_extractor(),
-            results["stages_completed"]
+            results["stages_completed"],
         )
         results["evaluations"]["decalogo_load"] = decalogo_load_result
 
@@ -1244,7 +1340,7 @@ class CanonicalDeterministicOrchestrator:
         decalogo_eval = self._run_stage(
             PipelineStage.DECALOGO_EVAL,
             lambda: self._execute_decalogo_evaluation(self.evidence_registry),
-            results["stages_completed"]
+            results["stages_completed"],
         )
         results["evaluations"]["decalogo"] = decalogo_eval
 
@@ -1252,20 +1348,20 @@ class CanonicalDeterministicOrchestrator:
         questionnaire_eval = self._run_stage(
             PipelineStage.QUESTIONNAIRE_EVAL,
             lambda: self._parallel_questionnaire_evaluation(),
-            results["stages_completed"]
+            results["stages_completed"],
         )
         results["evaluations"]["questionnaire"] = questionnaire_eval
 
         # Stage 16: ANSWER_ASSEMBLY
         answer_assembly_input = {
             "decalogo_eval": decalogo_eval,
-            "questionnaire_eval": questionnaire_eval
+            "questionnaire_eval": questionnaire_eval,
         }
 
         answers_report = self._run_stage(
             PipelineStage.ANSWER_ASSEMBLY,
             lambda: self._assemble_answers(answer_assembly_input),
-            results["stages_completed"]
+            results["stages_completed"],
         )
         results["evaluations"]["answers_report"] = answers_report
 
@@ -1281,10 +1377,12 @@ class CanonicalDeterministicOrchestrator:
         results["runtime_stats"] = {
             "duration_seconds": (end_time - start_time).total_seconds(),
             "stages_count": len(results["stages_completed"]),
-            "evidence_entries": len(self.evidence_registry._evidence)
+            "evidence_entries": len(self.evidence_registry._evidence),
         }
 
-        self.logger.info("Pipeline completed in %.1fs", results['runtime_stats']['duration_seconds'])
+        self.logger.info(
+            "Pipeline completed in %.1fs", results["runtime_stats"]["duration_seconds"]
+        )
 
         # Cache complete result
         if self.enable_document_result_cache:
@@ -1292,7 +1390,9 @@ class CanonicalDeterministicOrchestrator:
 
         return results
 
-    def _run_stage(self, stage: PipelineStage, func: Callable, stages_list: List[str]) -> Any:
+    def _run_stage(
+        self, stage: PipelineStage, func: Callable, stages_list: List[str]
+    ) -> Any:
         """Execute a single pipeline stage with error handling."""
         stage_name = stage.value
         self.logger.info("→ %s", stage_name)
@@ -1306,10 +1406,14 @@ class CanonicalDeterministicOrchestrator:
         except Exception as e:
             self.logger.error("Stage %s FAILED: %s", stage_name, e)
             if self.enable_validation:
-                self.runtime_tracer.record_stage(stage_name, success=False, error=str(e))
+                self.runtime_tracer.record_stage(
+                    stage_name, success=False, error=str(e)
+                )
             raise
 
-    def export_artifacts(self, output_dir: Path, pipeline_results: Dict[str, Any] = None):
+    def export_artifacts(
+        self, output_dir: Path, pipeline_results: Dict[str, Any] = None
+    ):
         """Export all pipeline artifacts to disk."""
         output_dir = Path(output_dir).resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -1325,8 +1429,10 @@ class CanonicalDeterministicOrchestrator:
             if answers_report:
                 # Full report
                 answers_path = output_dir / "answers_report.json"
-                with open(answers_path, 'w', encoding='utf-8') as f:
-                    json.dump(answers_report, f, indent=2, ensure_ascii=False, sort_keys=True)
+                with open(answers_path, "w", encoding="utf-8") as f:
+                    json.dump(
+                        answers_report, f, indent=2, ensure_ascii=False, sort_keys=True
+                    )
 
                 # Sample report
                 sample_path = output_dir / "answers_sample.json"
@@ -1335,17 +1441,19 @@ class CanonicalDeterministicOrchestrator:
                     "global_summary": answers_report.get("global_summary", {}),
                     "sample_question_answers": sorted(
                         answers_report.get("question_answers", [])[:10],
-                        key=lambda x: x.get("question_id", "")
-                    )
+                        key=lambda x: x.get("question_id", ""),
+                    ),
                 }
-                with open(sample_path, 'w', encoding='utf-8') as f:
-                    json.dump(answers_sample, f, indent=2, ensure_ascii=False, sort_keys=True)
+                with open(sample_path, "w", encoding="utf-8") as f:
+                    json.dump(
+                        answers_sample, f, indent=2, ensure_ascii=False, sort_keys=True
+                    )
 
         # Artifact 5: flow_runtime.json
         if self.enable_validation and pipeline_results:
             flow_runtime = self.runtime_tracer.export()
             flow_path = output_dir / "flow_runtime.json"
-            with open(flow_path, 'w', encoding='utf-8') as f:
+            with open(flow_path, "w", encoding="utf-8") as f:
                 json.dump(flow_runtime, f, indent=2, sort_keys=True, ensure_ascii=False)
 
         self.logger.info("Artifacts exported to: %s", output_dir)
@@ -1354,6 +1462,7 @@ class CanonicalDeterministicOrchestrator:
 # ============================================================================
 # UNIFIED PIPELINE FACADE
 # ============================================================================
+
 
 class UnifiedEvaluationPipeline:
     """Unified facade for complete evaluation pipeline."""
@@ -1375,7 +1484,7 @@ class UnifiedEvaluationPipeline:
         orchestrator = CanonicalDeterministicOrchestrator(
             config_dir=self.config_dir,
             enable_validation=True,
-            flow_doc_path=self.flow_doc_path
+            flow_doc_path=self.flow_doc_path,
         )
 
         results = orchestrator.process_plan_deterministic(plan_path)
@@ -1385,12 +1494,12 @@ class UnifiedEvaluationPipeline:
             "pre_validation": pre_results,
             "pipeline_results": results,
             "post_validation": post_results,
-            "bundle_timestamp": datetime.utcnow().isoformat()
+            "bundle_timestamp": datetime.utcnow().isoformat(),
         }
 
         orchestrator.export_artifacts(output_dir, pipeline_results=results)
 
-        with open(output_dir / "results_bundle.json", 'w', encoding='utf-8') as f:
+        with open(output_dir / "results_bundle.json", "w", encoding="utf-8") as f:
             json.dump(bundle, f, indent=2, ensure_ascii=False, sort_keys=True)
 
         self.logger.info("✓ Unified evaluation complete")
@@ -1401,44 +1510,46 @@ class UnifiedEvaluationPipeline:
 # CLI ENTRY POINT
 # ============================================================================
 
+
 def main():
     """Command-line interface for the orchestrator."""
     import argparse
 
     parser = argparse.ArgumentParser(
         description="Ultimate Canonical Deterministic Orchestrator v2.2.0",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     parser.add_argument(
-        "--plan", "-p",
-        required=True,
-        help="Path to the plan file to evaluate"
+        "--plan", "-p", required=True, help="Path to the plan file to evaluate"
     )
 
     parser.add_argument(
-        "--config-dir", "-c",
+        "--config-dir",
+        "-c",
         default="config",
-        help="Configuration directory (default: config)"
+        help="Configuration directory (default: config)",
     )
 
     parser.add_argument(
-        "--output-dir", "-o",
+        "--output-dir",
+        "-o",
         default="output",
-        help="Output directory (default: output)"
+        help="Output directory (default: output)",
     )
 
     parser.add_argument(
-        "--flow-doc", "-f",
+        "--flow-doc",
+        "-f",
         default=None,
-        help="Path to flow documentation file (optional)"
+        help="Path to flow documentation file (optional)",
     )
 
     parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        help="Set logging level (default: INFO)"
+        help="Set logging level (default: INFO)",
     )
 
     args = parser.parse_args()
@@ -1451,23 +1562,29 @@ def main():
 
     try:
         pipeline = UnifiedEvaluationPipeline(
-            config_dir=config_dir,
-            flow_doc_path=flow_doc_path
+            config_dir=config_dir, flow_doc_path=flow_doc_path
         )
 
         results = pipeline.evaluate(args.plan, output_dir)
 
         print(f"\n✅ Evaluation completed successfully")
         print(f"📊 Results saved to: {output_dir}")
-        print(f"⏱️  Duration: {results['pipeline_results']['runtime_stats']['duration_seconds']:.1f}s")
-        print(f"📝 Evidence entries: {results['pipeline_results']['runtime_stats']['evidence_entries']}")
-        print(f"🔄 Stages: {results['pipeline_results']['runtime_stats']['stages_count']}/16")
+        print(
+            f"⏱️  Duration: {results['pipeline_results']['runtime_stats']['duration_seconds']:.1f}s"
+        )
+        print(
+            f"📝 Evidence entries: {results['pipeline_results']['runtime_stats']['evidence_entries']}"
+        )
+        print(
+            f"🔄 Stages: {results['pipeline_results']['runtime_stats']['stages_count']}/16"
+        )
 
         sys.exit(0)
 
     except Exception as e:
         print(f"\n❌ Evaluation failed: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

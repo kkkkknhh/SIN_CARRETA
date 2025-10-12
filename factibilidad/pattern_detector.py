@@ -332,8 +332,7 @@ class PatternDetector:
                     cluster["timeframe"].append(timeframe)
 
             if cluster["target"] and cluster["timeframe"]:
-                all_m = cluster["baseline"] + \
-                    cluster["target"] + cluster["timeframe"]
+                all_m = cluster["baseline"] + cluster["target"] + cluster["timeframe"]
                 start_pos = min(m.start for m in all_m)
                 end_pos = max(m.end for m in all_m)
 
