@@ -17,7 +17,7 @@ import os
 import tempfile
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 # Import canonical path resolver
 from repo_paths import get_decalogo_path, get_dnp_path
@@ -299,9 +299,9 @@ def get_question_by_id(
     if decalogo_industrial is None:
         decalogo_industrial = get_decalogo_industrial()
 
-    all_questions = decalogo_industrial.get("questions", [])
+    questions = decalogo_industrial.get("questions", [])
 
-    for question in all_questions:
+    for question in questions:
         if question.get("id") == question_id:
             return question
 

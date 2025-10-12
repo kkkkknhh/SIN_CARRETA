@@ -1,4 +1,3 @@
-# coding=utf-8
 """
 Industrial-Grade Embedding Model Framework
 ==========================================
@@ -28,7 +27,6 @@ import numpy as np
 import scipy.stats as stats
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 
 # Suppress all non-critical warnings for production
@@ -174,19 +172,13 @@ def performance_monitor(func):
 class EmbeddingModelError(Exception):
     """Base exception for embedding model operations."""
 
-    pass
-
 
 class ModelInitializationError(EmbeddingModelError):
     """Exception raised when model initialization fails."""
 
-    pass
-
 
 class EmbeddingComputationError(EmbeddingModelError):
     """Exception raised during embedding computation."""
-
-    pass
 
 
 @dataclass
@@ -1266,16 +1258,14 @@ class IndustrialEmbeddingModel:
                             if item["numeric_value"] is not None
                         ]
 
-                        stat_distances = analyzer.compute_statistical_distances(
-                            values1, values2
-                        )
-                        statistical_analysis[numeric_type] = stat_distances
+                        stats = analyzer.compute_statistical_distances(values1, values2)
+                        statistical_analysis[numeric_type] = stats
 
                         # Risk assessment
-                        if stat_distances.get("valid", False):
+                        if stats.get("valid", False):
                             high_semantic_sim = semantic_similarity > 0.85
                             significant_numeric_diff = (
-                                stat_distances.get("max_relative_diff", 0) > 0.25
+                                stats.get("max_relative_diff", 0) > 0.25
                             )
 
                             if (

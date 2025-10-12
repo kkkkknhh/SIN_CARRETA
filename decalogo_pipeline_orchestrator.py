@@ -20,7 +20,7 @@ See DEPRECATIONS.md for full migration guide.
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Set
 
 raise RuntimeError(
     "CRITICAL: decalogo_pipeline_orchestrator is DEPRECATED and FORBIDDEN.\n"
@@ -48,7 +48,7 @@ try:
     from contradiction_detector import ContradictionDetector
     from document_segmenter import DocumentSegmenter
     from feasibility_scorer import FeasibilityScorer
-    from monetary_detector import MonetaryDetector, create_monetary_detector
+    from monetary_detector import create_monetary_detector
     from responsibility_detector import ResponsibilityDetector
     from teoria_cambio import TeoriaCambio, evaluar_teoria_cambio
 except ImportError as e:
@@ -991,22 +991,22 @@ if __name__ == "__main__":
     """
 
     # Evaluate plan
-    plan_evaluations = orchestrator.evaluate_plan(sample_plan, "PLAN_EJEMPLO_001")
+    evaluations = orchestrator.evaluate_plan(sample_plan, "PLAN_EJEMPLO_001")
 
     # Generate report
-    evaluation_report = orchestrator.generate_evaluation_report(plan_evaluations)
+    report = orchestrator.generate_evaluation_report(evaluations)
 
     # Display results
     print("=== DECALOGO EVALUATION RESULTS ===")
     print(f"Overall Score: {evaluation_report['overall_score']:.2f}")
     print(f"Evaluation Coverage: {evaluation_report['evaluation_coverage']:.1%}")
     print("\nDimension Scores:")
-    for dim_id, dim_score in evaluation_report["summary"]["dimensions"].items():
-        print(f"- {dim_id}: {dim_score:.2f}")
+    for dim_id, score in report["summary"]["dimensions"].items():
+        print(f"- {dim_id}: {score:.2f}")
 
     print("\nQuestion Answers:")
-    for q_id, q_evaluation in plan_evaluations.items():
+    for question_id, evaluation in evaluations.items():
         print(
-            f"- {q_id}: {q_evaluation.answer} (Score: {q_evaluation.score:.2f}, Confidence: {q_evaluation.confidence:.2f})"
+            f"- {question_id}: {evaluation.answer} (Score: {evaluation.score:.2f}, Confidence: {evaluation.confidence:.2f})"
         )
-        print(f"  Justification: {q_evaluation.justification}")
+        print(f"  Justification: {evaluation.justification}")

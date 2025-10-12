@@ -21,7 +21,7 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -556,17 +556,17 @@ class CanonicalFlowValidator:
                     validation_report["status"] = "failed"
 
             # Validar rangos de métricas
-            if "coherencia_promedio" in metricas:
-                if not (0 <= metricas["coherencia_promedio"] <= 1):
-                    validation_report["warnings"].append(
-                        "coherencia_promedio fuera de rango [0,1]"
-                    )
+            if "coherencia_promedio" in metricas and not (
+                0 <= metricas["coherencia_promedio"] <= 1
+            ):
+                validation_report["warnings"].append(
+                    "coherencia_promedio fuera de rango [0,1]"
+                )
 
-            if "kpi_promedio" in metricas:
-                if not (0 <= metricas["kpi_promedio"] <= 1):
-                    validation_report["warnings"].append(
-                        "kpi_promedio fuera de rango [0,1]"
-                    )
+            if "kpi_promedio" in metricas and not (0 <= metricas["kpi_promedio"] <= 1):
+                validation_report["warnings"].append(
+                    "kpi_promedio fuera de rango [0,1]"
+                )
 
             validation_report["checks"]["metricas_globales"] = (
                 "passed" if not validation_report["errors"] else "failed"
@@ -588,8 +588,8 @@ class CanonicalFlowValidator:
                         "kpis",
                         "evidencias_encontradas",
                     ]
-                    for req_field in required_fields:
-                        if req_field not in dim_data:
+                    for field in required_fields:
+                        if field not in dim_data:
                             validation_report["warnings"].append(
                                 f"Dimensión '{dim_nombre}' faltante campo: {req_field}"
                             )

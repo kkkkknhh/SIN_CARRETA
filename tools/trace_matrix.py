@@ -55,13 +55,14 @@ Changelog:
 - v2.0 (2025-10-05): Refactor post-unificación, exit codes semánticos,
 validación de schema, documentación exhaustiva.
 """
+
 from __future__ import annotations
 
 import csv
 import json
 import pathlib
 import sys
-from typing import TypedDict, List, Any
+from typing import List, TypedDict
 
 # Import simbólico para mantener compatibilidad con módulos que esperan este import
 try:
@@ -70,13 +71,14 @@ except ImportError:
     # Graceful degradation si evidence_registry no está en PYTHONPATH
     EvidenceRegistry = None  # type: ignore
 
-
 # ────────────────────────────────────────────────────────────────────────────────
 # Type Definitions (para claridad de contrato)
 # ────────────────────────────────────────────────────────────────────────────────
 
+
 class AnswerRecord(TypedDict):
     """Schema esperado de cada elemento en answers_report.json['answers']."""
+
     question_id: str
     evidence_ids: List[str]
     confidence: float
@@ -86,6 +88,7 @@ class AnswerRecord(TypedDict):
 
 class MatrixRow(TypedDict):
     """Schema de cada fila en la matriz de salida CSV."""
+
     module: str
     question_id: str
     evidence_id: str
@@ -97,25 +100,26 @@ class MatrixRow(TypedDict):
 # Core Logic
 # ────────────────────────────────────────────────────────────────────────────────
 
+
 def extract_module_from_evidence_id(evidence_id: str) -> str:
     """
-Extrae el módulo fuente de un evidence_id según convención 'source::type::hash'.
+    Extrae el módulo fuente de un evidence_id según convención 'source::type::hash'.
 
-Convención de evidence_id (definida en evidence_registry.py):
-{detector_name}::{evidence_type}::{content_hash}
-Ejemplo: "responsibility_detector::assignment::a3f9c2e1"
+    Convención de evidence_id (definida en evidence_registry.py):
+    {detector_name}::{evidence_type}::{content_hash}
+    Ejemplo: "responsibility_detector::assignment::a3f9c2e1"
 
-Args:
-evidence_id: ID de evidencia en formato canónico
+    Args:
+    evidence_id: ID de evidencia en formato canónico
 
-Returns:
-Nombre del módulo detector (primer segmento antes de '::')
-Retorna 'unknown' si el formato no cumple convención
+    Returns:
+    Nombre del módulo detector (primer segmento antes de '::')
+    Retorna 'unknown' si el formato no cumple convención
 
-Razón de 'unknown':
-- Permite identificar evidence_ids malformados en auditoría
-- No falla el pipeline por problemas de formato legacy
-- Señal clara para investigación manual
+    Razón de 'unknown':
+    - Permite identificar evidence_ids malformados en auditoría
+    - No falla el pipeline por problemas de formato legacy
+    - Señal clara para investigación manual
     """
     if "::" not in evidence_id:
         return "unknown"
@@ -126,19 +130,19 @@ Razón de 'unknown':
 
 def parse_answers_report(report_path: pathlib.Path) -> List[AnswerRecord]:
     """
-Carga y valida el schema básico de answers_report.json.
+    Carga y valida el schema básico de answers_report.json.
 
-Args:
-report_path: Ruta a artifacts/answers_report.json
+    Args:
+    report_path: Ruta a artifacts/answers_report.json
 
-Returns:
-Lista de registros de respuesta validados
+    Returns:
+    Lista de registros de respuesta validados
 
-Raises:
-FileNotFoundError: Si el archivo no existe
-json.JSONDecodeError: Si el JSON está malformado
-KeyError: Si falta el campo 'answers' en el schema
-ValueError: Si los campos requeridos están ausentes
+    Raises:
+    FileNotFoundError: Si el archivo no existe
+    json.JSONDecodeError: Si el JSON está malformado
+    KeyError: Si falta el campo 'answers' en el schema
+    ValueError: Si los campos requeridos están ausentes
     """
     if not report_path.exists():
         raise FileNotFoundError(f"Missing required input: {report_path}")
@@ -166,20 +170,20 @@ ValueError: Si los campos requeridos están ausentes
 
 def build_traceability_matrix(answers: List[AnswerRecord]) -> List[MatrixRow]:
     """
-Construye la matriz de trazabilidad expandiendo cada (pregunta, evidence_id).
+    Construye la matriz de trazabilidad expandiendo cada (pregunta, evidence_id).
 
-Lógica:
-- Cada pregunta puede referenciar N evidence_ids (fan-out)
-- Cada evidence_id aparece en 1 fila independiente (normalización)
-- Preserva orden de procesamiento (insertion order)
+    Lógica:
+    - Cada pregunta puede referenciar N evidence_ids (fan-out)
+    - Cada evidence_id aparece en 1 fila independiente (normalización)
+    - Preserva orden de procesamiento (insertion order)
 
-Args:
-answers: Lista de registros de respuesta
+    Args:
+    answers: Lista de registros de respuesta
 
-Returns:
-Lista de filas para la matriz CSV (sin agregación ni sorting)
+    Returns:
+    Lista de filas para la matriz CSV (sin agregación ni sorting)
 
-Complejidad: O(Q × E) donde Q=preguntas, E=evidencias_por_pregunta
+    Complejidad: O(Q × E) donde Q=preguntas, E=evidencias_por_pregunta
     """
     rows: List[MatrixRow] = []
 
@@ -205,20 +209,20 @@ Complejidad: O(Q × E) donde Q=preguntas, E=evidencias_por_pregunta
 
 def write_matrix_csv(rows: List[MatrixRow], output_path: pathlib.Path) -> None:
     """
-Escribe la matriz de trazabilidad a CSV con encoding UTF-8 y newlines normalizados.
+    Escribe la matriz de trazabilidad a CSV con encoding UTF-8 y newlines normalizados.
 
-Args:
-rows: Lista de filas de matriz
-output_path: Ruta de salida (típicamente artifacts/module_to_questions_matrix.csv)
+    Args:
+    rows: Lista de filas de matriz
+    output_path: Ruta de salida (típicamente artifacts/module_to_questions_matrix.csv)
 
-Garantías:
-- UTF-8 con BOM opcional (compatible con Excel y herramientas Unix)
-- Newlines normalizados (CRLF en Windows, LF en Unix)
-- Header canónico: module,question_id,evidence_id,confidence,score
-- Crea directorio padre si no existe (idempotente)
+    Garantías:
+    - UTF-8 con BOM opcional (compatible con Excel y herramientas Unix)
+    - Newlines normalizados (CRLF en Windows, LF en Unix)
+    - Header canónico: module,question_id,evidence_id,confidence,score
+    - Crea directorio padre si no existe (idempotente)
 
-Raises:
-OSError: Si no se puede escribir el archivo (permisos, disco lleno, etc.)
+    Raises:
+    OSError: Si no se puede escribir el archivo (permisos, disco lleno, etc.)
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -234,21 +238,22 @@ OSError: Si no se puede escribir el archivo (permisos, disco lleno, etc.)
 # Entry Point
 # ────────────────────────────────────────────────────────────────────────────────
 
+
 def main() -> int:
     """
-Orquestación del flujo completo: parse → build → write.
+    Orquestación del flujo completo: parse → build → write.
 
-Returns:
-Exit code semántico:
-0: Success (matriz generada correctamente)
-1: Runtime error inesperado (ver stderr)
-2: Missing input (answers_report.json no existe)
-3: Malformed data (schema inválido o campos faltantes)
+    Returns:
+    Exit code semántico:
+    0: Success (matriz generada correctamente)
+    1: Runtime error inesperado (ver stderr)
+    2: Missing input (answers_report.json no existe)
+    3: Malformed data (schema inválido o campos faltantes)
 
-Side Effects:
-- Crea artifacts/module_to_questions_matrix.csv
-- Imprime ruta de salida a stdout (para encadenamiento en scripts)
-- Imprime errores a stderr
+    Side Effects:
+    - Crea artifacts/module_to_questions_matrix.csv
+    - Imprime ruta de salida a stdout (para encadenamiento en scripts)
+    - Imprime errores a stderr
     """
     input_path = pathlib.Path("artifacts/answers_report.json")
     output_path = pathlib.Path("artifacts/module_to_questions_matrix.csv")

@@ -27,43 +27,37 @@ No import-time side effects. No global flags. No kwargs in __init__.
 """
 
 import logging
+import math
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Mapping, Optional, Set, Tuple, Union
+from typing import Any, ClassVar, Dict, Iterable, List, Optional, Protocol, Set, Tuple
 
 # Import file reading utility
-from json_utils import safe_read_text_file
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Tuple, Protocol
-import math
-import re
-from collections import Counter
-
 
 # ---------------------------
 # Constants and regex patterns
 # ---------------------------
 
 # Sentence splitting regex - matches sentence-ending punctuation followed by whitespace
-_SENTENCE_SPLIT_REGEX = re.compile(r'(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ])')
+_SENTENCE_SPLIT_REGEX = re.compile(r"(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ])")
 
 # Word extraction regex - matches word characters including accented characters
-_WORD_REGEX = re.compile(r'\b[\w\u00C0-\u017F]+\b')
-
+_WORD_REGEX = re.compile(r"\b[\w\u00C0-\u017F]+\b")
 
 # ---------------------------
 # Enums
 # ---------------------------
 
+
 class SegmentationType(Enum):
     """Segmentation strategy types."""
+
     SECTION = "section"
     SEMANTIC = "semantic"
     HYBRID = "hybrid"
@@ -71,6 +65,7 @@ class SegmentationType(Enum):
 
 class SectionType(Enum):
     """Section types aligned with DECALOGO dimensions (D1-D6)."""
+
     # D1: INSUMOS - Diagnóstico, líneas base, recursos, capacidades
     DIAGNOSTIC = "diagnostic"
     BASELINE = "baseline"
@@ -78,32 +73,32 @@ class SectionType(Enum):
     CAPACITY = "capacity"
     BUDGET = "budget"
     PARTICIPATION = "participation"
-    
+
     # D2: ACTIVIDADES
     ACTIVITY = "activity"
     MECHANISM = "mechanism"
     INTERVENTION = "intervention"
     STRATEGY = "strategy"
     TIMELINE = "timeline"
-    
+
     # D3: PRODUCTOS
     PRODUCT = "product"
     OUTPUT = "output"
-    
+
     # D4: RESULTADOS
     RESULT = "result"
     OUTCOME = "outcome"
     INDICATOR = "indicator"
     MONITORING = "monitoring"
-    
+
     # D5: IMPACTOS
     IMPACT = "impact"
     LONG_TERM_EFFECT = "long_term_effect"
-    
+
     # D6: CAUSALIDAD
     CAUSAL_THEORY = "causal_theory"
     CAUSAL_LINK = "causal_link"
-    
+
     # Legacy/Multi-dimensional
     VISION = "vision"
     OBJECTIVE = "objective"
@@ -113,6 +108,7 @@ class SectionType(Enum):
 # ---------------------------
 # Data structures
 # ---------------------------
+
 
 @dataclass
 class SegmentMetrics:
@@ -136,12 +132,18 @@ class SegmentationStats:
     avg_sentence_count: float = 0.0
     char_length_distribution: Dict[str, int] = field(default_factory=dict)
     sentence_count_distribution: Dict[str, int] = field(default_factory=dict)
-    
+
     def __post_init__(self):
         # Keep segments_with_3_sentences in sync with segments_with_target_sentences
-        if self.segments_with_target_sentences > 0 and self.segments_with_3_sentences == 0:
+        if (
+            self.segments_with_target_sentences > 0
+            and self.segments_with_3_sentences == 0
+        ):
             self.segments_with_3_sentences = self.segments_with_target_sentences
-        elif self.segments_with_3_sentences > 0 and self.segments_with_target_sentences == 0:
+        elif (
+            self.segments_with_3_sentences > 0
+            and self.segments_with_target_sentences == 0
+        ):
             self.segments_with_target_sentences = self.segments_with_3_sentences
 
 
@@ -198,7 +200,9 @@ class DocumentSegmenterConfig:
             try:
                 result = int(value)
             except (TypeError, ValueError) as exc:
-                raise ValueError(f"Expected integer-compatible value, received {value!r}") from exc
+                raise ValueError(
+                    f"Expected integer-compatible value, received {value!r}"
+                ) from exc
 
         if minimum is not None:
             result = max(minimum, result)
@@ -397,132 +401,126 @@ class DocumentSegmenter:
             SectionType.DIAGNOSTIC: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:diagn[óo]stico|antecedentes|contexto|situaci[óo]n actual)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:problem[áa]tica|necesidades|demandas)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:caracterizaci[óo]n|perfil)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:caracterizaci[óo]n|perfil)",
             ],
             SectionType.BASELINE: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:l[íi]nea(?:s)? base|datos base|baseline)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:series temporales|medici[óo]n inicial)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:estado actual medido|indicadores iniciales)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:estado actual medido|indicadores iniciales)",
             ],
             SectionType.RESOURCES: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:recursos asignados|asignaci[óo]n de recursos)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:plan plurianual|PPI|plan indicativo)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:trazabilidad program[áa]tica)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:trazabilidad program[áa]tica)",
             ],
             SectionType.CAPACITY: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:capacidades institucionales|capacidad institucional)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:talento humano|recurso humano|personal)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:procesos institucionales|sistemas de informaci[óo]n)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cuellos de botella|restricciones institucionales)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cuellos de botella|restricciones institucionales)",
             ],
             SectionType.BUDGET: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:presupuesto|recursos (?:financieros|econ[óo]micos))",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:financiaci[óo]n|inversi[óo]n|gasto(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:costeo|asignaci[óo]n (?:presupuestal|de recursos))"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:costeo|asignaci[óo]n (?:presupuestal|de recursos))",
             ],
             SectionType.PARTICIPATION: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:participaci[óo]n|gobernanza|concertaci[óo]n)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:mesa(?:s)? (?:t[ée]cnica(?:s)?|participativa(?:s)?))",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:di[áa]logo(?:s)?|consulta(?:s)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:di[áa]logo(?:s)?|consulta(?:s)?)",
             ],
-
             # D2: ACTIVIDADES - Formalización, mecanismos causales
             SectionType.ACTIVITY: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:actividad(?:es)?|acciones?|intervenciones?)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:formalizaci[óo]n de actividades|tabla de actividades)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:responsable.*insumo.*output|cronograma.*costo)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:responsable.*insumo.*output|cronograma.*costo)",
             ],
             SectionType.MECHANISM: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:mecanismo(?:s)? causal(?:es)?|v[íi]a causal)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:poblaci[óo]n diana|grupo objetivo)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:causa ra[íi]z|mediador(?:es)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:causa ra[íi]z|mediador(?:es)?)",
             ],
             SectionType.INTERVENTION: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:teor[íi]a de intervenci[óo]n|l[óo]gica de intervenci[óo]n)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:complementariedades|secuenciaci[óo]n)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:riesgos de implementaci[óo]n|cu[ñn]as de implementaci[óo]n)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:riesgos de implementaci[óo]n|cu[ñn]as de implementaci[óo]n)",
             ],
             SectionType.STRATEGY: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:estrategia(?:s)?|l[íi]nea(?:s)? (?:de)? acci[óo]n)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:programa(?:s)?|proyecto(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:iniciativa(?:s)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:iniciativa(?:s)?)",
             ],
             SectionType.TIMELINE: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cronograma|calendario|plazos)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:tiempos|periodicidad|fechas)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:hitos|milestones|fases)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:hitos|milestones|fases)",
             ],
-
             # D3: PRODUCTOS - Outputs con indicadores verificables
             SectionType.PRODUCT: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:producto(?:s)?|output(?:s)?|entregable(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:bien(?:es)? y servicio(?:s)?|prestaci[óo]n de servicios)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:bien(?:es)? y servicio(?:s)?|prestaci[óo]n de servicios)",
             ],
             SectionType.OUTPUT: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:output(?:s)? verificable(?:s)?|producto verificable)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cobertura proporcional|suficiencia relativa)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:trazabilidad presupuestal del producto)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:trazabilidad presupuestal del producto)",
             ],
-
             # D4: RESULTADOS - Outcomes con métricas
             SectionType.RESULT: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:resultado(?:s)?|outcome(?:s)?|logro(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:encadenamiento causal|v[íi]nculo productos.*resultados)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:encadenamiento causal|v[íi]nculo productos.*resultados)",
             ],
             SectionType.OUTCOME: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:outcome(?:s)? con m[ée]trica(?:s)?)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:ventana de maduraci[óo]n|tiempo de efecto)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:nivel de ambici[óo]n|magnitud del cambio)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:nivel de ambici[óo]n|magnitud del cambio)",
             ],
             SectionType.INDICATOR: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:indicador(?:es)? de resultado|medici[óo]n de outcome)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:m[ée]trica(?:s)?|f[óo]rmula de c[áa]lculo)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:meta(?:s)? cuantificada(?:s)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:meta(?:s)? cuantificada(?:s)?)",
             ],
             SectionType.MONITORING: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:seguimiento|monitoreo|evaluaci[óo]n)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:control|supervisi[óo]n|vigilancia)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:tablero(?:s)? de (?:control|mando))"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:tablero(?:s)? de (?:control|mando))",
             ],
-
             # D5: IMPACTOS - Efectos de largo plazo
             SectionType.IMPACT: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:impacto(?:s)?|efecto(?:s)? (?:de )?largo plazo)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cambio(?:s)? estructural(?:es)?|transformaci[óo]n sostenible)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cambio(?:s)? estructural(?:es)?|transformaci[óo]n sostenible)",
             ],
             SectionType.LONG_TERM_EFFECT: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:efecto(?:s)? duradero(?:s)?|sostenibilidad)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:alineaci[óo]n (?:con )?(?:PND|ODS|marco(?:s)? internacionales?))",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:proxy de impacto|indicador(?:es)? proxy)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:proxy de impacto|indicador(?:es)? proxy)",
             ],
-
             # D6: CAUSALIDAD - Teoría de cambio explícita
             SectionType.CAUSAL_THEORY: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:teor[íi]a de cambio|marco l[óo]gico causal)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:DAG|grafo (?:causal|ac[íi]clico dirigido))",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:diagrama causal|modelo causal)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:diagrama causal|modelo causal)",
             ],
             SectionType.CAUSAL_LINK: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:encadenamiento (?:causal|l[óo]gico))",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:validaci[óo]n l[óo]gica|consistencia causal)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:hip[óo]tesis causales|supuestos cr[íi]ticos)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:hip[óo]tesis causales|supuestos cr[íi]ticos)",
             ],
-
             # Multi-dimensional legacy sections
             SectionType.VISION: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:visi[óo]n|misi[óo]n)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:escenario(?:s)? deseado(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:futuro(?:s)? deseado(?:s)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:futuro(?:s)? deseado(?:s)?)",
             ],
             SectionType.OBJECTIVE: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:objetivo(?:s)?|prop[óo]sito(?:s)?)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:finalidad(?:es)?|meta(?:s)? general(?:es)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:logro(?:s)? esperado(?:s)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:logro(?:s)? esperado(?:s)?)",
             ],
             SectionType.RESPONSIBILITY: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:responsable(?:s)?|encargado(?:s)?)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:entidad(?:es)? (?:responsable|ejecutora)(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:actor(?:es)? (?:responsable|institucional)(?:s)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:actor(?:es)? (?:responsable|institucional)(?:s)?)",
             ],
         }
 
@@ -531,153 +529,151 @@ class DocumentSegmenter:
             section_type: [re.compile(pattern) for pattern in patterns]
             for section_type, patterns in self.section_patterns.items()
         }
-        
+
         self.section_patterns = {
             # D1: INSUMOS - Diagnóstico, líneas base, recursos, capacidades
             SectionType.DIAGNOSTIC: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:diagn[óo]stico|antecedentes|contexto|situaci[óo]n actual)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:problem[áa]tica|necesidades|demandas)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:caracterizaci[óo]n|perfil)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:caracterizaci[óo]n|perfil)",
             ],
             SectionType.BASELINE: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:l[íi]nea(?:s)? base|datos base|baseline)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:series temporales|medici[óo]n inicial)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:estado actual medido|indicadores iniciales)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:estado actual medido|indicadores iniciales)",
             ],
             SectionType.RESOURCES: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:recursos asignados|asignaci[óo]n de recursos)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:plan plurianual|PPI|plan indicativo)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:trazabilidad program[áa]tica)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:trazabilidad program[áa]tica)",
             ],
             SectionType.CAPACITY: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:capacidades institucionales|capacidad institucional)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:talento humano|recurso humano|personal)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:procesos institucionales|sistemas de informaci[óo]n)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cuellos de botella|restricciones institucionales)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cuellos de botella|restricciones institucionales)",
             ],
             SectionType.BUDGET: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:presupuesto|recursos (?:financieros|econ[óo]micos))",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:financiaci[óo]n|inversi[óo]n|gasto(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:costeo|asignaci[óo]n (?:presupuestal|de recursos))"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:costeo|asignaci[óo]n (?:presupuestal|de recursos))",
             ],
             SectionType.PARTICIPATION: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:participaci[óo]n|gobernanza|concertaci[óo]n)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:mesa(?:s)? (?:t[ée]cnica(?:s)?|participativa(?:s)?))",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:di[áa]logo(?:s)?|consulta(?:s)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:di[áa]logo(?:s)?|consulta(?:s)?)",
             ],
-            
             # D2: ACTIVIDADES - Formalización, mecanismos causales
             SectionType.ACTIVITY: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:actividad(?:es)?|acciones?|intervenciones?)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:formalizaci[óo]n de actividades|tabla de actividades)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:responsable.*insumo.*output|cronograma.*costo)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:responsable.*insumo.*output|cronograma.*costo)",
             ],
             SectionType.MECHANISM: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:mecanismo(?:s)? causal(?:es)?|v[íi]a causal)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:poblaci[óo]n diana|grupo objetivo)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:causa ra[íi]z|mediador(?:es)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:causa ra[íi]z|mediador(?:es)?)",
             ],
             SectionType.INTERVENTION: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:teor[íi]a de intervenci[óo]n|l[óo]gica de intervenci[óo]n)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:complementariedades|secuenciaci[óo]n)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:riesgos de implementaci[óo]n|cu[ñn]as de implementaci[óo]n)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:riesgos de implementaci[óo]n|cu[ñn]as de implementaci[óo]n)",
             ],
             SectionType.STRATEGY: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:estrategia(?:s)?|l[íi]nea(?:s)? (?:de)? acci[óo]n)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:programa(?:s)?|proyecto(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:iniciativa(?:s)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:iniciativa(?:s)?)",
             ],
             SectionType.TIMELINE: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cronograma|calendario|plazos)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:tiempos|periodicidad|fechas)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:hitos|milestones|fases)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:hitos|milestones|fases)",
             ],
-            
             # D3: PRODUCTOS - Outputs con indicadores verificables
             SectionType.PRODUCT: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:producto(?:s)?|output(?:s)?|entregable(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:bien(?:es)? y servicio(?:s)?|prestaci[óo]n de servicios)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:bien(?:es)? y servicio(?:s)?|prestaci[óo]n de servicios)",
             ],
             SectionType.OUTPUT: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:output(?:s)? verificable(?:s)?|producto verificable)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cobertura proporcional|suficiencia relativa)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:trazabilidad presupuestal del producto)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:trazabilidad presupuestal del producto)",
             ],
-            
             # D4: RESULTADOS - Outcomes con métricas
             SectionType.RESULT: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:resultado(?:s)?|outcome(?:s)?|logro(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:encadenamiento causal|v[íi]nculo productos.*resultados)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:encadenamiento causal|v[íi]nculo productos.*resultados)",
             ],
             SectionType.OUTCOME: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:outcome(?:s)? con m[ée]trica(?:s)?)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:ventana de maduraci[óo]n|tiempo de efecto)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:nivel de ambici[óo]n|magnitud del cambio)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:nivel de ambici[óo]n|magnitud del cambio)",
             ],
             SectionType.INDICATOR: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:indicador(?:es)? de resultado|medici[óo]n de outcome)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:m[ée]trica(?:s)?|f[óo]rmula de c[áa]lculo)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:meta(?:s)? cuantificada(?:s)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:meta(?:s)? cuantificada(?:s)?)",
             ],
             SectionType.MONITORING: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:seguimiento|monitoreo|evaluaci[óo]n)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:control|supervisi[óo]n|vigilancia)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:tablero(?:s)? de (?:control|mando))"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:tablero(?:s)? de (?:control|mando))",
             ],
-            
             # D5: IMPACTOS - Efectos de largo plazo
             SectionType.IMPACT: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:impacto(?:s)?|efecto(?:s)? (?:de )?largo plazo)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cambio(?:s)? estructural(?:es)?|transformaci[óo]n sostenible)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:cambio(?:s)? estructural(?:es)?|transformaci[óo]n sostenible)",
             ],
             SectionType.LONG_TERM_EFFECT: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:efecto(?:s)? duradero(?:s)?|sostenibilidad)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:alineaci[óo]n (?:con )?(?:PND|ODS|marco(?:s)? internacionales?))",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:proxy de impacto|indicador(?:es)? proxy)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:proxy de impacto|indicador(?:es)? proxy)",
             ],
-            
             # D6: CAUSALIDAD - Teoría de cambio explícita
             SectionType.CAUSAL_THEORY: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:teor[íi]a de cambio|marco l[óo]gico causal)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:DAG|grafo (?:causal|ac[íi]clico dirigido))",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:diagrama causal|modelo causal)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:diagrama causal|modelo causal)",
             ],
             SectionType.CAUSAL_LINK: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:encadenamiento (?:causal|l[óo]gico))",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:validaci[óo]n l[óo]gica|consistencia causal)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:hip[óo]tesis causales|supuestos cr[íi]ticos)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:hip[óo]tesis causales|supuestos cr[íi]ticos)",
             ],
-            
             # Multi-dimensional legacy sections
             SectionType.VISION: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:visi[óo]n|misi[óo]n)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:escenario(?:s)? deseado(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:futuro(?:s)? deseado(?:s)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:futuro(?:s)? deseado(?:s)?)",
             ],
             SectionType.OBJECTIVE: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:objetivo(?:s)?|prop[óo]sito(?:s)?)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:finalidad(?:es)?|meta(?:s)? general(?:es)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:logro(?:s)? esperado(?:s)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:logro(?:s)? esperado(?:s)?)",
             ],
             SectionType.RESPONSIBILITY: [
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:responsable(?:s)?|encargado(?:s)?)",
                 r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:entidad(?:es)? (?:responsable|ejecutora)(?:s)?)",
-                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:actor(?:es)? (?:responsable|institucional)(?:s)?)"
+                r"(?i)(?:^|\n)(?:\d+[\.\)]\s*)?(?:actor(?:es)? (?:responsable|institucional)(?:s)?)",
             ],
         }
-        
+
         # Compile all section patterns for efficiency
         self.compiled_patterns = {}
         for section_type, patterns in self.section_patterns.items():
-            self.compiled_patterns[section_type] = [re.compile(pattern) for pattern in patterns]
+            self.compiled_patterns[section_type] = [
+                re.compile(pattern) for pattern in patterns
+            ]
 
 
 # ---------------------------
 # Strategy interface
 # ---------------------------
 
+
 class Backend(Protocol):
     def split_sentences(self, text: str) -> List[str]: ...
+
     def boundary_scores(self, sentences: List[str]) -> List[float]:
         """
         Score potential cut *after* each sentence i (length N -> N-1 scores).
@@ -735,6 +731,7 @@ class AdvancedBackend:
         self._model = None
         try:  # pragma: no cover (environment-dependent)
             from sentence_transformers import SentenceTransformer  # type: ignore
+
             # Choose a compact multilingual model; name as a constant string.
             model_name = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
             self._model = SentenceTransformer(model_name, device="cpu")
@@ -785,7 +782,9 @@ class AdvancedBackend:
             return []
         # Embed
         if self._use_real_embeddings and self._model is not None:  # pragma: no cover
-            embs = self._model.encode(sentences, convert_to_numpy=False, normalize_embeddings=True)
+            embs = self._model.encode(
+                sentences, convert_to_numpy=False, normalize_embeddings=True
+            )
             # Convert to lists of floats
             embs = [list(map(float, e)) for e in embs]
         else:
@@ -804,6 +803,7 @@ class AdvancedBackend:
 # Segmenter (contract-pure)
 # ---------------------------
 
+
 class DocumentSegmenter:
     """Strategy-driven, constraint-aware segmenter with a zero-arg constructor."""
 
@@ -821,10 +821,16 @@ class DocumentSegmenter:
         max_segment_chars: Optional[int] = None,
     ) -> None:
         # Support both zero-arg (contract-pure) and legacy keyword args (backward compat)
-        self.target_char_min: int = target_char_min if target_char_min is not None else self._TARGET_CHAR_MIN
-        self.target_char_max: int = target_char_max if target_char_max is not None else self._TARGET_CHAR_MAX
-        self.target_sentences: int = target_sentences if target_sentences is not None else self._TARGET_SENTENCES
-        
+        self.target_char_min: int = (
+            target_char_min if target_char_min is not None else self._TARGET_CHAR_MIN
+        )
+        self.target_char_max: int = (
+            target_char_max if target_char_max is not None else self._TARGET_CHAR_MAX
+        )
+        self.target_sentences: int = (
+            target_sentences if target_sentences is not None else self._TARGET_SENTENCES
+        )
+
         if max_segment_chars is not None:
             self.max_segment_chars = max_segment_chars
         else:
@@ -835,7 +841,7 @@ class DocumentSegmenter:
 
         self.segmentation_stats: SegmentationStats = SegmentationStats()
         self._segments: List[Dict[str, object]] = []
-        
+
         # Backward compatibility: set nlp to None (new implementation doesn't use spaCy)
         self.nlp = None
 
@@ -855,18 +861,21 @@ class DocumentSegmenter:
         if text is None:
             raise ValueError("segment(text=...) is required; got None.")
         return self._segment_document(text)
-    
+
     def segment_document(self, text: str) -> List[Dict[str, object]]:
         """Backward compatibility alias for segment()."""
         return self.segment(text)
-
 
     def get_segmentation_report(self) -> Dict[str, object]:
         stats = self.segmentation_stats
         segs = stats.segments
         if not segs:
             return {
-                "summary": {"total_segments": 0, "avg_char_length": 0.0, "avg_sentence_count": 0.0},
+                "summary": {
+                    "total_segments": 0,
+                    "avg_char_length": 0.0,
+                    "avg_sentence_count": 0.0,
+                },
                 "character_analysis": {"distribution": {}},
                 "sentence_analysis": {"distribution": {}},
                 "quality_indicators": {
@@ -916,7 +925,9 @@ class DocumentSegmenter:
         if not sentences:
             segs = self._fallback_segments(t)
         else:
-            cuts, conf = self._place_cuts(sentences, self._backend.boundary_scores(sentences))
+            cuts, conf = self._place_cuts(
+                sentences, self._backend.boundary_scores(sentences)
+            )
             segs = self._materialize_segments(sentences, cuts, conf)
 
         segs = self._post_process_segments(segs)
@@ -925,7 +936,9 @@ class DocumentSegmenter:
         return segs
 
     # DP-based cut placement
-    def _place_cuts(self, sents: List[str], scores: List[float]) -> Tuple[List[int], float]:
+    def _place_cuts(
+        self, sents: List[str], scores: List[float]
+    ) -> Tuple[List[int], float]:
         """
         Choose cut indices (end-exclusive) to minimize cost under constraints.
         Returns (cuts, global_confidence). cuts are sentence indices where a segment ends.
@@ -943,7 +956,7 @@ class DocumentSegmenter:
             return max(0, raw - 1)  # remove trailing join space
 
         def seg_sent_count(i: int, j: int) -> int:
-            return (j - i + 1)
+            return j - i + 1
 
         # boundary score after sentence k (i..j means last cut at j)
         def cut_score(j: int) -> float:
@@ -997,12 +1010,20 @@ class DocumentSegmenter:
         conf = sum(cut_bscores) / len(cut_bscores) if cut_bscores else 1.0
         return cuts, conf
 
-    def _materialize_segments(self, sents: List[str], cuts: List[int], conf: float) -> List[Dict[str, object]]:
+    def _materialize_segments(
+        self, sents: List[str], cuts: List[int], conf: float
+    ) -> List[Dict[str, object]]:
         out: List[Dict[str, object]] = []
         start = 0
         for c in cuts:
-            chunk = " ".join(sents[start : c + 1]).strip()
-            m = self._metrics(chunk, "advanced" if isinstance(self._backend, AdvancedBackend) else "rule_based", conf)
+            chunk = " ".join(sents[start: c + 1]).strip()
+            m = self._metrics(
+                chunk,
+                "advanced"
+                if isinstance(self._backend, AdvancedBackend)
+                else "rule_based",
+                conf,
+            )
             out.append({"text": chunk, "metrics": m, "segment_type": m.segment_type})
             start = c + 1
         return out
@@ -1041,8 +1062,9 @@ class DocumentSegmenter:
             for p in parts
         ]
 
-
-    def _post_process_segments(self, segs: List[Dict[str, object]]) -> List[Dict[str, object]]:
+    def _post_process_segments(
+        self, segs: List[Dict[str, object]]
+    ) -> List[Dict[str, object]]:
         if not segs:
             return []
         # Merge very tiny tails if safe
@@ -1054,8 +1076,14 @@ class DocumentSegmenter:
                 combined = f"{prev['text']} {seg['text']}".strip()
                 if len(combined) <= self.max_segment_chars:
                     merged.pop()
-                    m = self._metrics(combined, "merged", (prev["metrics"].confidence + seg["metrics"].confidence) / 2)
-                    merged.append({"text": combined, "metrics": m, "segment_type": "merged"})
+                    m = self._metrics(
+                        combined,
+                        "merged",
+                        (prev["metrics"].confidence + seg["metrics"].confidence) / 2,
+                    )
+                    merged.append(
+                        {"text": combined, "metrics": m, "segment_type": "merged"}
+                    )
                     continue
             merged.append(seg)
 
@@ -1065,7 +1093,9 @@ class DocumentSegmenter:
             normalized.extend(self._split_if_oversized(seg))
         return self._ensure_minimum_count(normalized)
 
-    def _ensure_minimum_count(self, segs: List[Dict[str, object]]) -> List[Dict[str, object]]:
+    def _ensure_minimum_count(
+        self, segs: List[Dict[str, object]]
+    ) -> List[Dict[str, object]]:
         if len(segs) > 2 or not segs:
             return segs
         # Try to split the longest into at least two groups by target sentences
@@ -1090,8 +1120,18 @@ class DocumentSegmenter:
         replacement: List[Dict[str, object]] = []
         for g in groups:
             part = " ".join(g).strip()
-            replacement.extend(self._split_if_oversized({"text": part, "metrics": self._metrics(part, s["metrics"].segment_type, s["metrics"].confidence), "segment_type": s["segment_type"]}))
-        return segs[:idx] + replacement + segs[idx + 1 :]
+            replacement.extend(
+                self._split_if_oversized(
+                    {
+                        "text": part,
+                        "metrics": self._metrics(
+                            part, s["metrics"].segment_type, s["metrics"].confidence
+                        ),
+                        "segment_type": s["segment_type"],
+                    }
+                )
+            )
+        return segs[:idx] + replacement + segs[idx + 1:]
 
     def _split_if_oversized(self, seg: Dict[str, object]) -> List[Dict[str, object]]:
         if seg["metrics"].char_count <= self.max_segment_chars:
@@ -1099,11 +1139,17 @@ class DocumentSegmenter:
         parts = self._split_by_words(seg["text"])
         out: List[Dict[str, object]] = []
         for p in parts:
-            out.append({
-                "text": p,
-                "metrics": self._metrics(p, seg.get("segment_type", "rule_based"), seg["metrics"].confidence),
-                "segment_type": seg.get("segment_type", "rule_based"),
-            })
+            out.append(
+                {
+                    "text": p,
+                    "metrics": self._metrics(
+                        p,
+                        seg.get("segment_type", "rule_based"),
+                        seg["metrics"].confidence,
+                    ),
+                    "segment_type": seg.get("segment_type", "rule_based"),
+                }
+            )
         return out
 
     def _split_by_words(self, text: str) -> List[str]:
@@ -1112,7 +1158,7 @@ class DocumentSegmenter:
         words = text.split()
         if not words:
             size = max(1, self.max_segment_chars)
-            return [text[i:i+size] for i in range(0, len(text), size)]
+            return [text[i: i + size] for i in range(0, len(text), size)]
         parts: List[str] = []
         cur: List[str] = []
         length = 0
@@ -1120,15 +1166,18 @@ class DocumentSegmenter:
             wl = len(w)
             if wl > self.max_segment_chars:
                 if cur:
-                    parts.append(" ".join(cur)); cur, length = [], 0
+                    parts.append(" ".join(cur))
+                    cur, length = [], 0
                 size = max(1, self.max_segment_chars)
-                parts.extend(w[i:i+size] for i in range(0, wl, size))
+                parts.extend(w[i: i + size] for i in range(0, wl, size))
                 continue
             add = wl + (1 if cur else 0)
             if cur and length + add > self.max_segment_chars:
-                parts.append(" ".join(cur)); cur, length = [w], wl
+                parts.append(" ".join(cur))
+                cur, length = [w], wl
             else:
-                cur.append(w); length += add
+                cur.append(w)
+                length += add
         if cur:
             parts.append(" ".join(cur))
         return parts
@@ -1146,47 +1195,72 @@ class DocumentSegmenter:
         sentence_counts = [s["metrics"].sentence_count for s in segs]
         st.avg_char_length = sum(char_lengths) / len(char_lengths)
         st.avg_sentence_count = sum(sentence_counts) / len(sentence_counts)
-        st.segments_in_char_range = sum(self.target_char_min <= L <= self.target_char_max for L in char_lengths)
-        st.segments_with_target_sentences = sum(c == self.target_sentences for c in sentence_counts)
-        st.segments_with_3_sentences = st.segments_with_target_sentences  # Backward compatibility
+        st.segments_in_char_range = sum(
+            self.target_char_min <= L <= self.target_char_max for L in char_lengths
+        )
+        st.segments_with_target_sentences = sum(
+            c == self.target_sentences for c in sentence_counts
+        )
+        st.segments_with_3_sentences = (
+            st.segments_with_target_sentences
+        )  # Backward compatibility
         st.char_length_distribution = self._char_dist(char_lengths)
         st.sentence_count_distribution = self._sent_dist(sentence_counts)
         return st
 
     @staticmethod
     def _char_dist(lengths: Iterable[int]) -> Dict[str, int]:
-        buckets = {"< 500": 0, "500-699": 0, "700-900 (target)": 0, "901-1200": 0, "> 1200": 0}
+        buckets = {
+            "< 500": 0,
+            "500-699": 0,
+            "700-900 (target)": 0,
+            "901-1200": 0,
+            "> 1200": 0,
+        }
         for L in lengths:
-            if L < 500: buckets["< 500"] += 1
-            elif L < 700: buckets["500-699"] += 1
-            elif L <= 900: buckets["700-900 (target)"] += 1
-            elif L <= 1200: buckets["901-1200"] += 1
-            else: buckets["> 1200"] += 1
+            if L < 500:
+                buckets["< 500"] += 1
+            elif L < 700:
+                buckets["500-699"] += 1
+            elif L <= 900:
+                buckets["700-900 (target)"] += 1
+            elif L <= 1200:
+                buckets["901-1200"] += 1
+            else:
+                buckets["> 1200"] += 1
         return buckets
 
     @staticmethod
     def _sent_dist(counts: Iterable[int]) -> Dict[str, int]:
         buckets = {"1": 0, "2": 0, "3 (target)": 0, "4": 0, ">=5": 0}
         for c in counts:
-            if c <= 1: buckets["1"] += 1
-            elif c == 2: buckets["2"] += 1
-            elif c == 3: buckets["3 (target)"] += 1
-            elif c == 4: buckets["4"] += 1
-            else: buckets[">=5"] += 1
+            if c <= 1:
+                buckets["1"] += 1
+            elif c == 2:
+                buckets["2"] += 1
+            elif c == 3:
+                buckets["3 (target)"] += 1
+            elif c == 4:
+                buckets["4"] += 1
+            else:
+                buckets[">=5"] += 1
         return buckets
 
     @staticmethod
     def _coherence(text: str) -> float:
-        if not text: return 0.0
+        if not text:
+            return 0.0
         words = [w.lower() for w in _WORD_REGEX.findall(text)]
-        if not words: return 0.0
+        if not words:
+            return 0.0
         counts = Counter(words)
         repeated_ratio = 1 - (len(counts) / len(words))
         return max(0.0, min(1.0, repeated_ratio + 0.2))
 
     def _consistency_score(self) -> float:
         segs = self.segmentation_stats.segments
-        if len(segs) <= 1: return 1.0 if segs else 0.0
+        if len(segs) <= 1:
+            return 1.0 if segs else 0.0
         Ls = [s["metrics"].char_count for s in segs]
         mean = sum(Ls) / len(Ls)
         var = sum((x - mean) ** 2 for x in Ls) / len(Ls)
@@ -1195,14 +1269,16 @@ class DocumentSegmenter:
 
     def _target_adherence_score(self) -> float:
         st = self.segmentation_stats
-        if not st.segments: return 0.0
+        if not st.segments:
+            return 0.0
         a = st.segments_in_char_range / st.total_segments
         b = st.segments_with_target_sentences / st.total_segments
         return max(0.0, min(1.0, (a + b) / 2))
 
     def _overall_quality_score(self) -> float:
         segs = self.segmentation_stats.segments
-        if not segs: return 0.0
+        if not segs:
+            return 0.0
         coh = [s["metrics"].semantic_coherence_score for s in segs]
         avg = sum(coh) / len(coh)
         parts = [self._consistency_score(), self._target_adherence_score(), avg]
@@ -1211,35 +1287,35 @@ class DocumentSegmenter:
     # ---------------------------
     # Backward compatibility aliases
     # ---------------------------
-    
+
     def _create_char_distribution(self, lengths: Iterable[int]) -> Dict[str, int]:
         """Backward compatibility alias for _char_dist()."""
         return self._char_dist(lengths)
-    
+
     def _create_sentence_distribution(self, counts: Iterable[int]) -> Dict[str, int]:
         """Backward compatibility alias for _sent_dist()."""
         return self._sent_dist(counts)
-    
+
     def _estimate_semantic_coherence(self, text: str) -> float:
         """Backward compatibility alias for _coherence()."""
         return self._coherence(text)
-    
+
     def _calculate_consistency_score(self) -> float:
         """Backward compatibility alias for _consistency_score()."""
         return self._consistency_score()
-    
+
     def _calculate_target_adherence_score(self) -> float:
         """Backward compatibility alias for _target_adherence_score()."""
         return self._target_adherence_score()
-    
+
     def _calculate_overall_quality_score(self) -> float:
         """Backward compatibility alias for _overall_quality_score()."""
         return self._overall_quality_score()
-    
+
     def _emergency_fallback_segmentation(self, text: str) -> List[Dict[str, object]]:
         """Backward compatibility alias for _fallback_segments()."""
         return self._fallback_segments(text)
-    
+
     def _split_text_by_words(self, text: str) -> List[str]:
         """Backward compatibility alias for _split_by_words()."""
         return self._split_by_words(text)

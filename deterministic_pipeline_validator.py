@@ -31,7 +31,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # Configure logging
 logging.basicConfig(
@@ -623,11 +623,14 @@ class CanonicalFlowValidator:
             curr_stage = actual_stages[i]
             next_stage = actual_stages[i + 1]
 
-            if curr_stage in canonical_indices and next_stage in canonical_indices:
-                if canonical_indices[curr_stage] >= canonical_indices[next_stage]:
-                    result["out_of_order"].append(
-                        {"position": i, "stage": curr_stage, "followed_by": next_stage}
-                    )
+            if (
+                curr_stage in canonical_indices
+                and next_stage in canonical_indices
+                and canonical_indices[curr_stage] >= canonical_indices[next_stage]
+            ):
+                result["out_of_order"].append(
+                    {"position": i, "stage": curr_stage, "followed_by": next_stage}
+                )
 
         if not result["order_valid"]:
             self.logger.error(

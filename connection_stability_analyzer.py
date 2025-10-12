@@ -16,7 +16,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -418,13 +418,13 @@ class ConnectionStabilityAnalyzer:
         extra_fields = list(actual_fields - expected_fields)
 
         type_mismatches = []
-        for field_name in expected_fields & actual_fields:
-            if expected_schema[field_name] != actual_schema[field_name]:
+        for field in expected_fields & actual_fields:
+            if expected_schema[field] != actual_schema[field]:
                 type_mismatches.append(
                     {
-                        "field": field_name,
-                        "expected": expected_schema[field_name],
-                        "actual": actual_schema[field_name],
+                        "field": field,
+                        "expected": expected_schema[field],
+                        "actual": actual_schema[field],
                     }
                 )
 

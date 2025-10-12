@@ -1,4 +1,3 @@
-# coding=utf-8
 """
 INDUSTRIAL-GRADE TEORÍA DE CAMBIO v5.0.0 (self-contained, P–D–Q canonical)
 - Deterministic, thread-safe, dependency-graceful.
@@ -242,7 +241,7 @@ class SpacyExtractor(CausalExtractor):
 
     def extract(self, text_block: str) -> List[CausalElement]:
         doc = self.nlp(text_block)
-        elements: List[CausalElement] = []
+        out: List[CausalElement] = []
         k = 0
         for sent in doc.sents:
             for t in sent:
@@ -254,7 +253,7 @@ class SpacyExtractor(CausalExtractor):
                             break
                     if not effect:
                         effect = sent.text
-                    elements.append(
+                    out.append(
                         CausalElement(
                             id=f"elem_{k}",
                             text=effect.strip(),
@@ -264,7 +263,7 @@ class SpacyExtractor(CausalExtractor):
                         )
                     )
                     k += 1
-        return elements
+        return out
 
 
 class RegexExtractor(CausalExtractor):
@@ -278,7 +277,7 @@ class RegexExtractor(CausalExtractor):
         for k, m in enumerate(self._PAT.finditer(text_block)):
             verb = m.group(0).split()[0].lower()
             effect = m.group(1).strip()
-            elements.append(
+            out.append(
                 CausalElement(
                     id=f"fallback_{k}",
                     text=effect,
@@ -287,7 +286,7 @@ class RegexExtractor(CausalExtractor):
                     confidence=0.6,
                 )
             )
-        return elements
+        return out
 
 
 def build_extractor() -> CausalExtractor:

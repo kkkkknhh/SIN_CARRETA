@@ -22,7 +22,7 @@ import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -31,8 +31,7 @@ logger = logging.getLogger(__name__)
 # Import spaCy for NER
 try:
     import spacy
-    from spacy.language import Language
-    from spacy.tokens import Doc, Span
+    from spacy.tokens import Doc
 
     SPACY_AVAILABLE = True
 except ImportError:
@@ -710,18 +709,18 @@ if __name__ == "__main__":
     """
 
     # Detect entities
-    detected_entities = detector.detect_entities(sample_text)
+    entities = detector.detect_entities(sample_text)
 
     # Print results
-    print(f"Found {len(detected_entities)} responsibility entities:")
-    for detected_entity in detected_entities:
+    print(f"Found {len(entities)} responsibility entities:")
+    for entity in entities:
         print(
-            f"- {detected_entity.text} ({detected_entity.entity_type.value}, confidence: {detected_entity.confidence:.2f})"
+            f"- {entity.text} ({entity.entity_type.value}, confidence: {entity.confidence:.2f})"
         )
-        if detected_entity.has_explicit_role:
-            print(f"  Role: {detected_entity.role_description}")
-        if detected_entity.parent_entity:
-            print(f"  Part of: {detected_entity.parent_entity}")
+        if entity.has_explicit_role:
+            print(f"  Role: {entity.role_description}")
+        if entity.parent_entity:
+            print(f"  Part of: {entity.parent_entity}")
 
     # Complete document analysis
     analysis = detector.analyze_document(sample_text)

@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence
 
 # ---------------------------
 # Regex canónicos P–D–Q
@@ -21,6 +21,7 @@ _RX_POLICY = re.compile(r"^P(10|[1-9])$")
 _RX_DIM = re.compile(r"^D[1-6]$")
 _RX_Q = re.compile(r"^Q[1-9][0-9]*$")
 _RX_RUBRIC = re.compile(r"^D[1-6]-Q[1-9][0-9]*$")
+
 
 def _std_qid(raw_id: str) -> str:
     """Normaliza IDs legados a formato P#-D#-Q# o lanza ValueError."""
@@ -39,6 +40,7 @@ def _std_qid(raw_id: str) -> str:
             return uid
     raise ValueError(f"ERROR_QID_FORMAT: invalid id '{raw_id}' — expected 'P#-D#-Q#'")
 
+
 def _rubric_key_from_uid(uid: str) -> str:
     """Extrae D#-Q# desde P#-D#-Q#."""
     if not _RX_UID.match(uid):
@@ -49,15 +51,21 @@ def _rubric_key_from_uid(uid: str) -> str:
         raise ValueError(f"ERROR_RUBRIC_KEY_DERIVATION: '{rk}' from '{uid}'")
     return rk
 
+
 @dataclass
 class _Quote:
     text: str
     confidence: float = 0.5
 
+
 class AnswerAssembler:
     """Assembles answers from evidence registry and rubric."""
 
-    def __init__(self, rubric_path: Optional[Path] = None, evidence_registry: Optional[Any] = None):
+    def __init__(
+        self,
+        rubric_path: Optional[Path] = None,
+        evidence_registry: Optional[Any] = None,
+    ):
         """
         Args:
             rubric_path: Ruta al JSON de rúbrica (con 'weights' por D#-Q#).
@@ -80,13 +88,19 @@ class AnswerAssembler:
         except Exception as e:
             raise RuntimeError(f"ERROR_RUBRIC_LOAD: {e}") from e
 
-        if not isinstance(data, dict) or "weights" not in data or not isinstance(data["weights"], dict):
+        if (
+            not isinstance(data, dict)
+            or "weights" not in data
+            or not isinstance(data["weights"], dict)
+        ):
             raise ValueError("ERROR_RUBRIC_SCHEMA: missing 'weights' dict")
 
         # Validar claves D#-Q#
         for k in data["weights"].keys():
             if not _RX_RUBRIC.match(k):
-                raise ValueError(f"ERROR_RUBRIC_KEY: invalid rubric key '{k}' (expected D#-Q#)")
+                raise ValueError(
+                    f"ERROR_RUBRIC_KEY: invalid rubric key '{k}' (expected D#-Q#)"
+                )
         self.rubric = data
 
     # ---------------------------
@@ -99,7 +113,7 @@ class AnswerAssembler:
             return evs
 
         items = []
-        
+
         # Ruta 1: método estándar get_evidence_for_question (adaptador custom)
         if hasattr(self.evidence_registry, "get_evidence_for_question"):
             try:
@@ -120,7 +134,9 @@ class AnswerAssembler:
             if reg is not None and hasattr(reg, "_evidence"):
                 try:
                     for entry in reg._evidence.values():  # type: ignore[attr-defined]
-                        stored = getattr(entry, "metadata", {}).get("question_unique_id", "")
+                        stored = getattr(entry, "metadata", {}).get(
+                            "question_unique_id", ""
+                        )
                         try:
                             if _std_qid(stored) == uid:
                                 txt = None
@@ -132,7 +148,14 @@ class AnswerAssembler:
                                     cnt = getattr(entry, "content", None)
                                     if isinstance(cnt, dict):
                                         txt = cnt.get("text") or ""
-                                evs.append(_Quote(text=(txt[:147] + "...") if txt and len(txt) > 150 else (txt or ""), confidence=conf))
+                                evs.append(
+                                    _Quote(
+                                        text=(txt[:147] + "...")
+                                        if txt and len(txt) > 150
+                                        else (txt or ""),
+                                        confidence=conf,
+                                    )
+                                )
                         except Exception:
                             continue
                 except Exception:
@@ -157,7 +180,12 @@ class AnswerAssembler:
                 if not text and hasattr(it, "content"):
                     if isinstance(it.content, dict):
                         text = it.content.get("text") or text
-                norm.append(_Quote(text=(text[:147] + "...") if text and len(text) > 150 else text, confidence=conf))
+                norm.append(
+                    _Quote(
+                        text=(text[:147] + "...") if text and len(text) > 150 else text,
+                        confidence=conf,
+                    )
+                )
         return norm
 
     # ---------------------------
@@ -171,11 +199,19 @@ class AnswerAssembler:
 
         evaluation_inputs espera `{"questionnaire_eval": {"question_results": [...]}}`
         """
-        questionnaire_eval = evaluation_inputs.get("questionnaire_eval", {}) if isinstance(evaluation_inputs, dict) else {}
-        q_results: Sequence[Dict[str, Any]] = questionnaire_eval.get("question_results", []) or []
+        questionnaire_eval = (
+            evaluation_inputs.get("questionnaire_eval", {})
+            if isinstance(evaluation_inputs, dict)
+            else {}
+        )
+        q_results: Sequence[Dict[str, Any]] = (
+            questionnaire_eval.get("question_results", []) or []
+        )
 
         if not isinstance(q_results, Sequence):
-            raise ValueError("ERROR_INPUT_FORMAT: 'questionnaire_eval.question_results' must be a list")
+            raise ValueError(
+                "ERROR_INPUT_FORMAT: 'questionnaire_eval.question_results' must be a list"
+            )
 
         weights = (self.rubric or {}).get("weights", {})
         question_answers: List[Dict[str, Any]] = []
@@ -194,29 +230,37 @@ class AnswerAssembler:
             caveats = self._caveats(evidence_list, score)
             rationale = self._rationale(uid, evidence_list, score)
 
-            question_answers.append({
-                "question_id": uid,
-                "dimension": uid.split("-")[1],  # D#
-                "raw_score": score,
-                "rubric_key": rk,
-                "rubric_weight": weight,
-                "confidence": confidence,
-                "evidence_ids": [],  # no exponemos IDs internos aquí; el orquestador ya guarda el registry aparte
-                "evidence_count": len(evidence_list),
-                "supporting_quotes": [q.text for q in evidence_list[:3] if q.text],
-                "caveats": caveats,
-                "scoring_modality": "CANONICAL_PDQ"
-            })
+            question_answers.append(
+                {
+                    "question_id": uid,
+                    "dimension": uid.split("-")[1],  # D#
+                    "raw_score": score,
+                    "rubric_key": rk,
+                    "rubric_weight": weight,
+                    "confidence": confidence,
+                    "evidence_ids": [],  # no exponemos IDs internos aquí; el orquestador ya guarda el registry aparte
+                    "evidence_count": len(evidence_list),
+                    "supporting_quotes": [q.text for q in evidence_list[:3] if q.text],
+                    "caveats": caveats,
+                    "scoring_modality": "CANONICAL_PDQ",
+                }
+            )
 
         total_weight = sum(qa["rubric_weight"] for qa in question_answers)
-        weighted_score = sum(qa["raw_score"] * qa["rubric_weight"] for qa in question_answers)
+        weighted_score = sum(
+            qa["raw_score"] * qa["rubric_weight"] for qa in question_answers
+        )
 
         global_summary = {
             "answered_questions": len(question_answers),
             "total_questions": 300,  # contrato canónico por defecto (10×6×5)
             "total_weight": total_weight,
             "weighted_score": weighted_score,
-            "average_confidence": (sum(qa["confidence"] for qa in question_answers) / len(question_answers)) if question_answers else 0.0,
+            "average_confidence": (
+                sum(qa["confidence"] for qa in question_answers) / len(question_answers)
+            )
+            if question_answers
+            else 0.0,
         }
 
         return {
@@ -225,8 +269,8 @@ class AnswerAssembler:
             "metadata": {
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                 "rubric_loaded": bool(weights),
-                "rubric_path": str(self.rubric_path) if self.rubric_path else None
-            }
+                "rubric_path": str(self.rubric_path) if self.rubric_path else None,
+            },
         }
 
     # ---------------------------
@@ -237,7 +281,9 @@ class AnswerAssembler:
         if not evidence:
             base = 0.3
         else:
-            avg = sum(max(0.0, min(1.0, q.confidence)) for q in evidence) / len(evidence)
+            avg = sum(max(0.0, min(1.0, q.confidence)) for q in evidence) / len(
+                evidence
+            )
             factor = min(len(evidence) / 3.0, 1.0)
             base = avg * factor
         extremity = abs(score - 0.5) * 2
@@ -266,5 +312,6 @@ class AnswerAssembler:
         if score > 0.4:
             return f"Partial evidence indicates moderate compliance in {dimension}."
         return f"Limited evidence suggests low compliance in {dimension}."
+
 
 __all__ = ["AnswerAssembler"]

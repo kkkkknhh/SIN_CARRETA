@@ -1,4 +1,3 @@
-# coding=utf-8
 """
 Text Processing Module
 
@@ -17,7 +16,7 @@ Features:
 import logging
 import re
 import unicodedata
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -207,7 +206,7 @@ class TextProcessor:
 # These functions intentionally keep logic minimal and Unicode-safe.
 
 
-def normalize_text_unicode(text: str, form: str = "NFKC") -> str:
+def normalize_unicode(text: str, form: str = "NFKC") -> str:
     """Normalize Unicode text using the specified form (default NFKC)."""
     if not text:
         return ""
@@ -263,7 +262,7 @@ def split_sentences(text: str) -> List[str]:
     """Split text into sentences using ., !, ? boundaries."""
     if not text:
         return []
-    t = normalize_text_unicode(text)
+    t = normalize_unicode(text)
     parts = re.split(r"(?<=[.!?])\s+", t)
     return [p for p in parts if p.strip()]
 
@@ -435,21 +434,21 @@ def create_text_processor(
 
 if __name__ == "__main__":
     # Example usage
-    text_proc = create_text_processor()
+    processor = create_text_processor()
 
     # Test with some Spanish text containing different Unicode representations
     test_text = "Este  es  un\ttexto   con\nespaçios  irregulares y carácteres especiales.\nÑandú.\r\n"
-    normalized = text_proc.normalize_text(test_text)
+    normalized = processor.normalize_text(test_text)
 
     print(f"Original: {repr(test_text)}")
     print(f"Normalized: {repr(normalized)}")
 
     # Test segmentation
     long_text = "Primera oración. " * 50 + "Segunda oración muy larga. " * 50
-    text_segments = text_proc.segment_text(long_text, max_length=200, overlap=20)
+    segments = processor.segment_text(long_text, max_length=200, overlap=20)
 
-    print(f"\nSegmented into {len(text_segments)} chunks:")
-    for i, segment in enumerate(text_segments[:3]):
+    print(f"\nSegmented into {len(segments)} chunks:")
+    for i, segment in enumerate(segments[:3]):
         print(f"Segment {i + 1}: {segment[:50]}...")
-    if len(text_segments) > 3:
-        print(f"...and {len(text_segments) - 3} more segments")
+    if len(segments) > 3:
+        print(f"...and {len(segments) - 3} more segments")
