@@ -1314,14 +1314,19 @@ class DimensionDecalogoAvanzada:
             raise ValueError("Nombre de dimensión debe ser más descriptivo")
         if len(self.eslabones) < 4:
             raise ValueError(
-                "Debe haber al menos 4 eslabones por dimensión para análisis robusto"
+                "Debe haber al menos 4 eslabones por dimensión para "
+                "análisis robusto"
             )
         if not (0.1 <= self.prioridad_estrategica <= 3.0):
             raise ValueError(
-                "Prioridad estratégica debe estar entre 0.1 y 3.0")
+                "Prioridad estratégica debe estar entre 0.1 y 3.0"
+            )
 
-    def evaluar_coherencia_causal_avanzada(self, evidence_registry=None) -> Dict[str, float]:
-        """Evaluación avanzada de coherencia causal con múltiples métricas."""
+    def evaluar_coherencia_causal_avanzada(
+        self, evidence_registry=None
+    ) -> Dict[str, float]:
+        """Evaluación avanzada de coherencia causal con múltiples
+        métricas."""
         try:
             # Verificación de identificabilidad
             identificabilidad = (
@@ -1338,8 +1343,9 @@ class DimensionDecalogoAvanzada:
                 TipoCadenaValor.ACTIVIDADES,
                 TipoCadenaValor.PRODUCTOS,
             }
-            cobertura_critica = len(tipos_criticos.intersection(tipos_presentes)) / len(
-                tipos_criticos
+            cobertura_critica = (
+                len(tipos_criticos.intersection(tipos_presentes))
+                / len(tipos_criticos)
             )
 
             # Bonus por cobertura completa
@@ -1381,8 +1387,9 @@ class DimensionDecalogoAvanzada:
 
             return {
                 "coherencia_global": coherencia_global,
-                "identificabilidad_causal": puntaje_identificabilidad,
-                "cobertura_eslabones": cobertura_critica + bonus_cobertura / 3,
+                "identificabilidad_causal": (puntaje_identificabilidad),
+                "cobertura_eslabones": (
+                    cobertura_critica + bonus_cobertura / 3),
                 "manejabilidad_complejidad": factor_manejabilidad,
                 "coherencia_temporal": coherencia_temporal,
                 "dependencias_circulares": factor_dependencias,
@@ -1485,7 +1492,8 @@ class DimensionDecalogoAvanzada:
             return "BAJA"
         return "CRITICA"
 
-    def calcular_kpi_global_avanzado(self, evidence_registry=None) -> Dict[str, float]:
+    def calcular_kpi_global_avanzado(
+            self, evidence_registry=None) -> Dict[str, float]:
         """Cálculo avanzado de KPI global con múltiples dimensiones."""
         try:
             metricas_eslabones = [
@@ -1507,14 +1515,19 @@ class DimensionDecalogoAvanzada:
             factor_riesgo = 1.0 - (np.mean(riesgos) * 0.4)
 
             # Factor de recursos
-            recursos = [m["intensidad_recursos"] for m in metricas_eslabones]
-            factor_recursos = np.mean(recursos) * \
-                0.8 + 0.2  # Base mínima del 20%
+            recursos = [
+                m["intensidad_recursos"] for m in metricas_eslabones
+            ]
+            factor_recursos = (
+                np.mean(recursos) * 0.8 + 0.2
+            )  # Base mínima del 20%
 
             # KPI global ajustado
             kpi_global_ajustado = (
-                kpi_basico * factor_complejidad * factor_riesgo * factor_recursos
-            )
+                kpi_basico *
+                factor_complejidad *
+                factor_riesgo *
+                factor_recursos)
 
             # Métricas adicionales
             lead_times = [m["lead_time_normalizado"]
@@ -1548,7 +1561,8 @@ class DimensionDecalogoAvanzada:
                 "score_implementabilidad": 0.6,
             }
 
-    def generar_matriz_riesgos_avanzada(self, evidence_registry=None) -> Dict[str, Dict[str, Any]]:
+    def generar_matriz_riesgos_avanzada(
+            self, evidence_registry=None) -> Dict[str, Dict[str, Any]]:
         """Generación de matriz de riesgos avanzada con análisis probabilístico."""
         matriz_riesgos = {}
 
@@ -1584,7 +1598,8 @@ class DimensionDecalogoAvanzada:
                 # Riesgo por alta complejidad
                 if metricas["complejidad_operativa"] > 0.7:
                     riesgos_eslabon.append(
-                        "RIESGO SISTÉMICO: Alta complejidad operativa"
+                        "RIESGO SISTÉMICO: Alta complejidad "
+                        "operativa"
                     )
                     probabilidades.append(0.4)
                     impactos.append(0.6)
@@ -1730,16 +1745,14 @@ class DimensionDecalogoAvanzada:
                     "Porcentaje de actividades implementadas según cronograma",
                     "Porcentaje de actividades críticas completadas según cronograma",
                     "Número de cuellos de botella identificados y resueltos",
-                ]
-            )
+                ])
         elif eslabon.tipo == TipoCadenaValor.PRODUCTOS:
             indicadores.extend(
                 [
                     "Porcentaje de productos entregados según especificaciones",
                     "Índice de calidad de productos (escala 1-10)",
                     "Tiempo de entrega promedio vs planificado",
-                ]
-            )
+                ])
         elif eslabon.tipo == TipoCadenaValor.RESULTADOS:
             indicadores.extend(
                 [
@@ -1769,7 +1782,7 @@ class DimensionDecalogoAvanzada:
         return indicadores
 
 
-# -------------------- Sistema de carga del decálogo avanzado --------------------
+# -------------------- Sistema de carga del decálogo avanzado ------------
 def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
     """Carga el decálogo industrial con capacidades avanzadas.
 
@@ -1821,8 +1834,8 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
                 identificabilidad = teoria_cambio.verificar_identificabilidad_avanzada()
                 if identificabilidad["puntaje_global_identificabilidad"] < 0.4:
                     raise ValueError(
-                        f"Teoría de cambio no suficientemente identificable en dimensión {i + 1}"
-                    )
+                        f"Teoría de cambio no suficientemente identificable en dimensión {
+                            i + 1}")
 
                 # Construcción de eslabones avanzados
                 eslabones = []
@@ -1861,8 +1874,8 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
                 decalogos.append(dimension)
 
             LOGGER.info(
-                f"✅ Decálogo avanzado cargado y validado: {len(decalogos)} dimensiones"
-            )
+                f"✅ Decálogo avanzado cargado y validado: {
+                    len(decalogos)} dimensiones")
             return decalogos
 
         except Exception as e:
@@ -1989,11 +2002,15 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
                 "tipo": tipo_nombre,
                 "descripcion": descripcion,
                 "indicadores": [
-                    f"indicador_{tipo_nombre.lower()}_cuantitativo_{dim_id}_{i + 1}"
+                    f"indicador_{
+                        tipo_nombre.lower()}_cuantitativo_{dim_id}_{
+                        i + 1}"
                     for i in range(3)
                 ]
                 + [
-                    f"indicador_{tipo_nombre.lower()}_cualitativo_{dim_id}_{i + 1}"
+                    f"indicador_{
+                        tipo_nombre.lower()}_cualitativo_{dim_id}_{
+                        i + 1}"
                     for i in range(2)
                 ],
                 "capacidades_requeridas": [
@@ -2001,15 +2018,21 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
                     for i in range(3)
                 ]
                 + [
-                    f"capacidad_institucional_{tipo_nombre.lower()}_{dim_id}_{i + 1}"
+                    f"capacidad_institucional_{
+                        tipo_nombre.lower()}_{dim_id}_{
+                        i + 1}"
                     for i in range(2)
                 ],
                 "puntos_criticos": [
-                    f"punto_critico_operativo_{tipo_nombre.lower()}_{dim_id}_{i + 1}"
+                    f"punto_critico_operativo_{
+                        tipo_nombre.lower()}_{dim_id}_{
+                        i + 1}"
                     for i in range(2)
                 ]
                 + [
-                    f"punto_critico_estrategico_{tipo_nombre.lower()}_{dim_id}_{i + 1}"
+                    f"punto_critico_estrategico_{
+                        tipo_nombre.lower()}_{dim_id}_{
+                        i + 1}"
                     for i in range(1)
                 ],
                 "ventana_temporal": [
@@ -2023,12 +2046,14 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
                     f"riesgo_institucional_{tipo_nombre.lower()}_{dim_id}",
                 ],
                 "dependencias": (
-                    [f"{tipos_eslabon[max(0, tipo_idx - 1)][0].lower()[:3]}_{dim_id}"]
+                    [f"{tipos_eslabon[max(0,
+                                          tipo_idx - 1)][0].lower()[:3]}_{dim_id}"]
                     if tipo_idx > 0
                     else []
                 ),
                 "stakeholders": [
-                    f"stakeholder_institucional_{tipo_nombre.lower()}_{dim_id}",
+                    f"stakeholder_institucional_{
+                        tipo_nombre.lower()}_{dim_id}",
                     f"stakeholder_comunitario_{tipo_nombre.lower()}_{dim_id}",
                     f"stakeholder_sectorial_{tipo_nombre.lower()}_{dim_id}",
                 ],
@@ -2214,7 +2239,7 @@ class DecalogoContextoAvanzado:
             return 0.5
 
 
-# -------------------- Extractor de evidencia con capacidades de frontera --------------------
+# -------------------- Extractor de evidencia con capacidades de frontera
 class ExtractorEvidenciaIndustrialAvanzado:
     """Extractor de evidencia con capacidades matemáticas y de IA de frontera."""
 
@@ -2262,8 +2287,8 @@ class ExtractorEvidenciaIndustrialAvanzado:
 
         except Exception as e:
             log_error_with_text(
-                self.logger, f"❌ Error inicializando capacidades avanzadas: {e}"
-            )
+                self.logger,
+                f"❌ Error inicializando capacidades avanzadas: {e}")
 
     def _precomputar_embeddings_avanzados(self):
         """Precomputación de embeddings con metadatos enriquecidos."""
@@ -2281,13 +2306,16 @@ class ExtractorEvidenciaIndustrialAvanzado:
                     "pagina": pagina,
                     "indice_original": i,
                     "longitud_caracteres": len(texto),
-                    "longitud_palabras": len(texto.split()),
+                    "longitud_palabras": len(
+                        texto.split()),
                     "densidad_numerica": caracteristicas["densidad_numerica"],
                     "densidad_fechas": caracteristicas["densidad_fechas"],
                     "densidad_monetaria": caracteristicas["densidad_monetaria"],
                     "complejidad_sintactica": caracteristicas["complejidad_sintactica"],
                     "tipo_contenido_estimado": caracteristicas["tipo_contenido"],
-                    "hash_contenido": hashlib.md5(texto.encode()).hexdigest()[:12],
+                    "hash_contenido": hashlib.md5(
+                        texto.encode()).hexdigest()[
+                        :12],
                 }
                 metadata_valida.append(metadata)
 
@@ -2310,9 +2338,8 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 self.embeddings_metadata = metadata_valida
 
                 log_info_with_text(
-                    self.logger,
-                    f"✅ Embeddings avanzados precomputados: {len(textos_validos)} segmentos",
-                )
+                    self.logger, f"✅ Embeddings avanzados precomputados: {
+                        len(textos_validos)} segmentos", )
 
             except Exception as e:
                 log_error_with_text(
@@ -2322,8 +2349,8 @@ class ExtractorEvidenciaIndustrialAvanzado:
         else:
             self.embeddings_doc = torch.tensor([])
             log_warning_with_text(
-                self.logger, "⚠️ Textos insuficientes para embeddings avanzados"
-            )
+                self.logger,
+                "⚠️ Textos insuficientes para embeddings avanzados")
 
     def _extraer_caracteristicas_texto(self, texto: str) -> Dict[str, Any]:
         """Extrae características avanzadas del texto."""
@@ -2334,16 +2361,12 @@ class ExtractorEvidenciaIndustrialAvanzado:
 
             # Análisis de fechas
             fechas = re.findall(
-                r"\b(20\d{2}|\d{1,2}/\d{1,2}/\d{2,4}|\d{1,2}-\d{1,2}-\d{2,4})\b",
-                texto,
-            )
+                r"\b(20\d{2}|\d{1,2}/\d{1,2}/\d{2,4}|\d{1,2}-\d{1,2}-\d{2,4})\b", texto, )
             densidad_fechas = len(fechas) / max(1, len(texto.split())) * 100
 
             # Análisis monetario
             montos = re.findall(
-                r"\$[\d,.]+(?: millones?| mil(?:es)?| billones?)?|COP\s*[\d,.]+",
-                texto,
-            )
+                r"\$[\d,.]+(?: millones?| mil(?:es)?| billones?)?|COP\s*[\d,.]+", texto, )
             densidad_monetaria = len(montos) / max(1, len(texto.split())) * 100
 
             # Complejidad sintáctica (aproximada)
@@ -2938,17 +2961,18 @@ class ExtractorEvidenciaIndustrialAvanzado:
                     }
                 )
 
-        return sorted(resultados, key=lambda x: x["score_final"], reverse=True)[
-            :top_k
-        ]
+        return sorted(
+            resultados,
+            key=lambda x: x["score_final"],
+            reverse=True)[
+            :top_k]
 
 
 # -------------------- Main function --------------------
 def main():
     """Función principal del sistema de evaluación."""
     parser = argparse.ArgumentParser(
-        description="Sistema Integral de Evaluación de Cadenas de Valor en Planes de Desarrollo Municipal"
-    )
+        description="Sistema Integral de Evaluación de Cadenas de Valor en Planes de Desarrollo Municipal")
     parser.add_argument(
         "--input", required=True, help="Archivo PDF del plan de desarrollo"
     )
@@ -3001,14 +3025,12 @@ def main():
     else:
         # Fallback para pruebas sin PDF
         documentos = [
-            (
-                1,
-                "Plan de Desarrollo Municipal 2024-2027 con enfoque en desarrollo sostenible...",
-            ),
-            (
-                2,
-                "Presupuesto: $500 millones para inversión social y desarrollo territorial...",
-            ),
+            (1,
+             "Plan de Desarrollo Municipal 2024-2027 con enfoque en desarrollo sostenible...",
+             ),
+            (2,
+             "Presupuesto: $500 millones para inversión social y desarrollo territorial...",
+             ),
         ]
         LOGGER.warning(
             "⚠️ Usando documentos de ejemplo (PDF no disponible)")
@@ -3039,13 +3061,16 @@ def main():
             )
 
             # Evaluar coherencia
-            coherencia = dimension.evaluar_coherencia_causal_avanzada(evidence_registry=None)
+            coherencia = dimension.evaluar_coherencia_causal_avanzada(
+                evidence_registry=None)
 
             # Calcular KPIs
-            kpis = dimension.calcular_kpi_global_avanzado(evidence_registry=None)
+            kpis = dimension.calcular_kpi_global_avanzado(
+                evidence_registry=None)
 
             # Generar matriz de riesgos
-            riesgos = dimension.generar_matriz_riesgos_avanzada(evidence_registry=None)
+            riesgos = dimension.generar_matriz_riesgos_avanzada(
+                evidence_registry=None)
 
             resultados_evaluacion[dimension.nombre] = {
                 "dimension_id": dimension_id,
@@ -3114,8 +3139,8 @@ def main():
 
         LOGGER.info(f"✅ Evaluación completada: {args.output}")
         LOGGER.info(
-            f"📈 Coherencia global: {metricas_globales['coherencia_promedio']:.2%}"
-        )
+            f"📈 Coherencia global: {
+                metricas_globales['coherencia_promedio']:.2%}")
         LOGGER.info(
             f"📊 KPI global: {metricas_globales['kpi_promedio']:.2%}"
         )
@@ -3152,7 +3177,10 @@ def obtener_decalogo_contexto_avanzado() -> DecalogoContextoAvanzado:
             "CLUSTER_1": {
                 "titulo": "CLUSTER 1: PAZ TERRITORIAL Y SEGURIDAD HUMANA INTEGRAL",
                 "descripcion_extendida": "Cluster de paz y seguridad...",
-                "puntos": [1, 5, 8],
+                "puntos": [
+                    1,
+                    5,
+                    8],
                 "logica": "Lógica de agrupación basada en paz territorial...",
                 "teoria_cambio_cluster": {
                     "hipotesis_principal": "La consolidación de la paz requiere protección efectiva",
@@ -3161,11 +3189,13 @@ def obtener_decalogo_contexto_avanzado() -> DecalogoContextoAvanzado:
                         "Participación comunitaria",
                     ],
                 },
-                "interconexiones": {"1-5": 0.8, "1-8": 0.7, "5-8": 0.9},
+                "interconexiones": {
+                    "1-5": 0.8,
+                    "1-8": 0.7,
+                    "5-8": 0.9},
                 "complejidad_agregada": 2.1,
                 "prioridad_politica": 2.8,
-            }
-        }
+            }}
 
         for cluster_id, data in cluster_definitions.items():
             metadata = ClusterMetadataAvanzada(
