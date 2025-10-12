@@ -17,16 +17,13 @@ Test Coverage:
 8. Edge cases and error handling
 """
 
-import json
 import unittest
-from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, List
 
 import numpy as np
 
 from doctoral_argumentation_engine import (
     AcademicWritingAnalyzer,
-    ArgumentComponent,
     DoctoralArgumentationEngine,
     LogicalCoherenceValidator,
     StructuredEvidence,

@@ -14,20 +14,21 @@ Performance Optimizations:
 - Cache invalidation based on contract version changes
 """
 
-import logging
 import hashlib
 import json
+import logging
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Callable, Tuple
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class DataType(Enum):
     """Valid data types in the pipeline"""
+
     RAW_TEXT = "raw_text"
     SANITIZED_TEXT = "sanitized_text"
     SEGMENTS = "segments"
@@ -52,18 +53,18 @@ class DataType(Enum):
 class ValidationCache:
     """
     LRU cache for validation results with hash-based memoization.
-    
+
     Reduces validation overhead by caching results based on input hashes.
     Implements size-based eviction to prevent memory growth.
     """
-    
+
     def __init__(self, max_size: int = 1000):
         self.max_size = max_size
         self.cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
         self.hits = 0
         self.misses = 0
         self._version = "1.0"
-    
+
     def _compute_hash(self, data: Dict[str, Any], node_name: str) -> str:
         """Compute stable hash for input data"""
         try:
@@ -71,13 +72,13 @@ class ValidationCache:
             stable_repr = json.dumps(
                 {k: self._hashable_value(v) for k, v in sorted(data.items())},
                 sort_keys=True,
-                default=str
+                default=str,
             )
             hash_input = f"{node_name}:{self._version}:{stable_repr}"
             return hashlib.sha256(hash_input.encode()).hexdigest()
         except Exception:
             return None
-    
+
     @staticmethod
     def _hashable_value(value: Any) -> Any:
         """Convert value to hashable representation"""
@@ -89,45 +90,49 @@ class ValidationCache:
             return str({k: str(v)[:100] for k, v in list(value.items())[:10]})
         else:
             return str(type(value))
-    
-    def get(self, data: Dict[str, Any], node_name: str) -> Optional[Tuple[bool, Dict[str, Any]]]:
+
+    def get(
+        self, data: Dict[str, Any], node_name: str
+    ) -> Optional[Tuple[bool, Dict[str, Any]]]:
         """Get cached validation result"""
         cache_key = self._compute_hash(data, node_name)
         if cache_key is None:
             return None
-        
+
         if cache_key in self.cache:
             self.hits += 1
             # Move to end (most recently used)
             self.cache.move_to_end(cache_key)
             cached = self.cache[cache_key]
             return cached["result"], cached["report"]
-        
+
         self.misses += 1
         return None
-    
-    def put(self, data: Dict[str, Any], node_name: str, result: bool, report: Dict[str, Any]):
+
+    def put(
+        self, data: Dict[str, Any], node_name: str, result: bool, report: Dict[str, Any]
+    ):
         """Store validation result in cache"""
         cache_key = self._compute_hash(data, node_name)
         if cache_key is None:
             return
-        
+
         # Evict oldest if at capacity
         if len(self.cache) >= self.max_size and cache_key not in self.cache:
             self.cache.popitem(last=False)
-        
+
         self.cache[cache_key] = {
             "result": result,
             "report": report,
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
-    
+
     def clear(self):
         """Clear all cached results"""
         self.cache.clear()
         self.hits = 0
         self.misses = 0
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics"""
         total = self.hits + self.misses
@@ -137,7 +142,7 @@ class ValidationCache:
             "max_size": self.max_size,
             "hits": self.hits,
             "misses": self.misses,
-            "hit_rate": hit_rate
+            "hit_rate": hit_rate,
         }
 
 
@@ -148,6 +153,7 @@ class NodeContract:
 
     Defines what a node expects as input and what it promises to produce as output.
     """
+
     node_name: str
     dependencies: List[str] = field(default_factory=list)  # Nodes that must run before
     required_inputs: List[DataType] = field(default_factory=list)
@@ -228,9 +234,9 @@ class CanonicalFlowValidator:
             validators={
                 "non_empty": lambda d: (
                     len(d.get("raw_text", "")) > 0,
-                    "Input text cannot be empty"
+                    "Input text cannot be empty",
                 )
-            }
+            },
         )
 
         # 2. Plan Processing
@@ -242,9 +248,9 @@ class CanonicalFlowValidator:
             validators={
                 "text_length": lambda d: (
                     len(d.get("sanitized_text", "")) >= 100,
-                    "Sanitized text too short for processing"
+                    "Sanitized text too short for processing",
                 )
-            }
+            },
         )
 
         # 3. Document Segmentation
@@ -256,9 +262,9 @@ class CanonicalFlowValidator:
             validators={
                 "valid_text": lambda d: (
                     isinstance(d.get("sanitized_text"), str),
-                    "Sanitized text must be string"
+                    "Sanitized text must be string",
                 )
-            }
+            },
         )
 
         # 4. Embedding
@@ -269,10 +275,11 @@ class CanonicalFlowValidator:
             produces=[DataType.EMBEDDINGS],
             validators={
                 "segments_list": lambda d: (
-                    isinstance(d.get("segments"), list) and len(d.get("segments", [])) > 0,
-                    "Segments must be non-empty list"
+                    isinstance(d.get("segments"), list)
+                    and len(d.get("segments", [])) > 0,
+                    "Segments must be non-empty list",
                 )
-            }
+            },
         )
 
         # 5. Responsibility Detection
@@ -284,9 +291,9 @@ class CanonicalFlowValidator:
             validators={
                 "text_present": lambda d: (
                     len(d.get("sanitized_text", "")) > 50,
-                    "Text too short for entity detection"
+                    "Text too short for entity detection",
                 )
-            }
+            },
         )
 
         # 6. Contradiction Detection
@@ -324,12 +331,16 @@ class CanonicalFlowValidator:
         # 10. Theory of Change
         contracts["teoria_cambio"] = NodeContract(
             node_name="teoria_cambio",
-            dependencies=["responsibility_detection", "causal_detection", "monetary_detection"],
+            dependencies=[
+                "responsibility_detection",
+                "causal_detection",
+                "monetary_detection",
+            ],
             required_inputs=[
                 DataType.SANITIZED_TEXT,
                 DataType.ENTITIES,
                 DataType.CAUSAL_PATTERNS,
-                DataType.MONETARY_VALUES
+                DataType.MONETARY_VALUES,
             ],
             produces=[DataType.TEORIA_CAMBIO],
         )
@@ -352,37 +363,56 @@ class CanonicalFlowValidator:
                 "monetary": DataType.MONETARY_VALUES,
                 "feasibility": DataType.FEASIBILITY_SCORES,
                 "teoria_cambio": DataType.TEORIA_CAMBIO,
-                "causal_patterns": DataType.CAUSAL_PATTERNS
+                "causal_patterns": DataType.CAUSAL_PATTERNS,
             },
             required_outputs={
                 "evaluacion_por_dimension": DataType.DECATALOGO_DIMENSION,
                 "evidencias_globales": DataType.DECATALOGO_EVIDENCIA,
                 "metricas_globales": DataType.METADATA,
                 "analisis_clusters": DataType.DECATALOGO_CLUSTER,
-                "interdependencias_globales": DataType.DAG_STRUCTURE
+                "interdependencias_globales": DataType.DAG_STRUCTURE,
             },
             validation_rules=[
                 lambda data: "plan_text" in data and len(data["plan_text"]) > 100,
                 lambda data: "segments" in data and isinstance(data["segments"], list),
-                lambda data: "responsibilities" in data and isinstance(data["responsibilities"], list),
+                lambda data: "responsibilities" in data
+                and isinstance(data["responsibilities"], list),
                 lambda data: "monetary" in data and isinstance(data["monetary"], list),
-                lambda data: "feasibility" in data and isinstance(data["feasibility"], dict),
-                lambda data: "teoria_cambio" in data and isinstance(data["teoria_cambio"], dict),
-                lambda data: "causal_patterns" in data and isinstance(data["causal_patterns"], dict)
+                lambda data: "feasibility" in data
+                and isinstance(data["feasibility"], dict),
+                lambda data: "teoria_cambio" in data
+                and isinstance(data["teoria_cambio"], dict),
+                lambda data: "causal_patterns" in data
+                and isinstance(data["causal_patterns"], dict),
             ],
             output_validation_rules=[
-                lambda data: "evaluacion_por_dimension" in data and isinstance(data["evaluacion_por_dimension"], dict),
-                lambda data: "metricas_globales" in data and "coherencia_promedio" in data["metricas_globales"],
-                lambda data: "metricas_globales" in data and "kpi_promedio" in data["metricas_globales"],
-                lambda data: "metricas_globales" in data and "evidencias_totales" in data["metricas_globales"],
-                lambda data: "analisis_clusters" in data and isinstance(data["analisis_clusters"], dict),
+                lambda data: "evaluacion_por_dimension" in data
+                and isinstance(data["evaluacion_por_dimension"], dict),
+                lambda data: "metricas_globales" in data
+                and "coherencia_promedio" in data["metricas_globales"],
+                lambda data: "metricas_globales" in data
+                and "kpi_promedio" in data["metricas_globales"],
+                lambda data: "metricas_globales" in data
+                and "evidencias_totales" in data["metricas_globales"],
+                lambda data: "analisis_clusters" in data
+                and isinstance(data["analisis_clusters"], dict),
                 lambda data: "cobertura_cuestionario_industrial" in data,
-                lambda data: data.get("metricas_globales", {}).get("dimensiones_evaluadas", 0) > 0
+                lambda data: data.get("metricas_globales", {}).get(
+                    "dimensiones_evaluadas", 0
+                )
+                > 0,
             ],
-            dependencies=["sanitization", "segmentation", "responsibility_detection",
-                         "monetary_detection", "feasibility_scoring", "teoria_cambio", "causal_patterns"],
+            dependencies=[
+                "sanitization",
+                "segmentation",
+                "responsibility_detection",
+                "monetary_detection",
+                "feasibility_scoring",
+                "teoria_cambio",
+                "causal_patterns",
+            ],
             performance_budget_ms=30000,  # 30 segundos para evaluación completa
-            description="Evaluación avanzada con ExtractorEvidenciaIndustrialAvanzado para 300 preguntas del decálogo industrial"
+            description="Evaluación avanzada con ExtractorEvidenciaIndustrialAvanzado para 300 preguntas del decálogo industrial",
         )
 
         # **CONTRATO: DECATALOGO_EXTRACTOR (componente interno)**
@@ -390,27 +420,33 @@ class CanonicalFlowValidator:
             node_name="decatalogo_extractor_init",
             required_inputs={
                 "documentos": DataType.SEGMENTS,
-                "nombre_plan": DataType.METADATA
+                "nombre_plan": DataType.METADATA,
             },
             required_outputs={
                 "embeddings_doc": DataType.ADVANCED_EMBEDDINGS,
                 "embeddings_metadata": DataType.METADATA,
                 "estructura_documental": DataType.METADATA,
-                "ontologia": DataType.ONTOLOGIA_PATTERNS
+                "ontologia": DataType.ONTOLOGIA_PATTERNS,
             },
             validation_rules=[
-                lambda data: "documentos" in data and isinstance(data["documentos"], list),
+                lambda data: "documentos" in data
+                and isinstance(data["documentos"], list),
                 lambda data: len(data.get("documentos", [])) > 0,
-                lambda data: all(isinstance(doc, tuple) and len(doc) == 2 for doc in data.get("documentos", []))
+                lambda data: all(
+                    isinstance(doc, tuple) and len(doc) == 2
+                    for doc in data.get("documentos", [])
+                ),
             ],
             output_validation_rules=[
                 lambda data: "embeddings_doc" in data,
-                lambda data: "embeddings_metadata" in data and isinstance(data["embeddings_metadata"], list),
-                lambda data: "estructura_documental" in data and isinstance(data["estructura_documental"], dict)
+                lambda data: "embeddings_metadata" in data
+                and isinstance(data["embeddings_metadata"], list),
+                lambda data: "estructura_documental" in data
+                and isinstance(data["estructura_documental"], dict),
             ],
             dependencies=["segmentation"],
             performance_budget_ms=10000,
-            description="Inicialización del ExtractorEvidenciaIndustrialAvanzado con precomputación de embeddings y análisis estructural"
+            description="Inicialización del ExtractorEvidenciaIndustrialAvanzado con precomputación de embeddings y análisis estructural",
         )
 
         # **CONTRATO: BUSQUEDA DE EVIDENCIA AVANZADA**
@@ -419,33 +455,48 @@ class CanonicalFlowValidator:
             required_inputs={
                 "query": DataType.RAW_TEXT,
                 "conceptos_clave": DataType.METADATA,
-                "embeddings_doc": DataType.ADVANCED_EMBEDDINGS
+                "embeddings_doc": DataType.ADVANCED_EMBEDDINGS,
             },
             required_outputs={
                 "evidencias": DataType.DECATALOGO_EVIDENCIA,
-                "scores": DataType.METADATA
+                "scores": DataType.METADATA,
             },
             validation_rules=[
-                lambda data: "query" in data and isinstance(data["query"], str) and len(data["query"]) > 0,
-                lambda data: "conceptos_clave" in data and isinstance(data["conceptos_clave"], list),
-                lambda data: "embeddings_doc" in data
+                lambda data: "query" in data
+                and isinstance(data["query"], str)
+                and len(data["query"]) > 0,
+                lambda data: "conceptos_clave" in data
+                and isinstance(data["conceptos_clave"], list),
+                lambda data: "embeddings_doc" in data,
             ],
             output_validation_rules=[
-                lambda data: "evidencias" in data and isinstance(data["evidencias"], list),
-                lambda data: all("score_final" in e for e in data.get("evidencias", [])),
-                lambda data: all("similitud_semantica" in e for e in data.get("evidencias", [])),
-                lambda data: all("densidad_causal_agregada" in e for e in data.get("evidencias", [])),
-                lambda data: all(0 <= e.get("score_final", 0) <= 1 for e in data.get("evidencias", []))
+                lambda data: "evidencias" in data
+                and isinstance(data["evidencias"], list),
+                lambda data: all(
+                    "score_final" in e for e in data.get("evidencias", [])
+                ),
+                lambda data: all(
+                    "similitud_semantica" in e for e in data.get("evidencias", [])
+                ),
+                lambda data: all(
+                    "densidad_causal_agregada" in e for e in data.get("evidencias", [])
+                ),
+                lambda data: all(
+                    0 <= e.get("score_final", 0) <= 1
+                    for e in data.get("evidencias", [])
+                ),
             ],
             dependencies=["decatalogo_extractor_init"],
             performance_budget_ms=5000,
-            description="Búsqueda avanzada de evidencia causal con scoring multi-criterio"
+            description="Búsqueda avanzada de evidencia causal con scoring multi-criterio",
         )
 
         return contracts
 
     @staticmethod
-    def validate_decatalogo_integration(orchestrator_results: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_decatalogo_integration(
+        orchestrator_results: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """
         Validación especializada para la integración de Decatalogo_principal.py
 
@@ -460,7 +511,7 @@ class CanonicalFlowValidator:
             "timestamp": time.time(),
             "checks": {},
             "warnings": [],
-            "errors": []
+            "errors": [],
         }
 
         try:
@@ -468,7 +519,9 @@ class CanonicalFlowValidator:
 
             # Check 1: Estructura básica
             if not isinstance(decatalogo_results, dict):
-                validation_report["errors"].append("decatalogo_evaluation debe ser un diccionario")
+                validation_report["errors"].append(
+                    "decatalogo_evaluation debe ser un diccionario"
+                )
                 validation_report["status"] = "failed"
                 return validation_report
 
@@ -482,12 +535,19 @@ class CanonicalFlowValidator:
                     validation_report["errors"].append(f"Metadata faltante: {field}")
                     validation_report["status"] = "failed"
 
-            validation_report["checks"]["metadata"] = "passed" if not validation_report["errors"] else "failed"
+            validation_report["checks"]["metadata"] = (
+                "passed" if not validation_report["errors"] else "failed"
+            )
 
             # Check 3: Métricas globales
             metricas = decatalogo_results.get("metricas_globales", {})
-            required_metrics = ["coherencia_promedio", "kpi_promedio", "evidencias_totales",
-                              "dimensiones_evaluadas", "cobertura_preguntas"]
+            required_metrics = [
+                "coherencia_promedio",
+                "kpi_promedio",
+                "evidencias_totales",
+                "dimensiones_evaluadas",
+                "cobertura_preguntas",
+            ]
             for metric in required_metrics:
                 if metric not in metricas:
                     validation_report["errors"].append(f"Métrica faltante: {metric}")
@@ -496,23 +556,36 @@ class CanonicalFlowValidator:
             # Validar rangos de métricas
             if "coherencia_promedio" in metricas:
                 if not (0 <= metricas["coherencia_promedio"] <= 1):
-                    validation_report["warnings"].append("coherencia_promedio fuera de rango [0,1]")
+                    validation_report["warnings"].append(
+                        "coherencia_promedio fuera de rango [0,1]"
+                    )
 
             if "kpi_promedio" in metricas:
                 if not (0 <= metricas["kpi_promedio"] <= 1):
-                    validation_report["warnings"].append("kpi_promedio fuera de rango [0,1]")
+                    validation_report["warnings"].append(
+                        "kpi_promedio fuera de rango [0,1]"
+                    )
 
-            validation_report["checks"]["metricas_globales"] = "passed" if not validation_report["errors"] else "failed"
+            validation_report["checks"]["metricas_globales"] = (
+                "passed" if not validation_report["errors"] else "failed"
+            )
 
             # Check 4: Evaluación por dimensión
             evaluacion_dims = decatalogo_results.get("evaluacion_por_dimension", {})
             if not isinstance(evaluacion_dims, dict):
-                validation_report["errors"].append("evaluacion_por_dimension debe ser un diccionario")
+                validation_report["errors"].append(
+                    "evaluacion_por_dimension debe ser un diccionario"
+                )
                 validation_report["status"] = "failed"
             else:
                 # Validar estructura de cada dimensión
                 for dim_nombre, dim_data in evaluacion_dims.items():
-                    required_fields = ["dimension_id", "coherencia", "kpis", "evidencias_encontradas"]
+                    required_fields = [
+                        "dimension_id",
+                        "coherencia",
+                        "kpis",
+                        "evidencias_encontradas",
+                    ]
                     for field in required_fields:
                         if field not in dim_data:
                             validation_report["warnings"].append(
@@ -524,7 +597,9 @@ class CanonicalFlowValidator:
             # Check 5: Clusters
             clusters = decatalogo_results.get("analisis_clusters", {})
             if not isinstance(clusters, dict):
-                validation_report["warnings"].append("analisis_clusters debe ser un diccionario")
+                validation_report["warnings"].append(
+                    "analisis_clusters debe ser un diccionario"
+                )
             else:
                 validation_report["checks"]["analisis_clusters"] = "passed"
 
@@ -551,9 +626,11 @@ class CanonicalFlowValidator:
             # Summary
             validation_report["summary"] = {
                 "total_checks": len(validation_report["checks"]),
-                "passed_checks": sum(1 for v in validation_report["checks"].values() if v == "passed"),
+                "passed_checks": sum(
+                    1 for v in validation_report["checks"].values() if v == "passed"
+                ),
                 "total_errors": len(validation_report["errors"]),
-                "total_warnings": len(validation_report["warnings"])
+                "total_warnings": len(validation_report["warnings"]),
             }
 
         except Exception as e:
@@ -567,11 +644,11 @@ class CanonicalFlowValidator:
         node_name: str,
         available_data: Dict[str, Any],
         outputs: Optional[Dict[str, Any]] = None,
-        use_cache: bool = True
+        use_cache: bool = True,
     ) -> tuple[bool, Dict[str, Any]]:
         """
         Validate a node's execution (inputs and optionally outputs).
-        
+
         Performance-optimized with memoization cache to reduce validation overhead.
 
         Args:
@@ -590,13 +667,13 @@ class CanonicalFlowValidator:
                 is_valid, report = cached
                 report["cached"] = True
                 return is_valid, report
-        
+
         if node_name not in self.contracts:
             return False, {
                 "valid": False,
                 "node": node_name,
                 "error": f"Unknown node: {node_name}",
-                "cached": False
+                "cached": False,
             }
 
         contract = self.contracts[node_name]
@@ -606,15 +683,12 @@ class CanonicalFlowValidator:
             "input_validation": {},
             "output_validation": {},
             "errors": [],
-            "cached": False
+            "cached": False,
         }
 
         # Validate inputs
         input_valid, input_errors = contract.validate_inputs(available_data)
-        report["input_validation"] = {
-            "valid": input_valid,
-            "errors": input_errors
-        }
+        report["input_validation"] = {"valid": input_valid, "errors": input_errors}
 
         if not input_valid:
             report["valid"] = False
@@ -625,7 +699,7 @@ class CanonicalFlowValidator:
             output_valid, output_errors = contract.validate_outputs(outputs)
             report["output_validation"] = {
                 "valid": output_valid,
-                "errors": output_errors
+                "errors": output_errors,
             }
 
             if not output_valid:
@@ -634,11 +708,15 @@ class CanonicalFlowValidator:
 
         # Cache result if only input validation (outputs=None)
         if use_cache and self.validation_cache is not None and outputs is None:
-            self.validation_cache.put(available_data, node_name, report["valid"], report)
+            self.validation_cache.put(
+                available_data, node_name, report["valid"], report
+            )
 
         return report["valid"], report
 
-    def validate_flow_dependencies(self, executed_nodes: List[str]) -> tuple[bool, List[str]]:
+    def validate_flow_dependencies(
+        self, executed_nodes: List[str]
+    ) -> tuple[bool, List[str]]:
         """
         Validate that all dependencies were satisfied.
 
@@ -663,7 +741,9 @@ class CanonicalFlowValidator:
 
         return len(errors) == 0, errors
 
-    def validate_canonical_order(self, executed_nodes: List[str]) -> tuple[bool, List[str]]:
+    def validate_canonical_order(
+        self, executed_nodes: List[str]
+    ) -> tuple[bool, List[str]]:
         """
         Validate that nodes were executed in canonical order.
 
@@ -718,14 +798,16 @@ class CanonicalFlowValidator:
         if self.validation_cache is not None:
             self.validation_cache.clear()
             logger.info("Validation cache cleared")
-    
+
     def get_cache_stats(self) -> Optional[Dict[str, Any]]:
         """Get cache performance statistics"""
         if self.validation_cache is not None:
             return self.validation_cache.get_stats()
         return None
 
-    def generate_flow_report(self, executed_nodes: List[str], node_reports: Dict[str, Dict]) -> Dict[str, Any]:
+    def generate_flow_report(
+        self, executed_nodes: List[str], node_reports: Dict[str, Dict]
+    ) -> Dict[str, Any]:
         """
         Generate comprehensive flow validation report.
 
@@ -740,8 +822,7 @@ class CanonicalFlowValidator:
         order_valid, order_warnings = self.validate_canonical_order(executed_nodes)
 
         all_nodes_valid = all(
-            report.get("valid", False)
-            for report in node_reports.values()
+            report.get("valid", False) for report in node_reports.values()
         )
 
         report = {
@@ -755,15 +836,18 @@ class CanonicalFlowValidator:
             "node_reports": node_reports,
             "summary": {
                 "total_nodes": len(executed_nodes),
-                "valid_nodes": sum(1 for r in node_reports.values() if r.get("valid", False)),
-                "invalid_nodes": sum(1 for r in node_reports.values() if not r.get("valid", True)),
-            }
+                "valid_nodes": sum(
+                    1 for r in node_reports.values() if r.get("valid", False)
+                ),
+                "invalid_nodes": sum(
+                    1 for r in node_reports.values() if not r.get("valid", True)
+                ),
+            },
         }
-        
+
         # Add cache stats if available
         cache_stats = self.get_cache_stats()
         if cache_stats is not None:
             report["cache_stats"] = cache_stats
-        
-        return report
 
+        return report

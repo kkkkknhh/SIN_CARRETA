@@ -1,19 +1,19 @@
 # coding=utf-8
 # coding=utf-8
-import re
+# Module-level logger (instrumentable, audit-aligned)
+import logging
 import random
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-from enum import Enum
 
-# Module-level logger (instrumentable, audit-aligned)
-import logging
 logger = logging.getLogger("feasibility_scorer")
 logger.setLevel(logging.INFO)
+
 
 class ComponentType(Enum):
     BASELINE = "baseline"
@@ -23,12 +23,14 @@ class ComponentType(Enum):
     RESPONSIBLE = "responsible"
     DATE = "date"
 
+
 class ComponentDict(dict):
     """
     Dictionary subclass that behaves like a dict but iterates over detection results.
     This allows backward compatibility with code that expects a dict, while also
     supporting iteration over detection results for tests.
     """
+
     def __iter__(self):
         """Iterate over all detection results (flattened)."""
         for detection_list in self.values():
@@ -38,6 +40,7 @@ class ComponentDict(dict):
     def __getitem__(self, key):
         """Support dict-style access."""
         return super().__getitem__(key)
+
 
 @dataclass
 class DetectionResult:
@@ -51,6 +54,7 @@ class DetectionResult:
         metadata: Additional metadata
         matched_text: Alias for text attribute (for backward compatibility)
     """
+
     text: str
     component_type: ComponentType
     numeric_value: Optional[float] = None
@@ -73,6 +77,7 @@ class DetectionResult:
             "matched_text": self.matched_text,
         }
 
+
 @dataclass
 class IndicatorScore:
     """
@@ -93,6 +98,7 @@ class IndicatorScore:
         detailed_matches: List of detection results (for backward compatibility)
         has_quantitative_baseline: Whether the baseline is quantitative
     """
+
     text: str
     has_baseline: bool = False
     has_target: bool = False
@@ -139,6 +145,7 @@ class FeasibilityConfig:
     evidence_registry: Optional[Any] = None
     backend_options: Dict[str, Any] = field(default_factory=dict)
 
+
 class FeasibilityScorer:
     """Industrial-grade feasibility scorer with auditable configuration."""
 
@@ -178,7 +185,9 @@ class FeasibilityScorer:
 
         return asdict(self._config)
 
-    def log_configuration(self, event: str = "snapshot", extra: Optional[Dict[str, Any]] = None) -> None:
+    def log_configuration(
+        self, event: str = "snapshot", extra: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Emit an explicit log entry with the current configuration."""
 
         self._trace_config(event, extra)
@@ -189,7 +198,9 @@ class FeasibilityScorer:
         allowed_keys = set(FeasibilityConfig.__dataclass_fields__)
         unknown = set(kwargs) - allowed_keys
         if unknown:
-            raise ValueError(f"Unknown configuration fields: {', '.join(sorted(unknown))}")
+            raise ValueError(
+                f"Unknown configuration fields: {', '.join(sorted(unknown))}"
+            )
 
         new_config = replace(self._config, **kwargs)
         self._apply_config(new_config, event="reconfigured", extra={"changes": kwargs})
@@ -263,7 +274,9 @@ class FeasibilityScorer:
 
         backend = config.backend
         if backend not in self.ALLOWED_BACKENDS:
-            raise ValueError(f"Unknown backend '{backend}'. Allowed: {self.ALLOWED_BACKENDS}")
+            raise ValueError(
+                f"Unknown backend '{backend}'. Allowed: {self.ALLOWED_BACKENDS}"
+            )
 
         if config.evidence_registry is not None and backend in {"loky", "ray", "dask"}:
             backend = "threading"
@@ -313,7 +326,9 @@ class FeasibilityScorer:
         try:
             from concurrent.futures import ProcessPoolExecutor
         except ImportError:  # pragma: no cover
-            self.logger.warning("ProcessPoolExecutor unavailable; falling back to threading")
+            self.logger.warning(
+                "ProcessPoolExecutor unavailable; falling back to threading"
+            )
             return self._execute_thread_pool(indicators, evidencia_soporte_list)
 
         self.logger.info(
@@ -344,7 +359,9 @@ class FeasibilityScorer:
             return self._execute_thread_pool(indicators, evidencia_soporte_list)
 
         if not ray.is_initialized():
-            ray.init(ignore_reinit_error=True, **self.backend_options.get("ray_init", {}))
+            ray.init(
+                ignore_reinit_error=True, **self.backend_options.get("ray_init", {})
+            )
 
         self.logger.info(
             "Executing feasibility scoring with Ray backend (n_jobs=%s)",
@@ -413,51 +430,61 @@ class FeasibilityScorer:
         # Baseline patterns (both quantitative and qualitative)
         self.baseline_patterns = [
             # Quantitative patterns (with numbers)
-            r'(?i)l[ií]nea\s+base\s+de\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # línea base de X%
-            r'(?i)l[ií]nea\s+base\s+muestra\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # línea base muestra X%
-            r'(?i)l[ií]nea\s+(?:de\s+)?base\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%)?)',
-            r'(?i)(?:valor|medici[óo]n)\s+(?:inicial|actual|presente)\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',
-            r'(?i)(?:valor|medici[óo]n)\s+(?:inicial|actual|presente)\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%)?)',
-            r'(?i)(?:actualmente|al presente|al inicio|hoy)[^.]*?(\d+(?:[.,]\d+)?(?:\s*%))',
-            r'(?i)(?:situaci[óo]n actual|escenario base)[^.]*?(\d+(?:[.,]\d+)?(?:\s*%))',
-            r'(?i)(?:indicador|valor)[^.]*?(\d{4})[^.]*?(?:fue|era|correspondi[óo] a)\s*(\d+(?:[.,]\d+)?(?:\s*%))',
-            r'(?i)baseline\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # English pattern
-            r'(?i)current\s+level\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # current level X
-            r'(?i)starting\s+(?:point|level|value)\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # starting point X
+            r"(?i)l[ií]nea\s+base\s+de\s+(\d+(?:[.,]\d+)?(?:\s*%)?)",  # línea base de X%
+            # línea base muestra X%
+            r"(?i)l[ií]nea\s+base\s+muestra\s+(\d+(?:[.,]\d+)?(?:\s*%)?)",
+            r"(?i)l[ií]nea\s+(?:de\s+)?base\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%)?)",
+            r"(?i)(?:valor|medici[óo]n)\s+(?:inicial|actual|presente)\s+(\d+(?:[.,]\d+)?(?:\s*%)?)",
+            r"(?i)(?:valor|medici[óo]n)\s+(?:inicial|actual|presente)\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%)?)",
+            r"(?i)(?:actualmente|al presente|al inicio|hoy)[^.]*?(\d+(?:[.,]\d+)?(?:\s*%))",
+            r"(?i)(?:situaci[óo]n actual|escenario base)[^.]*?(\d+(?:[.,]\d+)?(?:\s*%))",
+            r"(?i)(?:indicador|valor)[^.]*?(\d{4})[^.]*?(?:fue|era|correspondi[óo] a)\s*(\d+(?:[.,]\d+)?(?:\s*%))",
+            r"(?i)baseline\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)",  # English pattern
+            r"(?i)current\s+level\s+(\d+(?:[.,]\d+)?(?:\s*%)?)",  # current level X
+            # starting point X
+            r"(?i)starting\s+(?:point|level|value)\s+(\d+(?:[.,]\d+)?(?:\s*%)?)",
             # Qualitative patterns (no numbers)
-            r'(?i)(?:partir\s+de\s+|desde\s+)(?:la\s+)?l[ií]nea\s+base\b',  # partir de la línea base
-            r'(?i)(?:partir\s+de\s+|desde\s+)(?:la\s+)?situaci[óo]n\s+actual\b',  # desde situación actual
-            r'(?i)starting\s+point\b',  # starting point (qualitative)
+            # partir de la línea base
+            r"(?i)(?:partir\s+de\s+|desde\s+)(?:la\s+)?l[ií]nea\s+base\b",
+            # desde situación actual
+            r"(?i)(?:partir\s+de\s+|desde\s+)(?:la\s+)?situaci[óo]n\s+actual\b",
+            r"(?i)starting\s+point\b",  # starting point (qualitative)
         ]
 
         # Target patterns (both quantitative and qualitative)
         self.target_patterns = [
             # Quantitative patterns (with numbers)
-            r'(?i)meta\s+de\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # meta de X%
-            r'(?i)meta\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%)?)',
-            r'(?i)objetivo\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # objetivo X%
-            r'(?i)(?:alcanzar|lograr|conseguir|obtener|llegar a)\s*(?:un|una|el|la)?[^.]*?(\d+(?:[.,]\d+)?(?:\s*%))',
-            r'(?i)(?:valor|nivel)\s+(?:esperado|objetivo|deseado)\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%))',
-            r'(?i)(?:aumentar|incrementar|crecer|elevar)[^.]*?(?:hasta|a)\s*(\d+(?:[.,]\d+)?(?:\s*%))',
-            r'(?i)(?:reducir|disminuir|bajar|decrecer)[^.]*?(?:hasta|a)\s*(\d+(?:[.,]\d+)?(?:\s*%))',
-            r'(?i)(?:para|to)\s+(?:el\s+)?objetivo\s+(?:de\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # para objetivo X
-            r'(?i)(?:target|goal)\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # English pattern
-            r'(?i)to\s+(?:target|goal)\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # to target/goal of X%
-            r'(?i)to\s+(?:a\s+)?goal\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)',  # to goal X
-            r'(?i)(?:hasta|to)\s+(?:el\s+)?(?:objetivo|target|goal)\s+(\d+(?:[.,]\d+)?(?:\s*%)?)',  # hasta objetivo X%
+            r"(?i)meta\s+de\s+(\d+(?:[.,]\d+)?(?:\s*%)?)",  # meta de X%
+            r"(?i)meta\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%)?)",
+            r"(?i)objetivo\s+(\d+(?:[.,]\d+)?(?:\s*%)?)",  # objetivo X%
+            r"(?i)(?:alcanzar|lograr|conseguir|obtener|llegar a)\s*(?:un|una|el|la)?[^.]*?(\d+(?:[.,]\d+)?(?:\s*%))",
+            r"(?i)(?:valor|nivel)\s+(?:esperado|objetivo|deseado)\s*[:=]?\s*(\d+(?:[.,]\d+)?(?:\s*%))",
+            r"(?i)(?:aumentar|incrementar|crecer|elevar)[^.]*?(?:hasta|a)\s*(\d+(?:[.,]\d+)?(?:\s*%))",
+            r"(?i)(?:reducir|disminuir|bajar|decrecer)[^.]*?(?:hasta|a)\s*(\d+(?:[.,]\d+)?(?:\s*%))",
+            # para objetivo X
+            r"(?i)(?:para|to)\s+(?:el\s+)?objetivo\s+(?:de\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)",
+            # English pattern
+            r"(?i)(?:target|goal)\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)",
+            # to target/goal of X%
+            r"(?i)to\s+(?:target|goal)\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)",
+            # to goal X
+            r"(?i)to\s+(?:a\s+)?goal\s+(?:of\s+)?(\d+(?:[.,]\d+)?(?:\s*%)?)",
+            # hasta objetivo X%
+            r"(?i)(?:hasta|to)\s+(?:el\s+)?(?:objetivo|target|goal)\s+(\d+(?:[.,]\d+)?(?:\s*%)?)",
             # Qualitative patterns (no numbers)
-            r'(?i)(?:alcanzar|lograr|hasta)\s+(?:el\s+)?(?:objetivo|prop[óo]sito)\b',  # alcanzar el objetivo
-            r'(?i)(?:mejorar|improve)\b',  # mejorar (generic improvement)
-            r'(?i)(?:para|to)\s+(?:el\s+)?(?:objetivo|aim)\b',  # para el objetivo
-            r'(?i)la\s+meta\s+es\s+',  # la meta es
-            r'(?i)el\s+objetivo\s+es\s+',  # el objetivo es
+            # alcanzar el objetivo
+            r"(?i)(?:alcanzar|lograr|hasta)\s+(?:el\s+)?(?:objetivo|prop[óo]sito)\b",
+            r"(?i)(?:mejorar|improve)\b",  # mejorar (generic improvement)
+            r"(?i)(?:para|to)\s+(?:el\s+)?(?:objetivo|aim)\b",  # para el objetivo
+            r"(?i)la\s+meta\s+es\s+",  # la meta es
+            r"(?i)el\s+objetivo\s+es\s+",  # el objetivo es
         ]
 
         # Time horizon patterns (examples)
         self.time_horizon_patterns = [
-            r'(?i)(?:para el año|by year)\s*(20\d{2})',
-            r'(?i)(?:en|by)\s*(?:el|the)?\s*(?:trimestre|quarter)\s*(?:[1-4])',
-            r'(?i)(?:en|by)\s*(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|january|february|march|april|may|june|july|august|september|october|november|december)',
+            r"(?i)(?:para el año|by year)\s*(20\d{2})",
+            r"(?i)(?:en|by)\s*(?:el|the)?\s*(?:trimestre|quarter)\s*(?:[1-4])",
+            r"(?i)(?:en|by)\s*(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|january|february|march|april|may|june|july|august|september|october|november|december)",
         ]
 
 

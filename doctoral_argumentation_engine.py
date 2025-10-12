@@ -20,16 +20,14 @@ References:
 - Sword, H. (2012) "Stylish Academic Writing"
 """
 
-import hashlib
 import json
 import logging
 import re
-from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 

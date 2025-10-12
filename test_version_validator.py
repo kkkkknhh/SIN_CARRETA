@@ -4,21 +4,21 @@ from __future__ import annotations
 
 import sys
 import types
-from typing import List, Tuple
 
 import pytest
 
 # Target under test: sin_carreta/env_validation.py
 from sin_carreta.env_validation import (
-    EnvironmentValidationError,
-    ValidationIssue,
-    validate_environment,
-    cli,
-    _parse_ver,   # internal helpers are tested lightly for determinism
-    _cmp,
-    REQUIRED_PYTHON,
-    NUMPY_MIN,
+    _parse_ver,  # internal helpers are tested lightly for determinism
+)
+from sin_carreta.env_validation import (
     NUMPY_MAX_EXCL,
+    NUMPY_MIN,
+    REQUIRED_PYTHON,
+    EnvironmentValidationError,
+    _cmp,
+    cli,
+    validate_environment,
 )
 
 
@@ -58,10 +58,12 @@ class TestPythonGate:
     def test_python_gate_mismatch_raises(monkeypatch):
         major, minor = REQUIRED_PYTHON
         wrong_minor = 9 if minor != 9 else 8
+
         class FakeVersion:
             major = major
             minor = wrong_minor
             micro = 0
+
         monkeypatch.setattr(sys, "version_info", FakeVersion, raising=False)
         with pytest.raises(EnvironmentValidationError) as exc:
             validate_environment(strict=True)
@@ -81,7 +83,9 @@ class TestNumpyGate:
         err: EnvironmentValidationError = exc.value
         comps = [i.component for i in err.issues]
         assert "NumPy" in comps
-        assert any("not installed" in i.found for i in err.issues if i.component == "NumPy")
+        assert any(
+            "not installed" in i.found for i in err.issues if i.component == "NumPy"
+        )
         # Ensure message carries actionable hint
         assert "pip install" in str(err)
 
@@ -89,11 +93,13 @@ class TestNumpyGate:
     def test_numpy_old_version_raises(monkeypatch):
         old = "1.20.0"
         monkeypatch.dict(sys.modules, {"numpy": _fake_numpy(old)}, clear=False)
+
         # Force Python gate to pass by mirroring current runtime major/minor
         class FakeVersion:
             major = sys.version_info.major
             minor = sys.version_info.minor
             micro = sys.version_info.micro
+
         monkeypatch.setattr(sys, "version_info", FakeVersion, raising=False)
 
         with pytest.raises(EnvironmentValidationError) as exc:
@@ -111,11 +117,13 @@ class TestNumpyGate:
             good = "1.24.0" if _cmp("1.24.0", NUMPY_MAX_EXCL) < 0 else "1.22.0"
 
         monkeypatch.dict(sys.modules, {"numpy": _fake_numpy(good)}, clear=False)
+
         # Mirror current Python so Python gate doesn't fail
         class FakeVersion:
             major = sys.version_info.major
             minor = sys.version_info.minor
             micro = sys.version_info.micro
+
         monkeypatch.setattr(sys, "version_info", FakeVersion, raising=False)
 
         # Should not raise in strict mode if only NumPy gate is relevant and satisfied
@@ -127,10 +135,12 @@ class TestNumpyGate:
             pytest.skip("Upper bound not configured; skip test.")
         bad = NUMPY_MAX_EXCL
         monkeypatch.dict(sys.modules, {"numpy": _fake_numpy(bad)}, clear=False)
+
         class FakeVersion:
             major = sys.version_info.major
             minor = sys.version_info.minor
             micro = sys.version_info.micro
+
         monkeypatch.setattr(sys, "version_info", FakeVersion, raising=False)
 
         with pytest.raises(EnvironmentValidationError) as exc:
@@ -149,6 +159,7 @@ class TestAggregatedReporting:
             major = sys.version_info.major
             minor = (sys.version_info.minor + 1) % 11  # likely different
             micro = 0
+
         monkeypatch.setattr(sys, "version_info", FakeVersion, raising=False)
         monkeypatch.dict(sys.modules, {"numpy": None}, clear=False)
 
@@ -168,8 +179,11 @@ class TestCLI:
             major = REQUIRED_PYTHON[0]
             minor = REQUIRED_PYTHON[1]
             micro = 5
+
         monkeypatch.setattr(sys, "version_info", FakeVersion, raising=False)
-        monkeypatch.dict(sys.modules, {"numpy": _fake_numpy(max(NUMPY_MIN, "1.23.0"))}, clear=False)
+        monkeypatch.dict(
+            sys.modules, {"numpy": _fake_numpy(max(NUMPY_MIN, "1.23.0"))}, clear=False
+        )
 
         rc = cli()
         captured = capsys.readouterr()
@@ -183,6 +197,7 @@ class TestCLI:
             major = REQUIRED_PYTHON[0]
             minor = REQUIRED_PYTHON[1] - 1 if REQUIRED_PYTHON[1] > 0 else 0
             micro = 0
+
         monkeypatch.setattr(sys, "version_info", FakeVersion, raising=False)
         monkeypatch.dict(sys.modules, {"numpy": None}, clear=False)
 
