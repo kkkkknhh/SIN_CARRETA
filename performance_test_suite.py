@@ -421,7 +421,7 @@ if __name__ == "__main__":
     import sys
     
     # Check for --soak flag
-    soak_test = "--soak" in sys.argv
+    run_soak_test = "--soak" in sys.argv
     
-    exit_code = run_performance_suite(soak_test=soak_test)
+    exit_code = run_performance_suite(soak_test=run_soak_test)
     sys.exit(exit_code)

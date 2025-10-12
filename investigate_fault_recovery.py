@@ -345,11 +345,11 @@ def run_fault_injection_analysis():
 
 
 if __name__ == "__main__":
-    results = run_fault_injection_analysis()
+    analysis_results = run_fault_injection_analysis()
     
     # Save results
     import json
     with open("fault_recovery_timing_analysis.json", "w") as f:
-        json.dump(results, f, indent=2, default=str)
+        json.dump(analysis_results, f, indent=2, default=str)
     
     print("\n✅ Analysis complete. Results saved to fault_recovery_timing_analysis.json")

@@ -654,16 +654,16 @@ if __name__ == "__main__":
     """
     
     # Detect entities
-    entities = detector.detect_entities(sample_text)
+    detected_entities = detector.detect_entities(sample_text)
     
     # Print results
-    print(f"Found {len(entities)} responsibility entities:")
-    for entity in entities:
-        print(f"- {entity.text} ({entity.entity_type.value}, confidence: {entity.confidence:.2f})")
-        if entity.has_explicit_role:
-            print(f"  Role: {entity.role_description}")
-        if entity.parent_entity:
-            print(f"  Part of: {entity.parent_entity}")
+    print(f"Found {len(detected_entities)} responsibility entities:")
+    for detected_entity in detected_entities:
+        print(f"- {detected_entity.text} ({detected_entity.entity_type.value}, confidence: {detected_entity.confidence:.2f})")
+        if detected_entity.has_explicit_role:
+            print(f"  Role: {detected_entity.role_description}")
+        if detected_entity.parent_entity:
+            print(f"  Part of: {detected_entity.parent_entity}")
     
     # Complete document analysis
     analysis = detector.analyze_document(sample_text)
