@@ -483,7 +483,7 @@ class MonetaryDetector:
         return ""
     
     @staticmethod
-    def _calculate_confidence(text: str, amount: float, category) -> float:
+    def _calculate_confidence(text: str, amount: float, _category) -> float:
         """Calcular confidence DETERMINISTA"""
         confidence = 0.7  # Base
 
@@ -526,7 +526,7 @@ class MonetaryDetector:
         return magnitude * multiplier
 
     @staticmethod
-    def _map_to_questions(category, timeframe, amount: float) -> List[str]:
+    def _map_to_questions(_category, timeframe, amount: float) -> List[str]:
         """Mapear detección a preguntas específicas del cuestionario"""
         questions = []
 

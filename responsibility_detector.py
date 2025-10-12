@@ -389,13 +389,13 @@ class ResponsibilityDetector:
         
         return merged
     
-    def _detect_entity_roles(self, entities: List[ResponsibilityEntity], text: str) -> List[ResponsibilityEntity]:
+    def _detect_entity_roles(self, entities: List[ResponsibilityEntity], _text: str) -> List[ResponsibilityEntity]:
         """
         Detect roles for each entity by analyzing surrounding context.
         
         Args:
             entities: List of detected entities
-            text: Full text for context analysis
+            _text: Full text for context analysis
             
         Returns:
             Entities with role information added
@@ -591,7 +591,7 @@ class ResponsibilityDetector:
         return responsibilities
 
     @staticmethod
-    def _calculate_confidence(ent, context: Dict) -> float:
+    def _calculate_confidence(_ent, context: Dict) -> float:
         """Calcular confidence DETERMINISTA basado en señales"""
         confidence = 0.5
 
@@ -611,7 +611,7 @@ class ResponsibilityDetector:
         return min(1.0, confidence)
 
     @staticmethod
-    def _map_to_questions(ent, context: Dict) -> List[str]:
+    def _map_to_questions(_ent, context: Dict) -> List[str]:
         """Mapear detección a preguntas específicas del cuestionario"""
         questions = []
 

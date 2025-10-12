@@ -74,7 +74,7 @@ class SpanishNLIDetector:
         return result
 
     def batch_check(
-        self, pairs: Iterable[Tuple[str, str]], batch_size: int = 8
+        self, pairs: Iterable[Tuple[str, str]], _batch_size: int = 8
     ) -> List[Dict[str, float | str | bool]]:
         return [self.check_contradiction(premise, hypothesis) for premise, hypothesis in pairs]
 

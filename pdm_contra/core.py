@@ -162,7 +162,7 @@ class ContradictionDetector:
 
     @staticmethod
     def _segment_document(
-        text: str, structure: Optional[Dict[str, Any]]
+        text: str, _structure: Optional[Dict[str, Any]]
     ) -> List[Tuple[str, str, Dict[str, Any]]]:
         if not text:
             return [("general", "", {"start": 0, "end": 0})]

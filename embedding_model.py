@@ -492,7 +492,7 @@ class AdvancedMMR:
             return [(int(idx), float(relevance_scores[idx])) for idx in top_indices]
 
     @classmethod
-    def _cosine_mmr(cls, query_emb, doc_embs, k, lambda_param, **kwargs):
+    def _cosine_mmr(cls, query_emb, doc_embs, k, lambda_param, **_kwargs):
         """Standard MMR with cosine similarity."""
         relevance_scores = cosine_similarity(doc_embs, query_emb).ravel()
         similarity_matrix = cosine_similarity(doc_embs)
@@ -526,7 +526,7 @@ class AdvancedMMR:
         return selected
 
     @classmethod
-    def _euclidean_mmr(cls, query_emb, doc_embs, k, lambda_param, **kwargs):
+    def _euclidean_mmr(cls, query_emb, doc_embs, k, lambda_param, **_kwargs):
         """MMR with Euclidean distance for diversity."""
         relevance_scores = cosine_similarity(doc_embs, query_emb).ravel()
 
@@ -566,7 +566,7 @@ class AdvancedMMR:
         return selected
 
     @classmethod
-    def _clustering_mmr(cls, query_emb, doc_embs, k, lambda_param, min_clusters=2, **kwargs):
+    def _clustering_mmr(cls, query_emb, doc_embs, k, lambda_param, min_clusters=2, **_kwargs):
         """MMR with cluster-aware diversity."""
         if len(doc_embs) < min_clusters:
             return cls._cosine_mmr(query_emb, doc_embs, k, lambda_param)
@@ -1382,7 +1382,7 @@ class IndustrialEmbeddingModel:
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, _exc_type, _exc_val, _exc_tb):
         """Context manager exit with cleanup."""
         try:
             # Shutdown thread pool

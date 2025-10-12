@@ -581,7 +581,7 @@ class TeoriaCambioAvanzada:
 
     @staticmethod
     def _calcular_robustez_estructural(
-        G: nx.DiGraph, mediadores: List[str], resultados: List[str]
+        G: nx.DiGraph, mediadores: List[str], _resultados: List[str]
     ) -> float:
         """Cálculo de robustez estructural del grafo causal."""
         try:
@@ -1236,7 +1236,7 @@ class DimensionDecalogoAvanzada:
             raise ValueError(
                 "Prioridad estratégica debe estar entre 0.1 y 3.0")
 
-    def evaluar_coherencia_causal_avanzada(self, evidence_registry=None) -> Dict[str, float]:
+    def evaluar_coherencia_causal_avanzada(self, _evidence_registry=None) -> Dict[str, float]:
         """Evaluación avanzada de coherencia causal con múltiples métricas."""
         try:
             # Verificación de identificabilidad
@@ -1401,7 +1401,7 @@ class DimensionDecalogoAvanzada:
             return "BAJA"
         return "CRITICA"
 
-    def calcular_kpi_global_avanzado(self, evidence_registry=None) -> Dict[str, float]:
+    def calcular_kpi_global_avanzado(self, _evidence_registry=None) -> Dict[str, float]:
         """Cálculo avanzado de KPI global con múltiples dimensiones."""
         try:
             metricas_eslabones = [
@@ -1464,7 +1464,7 @@ class DimensionDecalogoAvanzada:
                 "score_implementabilidad": 0.6,
             }
 
-    def generar_matriz_riesgos_avanzada(self, evidence_registry=None) -> Dict[str, Dict[str, Any]]:
+    def generar_matriz_riesgos_avanzada(self, _evidence_registry=None) -> Dict[str, Dict[str, Any]]:
         """Generación de matriz de riesgos avanzada con análisis probabilístico."""
         matriz_riesgos = {}
 
@@ -1585,7 +1585,7 @@ class DimensionDecalogoAvanzada:
 
     @staticmethod
     def _generar_medidas_mitigacion(
-        eslabon: EslabonCadenaAvanzado, riesgos: List[str]
+        _eslabon: EslabonCadenaAvanzado, riesgos: List[str]
     ) -> List[str]:
         """Genera medidas de mitigación específicas por tipo de riesgo."""
         medidas = []
@@ -2719,7 +2719,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
 
     @staticmethod
     def _evaluar_calidad_contenido(
-        texto: str, metadata: Dict[str, Any]
+        _texto: str, metadata: Dict[str, Any]
     ) -> float:
         """Evalúa la calidad del contenido basándose en múltiples factores."""
         try:
@@ -2811,7 +2811,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
 
     def _buscar_evidencia_fallback(
         self,
-        query: str,
+        _query: str,
         conceptos_clave: List[str],
         top_k: int,
         umbral_certeza: float,

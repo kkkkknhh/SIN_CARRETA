@@ -350,13 +350,13 @@ class PipelineOrchestrator:
         if uncovered:
             logger.warning("Uncovered questions: %s", ', '.join(sorted(uncovered)))
     
-    def extract_evidence(self, plan_text: str, plan_id: str) -> Dict[str, List[EvidenceItem]]:
+    def extract_evidence(self, plan_text: str, _plan_id: str) -> Dict[str, List[EvidenceItem]]:
         """
         Extract all available evidence from plan text using loaded components.
         
         Args:
             plan_text: Full text of the development plan
-            plan_id: Unique identifier for the plan
+            _plan_id: Unique identifier for the plan
             
         Returns:
             Dictionary mapping question IDs to lists of evidence items

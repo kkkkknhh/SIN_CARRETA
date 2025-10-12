@@ -377,16 +377,17 @@ class PlanSanitizer:
 
 # Factory function to create a preconfigured sanitizer
 def create_plan_sanitizer(
-    preserve_structure: bool = True,
-    tag_key_elements: bool = True,
-    aggressive_cleaning: bool = False,
+    _preserve_structure: bool = True,
+    _tag_key_elements: bool = True,
+    _aggressive_cleaning: bool = False,
 ) -> PlanSanitizer:
     """
     Create a preconfigured plan sanitizer.
     
     Args:
-        preserve_structure: Whether to preserve document structure
-        tag_key_elements: Whether to tag key elements
+        _preserve_structure: Whether to preserve document structure
+        _tag_key_elements: Whether to tag key elements
+        _aggressive_cleaning: Whether to use aggressive cleaning
         
     Returns:
         Configured PlanSanitizer instance

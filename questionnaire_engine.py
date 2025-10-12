@@ -1002,7 +1002,7 @@ class ScoringEngine:
 
     @staticmethod
     def calculate_score(modality: ScoringModality, elements_found: Dict[str, bool],
-                        formula: str, thresholds: Optional[Dict] = None,
+                        _formula: str, thresholds: Optional[Dict] = None,
                         quantitative_data: Optional[Dict] = None) -> Tuple[float, str]:
         """
         Calculate score based on modality
@@ -1109,7 +1109,7 @@ class ScoringEngine:
         return round(average, 1)
 
     @staticmethod
-    def aggregate_global_score(point_scores: List[float], exclude_na: bool = True) -> float:
+    def aggregate_global_score(point_scores: List[float], _exclude_na: bool = True) -> float:
         """
         Aggregate all points into global score (0-100%)
 
@@ -1453,9 +1453,9 @@ class QuestionnaireEngine:
     def _evaluate_single_question(
         self,
         question: BaseQuestion,
-        thematic_point: ThematicPoint,
+        _thematic_point: ThematicPoint,
         orchestrator_results: Dict[str, Any],
-        parametrized_question: str
+        _parametrized_question: str
     ) -> EvaluationResult:
         """
         ✅ VERSIÓN FINAL: Evalúa usando resultados ya procesados del orchestrator

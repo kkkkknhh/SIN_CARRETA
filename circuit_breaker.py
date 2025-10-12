@@ -173,7 +173,7 @@ class CircuitBreaker:
 
             raise
 
-    def _on_success(self, execution_time: float):
+    def _on_success(self, _execution_time: float):
         """Handle successful execution"""
         self.metrics.successful_calls += 1
         self.metrics.consecutive_successes += 1
@@ -198,7 +198,7 @@ class CircuitBreaker:
                 self._transition_to(CircuitState.CLOSED)
                 self.opened_at = None
 
-    def _on_failure(self, exception: Exception, execution_time: float):
+    def _on_failure(self, exception: Exception, _execution_time: float):
         """Handle failed execution"""
         self.metrics.failed_calls += 1
         self.metrics.consecutive_failures += 1
@@ -418,7 +418,7 @@ class FaultRecoveryManager:
 
 # Recovery playbooks for identified fault scenarios
 
-def network_failure_playbook(context: Dict[str, Any]):
+def network_failure_playbook(_context: Dict[str, Any]):
     """Recovery playbook for network failures"""
     logger.info("Executing network failure recovery playbook")
 
@@ -430,7 +430,7 @@ def network_failure_playbook(context: Dict[str, Any]):
     logger.info("Network failure recovery completed")
 
 
-def disk_full_playbook(context: Dict[str, Any]):
+def disk_full_playbook(_context: Dict[str, Any]):
     """Recovery playbook for disk full conditions"""
     logger.info("Executing disk full recovery playbook")
 
@@ -442,7 +442,7 @@ def disk_full_playbook(context: Dict[str, Any]):
     logger.info("Disk full recovery completed")
 
 
-def cpu_throttling_playbook(context: Dict[str, Any]):
+def cpu_throttling_playbook(_context: Dict[str, Any]):
     """Recovery playbook for CPU throttling"""
     logger.info("Executing CPU throttling recovery playbook")
 

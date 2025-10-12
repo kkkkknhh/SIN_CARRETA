@@ -329,7 +329,7 @@ class UnifiedEvaluationPipeline:
 
     @staticmethod
     def _run_decalogo_evaluation(
-        pdm_path: str,
+        _pdm_path: str,
         evidence_registry: EvidenceRegistry,
         municipality: str,
         department: str
@@ -338,7 +338,7 @@ class UnifiedEvaluationPipeline:
         Run Decálogo evaluation consuming evidence registry.
 
         Args:
-            pdm_path: Path to PDM document
+            _pdm_path: Path to PDM document
             evidence_registry: Frozen evidence registry from pipeline
             municipality: Municipality name
             department: Department name
@@ -449,14 +449,14 @@ class UnifiedEvaluationPipeline:
 
     def _run_questionnaire_evaluation(
         self,
-        pdm_path: str,
+        _pdm_path: str,
         evidence_registry: EvidenceRegistry
     ) -> Dict[str, Any]:
         """
         Run questionnaire evaluation (300 questions) consuming evidence registry.
 
         Args:
-            pdm_path: Path to PDM document
+            _pdm_path: Path to PDM document
             evidence_registry: Frozen evidence registry
 
         Returns:

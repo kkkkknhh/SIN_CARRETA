@@ -11,13 +11,13 @@ class _DummyValidator:
         self.resolver = resolver
 
     @staticmethod
-    def check_schema(schema):
+    def check_schema(_schema):
         return True
 
     @staticmethod
-    def validate(payload):
+    def validate(_payload):
         return True
 
 
-def validator_for(schema):
+def validator_for(_schema):
     return _DummyValidator

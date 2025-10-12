@@ -236,7 +236,7 @@ class LegacyIDMigrator:
         # Strategy 3: Fallback to default
         return self.default_policy, 0.60, "fallback"
     
-    def _infer_dimension(self, policy: str, q_num: str, context: Dict[str, Any]) -> Tuple[str, float, str]:
+    def _infer_dimension(self, policy: str, q_num: str, _context: Dict[str, Any]) -> Tuple[str, float, str]:
         """
         Infer dimension from context.
         Returns: (dimension, confidence, strategy)

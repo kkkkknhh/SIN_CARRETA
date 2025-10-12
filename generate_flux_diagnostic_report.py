@@ -315,7 +315,7 @@ Critical bottlenecks and failures ranked by severity.
     return section
 
 
-def generate_top_fixes_section(risks: List[Tuple[int, str, str, str]], nodes: Dict[str, Any]) -> str:
+def generate_top_fixes_section(risks: List[Tuple[int, str, str, str]], _nodes: Dict[str, Any]) -> str:
     """Generate top 5 fixes section with actionable recommendations."""
     section = """## Top 5 Recommended Fixes
 

@@ -18,7 +18,7 @@ class CodePathTracer:
         self.executed_lines: Dict[str, Set[int]] = {}
         self.function_calls: List[Dict[str, Any]] = []
     
-    def trace_function(self, frame, event, arg):
+    def trace_function(self, frame, event, _arg):
         """Trace function for sys.settrace"""
         if event == 'line':
             filename = frame.f_code.co_filename

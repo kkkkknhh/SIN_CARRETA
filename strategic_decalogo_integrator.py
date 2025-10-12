@@ -493,14 +493,14 @@ class BayesianEvidenceIntegrator:
     def integrate_evidence(
         self,
         evidence_list: List[StructuredEvidence],
-        question_id: str
+        _question_id: str
     ) -> Dict[str, Any]:
         """
         Integrate multiple evidence pieces using Bayesian updating.
         
         Args:
             evidence_list: List of evidence items for a question
-            question_id: Question identifier
+            _question_id: Question identifier
             
         Returns:
             Dictionary with posterior statistics and diagnostics
@@ -1037,7 +1037,7 @@ class StrategicDecalogoIntegrator:
     
     def _validate_quality_gates(
         self, 
-        results: Dict[str, Any],
+        _results: Dict[str, Any],
         metrics: Dict[str, Any]
     ) -> Dict[str, bool]:
         """

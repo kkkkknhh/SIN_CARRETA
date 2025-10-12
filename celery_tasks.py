@@ -62,7 +62,7 @@ def process_document_task(
     job_id: str,
     document_path: str,
     document_index: int,
-    config: Dict[str, Any]
+    _config: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
     Process a single document using unified_evaluation_pipeline.
@@ -71,7 +71,7 @@ def process_document_task(
         job_id: Unique job identifier
         document_path: Path to PDF document
         document_index: Document index in batch
-        config: Processing configuration dictionary
+        _config: Processing configuration dictionary
         
     Returns:
         Processing results dictionary

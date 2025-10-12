@@ -8,7 +8,7 @@ class CausalForestDML:
         self.cv = cv
         self._fitted = False
 
-    def fit(self, Y, T, X=None, W=None):
+    def fit(self, _Y, _T, _X=None, _W=None):
         self._fitted = True
 
     @staticmethod
@@ -21,6 +21,6 @@ class CausalForestDML:
         except Exception:
             return 0.0
 
-    def effect_interval(self, X, alpha=0.05):
+    def effect_interval(self, X, _alpha=0.05):
         eff = self.effect(X)
         return (eff, eff)

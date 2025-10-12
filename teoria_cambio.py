@@ -111,7 +111,7 @@ class ThreadSafeLRUCache:
 # Embeddings (estrategia pluggable)
 # -----------------------------
 class EmbeddingBackend:
-    def encode(self, texts: Sequence[str]) -> np.ndarray: raise NotImplementedError
+    def encode(self, _texts: Sequence[str]) -> np.ndarray: raise NotImplementedError
     @staticmethod
     def cosine(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         a_n = a / (np.linalg.norm(a, axis=1, keepdims=True) + 1e-12)
@@ -150,7 +150,7 @@ class CausalElement:
     id: str; text: str; element_type: str; policy_area: str; confidence: float = 1.0
 
 class CausalExtractor:  # iface
-    def extract(self, text_block: str) -> List[CausalElement]: raise NotImplementedError
+    def extract(self, _text_block: str) -> List[CausalElement]: raise NotImplementedError
 
 class SpacyExtractor(CausalExtractor):
     def __init__(self):

@@ -286,7 +286,7 @@ class IntegratedEvaluationSystem:
     @staticmethod
     def _generate_priority_actions(
         orchestrator_results: Dict[str, Any],
-        questionnaire_results: Dict[str, Any],
+        _questionnaire_results: Dict[str, Any],
         weakest_dimension: str
     ) -> list:
         """Generar acciones prioritarias basadas en resultados"""
