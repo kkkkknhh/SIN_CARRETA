@@ -795,16 +795,6 @@ async def shutdown_event():
     """Shutdown cleanup"""
     logger.info("Shutting down PDM Evaluation API server")
     resource_monitor.stop_monitoring()
-    
-    return HealthResponse(
-        status="healthy" if overall_healthy else "degraded",
-        timestamp=timestamp,
-        redis_connected=redis_connected,
-        workers_available=workers_available,
-        queue_size=queue_size,
-        staging_dir_writable=staging_dir_writable,
-        results_dir_writable=results_dir_writable,
-    )
 
 
 @app.get("/")

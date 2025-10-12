@@ -250,7 +250,7 @@ class TestFeasibilityScorer:
 
         for indicator_data in indicators:
             result = scorer.calculate_feasibility_score(indicator_data["text"])
-            TestQualityValidation._assert_indicator_results(result, indicator_data)
+            TestFeasibilityScorer._assert_indicator_results(result, indicator_data)
 
     @staticmethod
     def test_low_quality_indicators(scorer):
@@ -259,7 +259,7 @@ class TestFeasibilityScorer:
 
         for indicator_data in indicators:
             result = scorer.calculate_feasibility_score(indicator_data["text"])
-            TestQualityValidation._assert_indicator_results(result, indicator_data)
+            TestFeasibilityScorer._assert_indicator_results(result, indicator_data)
 
     @staticmethod
     def test_insufficient_indicators(scorer):
