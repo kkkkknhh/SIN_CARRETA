@@ -101,7 +101,7 @@ def manual_timing_breakdown():
     
     # Time result construction
     start_result = time.perf_counter()
-    result = {
+    _result = {
         "tests_passed": 2 if route_equal and tie_equal else 0,
         "tests_failed": 0 if route_equal and tie_equal else 2,
         "violations": []
@@ -151,7 +151,7 @@ def run_multiple_iterations():
     times = []
     
     print(f"Running {iterations} iterations...")
-    for i in range(iterations):
+    for _ in range(iterations):
         start = time.perf_counter()
         validator.validate_contract(ContractType.ROUTING)
         end = time.perf_counter()

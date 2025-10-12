@@ -354,7 +354,7 @@ class TestOutputQualityAssessor:
         """Test that results are written to output file"""
         output_file = tmp_path / "reports" / "output_quality_assessment.json"
         
-        results = validate_output_quality(
+        _results = validate_output_quality(
             answers_path="/nonexistent",
             rubric_path="/nonexistent",
             evidence_registry_path="/nonexistent",

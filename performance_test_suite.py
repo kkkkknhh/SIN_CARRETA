@@ -122,7 +122,7 @@ class PerformanceBenchmark:
         
         # Measurement phase
         latencies_ms = []
-        for i in range(iterations):
+        for _ in range(iterations):
             start = time.perf_counter()
             func(**kwargs)
             elapsed_ms = (time.perf_counter() - start) * 1000

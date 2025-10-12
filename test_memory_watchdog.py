@@ -470,7 +470,7 @@ def test_multiprocessing_memory_monitoring():
             process.join()
 
         # Check for termination events or completion
-        status = watchdog.get_monitoring_status()
+        _status = watchdog.get_monitoring_status()
         # Either the process completed normally or was terminated for memory usage
 
 

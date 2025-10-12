@@ -115,7 +115,7 @@ def trace_test_flow(test_name: str, test_func, tracer: CodePathTracer) -> Dict[s
     
     try:
         # Execute test
-        result = test_func()
+        _result = test_func()
         status = "PASSED"
         error = None
     except Exception as e:
@@ -148,7 +148,7 @@ def create_representative_test_flows():
     def test_embedding_model():
         try:
             from embedding_model import create_embedding_model
-            model = create_embedding_model()
+            _model = create_embedding_model()
             return True
         except:
             return False
@@ -177,7 +177,7 @@ def create_representative_test_flows():
     def test_circuit_breaker():
         try:
             from circuit_breaker import CircuitBreaker, CircuitBreakerConfig
-            cb = CircuitBreaker("test", CircuitBreakerConfig())
+            _cb = CircuitBreaker("test", CircuitBreakerConfig())
             return True
         except:
             return False
@@ -186,7 +186,7 @@ def create_representative_test_flows():
     def test_data_flow_contract():
         try:
             from data_flow_contract import CanonicalFlowValidator
-            validator = CanonicalFlowValidator()
+            _validator = CanonicalFlowValidator()
             return True
         except:
             return False
@@ -195,7 +195,7 @@ def create_representative_test_flows():
     def test_evidence_registry():
         try:
             from evidence_registry import EvidenceRegistry
-            registry = EvidenceRegistry()
+            _registry = EvidenceRegistry()
             return True
         except:
             return False
@@ -222,7 +222,7 @@ def create_representative_test_flows():
     def test_feasibility_scorer():
         try:
             from feasibility_scorer import FeasibilityScorer
-            scorer = FeasibilityScorer()
+            _scorer = FeasibilityScorer()
             return True
         except:
             return False
@@ -231,7 +231,7 @@ def create_representative_test_flows():
     def test_plan_processor():
         try:
             from plan_processor import PlanProcessor
-            processor = PlanProcessor()
+            _processor = PlanProcessor()
             return True
         except:
             return False

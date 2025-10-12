@@ -331,7 +331,7 @@ Actionable recommendations to address identified risks.
         section += "3. Set up synthetic monitoring to catch regressions pre-production\n"
         return section
     
-    for i, (severity, risk_type, location, description) in enumerate(risks, 1):
+    for i, (_severity, risk_type, location, _description) in enumerate(risks, 1):
         section += f"### {i}. Fix {risk_type}\n"
         section += f"**Target:** `{location}`\n\n"
         

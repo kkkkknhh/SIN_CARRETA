@@ -165,7 +165,7 @@ class TestFrozenRegistry(unittest.TestCase):
     def test_frozen_registry_preserves_existing_evidence(self):
         """Test that freezing preserves existing evidence"""
         registry = EvidenceRegistry()
-        eid = registry.register("comp1", "type1", {"data": "test"}, 0.8, ["D1-Q1"])
+        _eid = registry.register("comp1", "type1", {"data": "test"}, 0.8, ["D1-Q1"])
         
         registry.freeze()
         
@@ -194,7 +194,7 @@ class TestProvenanceTracking(unittest.TestCase):
         """Test evidence correctly tracked for single question"""
         registry = EvidenceRegistry()
         
-        eid = registry.register(
+        _eid = registry.register(
             "feasibility_scorer",
             "baseline_presence",
             {"text": "baseline detected"},
@@ -211,7 +211,7 @@ class TestProvenanceTracking(unittest.TestCase):
         """Test evidence correctly tracked for multiple questions"""
         registry = EvidenceRegistry()
         
-        eid = registry.register(
+        _eid = registry.register(
             "monetary_detector",
             "monetary_value",
             {"amount": 5000000},
@@ -259,9 +259,9 @@ class TestComponentIndexing(unittest.TestCase):
         """Test evidence can be retrieved by component"""
         registry = EvidenceRegistry()
         
-        eid1 = registry.register("feasibility_scorer", "type1", {}, 0.8, ["D1-Q1"])
-        eid2 = registry.register("feasibility_scorer", "type2", {}, 0.9, ["D1-Q2"])
-        eid3 = registry.register("monetary_detector", "type3", {}, 0.7, ["D2-Q1"])
+        _eid1 = registry.register("feasibility_scorer", "type1", {}, 0.8, ["D1-Q1"])
+        _eid2 = registry.register("feasibility_scorer", "type2", {}, 0.9, ["D1-Q2"])
+        _eid3 = registry.register("monetary_detector", "type3", {}, 0.7, ["D2-Q1"])
         
         # Get evidence by component using for_component method
         feasibility_evidence = registry.for_component("feasibility_scorer")

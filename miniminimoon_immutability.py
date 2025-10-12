@@ -595,7 +595,7 @@ Examples:
     diff_parser.add_argument("--snapshot", type=Path, help="Snapshot file path")
 
     # Check Decatalogo command
-    check_parser = subparsers.add_parser("check-decatalogo", help="Verify Decatalogo integration")
+    _check_parser = subparsers.add_parser("check-decatalogo", help="Verify Decatalogo integration")
 
     args = parser.parse_args()
 

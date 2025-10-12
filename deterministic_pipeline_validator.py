@@ -916,7 +916,7 @@ Examples:
     gen_parser.add_argument("output", type=Path, help="Output path (e.g., tools/flow_doc.json)")
 
     # Test command
-    test_parser = subparsers.add_parser("test", help="Run validation tests")
+    _test_parser = subparsers.add_parser("test", help="Run validation tests")
 
     # Validate command
     val_parser = subparsers.add_parser("validate", help="Validate runtime trace")

@@ -158,11 +158,11 @@ class Python310CompatibilityChecker:
             try:
                 # Test random number generation (changed in recent versions)
                 rng = np.random.default_rng(42)
-                test_array = rng.random(10)
+                _test_array = rng.random(10)
                 
                 # Test matrix operations
                 matrix = np.array([[1, 2], [3, 4]])
-                result = matrix @ matrix.T
+                _result = matrix @ matrix.T
                 
                 compatibility_report['core_operations'] = 'OK'
                 

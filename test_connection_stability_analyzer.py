@@ -110,10 +110,10 @@ class TestFlowSpecification:
             input_schema={},
             output_schema={}
         )
-        is_valid, msg = spec.validate_cardinality(5)
+        is_valid, _msg = spec.validate_cardinality(5)
         assert is_valid is True
         
-        is_valid, msg = spec.validate_cardinality(0)
+        is_valid, _msg = spec.validate_cardinality(0)
         assert is_valid is False
 
 
@@ -363,7 +363,7 @@ class TestConnectionStabilityAnalyzer:
         analyzer.track_attempt("test_conn", success=True)
         
         output_file = tmp_path / "test_report.json"
-        report = analyzer.export_report(str(output_file))
+        _report = analyzer.export_report(str(output_file))
         
         assert output_file.exists()
         
@@ -446,7 +446,7 @@ class TestIntegration:
         )
         analyzer.flow_specifications["test_flow"] = flow_spec
         
-        is_valid, msg = analyzer.verify_cardinality("test_flow", 3)
+        is_valid, _msg = analyzer.verify_cardinality("test_flow", 3)
         assert is_valid is False
         
         metrics = analyzer.get_or_create_metrics("test_flow")

@@ -62,7 +62,7 @@ def ignite_system(args):
         from canary_deployment import create_canary_controller
 
         initialize_tracing(service_name="decalogo-evaluation-system")
-        slo_monitor = create_slo_monitor()
+        _slo_monitor = create_slo_monitor()
         controller = create_canary_controller(args.deployment_id)
 
         def request_generator():

@@ -142,7 +142,7 @@ def test_generate_deterministic_filename_truncation():
 
 def test_upload_single_document(client, mock_redis, temp_dirs, sample_pdf):
     """Test uploading a single PDF document."""
-    staging_dir, _ = temp_dirs
+    _staging_dir, _ = temp_dirs
     
     files = [("files", ("document.pdf", sample_pdf, "application/pdf"))]
     data = {
@@ -167,7 +167,7 @@ def test_upload_single_document(client, mock_redis, temp_dirs, sample_pdf):
 
 def test_upload_batch_documents(client, mock_redis, temp_dirs):
     """Test uploading multiple documents in batch."""
-    staging_dir, _ = temp_dirs
+    _staging_dir, _ = temp_dirs
     
     pdf_content = b"%PDF-1.4\ntest content"
     files = [
@@ -191,7 +191,7 @@ def test_upload_batch_documents(client, mock_redis, temp_dirs):
 
 def test_upload_with_optional_metadata(client, mock_redis, temp_dirs, sample_pdf):
     """Test upload with optional requester metadata."""
-    staging_dir, _ = temp_dirs
+    _staging_dir, _ = temp_dirs
     
     files = [("files", ("document.pdf", sample_pdf, "application/pdf"))]
     data = {
@@ -211,7 +211,7 @@ def test_upload_with_optional_metadata(client, mock_redis, temp_dirs, sample_pdf
 
 def test_upload_with_processing_config(client, mock_redis, temp_dirs, sample_pdf):
     """Test upload with custom processing configuration."""
-    staging_dir, _ = temp_dirs
+    _staging_dir, _ = temp_dirs
     
     files = [("files", ("document.pdf", sample_pdf, "application/pdf"))]
     data = {
@@ -290,7 +290,7 @@ def test_upload_no_files(client, mock_redis, temp_dirs):
 
 def test_upload_invalid_pdf(client, mock_redis, temp_dirs):
     """Test upload fails with invalid PDF file."""
-    staging_dir, _ = temp_dirs
+    _staging_dir, _ = temp_dirs
     
     invalid_content = b"not a pdf file"
     files = [("files", ("document.pdf", io.BytesIO(invalid_content), "application/pdf"))]
@@ -309,7 +309,7 @@ def test_upload_invalid_pdf(client, mock_redis, temp_dirs):
 
 def test_upload_too_many_files(client, mock_redis, temp_dirs):
     """Test upload fails when exceeding batch limit."""
-    staging_dir, _ = temp_dirs
+    _staging_dir, _ = temp_dirs
     
     pdf_content = b"%PDF-1.4\ntest"
     files = [

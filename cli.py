@@ -241,7 +241,7 @@ def run_feasibility_mode(args: argparse.Namespace) -> int:
     """Execute feasibility scoring mode."""
     try:
         from feasibility_scorer import FeasibilityConfig, FeasibilityScorer
-    except ImportError as exc:
+    except ImportError:
         LOGGER.exception("Required module not available for feasibility mode")
         return 1
 

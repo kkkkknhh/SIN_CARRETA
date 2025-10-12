@@ -244,7 +244,7 @@ def demo_causal_estimation_after_accumulation():
             plan_id = f"plan_{plan_idx:03d}"
             
             # Create scorer for this plan
-            scorer = FeasibilityScorerWithCausalLogging(
+            _scorer = FeasibilityScorerWithCausalLogging(
                 enable_parallel=False,
                 effects_logger=logger,
                 plan_id=plan_id
