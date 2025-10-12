@@ -76,8 +76,9 @@ def validate_environment() -> None:
     python_version = sys.version_info[:2]
     if python_version < REQUIRED_PYTHON:
         raise EnvironmentValidationError(
-            f"Python {REQUIRED_PYTHON[0]}.{REQUIRED_PYTHON[1]}+ required, "
-            f"but running {sys.version_info[0]}.{sys.version_info[1]}"
+            f"Python {REQUIRED_PYTHON[0]}.{REQUIRED_PYTHON[1]}+ "
+            f"required, but running "
+            f"{sys.version_info[0]}.{sys.version_info[1]}"
         )
 
     # Check NumPy version
@@ -93,8 +94,9 @@ def validate_environment() -> None:
             )
 
         if _cmp(numpy_version, NUMPY_MAX_EXCL) >= 0:
+            max_ver = NUMPY_MAX_EXCL
             raise EnvironmentValidationError(
-                f"NumPy <{NUMPY_MAX_EXCL[0]}.{NUMPY_MAX_EXCL[1]}.{NUMPY_MAX_EXCL[2]} required, "
+                f"NumPy <{max_ver[0]}.{max_ver[1]}.{max_ver[2]} required, "
                 f"but found {np.__version__}"
             )
     except ImportError:
@@ -111,9 +113,8 @@ def cli() -> int:
     try:
         validate_environment()
         print("✓ Environment validation passed")
-        print(
-            f"  Python: {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}"
-        )
+        ver = sys.version_info
+        print(f"  Python: {ver[0]}.{ver[1]}.{ver[2]}")
         try:
             import numpy as np
 

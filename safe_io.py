@@ -42,7 +42,6 @@ def get_fallback_directory() -> Optional[Path]:
 
 def clear_in_memory_store() -> None:
     """Clear the in-memory store."""
-    global _IN_MEMORY_STORE
     _IN_MEMORY_STORE.clear()
 
 
@@ -73,7 +72,7 @@ def safe_write_text(
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding=encoding)
         return WriteResult(status="success", path=target)
-    except PermissionError as e:
+    except PermissionError:
         # Try fallback directory
         if _FALLBACK_DIRECTORY is not None:
             try:
