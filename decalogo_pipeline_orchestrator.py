@@ -998,8 +998,8 @@ if __name__ == "__main__":
 
     # Display results
     print("=== DECALOGO EVALUATION RESULTS ===")
-    print(f"Overall Score: {report['overall_score']:.2f}")
-    print(f"Evaluation Coverage: {report['evaluation_coverage']:.1%}")
+    print(f"Overall Score: {evaluation_report['overall_score']:.2f}")
+    print(f"Evaluation Coverage: {evaluation_report['evaluation_coverage']:.1%}")
     print("\nDimension Scores:")
     for dim_id, score in report["summary"]["dimensions"].items():
         print(f"- {dim_id}: {score:.2f}")

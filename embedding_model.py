@@ -120,17 +120,17 @@ class ProductionLogger:
     def get_metrics(self) -> Dict[str, Any]:
         """Get collected metrics and statistics."""
         with self._lock:
-            stats = {}
+            metrics = {}
             for name, values in self._timings.items():
                 if values:
-                    stats[f"{name}_avg_ms"] = np.mean(values) * 1000
-                    stats[f"{name}_p95_ms"] = np.percentile(values, 95) * 1000
-                    stats[f"{name}_count"] = len(values)
+                    metrics[f"{name}_avg_ms"] = np.mean(values) * 1000
+                    metrics[f"{name}_p95_ms"] = np.percentile(values, 95) * 1000
+                    metrics[f"{name}_count"] = len(values)
 
             for name, value in self._metrics.items():
-                stats[name] = value
+                metrics[name] = value
 
-            return stats
+            return metrics
 
     def info(self, msg: str, **kwargs):
         self.logger.info(msg, extra=kwargs)

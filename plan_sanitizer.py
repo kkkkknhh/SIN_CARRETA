@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Dict, Optional, Set, Union
 
 # Import file reading utility
+# Import file reading utility
 from json_utils import safe_read_text_file
 
 # Import utility functions from text_processor
@@ -447,8 +448,8 @@ if __name__ == "__main__":
 
     stats = sanitizer.get_sanitization_stats()
     print("\nSanitization statistics:")
-    for key, value in stats.items():
-        print(f"  {key}: {value}")
+    for stat_key, stat_value in stats.items():
+        print(f"  {stat_key}: {stat_value}")
 
 
 # Convenience functions for common use cases

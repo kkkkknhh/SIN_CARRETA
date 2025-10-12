@@ -273,7 +273,7 @@ class RegexExtractor(CausalExtractor):
     )
 
     def extract(self, text_block: str) -> List[CausalElement]:
-        out: List[CausalElement] = []
+        elements: List[CausalElement] = []
         for k, m in enumerate(self._PAT.finditer(text_block)):
             verb = m.group(0).split()[0].lower()
             effect = m.group(1).strip()
@@ -488,10 +488,10 @@ TeoriaCambioValidator = TeoriaCambioIndustrial
 
 # CLI de prueba manual
 if __name__ == "__main__":
-    text = " ".join(sys.argv[1:]).strip() or (
+    test_text = " ".join(sys.argv[1:]).strip() or (
         "El plan generará empleo juvenil y mejorará la cobertura escolar para reducir el embarazo adolescente; "
         "además, impactará la calidad del agua y reducirá la deforestación mediante incentivos."
     )
     tc = TeoriaCambioValidator()
-    out = tc.verificar_marco_logico_completo(text)
-    print(json.dumps(out, ensure_ascii=False, indent=2))
+    result = tc.verificar_marco_logico_completo(test_text)
+    print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -730,5 +730,5 @@ def create_connection_stability_analyzer(
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     analyzer = create_connection_stability_analyzer()
-    report = analyzer.generate_report()
-    print(json.dumps(report, indent=2))
+    stability_report = analyzer.generate_report()
+    print(json.dumps(stability_report, indent=2))

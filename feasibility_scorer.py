@@ -3,6 +3,7 @@
 # Module-level logger (instrumentable, audit-aligned)
 import logging
 import random
+import re
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
@@ -157,11 +158,11 @@ class FeasibilityScorer:
         self,
         config: Optional[FeasibilityConfig] = None,
         *,
-        logger: Optional[logging.Logger] = None,
+        custom_logger: Optional[logging.Logger] = None,
     ) -> None:
         """Instantiate the scorer with an explicit configuration contract."""
 
-        self.logger = logger or logging.getLogger("feasibility_scorer")
+        self.logger = custom_logger or logging.getLogger("feasibility_scorer")
         self.logger.setLevel(logging.INFO)
         self._config_history: List[Dict[str, Any]] = []
         self.backend_options: Dict[str, Any] = {}

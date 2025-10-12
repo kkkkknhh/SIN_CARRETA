@@ -221,7 +221,7 @@ def find_quotes(text: str) -> List[str]:
     """Find quoted substrings using double quotes after normalization."""
     if not text:
         return []
-    t = normalize_unicode(text)
+    t = normalize_text_unicode(text)
     # Remove smart quotes by converting to straight quotes via NFKC, then match
     return re.findall(r'"(.*?)"', t)
 
@@ -230,7 +230,7 @@ def count_words(text: str) -> int:
     """Count words in Unicode text. Words are sequences of word chars or letters."""
     if not text:
         return 0
-    t = normalize_unicode(text)
+    t = normalize_text_unicode(text)
     # Split on whitespace for robustness with accents; filter empties
     return len([w for w in re.split(r"\s+", t.strip()) if w])
 
@@ -239,7 +239,7 @@ def extract_emails(text: str) -> List[str]:
     """Extract email addresses allowing Unicode letters in local/domain parts."""
     if not text:
         return []
-    t = normalize_unicode(text)
+    t = normalize_text_unicode(text)
     # Allow word chars (includes Unicode letters), dots, hyphens in local and domain
     pattern = re.compile(r"[\w\.-]+@[\w\.-]+\.[A-Za-z]{2,}", re.UNICODE)
     return pattern.findall(t)
@@ -249,7 +249,7 @@ def replace_special_chars(text: str) -> str:
     """Replace common Unicode punctuation with ASCII equivalents or remove quotes."""
     if not text:
         return ""
-    t = normalize_unicode(text)
+    t = normalize_text_unicode(text)
     # Replace various dash types with ASCII hyphen
     t = re.sub(r"[\u2012\u2013\u2014\u2015\u2212]", "-", t)
     # Remove straight and smart double quotes entirely
@@ -271,8 +271,8 @@ def search_pattern(text: str, pattern: str):
     """Search for a literal pattern in normalized text; returns a match or None."""
     if text is None or pattern is None:
         return None
-    t = normalize_unicode(text)
-    p = normalize_unicode(pattern)
+    t = normalize_text_unicode(text)
+    p = normalize_text_unicode(pattern)
     return re.search(re.escape(p), t)
 
 
@@ -280,7 +280,7 @@ def match_phone_numbers(text: str) -> List[str]:
     """Match common US phone number formats like 123-456-7890 or (123) 456-7890."""
     if not text:
         return []
-    t = normalize_unicode(text)
+    t = normalize_text_unicode(text)
     # Use finditer to capture entire matches
     regex = re.compile(r"(?:\(\d{3}\)\s*|\d{3}-)\d{3}-\d{4}")
     return [m.group(0) for m in regex.finditer(t)]
@@ -291,12 +291,12 @@ def highlight_keywords(text: str, keywords: List[str]) -> str:
     if not text:
         return ""
     if not keywords:
-        return normalize_unicode(text)
-    t = normalize_unicode(text)
+        return normalize_text_unicode(text)
+    t = normalize_text_unicode(text)
     for kw in keywords:
         if not kw:
             continue
-        kwn = normalize_unicode(kw)
+        kwn = normalize_text_unicode(kw)
         # Replace exact occurrences; case-sensitive as tests expect exact matches
         t = t.replace(kwn, f"**{kwn}**")
     return t

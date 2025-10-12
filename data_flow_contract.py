@@ -530,9 +530,11 @@ class CanonicalFlowValidator:
             # Check 2: Metadatos
             metadata = decatalogo_results.get("metadata", {})
             required_metadata = ["plan_evaluado", "fecha_evaluacion", "version_sistema"]
-            for field in required_metadata:
-                if field not in metadata:
-                    validation_report["errors"].append(f"Metadata faltante: {field}")
+            for metadata_field in required_metadata:
+                if metadata_field not in metadata:
+                    validation_report["errors"].append(
+                        f"Metadata faltante: {metadata_field}"
+                    )
                     validation_report["status"] = "failed"
 
             validation_report["checks"]["metadata"] = (
@@ -589,7 +591,7 @@ class CanonicalFlowValidator:
                     for field in required_fields:
                         if field not in dim_data:
                             validation_report["warnings"].append(
-                                f"Dimensión '{dim_nombre}' faltante campo: {field}"
+                                f"Dimensión '{dim_nombre}' faltante campo: {req_field}"
                             )
 
             validation_report["checks"]["evaluacion_dimensiones"] = "passed"
