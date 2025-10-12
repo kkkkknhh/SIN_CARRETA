@@ -1,42 +1,64 @@
 # coding=utf-8
 import json
+import statistics
 import subprocess
 import sys
-from pathlib import Path
-from typing import Dict, Any, Optional
 from collections import defaultdict
-import statistics
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 
 def validate_output_quality(
-        answers_path: Optional[str] = None,
-        rubric_path: Optional[str] = None,
-        evidence_registry_path: Optional[str] = None,
-        flow_runtime_path: Optional[str] = None,
-        flow_doc_path: Optional[str] = None,
-        validation_gates_path: Optional[str] = None,
-        output_path: Optional[str] = None
+    answers_path: Optional[str] = None,
+    rubric_path: Optional[str] = None,
+    evidence_registry_path: Optional[str] = None,
+    flow_runtime_path: Optional[str] = None,
+    flow_doc_path: Optional[str] = None,
+    validation_gates_path: Optional[str] = None,
+    output_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Validate all acceptance criteria for output quality."""
     repo_root = Path(__file__).parent
 
     # Set default paths
-    answers_path = Path(answers_path) if answers_path else repo_root / "artifacts" / "answers_report.json"
-    rubric_path = Path(rubric_path) if rubric_path else repo_root / "RUBRIC_SCORING.json"
-    evidence_registry_path = Path(
-        evidence_registry_path) if evidence_registry_path else repo_root / "artifacts" / "evidence_registry.json"
-    flow_runtime_path = Path(flow_runtime_path) if flow_runtime_path else repo_root / "artifacts" / "flow_runtime.json"
-    flow_doc_path = Path(flow_doc_path) if flow_doc_path else repo_root / "tools" / "flow_doc.json"
-    validation_gates_path = Path(
-        validation_gates_path) if validation_gates_path else repo_root / "artifacts" / "validation_gates.json"
-    output_path = Path(output_path) if output_path else repo_root / "reports" / "output_quality_assessment.json"
+    answers_path = (
+        Path(answers_path)
+        if answers_path
+        else repo_root / "artifacts" / "answers_report.json"
+    )
+    rubric_path = (
+        Path(rubric_path) if rubric_path else repo_root / "RUBRIC_SCORING.json"
+    )
+    evidence_registry_path = (
+        Path(evidence_registry_path)
+        if evidence_registry_path
+        else repo_root / "artifacts" / "evidence_registry.json"
+    )
+    flow_runtime_path = (
+        Path(flow_runtime_path)
+        if flow_runtime_path
+        else repo_root / "artifacts" / "flow_runtime.json"
+    )
+    flow_doc_path = (
+        Path(flow_doc_path) if flow_doc_path else repo_root / "tools" / "flow_doc.json"
+    )
+    validation_gates_path = (
+        Path(validation_gates_path)
+        if validation_gates_path
+        else repo_root / "artifacts" / "validation_gates.json"
+    )
+    output_path = (
+        Path(output_path)
+        if output_path
+        else repo_root / "reports" / "output_quality_assessment.json"
+    )
 
     results = {
         "criteria": {},
         "metrics": {},
         "overall_pass": False,
         "summary": {},
-        "errors": []
+        "errors": [],
     }
 
     # Criterion 1: Exactly 300 questions
@@ -47,33 +69,38 @@ def validate_output_quality(
         results["criteria"]["question_count"] = {
             "pass": question_count == 300,
             "expected": 300,
-            "actual": question_count
+            "actual": question_count,
         }
     except Exception as e:
         results["criteria"]["question_count"] = {
             "pass": False,
             "expected": 300,
             "actual": None,
-            "error": str(e)
+            "error": str(e),
         }
         results["errors"].append(f"Question count validation failed: {e}")
 
     # Criterion 2: Rubric alignment
     try:
         rubric_check_script = repo_root / "tools" / "rubric_check.py"
-        cmd = [sys.executable, str(rubric_check_script), str(answers_path), str(rubric_path)]
+        cmd = [
+            sys.executable,
+            str(rubric_check_script),
+            str(answers_path),
+            str(rubric_path),
+        ]
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         results["criteria"]["rubric_alignment"] = {
             "pass": proc.returncode == 0,
             "exit_code": proc.returncode,
             "stdout": proc.stdout.strip(),
-            "stderr": proc.stderr.strip() if proc.stderr else None
+            "stderr": proc.stderr.strip() if proc.stderr else None,
         }
     except Exception as e:
         results["criteria"]["rubric_alignment"] = {
             "pass": False,
             "exit_code": None,
-            "error": str(e)
+            "error": str(e),
         }
         results["errors"].append(f"Rubric alignment check failed: {e}")
 
@@ -96,7 +123,7 @@ def validate_output_quality(
             "expected_stages": 15,
             "actual_stages": stage_count,
             "contributing_stages": contributing_stages,
-            "stage_evidence_counts": dict(stage_contributions)
+            "stage_evidence_counts": dict(stage_contributions),
         }
     except Exception as e:
         results["criteria"]["pipeline_stage_coverage"] = {
@@ -104,7 +131,7 @@ def validate_output_quality(
             "expected_stages": 15,
             "actual_stages": 0,
             "contributing_stages": [],
-            "error": str(e)
+            "error": str(e),
         }
         results["errors"].append(f"Pipeline stage coverage check failed: {e}")
 
@@ -119,32 +146,35 @@ def validate_output_quality(
         canonical_order = flow_doc_data.get("canonical_order", [])
 
         deviations = []
-        for i, (runtime_stage, canonical_stage) in enumerate(zip(runtime_order, canonical_order)):
+        for i, (runtime_stage, canonical_stage) in enumerate(
+            zip(runtime_order, canonical_order)
+        ):
             if runtime_stage != canonical_stage:
-                deviations.append({
-                    "position": i,
-                    "expected": canonical_stage,
-                    "actual": runtime_stage
-                })
+                deviations.append(
+                    {
+                        "position": i,
+                        "expected": canonical_stage,
+                        "actual": runtime_stage,
+                    }
+                )
 
         if len(runtime_order) != len(canonical_order):
-            deviations.append({
-                "issue": "length_mismatch",
-                "expected_length": len(canonical_order),
-                "actual_length": len(runtime_order)
-            })
+            deviations.append(
+                {
+                    "issue": "length_mismatch",
+                    "expected_length": len(canonical_order),
+                    "actual_length": len(runtime_order),
+                }
+            )
 
         results["criteria"]["flow_order_match"] = {
             "pass": len(deviations) == 0,
             "runtime_order": runtime_order,
             "canonical_order": canonical_order,
-            "deviations": deviations
+            "deviations": deviations,
         }
     except Exception as e:
-        results["criteria"]["flow_order_match"] = {
-            "pass": False,
-            "error": str(e)
-        }
+        results["criteria"]["flow_order_match"] = {"pass": False, "error": str(e)}
         results["errors"].append(f"Flow order validation failed: {e}")
 
     # Criterion 5: All 6 validation gates have passing status
@@ -155,7 +185,7 @@ def validate_output_quality(
             "evidence_deterministic_hash_consistency",
             "coverage_300_300",
             "rubric_alignment",
-            "triple_run_determinism"
+            "triple_run_determinism",
         ]
 
         with open(validation_gates_path) as f:
@@ -175,7 +205,7 @@ def validate_output_quality(
             "pass": passing_gates == 6,
             "expected_gates": 6,
             "passing_gates": passing_gates,
-            "gate_status": gate_status
+            "gate_status": gate_status,
         }
     except Exception as e:
         results["criteria"]["validation_gates"] = {
@@ -183,7 +213,7 @@ def validate_output_quality(
             "expected_gates": 6,
             "passing_gates": 0,
             "gate_status": {},
-            "error": str(e)
+            "error": str(e),
         }
         results["errors"].append(f"Validation gates check failed: {e}")
 
@@ -195,7 +225,11 @@ def validate_output_quality(
         question_answers = answers_data.get("question_answers", [])
 
         # Confidence scores
-        confidences = [qa.get("confidence", 0) for qa in question_answers if qa.get("confidence") is not None]
+        confidences = [
+            qa.get("confidence", 0)
+            for qa in question_answers
+            if qa.get("confidence") is not None
+        ]
         if confidences:
             results["metrics"]["confidence_scores"] = {
                 "mean": statistics.mean(confidences),
@@ -203,7 +237,7 @@ def validate_output_quality(
                 "min": min(confidences),
                 "max": max(confidences),
                 "stdev": statistics.stdev(confidences) if len(confidences) > 1 else 0.0,
-                "count": len(confidences)
+                "count": len(confidences),
             }
 
         # Evidence distribution
@@ -218,42 +252,55 @@ def validate_output_quality(
             "min": min(evidence_counts) if evidence_counts else 0,
             "max": max(evidence_counts) if evidence_counts else 0,
             "distribution": dict(evidence_distribution),
-            "questions_with_zero_evidence": evidence_distribution[0]
+            "questions_with_zero_evidence": evidence_distribution[0],
         }
 
         # Rationale completeness
         rationales_present = sum(1 for qa in question_answers if qa.get("rationale"))
-        rationale_lengths = [len(qa.get("rationale", "")) for qa in question_answers if qa.get("rationale")]
+        rationale_lengths = [
+            len(qa.get("rationale", ""))
+            for qa in question_answers
+            if qa.get("rationale")
+        ]
 
         results["metrics"]["rationale_completeness"] = {
             "total_questions": len(question_answers),
             "questions_with_rationale": rationales_present,
-            "completeness_percentage": (rationales_present / len(question_answers) * 100) if question_answers else 0,
-            "mean_length": statistics.mean(rationale_lengths) if rationale_lengths else 0,
+            "completeness_percentage": (
+                rationales_present / len(question_answers) * 100
+            )
+            if question_answers
+            else 0,
+            "mean_length": statistics.mean(rationale_lengths)
+            if rationale_lengths
+            else 0,
             "min_length": min(rationale_lengths) if rationale_lengths else 0,
-            "max_length": max(rationale_lengths) if rationale_lengths else 0
+            "max_length": max(rationale_lengths) if rationale_lengths else 0,
         }
     except Exception as e:
         results["errors"].append(f"Quality metrics computation failed: {e}")
 
     # Determine overall pass
     results["overall_pass"] = all(
-        criterion.get("pass", False)
-        for criterion in results["criteria"].values()
+        criterion.get("pass", False) for criterion in results["criteria"].values()
     )
 
     # Generate summary
     results["summary"] = {
         "total_criteria": len(results["criteria"]),
-        "passing_criteria": sum(1 for c in results["criteria"].values() if c.get("pass", False)),
-        "failing_criteria": [name for name, c in results["criteria"].items() if not c.get("pass", False)],
+        "passing_criteria": sum(
+            1 for c in results["criteria"].values() if c.get("pass", False)
+        ),
+        "failing_criteria": [
+            name for name, c in results["criteria"].items() if not c.get("pass", False)
+        ],
         "has_errors": len(results["errors"]) > 0,
-        "error_count": len(results["errors"])
+        "error_count": len(results["errors"]),
     }
 
     # Write results
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, 'w') as f:
+    with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
 
     return results
@@ -263,7 +310,9 @@ def main():
     """CLI entry point for standalone execution"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Validate output quality against acceptance criteria")
+    parser = argparse.ArgumentParser(
+        description="Validate output quality against acceptance criteria"
+    )
     parser.add_argument("--answers", help="Path to answers_report.json")
     parser.add_argument("--rubric", help="Path to RUBRIC_SCORING.json")
     parser.add_argument("--evidence", help="Path to evidence_registry.json")
@@ -282,20 +331,22 @@ def main():
         flow_runtime_path=args.flow_runtime,
         flow_doc_path=args.flow_doc,
         validation_gates_path=args.gates,
-        output_path=args.output
+        output_path=args.output,
     )
 
     if args.verbose:
         print(json.dumps(results, indent=2))
     else:
         print(f"Overall Pass: {results['overall_pass']}")
-        print(f"Passing Criteria: {results['summary']['passing_criteria']}/{results['summary']['total_criteria']}")
-        if results['summary']['failing_criteria']:
+        print(
+            f"Passing Criteria: {results['summary']['passing_criteria']}/{results['summary']['total_criteria']}"
+        )
+        if results["summary"]["failing_criteria"]:
             print(f"Failing: {', '.join(results['summary']['failing_criteria'])}")
-        if results['errors']:
+        if results["errors"]:
             print(f"Errors: {len(results['errors'])}")
 
-    sys.exit(0 if results['overall_pass'] else 1)
+    sys.exit(0 if results["overall_pass"] else 1)
 
 
 if __name__ == "__main__":

@@ -22,29 +22,27 @@ Version: 2.0.0 (Flow-Finalized)
 Date: 2025-10-05
 """
 
-import json
-from datetime import datetime, timezone
 import hashlib
-import time
+import json
 import logging
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
-from dataclasses import dataclass, field, asdict
-from datetime import datetime
-from enum import Enum
 import sys
+import time
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 logger = logging.getLogger("PipelineValidator")
-
 
 # ============================================================================
 # NODE CONTRACTS (I/O Schemas)
 # ============================================================================
+
 
 @dataclass
 class NodeContract:
@@ -52,6 +50,7 @@ class NodeContract:
     I/O contract for a pipeline node.
     Specifies expected input/output schemas and validation rules.
     """
+
     node_id: str
     node_name: str
     input_schema: Dict[str, str]  # {field_name: type}
@@ -123,7 +122,7 @@ class NodeContract:
             "float": ["float", "number"],
             "list": ["list", "array"],
             "dict": ["dict", "object"],
-            "bool": ["bool", "boolean"]
+            "bool": ["bool", "boolean"],
         }
 
         actual_variants = type_mappings.get(actual, [actual])
@@ -138,6 +137,7 @@ class NodeContract:
 
 class PipelineStage(Enum):
     """Canonical pipeline stages (must match orchestrator)"""
+
     SANITIZATION = "sanitization"
     PLAN_PROCESSING = "plan_processing"
     SEGMENTATION = "document_segmentation"
@@ -167,7 +167,7 @@ CANONICAL_NODE_CONTRACTS = {
         required_inputs=["raw_text"],
         required_outputs=["sanitized_text"],
         invariants=["non_empty_output", "unicode_valid"],
-        dependencies=[]
+        dependencies=[],
     ),
     # Stage 2
     "plan_processing": NodeContract(
@@ -178,21 +178,29 @@ CANONICAL_NODE_CONTRACTS = {
         required_inputs=["sanitized_text"],
         required_outputs=["doc_struct"],
         invariants=["structure_valid"],
-        dependencies=["sanitization"]
+        dependencies=["sanitization"],
     ),
     # Stage 3
     "document_segmentation": NodeContract(
-        node_id="node_03", node_name="document_segmentation",
-        input_schema={"doc_struct": "dict"}, output_schema={"segments": "list"},
-        required_inputs=["doc_struct"], required_outputs=["segments"],
-        invariants=["segments_non_empty", "deterministic_ids"], dependencies=["plan_processing"]
+        node_id="node_03",
+        node_name="document_segmentation",
+        input_schema={"doc_struct": "dict"},
+        output_schema={"segments": "list"},
+        required_inputs=["doc_struct"],
+        required_outputs=["segments"],
+        invariants=["segments_non_empty", "deterministic_ids"],
+        dependencies=["plan_processing"],
     ),
     # Stage 4 (new name) + legacy alias
     "embedding": NodeContract(
-        node_id="node_04", node_name="embedding",
-        input_schema={"segments": "list"}, output_schema={"embeddings": "list"},
-        required_inputs=["segments"], required_outputs=["embeddings"],
-        invariants=["length_match", "deterministic_seed"], dependencies=["document_segmentation"]
+        node_id="node_04",
+        node_name="embedding",
+        input_schema={"segments": "list"},
+        output_schema={"embeddings": "list"},
+        required_inputs=["segments"],
+        required_outputs=["embeddings"],
+        invariants=["length_match", "deterministic_seed"],
+        dependencies=["document_segmentation"],
     ),
     "embedding_generation": NodeContract(
         node_id="node_04_legacy",
@@ -202,42 +210,62 @@ CANONICAL_NODE_CONTRACTS = {
         required_inputs=["segments"],
         required_outputs=["embeddings"],
         invariants=["length_match", "deterministic_seed"],
-        dependencies=["document_segmentation"]
+        dependencies=["document_segmentation"],
     ),
     # Stage 5
     "responsibility_detection": NodeContract(
-        node_id="node_05", node_name="responsibility_detection",
-        input_schema={"segments": "list"}, output_schema={"responsibilities": "list"},
-        required_inputs=["segments"], required_outputs=["responsibilities"],
-        invariants=["provenance_tracked"], dependencies=["document_segmentation"]
+        node_id="node_05",
+        node_name="responsibility_detection",
+        input_schema={"segments": "list"},
+        output_schema={"responsibilities": "list"},
+        required_inputs=["segments"],
+        required_outputs=["responsibilities"],
+        invariants=["provenance_tracked"],
+        dependencies=["document_segmentation"],
     ),
     # Stage 6
     "contradiction_detection": NodeContract(
-        node_id="node_06", node_name="contradiction_detection",
-        input_schema={"segments": "list"}, output_schema={"contradictions": "list"},
-        required_inputs=["segments"], required_outputs=["contradictions"],
-        invariants=["consistency_checked"], dependencies=["document_segmentation"]
+        node_id="node_06",
+        node_name="contradiction_detection",
+        input_schema={"segments": "list"},
+        output_schema={"contradictions": "list"},
+        required_inputs=["segments"],
+        required_outputs=["contradictions"],
+        invariants=["consistency_checked"],
+        dependencies=["document_segmentation"],
     ),
     # Stage 7
     "monetary_detection": NodeContract(
-        node_id="node_07", node_name="monetary_detection",
-        input_schema={"segments": "list"}, output_schema={"monetary": "list"},
-        required_inputs=["segments"], required_outputs=["monetary"],
-        invariants=["currency_validated"], dependencies=["document_segmentation"]
+        node_id="node_07",
+        node_name="monetary_detection",
+        input_schema={"segments": "list"},
+        output_schema={"monetary": "list"},
+        required_inputs=["segments"],
+        required_outputs=["monetary"],
+        invariants=["currency_validated"],
+        dependencies=["document_segmentation"],
     ),
     # Stage 8
     "feasibility_scoring": NodeContract(
-        node_id="node_08", node_name="feasibility_scoring",
-        input_schema={"segments": "list"}, output_schema={"feasibility": "dict"},
-        required_inputs=["segments"], required_outputs=["feasibility"],
-        invariants=["score_bounded"], dependencies=["document_segmentation"]
+        node_id="node_08",
+        node_name="feasibility_scoring",
+        input_schema={"segments": "list"},
+        output_schema={"feasibility": "dict"},
+        required_inputs=["segments"],
+        required_outputs=["feasibility"],
+        invariants=["score_bounded"],
+        dependencies=["document_segmentation"],
     ),
     # Stage 9 (new name) + legacy alias
     "causal_detection": NodeContract(
-        node_id="node_09", node_name="causal_detection",
-        input_schema={"segments": "list"}, output_schema={"causal_patterns": "dict"},
-        required_inputs=["segments"], required_outputs=["causal_patterns"],
-        invariants=["patterns_valid"], dependencies=["document_segmentation"]
+        node_id="node_09",
+        node_name="causal_detection",
+        input_schema={"segments": "list"},
+        output_schema={"causal_patterns": "dict"},
+        required_inputs=["segments"],
+        required_outputs=["causal_patterns"],
+        invariants=["patterns_valid"],
+        dependencies=["document_segmentation"],
     ),
     "causal_pattern_detection": NodeContract(
         node_id="node_09_legacy",
@@ -247,14 +275,18 @@ CANONICAL_NODE_CONTRACTS = {
         required_inputs=["segments"],
         required_outputs=["causal_patterns"],
         invariants=["patterns_valid"],
-        dependencies=["document_segmentation"]
+        dependencies=["document_segmentation"],
     ),
     # Stage 10 (new name) + legacy alias
     "teoria_cambio": NodeContract(
-        node_id="node_10", node_name="teoria_cambio",
-        input_schema={"segments": "list"}, output_schema={"toc_graph": "dict"},
-        required_inputs=["segments"], required_outputs=["toc_graph"],
-        invariants=["graph_valid"], dependencies=["document_segmentation"]
+        node_id="node_10",
+        node_name="teoria_cambio",
+        input_schema={"segments": "list"},
+        output_schema={"toc_graph": "dict"},
+        required_inputs=["segments"],
+        required_outputs=["toc_graph"],
+        invariants=["graph_valid"],
+        dependencies=["document_segmentation"],
     ),
     "teoria_cambio_validation": NodeContract(
         node_id="node_10_legacy",
@@ -264,14 +296,18 @@ CANONICAL_NODE_CONTRACTS = {
         required_inputs=["segments"],
         required_outputs=["toc_graph"],
         invariants=["graph_valid"],
-        dependencies=["document_segmentation"]
+        dependencies=["document_segmentation"],
     ),
     # Stage 11
     "dag_validation": NodeContract(
-        node_id="node_11", node_name="dag_validation",
-        input_schema={"toc_graph": "dict"}, output_schema={"dag_diagnostics": "dict"},
-        required_inputs=["toc_graph"], required_outputs=["dag_diagnostics"],
-        invariants=["dag_acyclic"], dependencies=["teoria_cambio"]
+        node_id="node_11",
+        node_name="dag_validation",
+        input_schema={"toc_graph": "dict"},
+        output_schema={"dag_diagnostics": "dict"},
+        required_inputs=["toc_graph"],
+        required_outputs=["dag_diagnostics"],
+        invariants=["dag_acyclic"],
+        dependencies=["teoria_cambio"],
     ),
     # Stage 12
     "evidence_registry_build": NodeContract(
@@ -284,19 +320,23 @@ CANONICAL_NODE_CONTRACTS = {
             "feasibility": "dict",
             "causal_patterns": "dict",
             "toc_graph": "dict",
-            "dag_diagnostics": "dict"
+            "dag_diagnostics": "dict",
         },
         output_schema={"evidence_hash": "str", "evidence_store": "object"},
         required_inputs=["responsibilities", "contradictions"],
         required_outputs=["evidence_hash"],
         invariants=["hash_deterministic"],
         dependencies=[
-            "responsibility_detection", "contradiction_detection",
-            "monetary_detection", "feasibility_scoring",
-            "causal_detection", "causal_pattern_detection",
-            "teoria_cambio", "teoria_cambio_validation",
-            "dag_validation"
-        ]
+            "responsibility_detection",
+            "contradiction_detection",
+            "monetary_detection",
+            "feasibility_scoring",
+            "causal_detection",
+            "causal_pattern_detection",
+            "teoria_cambio",
+            "teoria_cambio_validation",
+            "dag_validation",
+        ],
     ),
     # Stage 13 (NEW)
     "decalogo_load": NodeContract(
@@ -307,12 +347,12 @@ CANONICAL_NODE_CONTRACTS = {
             "status": "str",
             "bundle_version": "str",
             "categories_count": "int",
-            "extractor_type": "str"
+            "extractor_type": "str",
         },
         required_inputs=[],
         required_outputs=["status"],
         invariants=["load_success"],
-        dependencies=["evidence_registry_build"]
+        dependencies=["evidence_registry_build"],
     ),
     # Stage 14 (Decálogo eval now depends on load + registry)
     "decalogo_evaluation": NodeContract(
@@ -323,22 +363,33 @@ CANONICAL_NODE_CONTRACTS = {
         required_inputs=["evidence_store"],
         required_outputs=["decalogo_eval"],
         invariants=["scores_bounded"],
-        dependencies=["decalogo_load", "evidence_registry_build"]
+        dependencies=["decalogo_load", "evidence_registry_build"],
     ),
     # Stage 15
     "questionnaire_evaluation": NodeContract(
-        node_id="node_15", node_name="questionnaire_evaluation",
-        input_schema={"evidence_store": "object"}, output_schema={"questionnaire_eval": "dict"},
-        required_inputs=["evidence_store"], required_outputs=["questionnaire_eval"],
-        invariants=["300_questions", "weights_aligned"], dependencies=["evidence_registry_build"]
+        node_id="node_15",
+        node_name="questionnaire_evaluation",
+        input_schema={"evidence_store": "object"},
+        output_schema={"questionnaire_eval": "dict"},
+        required_inputs=["evidence_store"],
+        required_outputs=["questionnaire_eval"],
+        invariants=["300_questions", "weights_aligned"],
+        dependencies=["evidence_registry_build"],
     ),
     # Stage 16 (updated name) + legacy alias
     "answers_assembly": NodeContract(
-        node_id="node_16", node_name="answers_assembly",
-        input_schema={"evidence_store": "object", "rubric": "dict", "questionnaire_eval": "dict"},
-        output_schema={"answers_report": "dict"}, required_inputs=["evidence_store", "questionnaire_eval"],
-        required_outputs=["answers_report"], invariants=["provenance_complete", "confidence_bounded"],
-        dependencies=["questionnaire_evaluation", "decalogo_evaluation"]
+        node_id="node_16",
+        node_name="answers_assembly",
+        input_schema={
+            "evidence_store": "object",
+            "rubric": "dict",
+            "questionnaire_eval": "dict",
+        },
+        output_schema={"answers_report": "dict"},
+        required_inputs=["evidence_store", "questionnaire_eval"],
+        required_outputs=["answers_report"],
+        invariants=["provenance_complete", "confidence_bounded"],
+        dependencies=["questionnaire_evaluation", "decalogo_evaluation"],
     ),
     "answer_assembly": NodeContract(
         node_id="node_16_legacy",
@@ -346,24 +397,25 @@ CANONICAL_NODE_CONTRACTS = {
         input_schema={
             "evidence_store": "object",
             "rubric": "dict",
-            "questionnaire_eval": "dict"
+            "questionnaire_eval": "dict",
         },
         output_schema={"answers_report": "dict"},
         required_inputs=["evidence_store", "questionnaire_eval"],
         required_outputs=["answers_report"],
         invariants=["provenance_complete", "confidence_bounded"],
-        dependencies=["questionnaire_evaluation", "decalogo_evaluation"]
+        dependencies=["questionnaire_evaluation", "decalogo_evaluation"],
     ),
 }
-
 
 # ============================================================================
 # RUNTIME TRACER
 # ============================================================================
 
+
 @dataclass
 class StageExecution:
     """Record of a single stage execution"""
+
     stage_name: str
     node_id: str
     timestamp: float
@@ -404,15 +456,15 @@ class RuntimeTracer:
         )
 
     def record_stage(
-            self,
-            stage_name: str,
-            node_id: str,
-            duration_ms: float,
-            success: bool = True,
-            error: Optional[str] = None,
-            input_hash: Optional[str] = None,
-            output_hash: Optional[str] = None,
-            contract_violations: Optional[List[str]] = None
+        self,
+        stage_name: str,
+        node_id: str,
+        duration_ms: float,
+        success: bool = True,
+        error: Optional[str] = None,
+        input_hash: Optional[str] = None,
+        output_hash: Optional[str] = None,
+        contract_violations: Optional[List[str]] = None,
     ):
         """Record execution of a single stage"""
         execution = StageExecution(
@@ -424,15 +476,13 @@ class RuntimeTracer:
             output_hash=output_hash,
             success=success,
             error=error,
-            contract_violations=contract_violations or []
+            contract_violations=contract_violations or [],
         )
 
         self.executions.append(execution)
 
         status = "✓" if success else "✗"
-        self.logger.debug(
-            f"{status} {stage_name} ({duration_ms:.1f}ms) [{node_id}]"
-        )
+        self.logger.debug(f"{status} {stage_name} ({duration_ms:.1f}ms) [{node_id}]")
 
     def get_stage_sequence(self) -> List[str]:
         """Get ordered list of executed stages"""
@@ -471,19 +521,21 @@ class RuntimeTracer:
                     "error": ex.error,
                     "input_hash": ex.input_hash,
                     "output_hash": ex.output_hash,
-                    "contract_violations": ex.contract_violations
+                    "contract_violations": ex.contract_violations,
                 }
                 for ex in self.executions
             ],
             "stage_count": len(self.executions),
             "success_count": sum(1 for ex in self.executions if ex.success),
             "failure_count": sum(1 for ex in self.executions if not ex.success),
-            "total_violations": sum(len(ex.contract_violations) for ex in self.executions)
+            "total_violations": sum(
+                len(ex.contract_violations) for ex in self.executions
+            ),
         }
 
     def save(self, output_path: Path):
         """Save runtime trace to JSON file"""
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(self.export(), f, indent=2, ensure_ascii=False)
 
         self.logger.info("Runtime trace saved to: %s", output_path)
@@ -492,6 +544,7 @@ class RuntimeTracer:
 # ============================================================================
 # CANONICAL FLOW VALIDATOR
 # ============================================================================
+
 
 class CanonicalFlowValidator:
     """
@@ -519,7 +572,7 @@ class CanonicalFlowValidator:
         "decalogo_load",
         "decalogo_evaluation",
         "questionnaire_evaluation",
-        "answers_assembly"
+        "answers_assembly",
     ]
 
     def __init__(self, flow_doc_path: Optional[Path] = None):
@@ -539,7 +592,7 @@ class CanonicalFlowValidator:
     def _load_canonical_doc(self):
         """Load canonical flow documentation"""
         try:
-            with open(self.flow_doc_path, 'r', encoding='utf-8') as f:
+            with open(self.flow_doc_path, "r", encoding="utf-8") as f:
                 self.canonical_doc = json.load(f)
             self.logger.info("Loaded canonical doc: %s", self.flow_doc_path)
         except Exception as e:
@@ -561,7 +614,7 @@ class CanonicalFlowValidator:
             "missing_stages": list(set(self.CANONICAL_ORDER) - set(actual_stages)),
             "extra_stages": list(set(actual_stages) - set(self.CANONICAL_ORDER)),
             "out_of_order": [],
-            "flow_hash": runtime_trace.compute_flow_hash()
+            "flow_hash": runtime_trace.compute_flow_hash(),
         }
 
         # Detect out-of-order stages
@@ -572,11 +625,9 @@ class CanonicalFlowValidator:
 
             if curr_stage in canonical_indices and next_stage in canonical_indices:
                 if canonical_indices[curr_stage] >= canonical_indices[next_stage]:
-                    result["out_of_order"].append({
-                        "position": i,
-                        "stage": curr_stage,
-                        "followed_by": next_stage
-                    })
+                    result["out_of_order"].append(
+                        {"position": i, "stage": curr_stage, "followed_by": next_stage}
+                    )
 
         if not result["order_valid"]:
             self.logger.error(
@@ -586,7 +637,9 @@ class CanonicalFlowValidator:
                 f"out_of_order={len(result['out_of_order'])}"
             )
         else:
-            self.logger.info("✓ Order validation PASSED (gate #2): canonical sequence preserved")
+            self.logger.info(
+                "✓ Order validation PASSED (gate #2): canonical sequence preserved"
+            )
 
         return result
 
@@ -604,11 +657,13 @@ class CanonicalFlowValidator:
             stage_name = execution.stage_name
 
             if stage_name not in CANONICAL_NODE_CONTRACTS:
-                violations.append({
-                    "stage": stage_name,
-                    "type": "unknown_stage",
-                    "message": f"Stage {stage_name} has no defined contract"
-                })
+                violations.append(
+                    {
+                        "stage": stage_name,
+                        "type": "unknown_stage",
+                        "message": f"Stage {stage_name} has no defined contract",
+                    }
+                )
                 continue
 
             stages_checked += 1
@@ -616,17 +671,19 @@ class CanonicalFlowValidator:
             # Contract violations recorded during execution
             if execution.contract_violations:
                 for violation in execution.contract_violations:
-                    violations.append({
-                        "stage": stage_name,
-                        "type": "contract_violation",
-                        "message": violation
-                    })
+                    violations.append(
+                        {
+                            "stage": stage_name,
+                            "type": "contract_violation",
+                            "message": violation,
+                        }
+                    )
 
         result = {
             "contracts_valid": len(violations) == 0,
             "stages_checked": stages_checked,
             "violations": violations,
-            "violation_count": len(violations)
+            "violation_count": len(violations),
         }
 
         if result["contracts_valid"]:
@@ -640,10 +697,7 @@ class CanonicalFlowValidator:
 
         return result
 
-    def compare_with_doc(
-            self,
-            runtime_trace: RuntimeTracer
-    ) -> Dict[str, Any]:
+    def compare_with_doc(self, runtime_trace: RuntimeTracer) -> Dict[str, Any]:
         """
         Compare runtime trace with canonical documentation.
         Flow #58: Doc↔runtime diff analysis.
@@ -654,7 +708,7 @@ class CanonicalFlowValidator:
         if not self.canonical_doc:
             return {
                 "comparison_possible": False,
-                "message": "No canonical documentation loaded"
+                "message": "No canonical documentation loaded",
             }
 
         runtime_export = runtime_trace.export()
@@ -664,11 +718,11 @@ class CanonicalFlowValidator:
             "doc_hash": self.canonical_doc.get("flow_hash"),
             "runtime_hash": runtime_export["flow_hash"],
             "hashes_match": (
-                    self.canonical_doc.get("flow_hash") == runtime_export["flow_hash"]
+                self.canonical_doc.get("flow_hash") == runtime_export["flow_hash"]
             ),
             "doc_stage_count": len(self.canonical_doc.get("stages", [])),
             "runtime_stage_count": runtime_export["stage_count"],
-            "differences": []
+            "differences": [],
         }
 
         # Compare stage sequences
@@ -676,19 +730,23 @@ class CanonicalFlowValidator:
         runtime_stages = runtime_trace.get_stage_sequence()
 
         if doc_stages != runtime_stages:
-            result["differences"].append({
-                "type": "sequence_mismatch",
-                "doc_sequence": doc_stages,
-                "runtime_sequence": runtime_stages
-            })
+            result["differences"].append(
+                {
+                    "type": "sequence_mismatch",
+                    "doc_sequence": doc_stages,
+                    "runtime_sequence": runtime_stages,
+                }
+            )
 
         # Compare stage counts
         if result["doc_stage_count"] != result["runtime_stage_count"]:
-            result["differences"].append({
-                "type": "count_mismatch",
-                "doc_count": result["doc_stage_count"],
-                "runtime_count": result["runtime_stage_count"]
-            })
+            result["differences"].append(
+                {
+                    "type": "count_mismatch",
+                    "doc_count": result["doc_stage_count"],
+                    "runtime_count": result["runtime_stage_count"],
+                }
+            )
 
         if result["hashes_match"] and not result["differences"]:
             self.logger.info("✓ Doc↔Runtime comparison PASSED: perfect match")
@@ -716,9 +774,12 @@ class CanonicalFlowValidator:
             comparison_result = self.compare_with_doc(runtime_trace)
 
         overall_valid = (
-                order_result["order_valid"] and
-                contract_result["contracts_valid"] and
-                (comparison_result is None or comparison_result.get("hashes_match", False))
+            order_result["order_valid"]
+            and contract_result["contracts_valid"]
+            and (
+                comparison_result is None
+                or comparison_result.get("hashes_match", False)
+            )
         )
 
         report = {
@@ -727,7 +788,7 @@ class CanonicalFlowValidator:
             "order_validation": order_result,
             "contract_validation": contract_result,
             "doc_comparison": comparison_result,
-            "flow_hash": runtime_trace.compute_flow_hash()
+            "flow_hash": runtime_trace.compute_flow_hash(),
         }
 
         if overall_valid:
@@ -742,6 +803,7 @@ class CanonicalFlowValidator:
 # FLOW DOCUMENTATION GENERATOR
 # ============================================================================
 
+
 class FlowDocGenerator:
     """
     Generates canonical flow documentation (tools/flow_doc.json).
@@ -755,16 +817,18 @@ class FlowDocGenerator:
         for stage_name in CanonicalFlowValidator.CANONICAL_ORDER:
             if stage_name in CANONICAL_NODE_CONTRACTS:
                 contract = CANONICAL_NODE_CONTRACTS[stage_name]
-                stages.append({
-                    "name": stage_name,
-                    "node_id": contract.node_id,
-                    "input_schema": contract.input_schema,
-                    "output_schema": contract.output_schema,
-                    "required_inputs": contract.required_inputs,
-                    "required_outputs": contract.required_outputs,
-                    "invariants": contract.invariants,
-                    "dependencies": contract.dependencies
-                })
+                stages.append(
+                    {
+                        "name": stage_name,
+                        "node_id": contract.node_id,
+                        "input_schema": contract.input_schema,
+                        "output_schema": contract.output_schema,
+                        "required_inputs": contract.required_inputs,
+                        "required_outputs": contract.required_outputs,
+                        "invariants": contract.invariants,
+                        "dependencies": contract.dependencies,
+                    }
+                )
         stages_str = "|".join([s["name"] for s in stages])
         flow_hash = hashlib.sha256(stages_str.encode()).hexdigest()
         doc = {
@@ -773,10 +837,10 @@ class FlowDocGenerator:
             "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
             "description": "Canonical deterministic pipeline flow (16 stages)",
             "total_stages": len(stages),
-            "stages": stages
+            "stages": stages,
         }
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(doc, f, indent=2, ensure_ascii=False)
         logger.info("✓ Flow documentation generated (16 stages): %s", output_path)
         logger.info("  Flow hash: %s", flow_hash)
@@ -789,6 +853,7 @@ class FlowDocGenerator:
 # UTILITIES
 # ============================================================================
 
+
 def compute_data_hash(data: Any) -> str:
     """Compute deterministic hash of data structure"""
     if isinstance(data, (dict, list)):
@@ -799,11 +864,7 @@ def compute_data_hash(data: Any) -> str:
     return hashlib.sha256(json_str.encode()).hexdigest()
 
 
-def validate_stage_io(
-        stage_name: str,
-        input_data: Any,
-        output_data: Any
-) -> List[str]:
+def validate_stage_io(stage_name: str, input_data: Any, output_data: Any) -> List[str]:
     """
     Validate I/O for a specific stage using its contract.
 
@@ -837,6 +898,7 @@ def validate_stage_io(
 # CLI & TESTING
 # ============================================================================
 
+
 def run_validation_tests():
     """Run built-in validation tests"""
     print("\n" + "=" * 80)
@@ -853,7 +915,11 @@ def run_validation_tests():
 
     invalid_input = {"wrong_field": 123}
     valid, errors = contract.validate_input(invalid_input)
-    print(f"  Invalid input detected: {not valid} ✓" if not valid else "  Failed to detect: ✗")
+    print(
+        f"  Invalid input detected: {not valid} ✓"
+        if not valid
+        else "  Failed to detect: ✗"
+    )
 
     # Test 2: Runtime tracer
     print("\nTest 2: Runtime Tracer")
@@ -862,10 +928,7 @@ def run_validation_tests():
 
     for stage in CanonicalFlowValidator.CANONICAL_ORDER[:3]:
         tracer.record_stage(
-            stage_name=stage,
-            node_id=f"node_{stage}",
-            duration_ms=10.5,
-            success=True
+            stage_name=stage, node_id=f"node_{stage}", duration_ms=10.5, success=True
         )
 
     tracer.stop()
@@ -906,21 +969,25 @@ Examples:
 
   # Validate a runtime trace
   python deterministic_pipeline_validator.py validate artifacts/flow_runtime.json
-"""
+""",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
     # Generate doc command
     gen_parser = subparsers.add_parser("generate-doc", help="Generate flow_doc.json")
-    gen_parser.add_argument("output", type=Path, help="Output path (e.g., tools/flow_doc.json)")
+    gen_parser.add_argument(
+        "output", type=Path, help="Output path (e.g., tools/flow_doc.json)"
+    )
 
     # Test command
     test_parser = subparsers.add_parser("test", help="Run validation tests")
 
     # Validate command
     val_parser = subparsers.add_parser("validate", help="Validate runtime trace")
-    val_parser.add_argument("runtime_trace", type=Path, help="Path to flow_runtime.json")
+    val_parser.add_argument(
+        "runtime_trace", type=Path, help="Path to flow_runtime.json"
+    )
     val_parser.add_argument("--flow-doc", type=Path, help="Path to flow_doc.json")
 
     args = parser.parse_args()
@@ -940,12 +1007,14 @@ Examples:
 
         elif args.command == "validate":
             # Load runtime trace
-            with open(args.runtime_trace, 'r') as f:
+            with open(args.runtime_trace, "r") as f:
                 trace_data = json.load(f)
 
             # Reconstruct tracer
             tracer = RuntimeTracer()
-            tracer.start_time = time.time() - trace_data.get("total_duration_seconds", 0)
+            tracer.start_time = time.time() - trace_data.get(
+                "total_duration_seconds", 0
+            )
             tracer.end_time = time.time()
             tracer.metadata = trace_data.get("metadata", {})
 
@@ -956,7 +1025,7 @@ Examples:
                     duration_ms=exec_data["duration_ms"],
                     success=exec_data["success"],
                     error=exec_data.get("error"),
-                    contract_violations=exec_data.get("contract_violations", [])
+                    contract_violations=exec_data.get("contract_violations", []),
                 )
 
             # Validate
@@ -976,7 +1045,9 @@ Examples:
                 print(f"  Extra: {report['order_validation']['extra_stages']}")
 
             if not report["contract_validation"]["contracts_valid"]:
-                print(f"\n⨯ Contract violations: {report['contract_validation']['violation_count']}")
+                print(
+                    f"\n⨯ Contract violations: {report['contract_validation']['violation_count']}"
+                )
 
             print("\n" + "=" * 80 + "\n")
 
