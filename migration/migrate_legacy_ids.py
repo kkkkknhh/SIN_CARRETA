@@ -124,7 +124,8 @@ class LegacyIDMigrator:
         
         raise ValueError(f"ERROR_QID_NORMALIZATION: cannot standardize legacy id '{legacy_id}'")
     
-    def _extract_rubric_key(self, canonical_id: str) -> str:
+    @staticmethod
+    def _extract_rubric_key(canonical_id: str) -> str:
         """Extract D#-Q# from P#-D#-Q#."""
         parts = canonical_id.split("-")
         if len(parts) == 3:

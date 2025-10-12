@@ -263,7 +263,8 @@ class CausalGraphAnalyzer:
             validation_timestamp=datetime.utcnow().isoformat()
         )
     
-    def _test_acyclicity_bootstrap(self, G: nx.DiGraph, n_bootstrap: int = 1000) -> float:
+    @staticmethod
+    def _test_acyclicity_bootstrap(G: nx.DiGraph, n_bootstrap: int = 1000) -> float:
         """
         Test acyclicity using bootstrapped sampling.
         
@@ -356,8 +357,8 @@ class CausalGraphAnalyzer:
         # Normalize and return
         return min(1.0, total_effect / len(paths))
     
+    @staticmethod
     def _find_backdoor_set(
-        self, 
         G: nx.DiGraph, 
         treatment: str, 
         outcome: str
@@ -385,8 +386,8 @@ class CausalGraphAnalyzer:
             return candidate_nodes
         return None
     
+    @staticmethod
     def _path_based_causal_strength(
-        self, 
         G: nx.DiGraph, 
         source: str, 
         target: str
@@ -412,8 +413,8 @@ class CausalGraphAnalyzer:
         
         return float(np.mean(path_strengths))
     
+    @staticmethod
     def _is_confounder_on_path(
-        self, 
         G: nx.DiGraph, 
         confounder: str, 
         path: List[str]
@@ -424,7 +425,8 @@ class CausalGraphAnalyzer:
                 return True
         return False
     
-    def _identify_confounders(self, G: nx.DiGraph) -> Set[str]:
+    @staticmethod
+    def _identify_confounders(G: nx.DiGraph) -> Set[str]:
         """
         Identify confounders in the graph.
         
@@ -445,7 +447,8 @@ class CausalGraphAnalyzer:
         
         return confounders
     
-    def _detect_mediators(self, G: nx.DiGraph) -> Set[str]:
+    @staticmethod
+    def _detect_mediators(G: nx.DiGraph) -> Set[str]:
         """
         Detect mediator nodes in the graph.
         
@@ -598,7 +601,8 @@ class BayesianEvidenceIntegrator:
             }
         }
     
-    def _extract_binary_signal(self, evidence: StructuredEvidence) -> bool:
+    @staticmethod
+    def _extract_binary_signal(evidence: StructuredEvidence) -> bool:
         """
         Extract binary signal from qualitative evidence.
         
@@ -704,7 +708,8 @@ class DecalogoEvidenceExtractor:
         
         return mapping
     
-    def _get_primary_modules_for_dimension(self, dimension: str) -> List[str]:
+    @staticmethod
+    def _get_primary_modules_for_dimension(dimension: str) -> List[str]:
         """Map dimensions to primary evidence-producing modules"""
         module_map = {
             'D1': ['feasibility_scorer', 'monetary_detector', 'plan_processor'],
@@ -716,7 +721,8 @@ class DecalogoEvidenceExtractor:
         }
         return module_map.get(dimension, ['plan_processor'])
     
-    def _get_evidence_types_for_dimension(self, dimension: str) -> List[str]:
+    @staticmethod
+    def _get_evidence_types_for_dimension(dimension: str) -> List[str]:
         """Get expected evidence types for dimension"""
         type_map = {
             'D1': ['baseline_presence', 'monetary_value', 'diagnostic_data'],
@@ -797,7 +803,8 @@ class DecalogoEvidenceExtractor:
         
         return structured
     
-    def _classify_evidence_type(self, evidence: CanonicalEvidence) -> str:
+    @staticmethod
+    def _classify_evidence_type(evidence: CanonicalEvidence) -> str:
         """
         Classify evidence as quantitative or qualitative.
         
@@ -966,8 +973,8 @@ class StrategicDecalogoIntegrator:
             'quality_gates_passed': self._validate_quality_gates(results, metrics)
         }
     
+    @staticmethod
     def _calculate_dimension_kpi(
-        self, 
         question_results: Dict[str, Any]
     ) -> float:
         """
@@ -995,8 +1002,8 @@ class StrategicDecalogoIntegrator:
             return float(np.average(scores, weights=weights))
         return float(np.mean(scores))
     
+    @staticmethod
     def _calculate_performance_metrics(
-        self, 
         results: Dict[str, Any],
         elapsed_time: float
     ) -> Dict[str, Any]:
@@ -1035,8 +1042,8 @@ class StrategicDecalogoIntegrator:
             'elapsed_time_seconds': elapsed_time
         }
     
+    @staticmethod
     def _validate_quality_gates(
-        self, 
         results: Dict[str, Any],
         metrics: Dict[str, Any]
     ) -> Dict[str, bool]:

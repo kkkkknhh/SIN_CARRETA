@@ -28,7 +28,8 @@ from orchestrator.effects_logger import EffectsLogger, CausalEffectsManager, per
 class TestBayesLinearEffect:
     """Test suite for BayesLinearEffect class."""
     
-    def test_initialization_defaults(self):
+    @staticmethod
+    def test_initialization_defaults():
         """Test that model initializes with default priors."""
         model = BayesLinearEffect()
         
@@ -39,7 +40,8 @@ class TestBayesLinearEffect:
         assert not model.fitted
         assert model.n_obs == 0
     
-    def test_fit_with_synthetic_data(self):
+    @staticmethod
+    def test_fit_with_synthetic_data():
         """Test fitting with synthetic data with known effect."""
         # Generate data: y = 2.0 + 3.5*x + noise
         np.random.seed(42)
@@ -56,7 +58,8 @@ class TestBayesLinearEffect:
         beta1_mean = model.beta_posterior_mean()[1]
         assert 3.0 < beta1_mean < 4.0, f"Expected β₁ ≈ 3.5, got {beta1_mean}"
     
-    def test_credible_interval_coverage(self):
+    @staticmethod
+    def test_credible_interval_coverage():
         """Test that credible interval contains true parameter."""
         np.random.seed(42)
         x = np.random.uniform(0, 1, 100)
@@ -75,7 +78,8 @@ class TestBayesLinearEffect:
         assert np.isfinite(interval[0]) and np.isfinite(interval[1])
         assert interval[1] > interval[0]
     
-    def test_effect_significance(self):
+    @staticmethod
+    def test_effect_significance():
         """Test significance testing for positive effect."""
         np.random.seed(42)
         x = np.random.uniform(0, 1, 100)
@@ -89,7 +93,8 @@ class TestBayesLinearEffect:
         assert is_sig, "Effect should be significant"
         assert prob > 0.99, f"Probability of positive effect should be high, got {prob}"
     
-    def test_prediction_without_uncertainty(self):
+    @staticmethod
+    def test_prediction_without_uncertainty():
         """Test prediction without uncertainty."""
         np.random.seed(42)
         x = np.random.uniform(0, 1, 50)
@@ -104,7 +109,8 @@ class TestBayesLinearEffect:
         assert y_pred.shape == (3,)
         assert np.all(np.isfinite(y_pred))
     
-    def test_prediction_with_uncertainty(self):
+    @staticmethod
+    def test_prediction_with_uncertainty():
         """Test prediction with uncertainty quantification."""
         np.random.seed(42)
         x = np.random.uniform(0, 1, 50)
@@ -122,7 +128,8 @@ class TestBayesLinearEffect:
         assert np.all(np.isfinite(y_pred))
         assert np.all(np.isfinite(y_std))
     
-    def test_get_summary(self):
+    @staticmethod
+    def test_get_summary():
         """Test summary generation."""
         np.random.seed(42)
         x = np.random.uniform(0, 1, 50)
@@ -142,7 +149,8 @@ class TestBayesLinearEffect:
         assert 'effect_significant' in summary
         assert 'prob_positive_effect' in summary
     
-    def test_unfitted_model_raises_error(self):
+    @staticmethod
+    def test_unfitted_model_raises_error():
         """Test that unfitted model raises appropriate errors."""
         model = BayesLinearEffect()
         
@@ -155,7 +163,8 @@ class TestBayesLinearEffect:
         with pytest.raises(RuntimeError):
             model.predict(np.array([0.5]))
     
-    def test_mismatched_input_sizes(self):
+    @staticmethod
+    def test_mismatched_input_sizes():
         """Test that mismatched x and y sizes raise error."""
         model = BayesLinearEffect()
         x = np.array([1, 2, 3])
@@ -164,7 +173,8 @@ class TestBayesLinearEffect:
         with pytest.raises(ValueError):
             model.fit(x, y)
     
-    def test_save_and_load(self):
+    @staticmethod
+    def test_save_and_load():
         """Test model persistence."""
         np.random.seed(42)
         x = np.random.uniform(0, 1, 50)
@@ -191,7 +201,8 @@ class TestBayesLinearEffect:
 class TestEffectsLogger:
     """Test suite for EffectsLogger class."""
     
-    def test_initialization(self):
+    @staticmethod
+    def test_initialization():
         """Test logger initialization."""
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = EffectsLogger(Path(tmpdir))
@@ -199,7 +210,8 @@ class TestEffectsLogger:
             assert logger.storage_path.exists()
             assert len(logger.effects_db) == 0
     
-    def test_log_single_effect(self):
+    @staticmethod
+    def test_log_single_effect():
         """Test logging a single effect observation."""
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = EffectsLogger(Path(tmpdir))
@@ -215,7 +227,8 @@ class TestEffectsLogger:
             assert len(logger.effects_db["test_effect"]) == 1
             assert logger.get_observation_count("test_effect") == 1
     
-    def test_log_multiple_effects(self):
+    @staticmethod
+    def test_log_multiple_effects():
         """Test logging multiple observations."""
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = EffectsLogger(Path(tmpdir))
@@ -233,7 +246,8 @@ class TestEffectsLogger:
             assert len(x) == 10
             assert len(y) == 10
     
-    def test_get_effect_data(self):
+    @staticmethod
+    def test_get_effect_data():
         """Test retrieving effect data as arrays."""
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = EffectsLogger(Path(tmpdir))
@@ -249,7 +263,8 @@ class TestEffectsLogger:
             np.testing.assert_array_almost_equal(x, x_values)
             np.testing.assert_array_almost_equal(y, y_values)
     
-    def test_has_sufficient_data(self):
+    @staticmethod
+    def test_has_sufficient_data():
         """Test threshold checking for minimum observations."""
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = EffectsLogger(Path(tmpdir))
@@ -262,7 +277,8 @@ class TestEffectsLogger:
             assert logger.has_sufficient_data("test", min_obs=20)
             assert logger.has_sufficient_data("test", min_obs=25)
     
-    def test_save_and_load(self):
+    @staticmethod
+    def test_save_and_load():
         """Test persistence of effects data."""
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = EffectsLogger(Path(tmpdir))
@@ -283,7 +299,8 @@ class TestEffectsLogger:
             assert len(new_logger.effects_db["effect_a"]) == 5
             assert len(new_logger.effects_db["effect_b"]) == 5
     
-    def test_get_statistics(self):
+    @staticmethod
+    def test_get_statistics():
         """Test statistics computation."""
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = EffectsLogger(Path(tmpdir))
@@ -307,7 +324,8 @@ class TestEffectsLogger:
 class TestCausalEffectsManager:
     """Test suite for CausalEffectsManager class."""
     
-    def test_initialization(self):
+    @staticmethod
+    def test_initialization():
         """Test manager initialization."""
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = EffectsLogger(Path(tmpdir))
@@ -316,7 +334,8 @@ class TestCausalEffectsManager:
             assert manager.min_obs == 30
             assert len(manager.estimators) == 0
     
-    def test_estimate_with_insufficient_data(self):
+    @staticmethod
+    def test_estimate_with_insufficient_data():
         """Test that estimation returns None with insufficient data."""
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = EffectsLogger(Path(tmpdir))
@@ -330,7 +349,8 @@ class TestCausalEffectsManager:
             
             assert model is None
     
-    def test_estimate_with_sufficient_data(self):
+    @staticmethod
+    def test_estimate_with_sufficient_data():
         """Test successful estimation with sufficient data."""
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = EffectsLogger(Path(tmpdir))
@@ -349,7 +369,8 @@ class TestCausalEffectsManager:
             assert model.fitted
             assert model.n_obs == 50
     
-    def test_get_all_effects(self):
+    @staticmethod
+    def test_get_all_effects():
         """Test getting summaries of all estimated effects."""
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = EffectsLogger(Path(tmpdir))
@@ -376,7 +397,8 @@ class TestCausalEffectsManager:
 class TestIntegration:
     """Integration tests for complete workflow."""
     
-    def test_complete_workflow(self):
+    @staticmethod
+    def test_complete_workflow():
         """Test complete workflow from data logging to estimation."""
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = EffectsLogger(Path(tmpdir))
@@ -413,7 +435,8 @@ class TestIntegration:
             assert summary["effect_significant"]
             assert summary["prob_positive_effect"] > 0.95
     
-    def test_periodic_analysis(self):
+    @staticmethod
+    def test_periodic_analysis():
         """Test periodic analysis function."""
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = EffectsLogger(Path(tmpdir))
