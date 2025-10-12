@@ -8,8 +8,8 @@ irradia todo el sistema y cómo cada módulo construye conocimiento incremental.
 """
 
 import json
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
 
 class QuestionnaireSystemDemo:
@@ -18,6 +18,7 @@ class QuestionnaireSystemDemo:
     def __init__(self):
         # Use central path resolver
         from repo_paths import get_decalogo_path
+
         self.decalogo_path = get_decalogo_path()
         self.knowledge_base = defaultdict(list)
         self.execution_trace = []
@@ -25,16 +26,16 @@ class QuestionnaireSystemDemo:
     def run_complete_demonstration(self):
         """Ejecuta demostración completa con evidencia"""
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("DEMOSTRACIÓN: CUESTIONARIO JSON COMO NÚCLEO IRRADIADOR")
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
         # ===================================================================
         # PASO 1: CARGA Y ANÁLISIS DEL JSON IRRADIADOR
         # ===================================================================
-        print("━"*80)
+        print("━" * 80)
         print("PASO 1: CARGA DEL CUESTIONARIO JSON (NÚCLEO IRRADIADOR)")
-        print("━"*80 + "\n")
+        print("━" * 80 + "\n")
 
         with open(self.decalogo_path) as f:
             decalogo = json.load(f)
@@ -49,15 +50,15 @@ class QuestionnaireSystemDemo:
         points = {}
         hints_vocabulary = defaultdict(list)
 
-        for q in decalogo['questions']:
-            dim = q['dimension']
-            point = q['point_code']
+        for q in decalogo["questions"]:
+            dim = q["dimension"]
+            point = q["point_code"]
 
             dimensions[dim] = dimensions.get(dim, 0) + 1
             points[point] = points.get(point, 0) + 1
 
             # Acumular hints (vocabulario controlado)
-            for hint in q.get('hints', []):
+            for hint in q.get("hints", []):
                 if hint not in hints_vocabulary[point]:
                     hints_vocabulary[point].append(hint)
 
@@ -76,31 +77,31 @@ class QuestionnaireSystemDemo:
             print(f"      Ejemplos: {hints_vocabulary[point][:3]}")
 
         # Trace
-        self.execution_trace.append({
-            "step": 1,
-            "action": "JSON_LOADED",
-            "output": {
-                "dimensions_identified": list(dimensions.keys()),
-                "vocabulary_size": sum(len(v) for v in hints_vocabulary.values()),
-                "questions_indexed": len(decalogo['questions'])
+        self.execution_trace.append(
+            {
+                "step": 1,
+                "action": "JSON_LOADED",
+                "output": {
+                    "dimensions_identified": list(dimensions.keys()),
+                    "vocabulary_size": sum(len(v) for v in hints_vocabulary.values()),
+                    "questions_indexed": len(decalogo["questions"]),
+                },
             }
-        })
+        )
 
         # ===================================================================
         # PASO 2: INDEXACIÓN POR DIMENSIÓN (define CAPAS de extracción)
         # ===================================================================
-        print("\n" + "━"*80)
+        print("\n" + "━" * 80)
         print("PASO 2: INDEXACIÓN POR DIMENSIÓN (define QUÉ extraer)")
-        print("━"*80 + "\n")
+        print("━" * 80 + "\n")
 
         questions_by_dimension = defaultdict(list)
 
-        for q in decalogo['questions']:
-            questions_by_dimension[q['dimension']].append({
-                "id": q['id'],
-                "prompt": q['prompt'],
-                "hints": q['hints']
-            })
+        for q in decalogo["questions"]:
+            questions_by_dimension[q["dimension"]].append(
+                {"id": q["id"], "prompt": q["prompt"], "hints": q["hints"]}
+            )
 
         print("📋 CAPAS DE EXTRACCIÓN DEFINIDAS:")
         print("\nD1: INSUMOS - Preguntas que requieren:")
@@ -130,88 +131,90 @@ class QuestionnaireSystemDemo:
         print(f"   Total: {len(questions_by_dimension['D6'])} preguntas")
 
         # Trace
-        self.execution_trace.append({
-            "step": 2,
-            "action": "DIMENSIONS_INDEXED",
-            "output": {
-                "extraction_layers_defined": 6,
-                "questions_per_layer": {d: len(qs) for d, qs in questions_by_dimension.items()}
+        self.execution_trace.append(
+            {
+                "step": 2,
+                "action": "DIMENSIONS_INDEXED",
+                "output": {
+                    "extraction_layers_defined": 6,
+                    "questions_per_layer": {
+                        d: len(qs) for d, qs in questions_by_dimension.items()
+                    },
+                },
             }
-        })
+        )
 
         # ===================================================================
         # PASO 3: INICIALIZACIÓN DE MÓDULOS (con awareness del cuestionario)
         # ===================================================================
-        print("\n" + "━"*80)
+        print("\n" + "━" * 80)
         print("PASO 3: INICIALIZACIÓN DE MÓDULOS (reciben contratos del cuestionario)")
-        print("━"*80 + "\n")
+        print("━" * 80 + "\n")
 
         module_contracts = {
             "document_segmenter": {
                 "input": {
                     "document_text": "str",
                     "vocabulary": f"{len(hints_vocabulary)} keywords from questionnaire",
-                    "target_questions": "List[str] all 300 question IDs"
+                    "target_questions": "List[str] all 300 question IDs",
                 },
-                "output": {
-                    "segments": "List[Dict] with relevant_to_questions tags"
-                },
+                "output": {"segments": "List[Dict] with relevant_to_questions tags"},
                 "contributes_to_dimensions": ["D1", "D2", "D3", "D4", "D5", "D6"],
-                "understands": "Sabe QUÉ palabras clave buscar y PARA QUÉ preguntas"
+                "understands": "Sabe QUÉ palabras clave buscar y PARA QUÉ preguntas",
             },
             "monetary_detector": {
                 "input": {
                     "document_text": "str",
-                    "target_dimensions": ["D1", "D2", "D3"]
+                    "target_dimensions": ["D1", "D2", "D3"],
                 },
                 "output": {
                     "budget_items": "List[Dict] with relevant_to_questions mapping",
-                    "traceability_metrics": "Dict"
+                    "traceability_metrics": "Dict",
                 },
                 "contributes_to_questions": ["D1-Q3", "D2-Q6", "D3-Q13"],
-                "understands": "Sabe que D1-Q3 necesita recursos totales, D2-Q6 necesita costos unitarios"
+                "understands": "Sabe que D1-Q3 necesita recursos totales, D2-Q6 necesita costos unitarios",
             },
             "responsibility_detector": {
                 "input": {
                     "document_text": "str",
-                    "target_questions": ["D2-Q6", "D6-Q30"]
+                    "target_questions": ["D2-Q6", "D6-Q30"],
                 },
                 "output": {
                     "activity_assignments": "List[Dict] responsables por actividad",
-                    "beneficiary_groups": "List[Dict] grupos afectados"
+                    "beneficiary_groups": "List[Dict] grupos afectados",
                 },
                 "contributes_to_questions": ["D2-Q6", "D6-Q30"],
-                "understands": "Sabe que D2-Q6 necesita responsables, D6-Q30 necesita grupos afectados"
+                "understands": "Sabe que D2-Q6 necesita responsables, D6-Q30 necesita grupos afectados",
             },
             "teoria_cambio": {
                 "input": {
                     "document_text": "str",
                     "knowledge_base": "Dict con extracciones de pasos 1-7",
-                    "target_dimensions": ["D4", "D5", "D6"]
+                    "target_dimensions": ["D4", "D5", "D6"],
                 },
                 "output": {
                     "causal_model": "Dict con nodes y edges",
                     "product_to_result_chains": "Para D4-Q17",
                     "result_to_impact_pathways": "Para D5-Q21",
-                    "explicit_toc": "Para D6-Q26"
+                    "explicit_toc": "Para D6-Q26",
                 },
                 "contributes_to_questions": ["D4-Q17", "D5-Q21", "D6-Q26"],
-                "understands": "Construye modelo causal que responde preguntas D4, D5, D6"
+                "understands": "Construye modelo causal que responde preguntas D4, D5, D6",
             },
             "dag_validation": {
                 "input": {
                     "causal_model": "Dict del TeoriaCambio",
-                    "target_questions": ["D6-Q26", "D6-Q27", "D6-Q28"]
+                    "target_questions": ["D6-Q26", "D6-Q27", "D6-Q28"],
                 },
                 "output": {
                     "is_acyclic": "bool para D6-Q26",
                     "path_continuity": "float para D6-Q27",
                     "inconsistencies": "List para D6-Q28",
-                    "validation_report": "Dict comprehensivo"
+                    "validation_report": "Dict comprehensivo",
                 },
                 "contributes_to_questions": ["D6-Q26", "D6-Q27", "D6-Q28"],
-                "understands": "Valida estructura DAG para preguntas de CAUSALIDAD"
-            }
+                "understands": "Valida estructura DAG para preguntas de CAUSALIDAD",
+            },
         }
 
         print("📦 MÓDULOS INICIALIZADOS CON CONTRATOS CLAROS:\n")
@@ -219,30 +222,34 @@ class QuestionnaireSystemDemo:
             print(f"{module_name}:")
             print(f"   INPUT: {contract['input']}")
             print(f"   OUTPUT: {contract['output']}")
-            print(f"   CONTRIBUYE A: {contract['contributes_to_questions'][:2] if isinstance(contract.get('contributes_to_questions'), list) else contract.get('contributes_to_dimensions', [])[0:2]}")
+            print(
+                f"   CONTRIBUYE A: {contract['contributes_to_questions'][:2] if isinstance(contract.get('contributes_to_questions'), list) else contract.get('contributes_to_dimensions', [])[0:2]}"
+            )
             print(f"   ENTIENDE: {contract['understands']}")
             print()
 
-        print(f"... +{len(module_contracts)-3} módulos más con contratos similares\n")
+        print(f"... +{len(module_contracts) - 3} módulos más con contratos similares\n")
 
         # Trace
-        self.execution_trace.append({
-            "step": 3,
-            "action": "MODULES_INITIALIZED",
-            "output": {
-                "modules_with_contracts": len(module_contracts),
-                "all_understand_inputs": True,
-                "all_understand_outputs": True,
-                "all_know_target_questions": True
+        self.execution_trace.append(
+            {
+                "step": 3,
+                "action": "MODULES_INITIALIZED",
+                "output": {
+                    "modules_with_contracts": len(module_contracts),
+                    "all_understand_inputs": True,
+                    "all_understand_outputs": True,
+                    "all_know_target_questions": True,
+                },
             }
-        })
+        )
 
         # ===================================================================
         # PASO 4: EXTRACCIÓN INCREMENTAL (simula ejecución)
         # ===================================================================
-        print("━"*80)
+        print("━" * 80)
         print("PASO 4: EXTRACCIÓN INCREMENTAL DE CONOCIMIENTO")
-        print("━"*80 + "\n")
+        print("━" * 80 + "\n")
 
         # Simular construcción incremental
         print("CONSTRUCCIÓN PASO A PASO:\n")
@@ -256,7 +263,7 @@ class QuestionnaireSystemDemo:
                 "output": "52 segmentos identificados",
                 "contributes_to": "Todas las dimensiones (base para búsqueda)",
                 "evidence_added": 52,
-                "questions_covered": 120
+                "questions_covered": 120,
             },
             {
                 "step": 2,
@@ -266,7 +273,7 @@ class QuestionnaireSystemDemo:
                 "output": "Metadata estructurada",
                 "contributes_to": "D1-Q3 (presupuesto total identificado)",
                 "evidence_added": 1,
-                "questions_covered": 1
+                "questions_covered": 1,
             },
             {
                 "step": 3,
@@ -276,7 +283,7 @@ class QuestionnaireSystemDemo:
                 "output": "Budget items con trazabilidad programática",
                 "contributes_to": "D1-Q3 (7 items), D2-Q6 (23 items), D3-Q13 (17 items)",
                 "evidence_added": 47,
-                "questions_covered": 3
+                "questions_covered": 3,
             },
             {
                 "step": 4,
@@ -286,7 +293,7 @@ class QuestionnaireSystemDemo:
                 "output": "Matriz de responsabilidades + grupos beneficiarios",
                 "contributes_to": "D2-Q6 (34 items), D6-Q30 (12 items)",
                 "evidence_added": 46,
-                "questions_covered": 2
+                "questions_covered": 2,
             },
             {
                 "step": 5,
@@ -296,7 +303,7 @@ class QuestionnaireSystemDemo:
                 "output": "Scores de factibilidad (resource: 0.78, activity: 0.82)",
                 "contributes_to": "D1-Q5 (1 item), D2-Q9 (1 item), D4-Q18 (1 item)",
                 "evidence_added": 3,
-                "questions_covered": 3
+                "questions_covered": 3,
             },
             {
                 "step": 6,
@@ -306,7 +313,7 @@ class QuestionnaireSystemDemo:
                 "output": "Actividades con tablas + Productos con indicadores",
                 "contributes_to": "D2-Q6 (68), D2-Q7 (68), D3-Q11 (45), D3-Q13 (45)",
                 "evidence_added": 226,
-                "questions_covered": 4
+                "questions_covered": 4,
             },
             {
                 "step": 8,
@@ -316,7 +323,7 @@ class QuestionnaireSystemDemo:
                 "output": "Modelo causal + cadenas + rutas de impacto",
                 "contributes_to": "D4-Q17 (15 chains), D5-Q21 (8 pathways), D6-Q26 (1 modelo)",
                 "evidence_added": 24,
-                "questions_covered": 3
+                "questions_covered": 3,
             },
             {
                 "step": 9,
@@ -326,7 +333,7 @@ class QuestionnaireSystemDemo:
                 "output": "Elementos causales clasificados",
                 "contributes_to": "D6-Q26 (todos los elementos)",
                 "evidence_added": 25,
-                "questions_covered": 1
+                "questions_covered": 1,
             },
             {
                 "step": 10,
@@ -336,7 +343,7 @@ class QuestionnaireSystemDemo:
                 "output": "Reporte de inconsistencias",
                 "contributes_to": "D2-Q9 (3), D3-Q14 (2), D6-Q28 (5)",
                 "evidence_added": 10,
-                "questions_covered": 3
+                "questions_covered": 3,
             },
             {
                 "step": 11,
@@ -346,8 +353,8 @@ class QuestionnaireSystemDemo:
                 "output": "Validación estructural del DAG",
                 "contributes_to": "D6-Q26 (estructura), D6-Q27 (continuidad), D6-Q28 (ciclos)",
                 "evidence_added": 3,
-                "questions_covered": 3
-            }
+                "questions_covered": 3,
+            },
         ]
 
         # Imprimir cada paso
@@ -364,36 +371,40 @@ class QuestionnaireSystemDemo:
             print(f"   📊 Evidencia agregada: {step_data['evidence_added']} items")
             print(f"   📊 Preguntas cubiertas: {step_data['questions_covered']}")
 
-            total_evidence += step_data['evidence_added']
+            total_evidence += step_data["evidence_added"]
 
             # Add to trace
-            self.execution_trace.append({
-                "step": step_num,
-                "module": step_data['module'],
-                "evidence_added": step_data['evidence_added'],
-                "cumulative_evidence": total_evidence
-            })
+            self.execution_trace.append(
+                {
+                    "step": step_num,
+                    "module": step_data["module"],
+                    "evidence_added": step_data["evidence_added"],
+                    "cumulative_evidence": total_evidence,
+                }
+            )
 
         # ===================================================================
         # PASO 5: KNOWLEDGE BASE COMPLETA
         # ===================================================================
-        print("\n" + "━"*80)
+        print("\n" + "━" * 80)
         print("PASO 5: KNOWLEDGE BASE COMPLETA (lista para generar respuestas)")
-        print("━"*80 + "\n")
+        print("━" * 80 + "\n")
 
         print("📊 ESTADÍSTICAS DE CONSTRUCCIÓN INCREMENTAL:")
         print(f"   Total de pasos de extracción: {len(extraction_steps)}")
         print(f"   Total de evidencia agregada: {total_evidence} items")
-        print(f"   Preguntas con evidencia: ~{sum(s['questions_covered'] for s in extraction_steps)} únicas")
+        print(
+            f"   Preguntas con evidencia: ~{sum(s['questions_covered'] for s in extraction_steps)} únicas"
+        )
 
         # Simular mapeo question → evidence
         simulated_mapping = {
             "D1-Q1": 3,  # 3 items de evidencia
             "D1-Q3": 7,  # 7 items
-            "D2-Q6": 95, # 95 items (alta cobertura)
-            "D6-Q26": 5, # 5 items
+            "D2-Q6": 95,  # 95 items (alta cobertura)
+            "D6-Q26": 5,  # 5 items
             "D6-Q27": 2,
-            "D6-Q28": 8
+            "D6-Q28": 8,
         }
 
         print("\n📋 EJEMPLOS DE MAPEO PREGUNTA → EVIDENCIA:")
@@ -403,19 +414,25 @@ class QuestionnaireSystemDemo:
         # ===================================================================
         # PASO 6: GENERACIÓN DE RESPUESTAS DOCTORALES
         # ===================================================================
-        print("\n" + "━"*80)
+        print("\n" + "━" * 80)
         print("PASO 6: GENERACIÓN DE RESPUESTAS DOCTORALES")
-        print("━"*80 + "\n")
+        print("━" * 80 + "\n")
 
         print("EJEMPLO: Respuesta para D6-Q26\n")
         print("PREGUNTA (del JSON):")
-        sample_q = [q for q in decalogo['questions'] if q['id'] == 'D6-Q26'][0]
+        sample_q = [q for q in decalogo["questions"] if q["id"] == "D6-Q26"][0]
         print(f'   "{sample_q["prompt"]}"\n')
 
         print("EVIDENCIA RECUPERADA (de knowledge_base):")
-        print("   [Step 8] TeoriaCambio: {has_explicit_diagram: True, completeness: 0.85}")
-        print("   [Step 9] CausalPatternDetector: {n_causes: 12, n_mediators: 8, n_moderators: 5}")
-        print("   [Step 11] DAGValidator: {is_acyclic: True, node_count: 47, edge_count: 83}")
+        print(
+            "   [Step 8] TeoriaCambio: {has_explicit_diagram: True, completeness: 0.85}"
+        )
+        print(
+            "   [Step 9] CausalPatternDetector: {n_causes: 12, n_mediators: 8, n_moderators: 5}"
+        )
+        print(
+            "   [Step 11] DAGValidator: {is_acyclic: True, node_count: 47, edge_count: 83}"
+        )
 
         print("\nMÓDULOS CONTRIBUTIVOS (del strategic_module_integrator):")
         print("   1. teoria_cambio (priority=1, contribution_type=analysis)")
@@ -430,35 +447,79 @@ class QuestionnaireSystemDemo:
 
         print("Párrafo 1: Explicit theory of change with causal diagram")
         print("─" * 78)
-        print("The theory of change for 'Derechos de las mujeres e igualdad de género' is")
-        print("explicitly documented through a comprehensive causal diagram containing 47 nodes")
-        print("and 83 directed edges. The dag_validation module confirms structural validity")
-        print("(acyclicity: True, topological_levels: 5), while causal_pattern_detector identifies")
-        print("12 root causes (including 'violencias basadas en género' and 'brechas salariales'),")
-        print("8 mediating variables (such as 'acceso a comisarías de familia'), and 5 moderating")
-        print("conditions (including 'enfoque étnico' and 'ciclo de vida'). Each causal link is")
-        print("supported by verifiable assumptions documented in the evidence registry with an")
+        print(
+            "The theory of change for 'Derechos de las mujeres e igualdad de género' is"
+        )
+        print(
+            "explicitly documented through a comprehensive causal diagram containing 47 nodes"
+        )
+        print(
+            "and 83 directed edges. The dag_validation module confirms structural validity"
+        )
+        print(
+            "(acyclicity: True, topological_levels: 5), while causal_pattern_detector identifies"
+        )
+        print(
+            "12 root causes (including 'violencias basadas en género' and 'brechas salariales'),"
+        )
+        print(
+            "8 mediating variables (such as 'acceso a comisarías de familia'), and 5 moderating"
+        )
+        print(
+            "conditions (including 'enfoque étnico' and 'ciclo de vida'). Each causal link is"
+        )
+        print(
+            "supported by verifiable assumptions documented in the evidence registry with an"
+        )
         print("average confidence level of 0.82.\n")
 
         print("Párrafo 2: DAG validation, acyclicity and logical consistency")
         print("─" * 78)
-        print("Formal DAG validation reveals robust structural integrity with complete acyclicity")
-        print("(0 cycles detected), ensuring valid causal progression from inputs through activities")
-        print("to long-term impacts. The average path length of 3.2 steps indicates appropriate")
-        print("intermediate nodes without unrealistic causal jumps. Topological analysis confirms")
-        print("5 distinct hierarchical levels (insumos→actividades→productos→resultados→impactos)")
-        print("with logical consistency score of 0.91. The contradiction_detector identifies no")
-        print("critical logical breaks, though 3 minor areas require additional specification.\n")
+        print(
+            "Formal DAG validation reveals robust structural integrity with complete acyclicity"
+        )
+        print(
+            "(0 cycles detected), ensuring valid causal progression from inputs through activities"
+        )
+        print(
+            "to long-term impacts. The average path length of 3.2 steps indicates appropriate"
+        )
+        print(
+            "intermediate nodes without unrealistic causal jumps. Topological analysis confirms"
+        )
+        print(
+            "5 distinct hierarchical levels (insumos→actividades→productos→resultados→impactos)"
+        )
+        print(
+            "with logical consistency score of 0.91. The contradiction_detector identifies no"
+        )
+        print(
+            "critical logical breaks, though 3 minor areas require additional specification.\n"
+        )
 
         print("Párrafo 3: Evidence backing and sensitivity to key assumptions")
         print("─" * 78)
-        print("Empirical backing for causal relationships draws from 7 primary sources including")
-        print("national studies on gender-based violence and labor market participation. Sensitivity")
-        print("analysis reveals the causal model is moderately robust (sensitivity score: 0.78)")
-        print("with 3 critical assumptions requiring monitoring: (1) institutional capacity for")
-        print("coordinated interventions, (2) cultural acceptance of gender equality programs,")
-        print("(3) sustained political commitment across electoral cycles. The model demonstrates")
-        print("doctoral-level rigor with explicit uncertainty quantification and falsifiable")
+        print(
+            "Empirical backing for causal relationships draws from 7 primary sources including"
+        )
+        print(
+            "national studies on gender-based violence and labor market participation. Sensitivity"
+        )
+        print(
+            "analysis reveals the causal model is moderately robust (sensitivity score: 0.78)"
+        )
+        print(
+            "with 3 critical assumptions requiring monitoring: (1) institutional capacity for"
+        )
+        print(
+            "coordinated interventions, (2) cultural acceptance of gender equality programs,"
+        )
+        print(
+            "(3) sustained political commitment across electoral cycles. The model demonstrates"
+        )
+        print(
+            "doctoral-level rigor with explicit uncertainty quantification and falsifiable"
+        )
         print("predictions for adaptive management.\n")
 
         print("METADATOS DE RESPUESTA:")
@@ -471,9 +532,9 @@ class QuestionnaireSystemDemo:
         # ===================================================================
         # RESUMEN FINAL
         # ===================================================================
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("RESUMEN: CUESTIONARIO JSON IRRADIA TODO EL SISTEMA")
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
         print("✅ EVIDENCIA DEMOSTRADA:")
         print("\n1. JSON como NÚCLEO IRRADIADOR:")
@@ -511,14 +572,14 @@ class QuestionnaireSystemDemo:
 
         # Save trace
         trace_path = self.project_root / "execution_trace_demo.json"
-        with open(trace_path, 'w') as f:
+        with open(trace_path, "w") as f:
             json.dump(self.execution_trace, f, indent=2)
 
         print(f"\n📄 Trace de ejecución guardado en: {trace_path}")
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("✅ DEMOSTRACIÓN COMPLETA")
-        print("="*80)
+        print("=" * 80)
         print("\nCONCLUSIÓN:")
         print("El sistema ES un Knowledge Extractor and Builder 100% orientado por el")
         print("cuestionario JSON. Cada módulo entiende completamente su input/output")
@@ -530,4 +591,3 @@ class QuestionnaireSystemDemo:
 if __name__ == "__main__":
     demo = QuestionnaireSystemDemo()
     demo.run_complete_demonstration()
-
