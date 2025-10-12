@@ -1083,7 +1083,10 @@ class DocumentSegmenter:
                 groups.append(buf)
                 buf = []
         if buf:
-            (groups[-1].extend(buf) if groups else groups.append(buf))
+            if groups:
+                groups[-1].extend(buf)
+            else:
+                groups.append(buf)
         replacement: List[Dict[str, object]] = []
         for g in groups:
             part = " ".join(g).strip()
