@@ -14,28 +14,31 @@ Implements:
 - Automatic failover mechanisms
 - Recovery time tracking with SLA monitoring
 """
-import time
+
 import logging
-from enum import Enum
-from typing import Callable, Optional, Any, Dict
+import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from functools import wraps
-import threading
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class CircuitState(Enum):
     """Circuit breaker states"""
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Failing, reject requests
+
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Failing, reject requests
     HALF_OPEN = "half_open"  # Testing recovery
 
 
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for circuit breaker"""
+
     failure_threshold: int = 5  # Failures before opening
     success_threshold: int = 2  # Successes to close from half-open
     timeout_seconds: float = 60.0  # Time before trying half-open
@@ -48,6 +51,7 @@ class CircuitBreakerConfig:
 @dataclass
 class CircuitMetrics:
     """Metrics for circuit breaker monitoring"""
+
     total_calls: int = 0
     successful_calls: int = 0
     failed_calls: int = 0
@@ -110,20 +114,28 @@ class CircuitBreaker:
         transition = {
             "from": old_state.value,
             "to": new_state.value,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
         self.metrics.state_transitions.append(transition)
 
-        logger.info("Circuit '%s' transitioned: %s -> %s", self.name, old_state.value, new_state.value)
+        logger.info(
+            "Circuit '%s' transitioned: %s -> %s",
+            self.name,
+            old_state.value,
+            new_state.value,
+        )
 
         self._trigger_alert("state_transition", transition)
 
         if new_state == CircuitState.OPEN:
             self.opened_at = datetime.now()
-            self._trigger_alert("circuit_opened", {
-                "consecutive_failures": self.metrics.consecutive_failures,
-                "total_failures": self.metrics.failed_calls
-            })
+            self._trigger_alert(
+                "circuit_opened",
+                {
+                    "consecutive_failures": self.metrics.consecutive_failures,
+                    "total_failures": self.metrics.failed_calls,
+                },
+            )
 
     def _should_attempt_reset(self) -> bool:
         """Check if we should attempt to reset from OPEN to HALF_OPEN"""
@@ -136,7 +148,7 @@ class CircuitBreaker:
     def _check_circuit_state(self):
         """
         Check circuit state and handle OPEN state transitions.
-        
+
         Raises:
             CircuitBreakerError: If circuit is OPEN and cannot be reset
         """
@@ -195,10 +207,13 @@ class CircuitBreaker:
 
                 # Check SLA violation
                 if recovery_time > self.config.recovery_time_sla_seconds:
-                    self._trigger_alert("sla_violation", {
-                        "recovery_time": recovery_time,
-                        "sla_threshold": self.config.recovery_time_sla_seconds
-                    })
+                    self._trigger_alert(
+                        "sla_violation",
+                        {
+                            "recovery_time": recovery_time,
+                            "sla_threshold": self.config.recovery_time_sla_seconds,
+                        },
+                    )
 
             # Close circuit after enough successes
             if self.metrics.consecutive_successes >= self.config.success_threshold:
@@ -220,11 +235,10 @@ class CircuitBreaker:
         # - Circuit is CLOSED and failure threshold reached
         # - Circuit is HALF_OPEN (any failure immediately opens it)
         should_open = (
-            (self.state == CircuitState.CLOSED and 
-             self.metrics.consecutive_failures >= self.config.failure_threshold) or
-            self.state == CircuitState.HALF_OPEN
-        )
-        
+            self.state == CircuitState.CLOSED
+            and self.metrics.consecutive_failures >= self.config.failure_threshold
+        ) or self.state == CircuitState.HALF_OPEN
+
         if should_open:
             self._transition_to(CircuitState.OPEN)
 
@@ -267,9 +281,11 @@ class CircuitBreaker:
                 ),
             },
             "last_failure": self.metrics.last_failure_time.isoformat()
-                if self.metrics.last_failure_time else None,
+            if self.metrics.last_failure_time
+            else None,
             "last_success": self.metrics.last_success_time.isoformat()
-                if self.metrics.last_success_time else None,
+            if self.metrics.last_success_time
+            else None,
         }
 
     def reset(self):
@@ -283,13 +299,11 @@ class CircuitBreaker:
 
 class CircuitBreakerError(Exception):
     """Raised when circuit breaker is open"""
+
     pass
 
 
-def with_circuit_breaker(
-    circuit: CircuitBreaker,
-    fallback: Optional[Callable] = None
-):
+def with_circuit_breaker(circuit: CircuitBreaker, fallback: Optional[Callable] = None):
     """
     Decorator to apply circuit breaker to a function.
 
@@ -297,6 +311,7 @@ def with_circuit_breaker(
         circuit: CircuitBreaker instance
         fallback: Optional fallback function to call when circuit is open
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -309,6 +324,7 @@ def with_circuit_breaker(
                 raise
 
         return wrapper
+
     return decorator
 
 
@@ -320,7 +336,7 @@ class ExponentialBackoff:
         base_delay: float = 1.0,
         max_delay: float = 60.0,
         max_attempts: int = 5,
-        jitter: bool = True
+        jitter: bool = True,
     ):
         self.base_delay = base_delay
         self.max_delay = max_delay
@@ -331,7 +347,7 @@ class ExponentialBackoff:
         """Calculate delay for given attempt number"""
         import random
 
-        delay = min(self.base_delay * (2 ** attempt), self.max_delay)
+        delay = min(self.base_delay * (2**attempt), self.max_delay)
 
         if self.jitter:
             delay = delay * (0.5 + random.random() * 0.5)
@@ -368,7 +384,9 @@ class FaultRecoveryManager:
         self.circuits: Dict[str, CircuitBreaker] = {}
         self.recovery_playbooks: Dict[str, Callable] = {}
 
-    def register_circuit(self, name: str, config: Optional[CircuitBreakerConfig] = None):
+    def register_circuit(
+        self, name: str, config: Optional[CircuitBreakerConfig] = None
+    ):
         """Register a new circuit breaker"""
         circuit = CircuitBreaker(name, config)
         self.circuits[name] = circuit
@@ -382,7 +400,9 @@ class FaultRecoveryManager:
         """Get circuit breaker by name"""
         return self.circuits.get(name)
 
-    def execute_recovery_playbook(self, fault_type: str, context: Dict[str, Any]) -> bool:
+    def execute_recovery_playbook(
+        self, fault_type: str, context: Dict[str, Any]
+    ) -> bool:
         """Execute recovery playbook for fault"""
         playbook = self.recovery_playbooks.get(fault_type)
 
@@ -409,18 +429,19 @@ class FaultRecoveryManager:
             "summary": {
                 "total_circuits": len(self.circuits),
                 "open_circuits": sum(
-                    1 for c in self.circuits.values()
-                    if c.state == CircuitState.OPEN
+                    1 for c in self.circuits.values() if c.state == CircuitState.OPEN
                 ),
                 "degraded_circuits": sum(
-                    1 for c in self.circuits.values()
+                    1
+                    for c in self.circuits.values()
                     if c.state == CircuitState.HALF_OPEN
                 ),
-            }
+            },
         }
 
 
 # Recovery playbooks for identified fault scenarios
+
 
 def network_failure_playbook(context: Dict[str, Any]):
     """Recovery playbook for network failures"""
@@ -460,9 +481,9 @@ def cpu_throttling_playbook(context: Dict[str, Any]):
 
 # Example usage and tests
 if __name__ == "__main__":
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("CIRCUIT BREAKER PATTERN TESTS")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     # Setup logging
     logging.basicConfig(level=logging.INFO)
@@ -471,16 +492,17 @@ if __name__ == "__main__":
     manager = FaultRecoveryManager()
 
     # Register circuits for critical components
-    network_circuit = manager.register_circuit("network_client", CircuitBreakerConfig(
-        failure_threshold=3,
-        timeout_seconds=5.0,
-        recovery_time_sla_seconds=1.0
-    ))
+    network_circuit = manager.register_circuit(
+        "network_client",
+        CircuitBreakerConfig(
+            failure_threshold=3, timeout_seconds=5.0, recovery_time_sla_seconds=1.0
+        ),
+    )
 
-    disk_circuit = manager.register_circuit("disk_operations", CircuitBreakerConfig(
-        failure_threshold=5,
-        timeout_seconds=10.0
-    ))
+    disk_circuit = manager.register_circuit(
+        "disk_operations",
+        CircuitBreakerConfig(failure_threshold=5, timeout_seconds=10.0),
+    )
 
     # Register recovery playbooks
     manager.register_playbook("network_failure", network_failure_playbook)
@@ -501,21 +523,21 @@ if __name__ == "__main__":
     for i in range(6):
         try:
             result = network_circuit.call(flaky_operation)
-            print(f"  Attempt {i+1}: {result}")
+            print(f"  Attempt {i + 1}: {result}")
         except CircuitBreakerError as e:
-            print(f"  Attempt {i+1}: Circuit breaker rejected call")
+            print(f"  Attempt {i + 1}: Circuit breaker rejected call")
         except Exception as e:
-            print(f"  Attempt {i+1}: {e}")
+            print(f"  Attempt {i + 1}: {e}")
 
         time.sleep(0.5)
 
     # Get system health
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("SYSTEM HEALTH STATUS")
-    print("="*80)
+    print("=" * 80)
     import json
+
     health = manager.get_system_health()
     print(json.dumps(health, indent=2))
 
     print("\n✅ Circuit breaker tests completed")
-
