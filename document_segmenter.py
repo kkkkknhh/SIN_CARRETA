@@ -688,11 +688,13 @@ class Backend(Protocol):
 class RuleBasedBackend:
     """Regex sentence splitter + punctuation-weighted boundary scoring."""
 
-    def split_sentences(self, text: str) -> List[str]:
+    @staticmethod
+    def split_sentences(text: str) -> List[str]:
         sents = _SENTENCE_SPLIT_REGEX.split(text)
         return [s.strip() for s in sents if s.strip()]
 
-    def boundary_scores(self, sentences: List[str]) -> List[float]:
+    @staticmethod
+    def boundary_scores(sentences: List[str]) -> List[float]:
         scores: List[float] = []
         for s in sentences[:-1]:
             s = s.strip()
@@ -741,7 +743,8 @@ class AdvancedBackend:
             self._use_real_embeddings = False
             self._model = None
 
-    def split_sentences(self, text: str) -> List[str]:
+    @staticmethod
+    def split_sentences(text: str) -> List[str]:
         sents = _SENTENCE_SPLIT_REGEX.split(text)
         return [s.strip() for s in sents if s.strip()]
 
@@ -1008,7 +1011,8 @@ class DocumentSegmenter:
     # Helpers
     # ---------------------------
 
-    def _normalize(self, text: str) -> str:
+    @staticmethod
+    def _normalize(text: str) -> str:
         return text.strip() if text else ""
 
     def _metrics(self, text: str, kind: str, conf: float) -> SegmentMetrics:
@@ -1146,7 +1150,8 @@ class DocumentSegmenter:
         st.sentence_count_distribution = self._sent_dist(sentence_counts)
         return st
 
-    def _char_dist(self, lengths: Iterable[int]) -> Dict[str, int]:
+    @staticmethod
+    def _char_dist(lengths: Iterable[int]) -> Dict[str, int]:
         buckets = {"< 500": 0, "500-699": 0, "700-900 (target)": 0, "901-1200": 0, "> 1200": 0}
         for L in lengths:
             if L < 500: buckets["< 500"] += 1
@@ -1156,7 +1161,8 @@ class DocumentSegmenter:
             else: buckets["> 1200"] += 1
         return buckets
 
-    def _sent_dist(self, counts: Iterable[int]) -> Dict[str, int]:
+    @staticmethod
+    def _sent_dist(counts: Iterable[int]) -> Dict[str, int]:
         buckets = {"1": 0, "2": 0, "3 (target)": 0, "4": 0, ">=5": 0}
         for c in counts:
             if c <= 1: buckets["1"] += 1
@@ -1166,7 +1172,8 @@ class DocumentSegmenter:
             else: buckets[">=5"] += 1
         return buckets
 
-    def _coherence(self, text: str) -> float:
+    @staticmethod
+    def _coherence(text: str) -> float:
         if not text: return 0.0
         words = [w.lower() for w in _WORD_REGEX.findall(text)]
         if not words: return 0.0
