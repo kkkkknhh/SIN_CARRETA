@@ -563,9 +563,9 @@ if __name__ == "__main__":
         "El objetivo es aumentar la cobertura educativa al 95% para 2027, "
         "sin embargo, los recursos presupuestales han sido reducidos en un 30% este año."
     )
-    analysis = detector.detect_contradictions(sample)
-    logger.info("Total contradicciones: %s", analysis.total_contradictions)
-    for c in analysis.contradictions:
+    test_analysis = detector.detect_contradictions(sample)
+    logger.info("Total contradicciones: %s", test_analysis.total_contradictions)
+    for item in test_analysis.contradictions:
         logger.info(
-            f"Connector: {c.adversative_connector} | confidence: {c.confidence:.3f} | risk: {c.risk_level.value}"
+            f"Connector: {item.adversative_connector} | confidence: {item.confidence:.3f} | risk: {item.risk_level.value}"
         )

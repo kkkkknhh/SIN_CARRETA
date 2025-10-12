@@ -162,7 +162,7 @@ class SpacyExtractor(CausalExtractor):
             except Exception: pass
         if not self.nlp: raise RuntimeError("spaCy no disponible")
     def extract(self, text_block: str) -> List[CausalElement]:
-        doc = self.nlp(text_block); out: List[CausalElement] = []; k=0
+        doc = self.nlp(text_block); elements: List[CausalElement] = []; k=0
         for sent in doc.sents:
             for t in sent:
                 if t.pos_ == "VERB" and t.lemma_.lower() in CAUSAL_VERBS:
@@ -170,21 +170,21 @@ class SpacyExtractor(CausalExtractor):
                     for ch in t.children:
                         if ch.dep_ in ("obj","dobj","xcomp","ccomp","attr"): effect = ch.subtree.text; break
                     if not effect: effect = sent.text
-                    out.append(CausalElement(id=f"elem_{k}", text=effect.strip(),
+                    elements.append(CausalElement(id=f"elem_{k}", text=effect.strip(),
                                              element_type=classify_by_verb(t.lemma_.lower()),
                                              policy_area="P4", confidence=0.87)); k+=1
-        return out
+        return elements
 
 class RegexExtractor(CausalExtractor):
     _PAT = re.compile(r"\b(?:generar|producir|crear|entregar|lograr|alcanzar|conseguir|mejorar|reducir|aumentar|impactar|transformar|cambiar|afectar)\b\s+([^\.;]+)", re.IGNORECASE)
     def extract(self, text_block: str) -> List[CausalElement]:
-        out: List[CausalElement] = []
+        elements: List[CausalElement] = []
         for k, m in enumerate(self._PAT.finditer(text_block)):
             verb = m.group(0).split()[0].lower(); effect = m.group(1).strip()
-            out.append(CausalElement(id=f"fallback_{k}", text=effect,
+            elements.append(CausalElement(id=f"fallback_{k}", text=effect,
                                      element_type=classify_by_verb(verb),
                                      policy_area="P4", confidence=0.6))
-        return out
+        return elements
 
 def build_extractor() -> CausalExtractor:
     try:
@@ -337,9 +337,9 @@ TeoriaCambioValidator = TeoriaCambioIndustrial
 
 # CLI de prueba manual
 if __name__ == "__main__":
-    text = " ".join(sys.argv[1:]).strip() or (
+    test_text = " ".join(sys.argv[1:]).strip() or (
         "El plan generará empleo juvenil y mejorará la cobertura escolar para reducir el embarazo adolescente; "
         "además, impactará la calidad del agua y reducirá la deforestación mediante incentivos.")
     tc = TeoriaCambioValidator()
-    out = tc.verificar_marco_logico_completo(text)
-    print(json.dumps(out, ensure_ascii=False, indent=2))
+    result = tc.verificar_marco_logico_completo(test_text)
+    print(json.dumps(result, ensure_ascii=False, indent=2))

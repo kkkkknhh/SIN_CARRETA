@@ -391,12 +391,12 @@ class ConnectionStabilityAnalyzer:
         extra_fields = list(actual_fields - expected_fields)
         
         type_mismatches = []
-        for field in expected_fields & actual_fields:
-            if expected_schema[field] != actual_schema[field]:
+        for field_name in expected_fields & actual_fields:
+            if expected_schema[field_name] != actual_schema[field_name]:
                 type_mismatches.append({
-                    "field": field,
-                    "expected": expected_schema[field],
-                    "actual": actual_schema[field]
+                    "field": field_name,
+                    "expected": expected_schema[field_name],
+                    "actual": actual_schema[field_name]
                 })
         
         mismatch = SchemaMismatch(
@@ -670,5 +670,5 @@ def create_connection_stability_analyzer(flow_doc_path: str = "tools/flow_doc.js
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     analyzer = create_connection_stability_analyzer()
-    report = analyzer.generate_report()
-    print(json.dumps(report, indent=2))
+    stability_report = analyzer.generate_report()
+    print(json.dumps(stability_report, indent=2))

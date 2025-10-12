@@ -496,8 +496,8 @@ if __name__ == "__main__":
     print("Testing circuit breaker with flaky operation...")
     for i in range(6):
         try:
-            result = network_circuit.call(flaky_operation)
-            print(f"  Attempt {i+1}: {result}")
+            call_result = network_circuit.call(flaky_operation)
+            print(f"  Attempt {i+1}: {call_result}")
         except CircuitBreakerError as e:
             print(f"  Attempt {i+1}: Circuit breaker rejected call")
         except Exception as e:
