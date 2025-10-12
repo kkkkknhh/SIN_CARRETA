@@ -51,9 +51,12 @@ def validate_flow_runtime_schema(data: Dict[str, Any]) -> List[str]:
             errors.append(f"Missing required field: {field}")
     
     # Check stages count
-    if "stages" in data and "stage_count" in data:
-        if len(data["stages"]) != data["stage_count"]:
-            errors.append(f"stage_count mismatch: {data['stage_count']} != {len(data['stages'])}")
+    if (
+        "stages" in data
+        and "stage_count" in data
+        and len(data["stages"]) != data["stage_count"]
+    ):
+        errors.append(f"stage_count mismatch: {data['stage_count']} != {len(data['stages'])}")
     
     # Check for 15 canonical stages
     if "stages" in data and len(data["stages"]) != 15:
@@ -72,9 +75,12 @@ def validate_evidence_registry_schema(data: Dict[str, Any]) -> List[str]:
             errors.append(f"Missing required field: {field}")
     
     # Check evidence count
-    if "evidence" in data and "evidence_count" in data:
-        if len(data["evidence"]) != data["evidence_count"]:
-            errors.append(f"evidence_count mismatch: {data['evidence_count']} != {len(data['evidence'])}")
+    if (
+        "evidence" in data
+        and "evidence_count" in data
+        and len(data["evidence"]) != data["evidence_count"]
+    ):
+        errors.append(f"evidence_count mismatch: {data['evidence_count']} != {len(data['evidence'])}")
     
     # Check deterministic_hash format (should be 64 char hex)
     if "deterministic_hash" in data:

@@ -66,18 +66,21 @@ def test_questionnaire_engine_initialization():
     # Find QuestionnaireEngine instantiation
     found_call = False
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name) and node.func.id == "QuestionnaireEngine":
-                keyword_args = [kw.arg for kw in node.keywords]
-                
-                # The orchestrator should pass evidence_registry and rubric_path as keyword args
-                assert 'evidence_registry' in keyword_args, \
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "QuestionnaireEngine"
+        ):
+            keyword_args = [kw.arg for kw in node.keywords]
+            
+            # The orchestrator should pass evidence_registry and rubric_path as keyword args
+            assert 'evidence_registry' in keyword_args, \
                     "Orchestrator should pass evidence_registry to QuestionnaireEngine"
-                assert 'rubric_path' in keyword_args, \
+            assert 'rubric_path' in keyword_args, \
                     "Orchestrator should pass rubric_path to QuestionnaireEngine"
-                
-                print(f"    ✓ QuestionnaireEngine initialized with keyword args: {', '.join(keyword_args)}")
-                found_call = True
+            
+            print(f"    ✓ QuestionnaireEngine initialized with keyword args: {', '.join(keyword_args)}")
+            found_call = True
     
     assert found_call, "QuestionnaireEngine instantiation not found in orchestrator"
     return True

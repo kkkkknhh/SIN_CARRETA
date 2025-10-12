@@ -429,9 +429,11 @@ class PlanProcessingWatchdog:
         self.watchdog.set_termination_callback(self._handle_worker_termination)
 
         # Start monitoring if not already running
-        if not self.watchdog.is_monitoring():
-            if not self.watchdog.start_monitoring():
-                return False
+        if (
+            not self.watchdog.is_monitoring()
+            and not self.watchdog.start_monitoring()
+        ):
+            return False
 
         # Register worker process
         return self.watchdog.register_process(worker_pid)

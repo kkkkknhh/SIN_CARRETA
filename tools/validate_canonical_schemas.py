@@ -34,21 +34,25 @@ def basic_validate_evidence(data: Dict[str, Any]) -> List[str]:
         if field not in data:
             errors.append(f"Missing required field: {field}")
 
-    if "question_unique_id" in data:
-        if not basic_validate_pattern(
-            data["question_unique_id"], r"^P(10|[1-9])-D[1-6]-Q[1-9][0-9]*$"
-        ):
-            errors.append(
-                f"Invalid question_unique_id format: {data['question_unique_id']}"
-            )
+    if (
+        "question_unique_id" in data
+        and not basic_validate_pattern(
+        data["question_unique_id"], r"^P(10|[1-9])-D[1-6]-Q[1-9][0-9]*$"
+    )
+    ):
+        errors.append(
+            f"Invalid question_unique_id format: {data['question_unique_id']}"
+        )
 
     if "content" in data:
         content = data["content"]
-        if "rubric_key" in content:
-            if not basic_validate_pattern(
-                content["rubric_key"], r"^D[1-6]-Q[1-9][0-9]*$"
-            ):
-                errors.append(f"Invalid rubric_key format: {content['rubric_key']}")
+        if (
+            "rubric_key" in content
+            and not basic_validate_pattern(
+            content["rubric_key"], r"^D[1-6]-Q[1-9][0-9]*$"
+        )
+        ):
+            errors.append(f"Invalid rubric_key format: {content['rubric_key']}")
 
     return errors
 
