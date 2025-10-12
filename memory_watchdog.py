@@ -429,9 +429,8 @@ class PlanProcessingWatchdog:
         self.watchdog.set_termination_callback(self._handle_worker_termination)
 
         # Start monitoring if not already running
-        if not self.watchdog.is_monitoring():
-            if not self.watchdog.start_monitoring():
-                return False
+        if not self.watchdog.is_monitoring() and not self.watchdog.start_monitoring():
+            return False
 
         # Register worker process
         return self.watchdog.register_process(worker_pid)
@@ -500,9 +499,7 @@ def demo_memory_watchdog():
     # Test basic watchdog functionality
     with MemoryWatchdog(memory_limit_mb=100) as watchdog:  # Very low limit for demo
         current_pid = os.getpid()
-        LOGGER.info(
-            f"Monitoring current process (PID: {current_pid}) with 100MB limit"
-        )
+        LOGGER.info(f"Monitoring current process (PID: {current_pid}) with 100MB limit")
 
         watchdog.register_process(current_pid)
 
@@ -511,7 +508,7 @@ def demo_memory_watchdog():
 
         status = watchdog.get_monitored_processes()
         if current_pid in status:
-            LOGGER.info("Current memory usage: %.1fMB", status[current_pid]['rss_mb'])
+            LOGGER.info("Current memory usage: %.1fMB", status[current_pid]["rss_mb"])
 
         events = watchdog.get_termination_events()
         LOGGER.info("Termination events: %s", len(events))

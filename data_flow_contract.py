@@ -554,17 +554,17 @@ class CanonicalFlowValidator:
                     validation_report["status"] = "failed"
 
             # Validar rangos de métricas
-            if "coherencia_promedio" in metricas:
-                if not (0 <= metricas["coherencia_promedio"] <= 1):
-                    validation_report["warnings"].append(
-                        "coherencia_promedio fuera de rango [0,1]"
-                    )
+            if "coherencia_promedio" in metricas and not (
+                0 <= metricas["coherencia_promedio"] <= 1
+            ):
+                validation_report["warnings"].append(
+                    "coherencia_promedio fuera de rango [0,1]"
+                )
 
-            if "kpi_promedio" in metricas:
-                if not (0 <= metricas["kpi_promedio"] <= 1):
-                    validation_report["warnings"].append(
-                        "kpi_promedio fuera de rango [0,1]"
-                    )
+            if "kpi_promedio" in metricas and not (0 <= metricas["kpi_promedio"] <= 1):
+                validation_report["warnings"].append(
+                    "kpi_promedio fuera de rango [0,1]"
+                )
 
             validation_report["checks"]["metricas_globales"] = (
                 "passed" if not validation_report["errors"] else "failed"
