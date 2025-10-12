@@ -21,7 +21,7 @@ def test_decalogo_loader():
     assert industrial["version"] == "1.0", (
         f"Expected version 1.0, got {industrial['version']}"
     )
-    assert industrial["schema"] == "decalogo_causal_questions_v1", f"Unexpected schema"
+    assert industrial["schema"] == "decalogo_causal_questions_v1", "Unexpected schema"
     assert industrial["total"] == 300, (
         f"Expected 300 questions, got {industrial['total']}"
     )
@@ -31,10 +31,10 @@ def test_decalogo_loader():
 
     dnp = load_dnp_standards()
     assert dnp["version"] == "2.0_operational_integrated_complete", (
-        f"Unexpected DNP version"
+        "Unexpected DNP version"
     )
     assert dnp["schema"] == "estandar_instrucciones_evaluacion_pdm_300_criterios", (
-        f"Unexpected DNP schema"
+        "Unexpected DNP schema"
     )
 
     templates = ensure_aligned_templates()
@@ -162,7 +162,7 @@ def test_question_id_format():
         f"Found {len(invalid_ids)} invalid question IDs: {invalid_ids[:5]}"
     )
 
-    print(f"  ✓ All 300 question IDs follow P#-D#-Q# format")
+    print("  ✓ All 300 question IDs follow P#-D#-Q# format")
     return True
 
 
@@ -195,7 +195,7 @@ def test_scoring_scale_alignment():
     for level in expected_levels:
         assert level in rules, f"Missing scoring level: {level}"
 
-    print(f"  ✓ Scoring scale [0, 4] properly defined with 5 levels")
+    print("  ✓ Scoring scale [0, 4] properly defined with 5 levels")
     return True
 
 
@@ -221,7 +221,7 @@ def test_config_file_paths():
     crosswalk_path = (config_path.parent / config["crosswalk"]).resolve()
     assert crosswalk_path.exists(), f"Crosswalk not found: {crosswalk_path}"
 
-    print(f"  ✓ All configuration paths are valid")
+    print("  ✓ All configuration paths are valid")
     return True
 
 
@@ -254,7 +254,7 @@ def test_module_imports():
             else:
                 raise
 
-    print(f"  ✓ All core modules import successfully")
+    print("  ✓ All core modules import successfully")
     return True
 
 

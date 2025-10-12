@@ -866,7 +866,7 @@ class MiniMiniMoonAuditor:
                                 category=AuditCategory.INTEGRATION,
                                 severity=Severity.MEDIUM,
                                 component=f"{source}->{target}",
-                                issue=f"Integration uncertain due to component health",
+                                issue="Integration uncertain due to component health",
                                 recommendation=f"Fix health issues in {source} and {target}",
                                 impact="Data flow may fail between these components",
                             )
@@ -973,7 +973,7 @@ class MiniMiniMoonAuditor:
                             severity=Severity.MEDIUM,
                             component=config_file,
                             issue=f"Config file has overly permissive permissions: {mode}",
-                            recommendation=f"Set permissions to 644 or 600",
+                            recommendation="Set permissions to 644 or 600",
                             impact="Unauthorized users may modify configuration",
                         )
                     )

@@ -44,7 +44,7 @@ def test_scoreband_enum_structure():
             for prop in expected_properties:
                 assert prop in properties, f"ScoreBand missing @property {prop}"
 
-            print(f"    ✓ ScoreBand uses @property pattern correctly")
+            print("    ✓ ScoreBand uses @property pattern correctly")
             print(f"    ✓ Properties: {', '.join(properties)}")
             return True
 

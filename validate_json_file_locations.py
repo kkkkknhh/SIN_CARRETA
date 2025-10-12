@@ -92,7 +92,7 @@ class FileLocationValidator:
             if not dnp:
                 self.errors.append("❌ decalogo_loader.load_dnp_standards() failed")
                 return False
-            print(f"✓ decalogo_loader.load_dnp_standards() works")
+            print("✓ decalogo_loader.load_dnp_standards() works")
 
             return True
 
@@ -231,7 +231,7 @@ class FileLocationValidator:
             print(
                 "\nThe JSON files are in the correct canonical locations and all references resolve correctly."
             )
-            print(f"\nCanonical locations:")
+            print("\nCanonical locations:")
             print(f"  - Decalogo: {self.decalogo_path}")
             print(f"  - DNP: {self.dnp_path}")
             return True

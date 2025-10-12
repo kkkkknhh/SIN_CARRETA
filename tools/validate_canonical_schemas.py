@@ -148,7 +148,7 @@ def validate_file(json_path: Path, schema_path: Path) -> bool:
                 return True
 
             if errors:
-                print(f"  ✗ Validation errors:")
+                print("  ✗ Validation errors:")
                 for err in errors[:10]:  # Show first 10 errors
                     print(f"    - {err}")
                 if len(errors) > 10:
