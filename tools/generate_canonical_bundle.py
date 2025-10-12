@@ -49,7 +49,7 @@ def generate_canonical_bundle(source_path: Path, output_path: Path) -> None:
         canonical["questions"].append(canonical_q)
     
     # Build lexicon from policy hints
-    policy_titles = {
+    _policy_titles = {
         "P1": "Derechos de las mujeres e igualdad de género",
         "P2": "Prevención de la violencia y protección frente al conflicto",
         "P3": "Ambiente sano, cambio climático, prevención y atención a desastres",

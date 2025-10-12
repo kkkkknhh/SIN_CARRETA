@@ -203,22 +203,22 @@ def main():
         
         # Check imports for Python files
         if file_path.endswith('.py'):
-            imports_ok, imports_msg = check_module_imports(file_path)
+            _imports_ok, imports_msg = check_module_imports(file_path)
             print(f"  Imports: {imports_msg}")
         
         # Check dimension references
         if check_dims:
-            dims_ok, dims_msg = check_dimension_references(file_path)
+            _dims_ok, dims_msg = check_dimension_references(file_path)
             print(f"  Dimensions: {dims_msg}")
         
         # Check question ID format
         if check_qids:
-            qids_ok, qids_msg = check_question_id_format(file_path)
+            _qids_ok, qids_msg = check_question_id_format(file_path)
             print(f"  Question IDs: {qids_msg}")
         
         # Check scoring references
         if check_scoring:
-            scoring_ok, scoring_msg = check_scoring_references(file_path)
+            _scoring_ok, scoring_msg = check_scoring_references(file_path)
             print(f"  Scoring: {scoring_msg}")
         
         results.append((file_path, exists, "OK"))

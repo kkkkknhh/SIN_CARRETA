@@ -352,7 +352,7 @@ class QuestionnaireSystemDemo:
 
         # Imprimir cada paso
         total_evidence = 0
-        total_questions_covered = set()
+        _total_questions_covered = set()
 
         for step_data in extraction_steps:
             step_num = step_data["step"]

@@ -195,7 +195,7 @@ class InstrumentedCircuitBreaker(CircuitBreaker):
             stats["samples"].append(timing.duration_ms)
         
         # Calculate averages
-        for phase, stats in phase_stats.items():
+        for _phase, stats in phase_stats.items():
             stats["avg_ms"] = stats["total_ms"] / stats["count"]
             del stats["samples"]  # Remove raw samples from report
         

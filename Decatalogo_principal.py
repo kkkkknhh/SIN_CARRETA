@@ -266,7 +266,7 @@ class MathematicalInnovations:
             # Innovación: Actualización bayesiana iterativa
             posterior = priors[0] if priors else 0.5
 
-            for i, evidence in enumerate(evidences):
+            for _, evidence in enumerate(evidences):
                 likelihood = evidence
                 prior = posterior
 
@@ -1742,7 +1742,7 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
 
                 # Construcción de eslabones avanzados
                 eslabones = []
-                for j, ed in enumerate(item["eslabones"]):
+                for _, ed in enumerate(item["eslabones"]):
                     eslabon = EslabonCadenaAvanzado(
                         id=ed["id"],
                         tipo=TipoCadenaValor[ed["tipo"]],
@@ -2068,7 +2068,7 @@ class DecalogoContextoAvanzado:
                         )
 
             # Análisis de componentes principales
-            eigenvals, eigenvecs = np.linalg.eigh(matriz_sim)
+            eigenvals, _eigenvecs = np.linalg.eigh(matriz_sim)
             varianza_explicada = eigenvals / np.sum(eigenvals)
 
             # Detección de comunidades (clustering)
@@ -2691,7 +2691,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
             # Coincidencias semánticas usando ontología
             coincidencias_semanticas = 0
             for (
-                categoria,
+                _categoria,
                 terminos,
             ) in self.ontologia.vocabulario_especializado.items():
                 conceptos_categoria = set(

@@ -298,7 +298,7 @@ def with_circuit_breaker(
         def wrapper(*args, **kwargs):
             try:
                 return circuit.call(func, *args, **kwargs)
-            except CircuitBreakerError as e:
+            except CircuitBreakerError:
                 if fallback:
                     logger.info("Circuit open, using fallback for %s", func.__name__)
                     return fallback(*args, **kwargs)

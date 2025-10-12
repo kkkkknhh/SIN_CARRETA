@@ -232,7 +232,7 @@ def example_calibration_workflow():
     manager = CalibratorManager(Path("calibrators_demo"))
     
     # Run workflow
-    stats = calibration_workflow(manager, labeled_data)
+    _stats = calibration_workflow(manager, labeled_data)
     
     print("\nCalibration metrics successfully updated and saved!")
 

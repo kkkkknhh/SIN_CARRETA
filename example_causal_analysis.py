@@ -60,7 +60,7 @@ def demo_basic_usage():
     y_pred, y_std = model.predict(x_new, return_std=True)
     
     print(f"\nPredictions with Uncertainty:")
-    for i, (x_val, y_val, std) in enumerate(zip(x_new, y_pred, y_std)):
+    for _, (x_val, y_val, std) in enumerate(zip(x_new, y_pred, y_std)):
         print(f"  x={x_val:.1f}: y={y_val:.3f} ± {std:.3f}")
 
 

@@ -123,7 +123,7 @@ def example_advanced_usage():
     )
     
     # Run diagnostics
-    results = runner.run_with_diagnostics(
+    _results = runner.run_with_diagnostics(
         input_text=SAMPLE_PLAN,
         plan_id="example_advanced",
         rubric_path=Path("config/rubrica_v3.json")

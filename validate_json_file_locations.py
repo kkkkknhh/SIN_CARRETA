@@ -182,23 +182,23 @@ class FileLocationValidator:
         
         print("2. Validating JSON structure...")
         print("-" * 80)
-        valid_decalogo = self.validate_json_structure(self.decalogo_path, "decalogo-industrial")
-        valid_dnp = self.validate_json_structure(self.dnp_path, "dnp-standards")
+        _valid_decalogo = self.validate_json_structure(self.decalogo_path, "decalogo-industrial")
+        _valid_dnp = self.validate_json_structure(self.dnp_path, "dnp-standards")
         print()
         
         print("3. Validating module imports...")
         print("-" * 80)
-        imports_ok = self.validate_module_imports()
+        _imports_ok = self.validate_module_imports()
         print()
         
         print("4. Validating config paths...")
         print("-" * 80)
-        config_ok = self.validate_config_paths()
+        _config_ok = self.validate_config_paths()
         print()
         
         print("5. Validating test file paths...")
         print("-" * 80)
-        test_results = self.validate_test_paths()
+        _test_results = self.validate_test_paths()
         print()
         
         # Print summary

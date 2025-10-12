@@ -163,7 +163,7 @@ def verify_pattern_recognition():
         ("D6", "Teoría de cambio explícita con DAG")
     ]
     
-    all_passed = True
+    _all_passed = True
     for expected_dim, text in test_cases:
         segments = segmenter.segment_text(text)
         if segments:

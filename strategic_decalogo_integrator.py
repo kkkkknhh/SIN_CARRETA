@@ -981,7 +981,7 @@ class StrategicDecalogoIntegrator:
         scores = []
         weights = []
         
-        for q_id, result in question_results.items():
+        for _q_id, result in question_results.items():
             bayesian = result['bayesian_integration']
             score = bayesian['posterior_mean']
             # Weight by effective sample size (more evidence = higher weight)

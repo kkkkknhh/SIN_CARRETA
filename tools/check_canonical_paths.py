@@ -77,7 +77,7 @@ def scan_file(path: Path) -> List[Dict[str, Any]]:
     
     try:
         content = path.read_text(encoding='utf-8', errors='ignore')
-    except Exception as e:
+    except Exception:
         # Skip files that can't be read
         return findings
     

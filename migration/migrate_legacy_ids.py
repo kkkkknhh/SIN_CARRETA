@@ -248,7 +248,7 @@ class LegacyIDMigrator:
             return f"D{dim_index}", 0.85, "question_range"
         
         # Strategy 2: Look up in bundle
-        candidate_id = f"{policy}-D1-Q{q_num}"
+        _candidate_id = f"{policy}-D1-Q{q_num}"
         for dim_num in range(1, 7):
             test_id = f"{policy}-D{dim_num}-Q{q_num}"
             if test_id in self.bundle_questions:

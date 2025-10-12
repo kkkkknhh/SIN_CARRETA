@@ -537,7 +537,7 @@ class IndustrialUnicodeAnalyzer:
         results = {}
         all_patterns = self.pattern_registry.get_all_patterns()
 
-        for pattern_name, (pattern, description) in all_patterns.items():
+        for pattern_name, (pattern, _description) in all_patterns.items():
             try:
                 matches = pattern.findall(text)
                 results[pattern_name] = len(matches)
