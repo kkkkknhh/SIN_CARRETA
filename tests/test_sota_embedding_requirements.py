@@ -17,9 +17,9 @@ def test_sota_embedding_instantiates_with_declared_requirements():
 
     required_versions = {
         "sentence-transformers": "2.2.0",
-        "torch": "1.9.0",
+        "torch": "1.12.0",
         "numpy": "1.21.0",
-        "scikit-learn": "1.0.0",
+        "scikit-learn": "1.5.0",
     }
 
     def fake_version(package_name: str) -> str:
