@@ -20,7 +20,6 @@ Implementation follows state-of-the-art algorithms with:
 - 100% question coverage (300 questions across 6 dimensions)
 """
 
-import hashlib
 import json
 import logging
 import time
@@ -31,8 +30,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import networkx as nx
 import numpy as np
-import torch
-from scipy.stats import beta, chi2
+from scipy.stats import beta
 from sentence_transformers import SentenceTransformer, util
 
 # Import existing MINIMINIMOON components

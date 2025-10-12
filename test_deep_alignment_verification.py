@@ -4,9 +4,7 @@ Deep alignment verification test.
 Verifies that all components correctly use the canonical decalogo and DNP standards.
 """
 
-import json
 import sys
-from pathlib import Path
 
 def test_decalogo_loader():
     """Test that decalogo_loader loads the canonical files correctly."""

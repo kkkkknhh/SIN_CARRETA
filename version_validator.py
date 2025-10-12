@@ -1,6 +1,5 @@
 # sin_carreta/env_validation.py
 from __future__ import annotations
-import os
 import sys
 import importlib
 from dataclasses import dataclass

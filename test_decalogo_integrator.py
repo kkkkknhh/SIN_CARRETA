@@ -19,13 +19,10 @@ Tests cover:
 import hashlib
 import json
 import unittest
-from pathlib import Path
-from typing import List
 
 import networkx as nx
-import numpy as np
 
-from evidence_registry import EvidenceRegistry, CanonicalEvidence
+from evidence_registry import EvidenceRegistry
 from strategic_decalogo_integrator import (
     SemanticExtractor,
     CausalGraphAnalyzer,

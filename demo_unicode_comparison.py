@@ -43,8 +43,7 @@ from enum import Enum
 from functools import lru_cache
 from pathlib import Path
 from typing import (
-    Dict, List, Tuple, Optional, Union, Callable, Iterator,
-    Any, NamedTuple, Set, IO
+    Dict, List, Tuple, Optional, Union, Callable, Any
 )
 from collections import defaultdict
 from statistics import mean, median, stdev
@@ -135,22 +134,18 @@ class CharacterDifference:
 
 class UnicodeAnalyzerError(Exception):
     """Base exception."""
-    pass
 
 
 class ConfigurationError(UnicodeAnalyzerError):
     """Configuration errors."""
-    pass
 
 
 class ProcessingError(UnicodeAnalyzerError):
     """Processing errors."""
-    pass
 
 
 class ExportError(UnicodeAnalyzerError):
     """Export errors."""
-    pass
 
 
 # ============================================================================

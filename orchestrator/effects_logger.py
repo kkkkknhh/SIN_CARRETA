@@ -19,7 +19,6 @@ from typing import Tuple, Dict, List
 import numpy as np
 
 try:
-    import pandas as pd
     PANDAS_AVAILABLE = True
 except ImportError:
     PANDAS_AVAILABLE = False

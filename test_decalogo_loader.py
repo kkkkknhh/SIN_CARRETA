@@ -5,7 +5,6 @@ import unittest
 from decalogo_loader import (
     load_decalogo_industrial,
     get_decalogo_industrial,
-    load_dnp_standards,
     ensure_aligned_templates,
     get_question_by_id,
     get_dimension_weight,

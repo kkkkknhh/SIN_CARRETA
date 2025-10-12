@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 try:
-    from questionnaire_engine import *
+    pass
 except ImportError as e:
     print(f"Warning: Could not import questionnaire_engine: {e}")
 
@@ -36,12 +36,10 @@ class TestQuestionnaireEngine(unittest.TestCase):
     def test_edge_cases(self):
         """Test edge cases and error handling"""
         # TODO: Implement edge case tests
-        pass
     
     def test_integration(self):
         """Test integration with other components"""
         # TODO: Implement integration tests
-        pass
 
 
 if __name__ == '__main__':

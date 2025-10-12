@@ -16,7 +16,7 @@ Canonical locations:
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 
 class FileLocationValidator:

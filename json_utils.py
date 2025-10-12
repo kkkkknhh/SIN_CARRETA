@@ -17,7 +17,7 @@ Features:
 import json
 import math
 import logging
-from typing import Any, Dict, List, Union, Optional, TextIO
+from typing import Any, List, Union, TextIO
 from pathlib import Path
 
 try:

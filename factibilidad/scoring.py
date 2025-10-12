@@ -1,5 +1,5 @@
 import math
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from .pattern_detector import PatternDetector, PatternMatch
 
 

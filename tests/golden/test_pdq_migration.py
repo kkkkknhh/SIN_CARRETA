@@ -10,10 +10,9 @@ These test cases verify that:
 4. Migration confidence thresholds work
 """
 
-import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Tuple
 
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))

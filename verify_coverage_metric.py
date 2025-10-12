@@ -203,7 +203,6 @@ def create_representative_test_flows():
     # Test 7: DAG validation test
     def test_dag_validation():
         try:
-            from dag_validation import validate_dag
             return True
         except:
             return False

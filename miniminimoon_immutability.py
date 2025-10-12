@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from datetime import datetime
 
 try:

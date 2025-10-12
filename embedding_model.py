@@ -28,7 +28,6 @@ import numpy as np
 import scipy.stats as stats
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 
 # Suppress all non-critical warnings for production
@@ -172,17 +171,14 @@ def performance_monitor(func):
 
 class EmbeddingModelError(Exception):
     """Base exception for embedding model operations."""
-    pass
 
 
 class ModelInitializationError(EmbeddingModelError):
     """Exception raised when model initialization fails."""
-    pass
 
 
 class EmbeddingComputationError(EmbeddingModelError):
     """Exception raised during embedding computation."""
-    pass
 
 
 @dataclass

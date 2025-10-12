@@ -38,14 +38,14 @@ raise RuntimeError(
 )
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple, Union, Any, Callable
+from typing import Dict, List, Set, Any
 import logging
 
 # Import knowledge extractors
 try:
     from causal_pattern_detector import create_causal_pattern_detector
     from teoria_cambio import TeoriaCambio, evaluar_teoria_cambio
-    from monetary_detector import MonetaryDetector, create_monetary_detector
+    from monetary_detector import create_monetary_detector
     from feasibility_scorer import FeasibilityScorer
     from responsibility_detector import ResponsibilityDetector
     from document_segmenter import DocumentSegmenter

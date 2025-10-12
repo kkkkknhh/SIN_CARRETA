@@ -17,7 +17,7 @@ import os
 import tempfile
 import threading
 from pathlib import Path
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 
 # Import canonical path resolver
 from repo_paths import get_decalogo_path, get_dnp_path

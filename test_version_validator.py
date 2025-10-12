@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import sys
 import types
-from typing import List, Tuple
 
 import pytest
 
 # Target under test: sin_carreta/env_validation.py
 from sin_carreta.env_validation import (
     EnvironmentValidationError,
-    ValidationIssue,
     validate_environment,
     cli,
     _parse_ver,   # internal helpers are tested lightly for determinism

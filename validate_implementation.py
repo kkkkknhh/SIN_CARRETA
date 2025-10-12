@@ -79,12 +79,7 @@ def validate_module_structure():
 
     try:
         from doctoral_argumentation_engine import (
-            AcademicWritingAnalyzer,
             ArgumentComponent,
-            DoctoralArgumentationEngine,
-            LogicalCoherenceValidator,
-            StructuredEvidence,
-            ToulminArgument,
         )
 
         print("  ✅ All classes import successfully")

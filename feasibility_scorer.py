@@ -1,6 +1,5 @@
 # coding=utf-8
 # coding=utf-8
-import re
 import random
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, replace

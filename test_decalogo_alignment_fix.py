@@ -32,8 +32,7 @@ sys.path.insert(0, '/home/runner/work/SIN_CARRETA/SIN_CARRETA')
 from pdm_contra.decalogo_alignment import (
     _load_decalogo_industrial,
     _build_industrial_clusters,
-    align_decalogos,
-    AuditIssue
+    align_decalogos
 )
 
 

@@ -17,7 +17,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Mapping, Optional, Set, Tuple, Union
+from typing import Any, ClassVar, Dict, Optional, Set, Union
 
 # Import utility functions from text_processor
 from text_processor import (

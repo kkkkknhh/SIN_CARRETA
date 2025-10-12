@@ -20,7 +20,7 @@ Usage:
 import numpy as np
 from scipy.stats import beta
 from dataclasses import dataclass
-from typing import Tuple, Dict, List, Optional
+from typing import Tuple, Dict, List
 import json
 import logging
 from pathlib import Path

@@ -17,7 +17,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Set, Tuple
+from typing import List, Tuple
 
 # Canonical patterns
 _RX_CANONICAL_UID = re.compile(r"^P(10|[1-9])-D[1-6]-Q[1-9][0-9]*$")

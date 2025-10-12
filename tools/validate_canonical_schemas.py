@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 try:
-    import jsonschema
     from jsonschema import validate, ValidationError
     HAS_JSONSCHEMA = True
 except ImportError:

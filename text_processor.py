@@ -17,7 +17,7 @@ Features:
 import logging
 import re
 import unicodedata
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

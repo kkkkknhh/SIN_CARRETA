@@ -61,7 +61,7 @@ import csv
 import json
 import pathlib
 import sys
-from typing import TypedDict, List, Any
+from typing import TypedDict, List
 
 # Import simbólico para mantener compatibilidad con módulos que esperan este import
 try:

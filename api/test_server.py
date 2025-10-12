@@ -6,10 +6,8 @@ Tests all endpoints including upload, status, results, and health checks.
 
 import io
 import json
-import os
 import shutil
 import tempfile
-import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -19,8 +17,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.server import (
-    STAGING_DIR,
-    RESULTS_DIR,
     JobState,
     app,
     generate_deterministic_filename,

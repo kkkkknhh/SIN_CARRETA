@@ -6,9 +6,8 @@ Special attention to NumPy and critical dependencies.
 
 import sys
 import importlib
-import subprocess
 import warnings
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Optional
 from dataclasses import dataclass
 import logging
 

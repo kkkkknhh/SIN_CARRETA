@@ -22,7 +22,7 @@ import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple, Union, Any, Callable
+from typing import Dict, List, Optional, Any
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -31,8 +31,7 @@ logger = logging.getLogger(__name__)
 # Import spaCy for NER
 try:
     import spacy
-    from spacy.language import Language
-    from spacy.tokens import Doc, Span
+    from spacy.tokens import Doc
     SPACY_AVAILABLE = True
 except ImportError:
     SPACY_AVAILABLE = False

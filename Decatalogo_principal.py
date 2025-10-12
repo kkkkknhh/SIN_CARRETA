@@ -52,9 +52,7 @@ from sentence_transformers import SentenceTransformer, util
 
 # Módulos matemáticos avanzados
 try:
-    from scipy.cluster.hierarchy import dendrogram, fcluster, linkage
-    from scipy.spatial.distance import cdist
-    from scipy.stats import chi2_contingency, entropy, pearsonr, spearmanr
+    pass
 
     ADVANCED_STATS_AVAILABLE = True
 except ImportError:
@@ -62,8 +60,7 @@ except ImportError:
 
 # Capacidades de frontera en NLP
 try:
-    import transformers
-    from transformers import AutoModel, AutoTokenizer, pipeline
+    from transformers import pipeline
 
     FRONTIER_NLP_AVAILABLE = True
 except ImportError:

@@ -8,7 +8,7 @@ decalogo-industrial.latest.clean.json and dnp-standards.latest.clean.json
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Tuple
 
 # Color codes for output
 GREEN = '\033[92m'

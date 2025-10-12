@@ -32,7 +32,7 @@ import sys
 import time
 import unittest
 import zipfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 
 class TestUnifiedFlowCertification(unittest.TestCase):
@@ -135,7 +135,6 @@ class TestUnifiedFlowCertification(unittest.TestCase):
     def tearDown(self):
         """Preserve artifacts after test for inspection"""
         # Don't clean up - keep artifacts for debugging
-        pass
     
     def test_complete_unified_pipeline_triple_run(self):
         """

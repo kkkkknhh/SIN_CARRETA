@@ -1,7 +1,5 @@
 """Test to verify dnp-standards.latest.clean.json is valid JSON"""
 import json
-import pytest
-from pathlib import Path
 
 def test_dnp_standards_json_is_valid():
     """Test that dnp-standards.latest.clean.json is valid JSON"""

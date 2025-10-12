@@ -7,10 +7,12 @@ DAG VALIDATION (industrial wrapper) v2.0.0
 """
 
 from __future__ import annotations
-import hashlib, json, logging, random, time
+import logging
+import random
+import time
 from dataclasses import dataclass, asdict
 from datetime import datetime
-from typing import Dict, Any, List, Set, Tuple
+from typing import Dict, Any, Tuple
 
 import numpy as np
 
@@ -19,7 +21,7 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(mess
 
 # Dependencias opcionales
 try:
-    import networkx as nx
+    import networkx as nx  # noqa: F401
     NX = True
 except Exception:
     NX = False

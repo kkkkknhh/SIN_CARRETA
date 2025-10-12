@@ -13,12 +13,12 @@ Date: 2025
 """
 
 import numpy as np
-from scipy.stats import t, invgamma, multivariate_normal
+from scipy.stats import t
 from typing import Tuple, Optional, Dict
 import json
 import logging
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 

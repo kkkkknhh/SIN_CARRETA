@@ -5,7 +5,6 @@ This test validates that the issues mentioned in the problem statement are resol
 """
 
 import ast
-import inspect
 import sys
 from pathlib import Path
 

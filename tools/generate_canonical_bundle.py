@@ -6,7 +6,6 @@ Generate canonical decalogo_bundle.json from existing bundle with P-D-Q notation
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
 
 def extract_rubric_key(question_unique_id: str) -> str:
     """Extract D#-Q# from P#-D#-Q#."""

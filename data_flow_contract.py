@@ -20,7 +20,7 @@ import json
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Callable, Tuple
+from typing import Any, Dict, List, Optional, Callable, Tuple
 from enum import Enum
 
 logger = logging.getLogger(__name__)
