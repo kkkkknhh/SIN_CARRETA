@@ -25,13 +25,12 @@ Version: 2.2.0 (Ultimate Flow Alignment)
 Date: 2025-10-09
 """
 
-import json
-from datetime import datetime, timezone
 import hashlib
+import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any, Optional, List
-from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 try:
     from miniminimoon_orchestrator import CanonicalDeterministicOrchestrator
@@ -42,8 +41,7 @@ except Exception:  # pragma: no cover - orchestrator import is optional here
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 logger = logging.getLogger("MINIMINIMOONImmutability")
 
@@ -67,9 +65,7 @@ class EnhancedImmutabilityContract:
     SNAPSHOT_FILE = ".immutability_snapshot.json"
 
     # Critical configuration files (must exist and be frozen)
-    CRITICAL_CONFIGS = [
-        "RUBRIC_SCORING.json"
-    ]
+    CRITICAL_CONFIGS = ["RUBRIC_SCORING.json"]
 
     # Optional configuration files (snapshot if present)
     OPTIONAL_CONFIGS = [
@@ -78,12 +74,14 @@ class EnhancedImmutabilityContract:
         "embedding.yaml",
         "decalogo_contexto_avanzado.json",
         "ontologia_politicas.json",
-        "teoria_cambio_config.json"
+        "teoria_cambio_config.json",
     ]
 
     VERSION = "2.2.0"
 
-    def __init__(self, config_dir: Optional[Path] = None, snapshot_path: Optional[Path] = None):
+    def __init__(
+        self, config_dir: Optional[Path] = None, snapshot_path: Optional[Path] = None
+    ):
         """
         Initialize immutability contract.
 
@@ -92,10 +90,14 @@ class EnhancedImmutabilityContract:
             snapshot_path: Path to snapshot file (default: ./.immutability_snapshot.json)
         """
         self.config_dir = Path(config_dir) if config_dir else Path("./config/")
-        self.snapshot_path = Path(snapshot_path) if snapshot_path else Path(self.SNAPSHOT_FILE)
+        self.snapshot_path = (
+            Path(snapshot_path) if snapshot_path else Path(self.SNAPSHOT_FILE)
+        )
         self.logger = logging.getLogger(__name__)
 
-        self.logger.debug("Immutability contract initialized (config_dir=%s)", self.config_dir)
+        self.logger.debug(
+            "Immutability contract initialized (config_dir=%s)", self.config_dir
+        )
 
     @classmethod
     def from_repo_root(cls, repo_root: Path) -> "EnhancedImmutabilityContract":
@@ -121,7 +123,7 @@ class EnhancedImmutabilityContract:
         sha256 = hashlib.sha256()
 
         try:
-            with open(filepath, 'rb') as f:
+            with open(filepath, "rb") as f:
                 # Read in chunks for memory efficiency
                 for chunk in iter(lambda: f.read(4096), b""):
                     sha256.update(chunk)
@@ -175,7 +177,9 @@ class EnhancedImmutabilityContract:
         Returns:
             Snapshot metadata including hash and timestamp
         """
-        self.logger.info("🔒 Freezing configuration (creating immutability snapshot)...")
+        self.logger.info(
+            "🔒 Freezing configuration (creating immutability snapshot)..."
+        )
 
         # Get all config files
         config_files = self._get_config_files()
@@ -188,7 +192,7 @@ class EnhancedImmutabilityContract:
                 file_hashes[filename] = {
                     "sha256": file_hash,
                     "path": str(filepath.absolute()),
-                    "size_bytes": filepath.stat().st_size
+                    "size_bytes": filepath.stat().st_size,
                 }
                 self.logger.debug("  %s: %s...", filename, file_hash[:12])
             except Exception as e:
@@ -210,12 +214,12 @@ class EnhancedImmutabilityContract:
             "config_dir": str(self.config_dir.absolute()),
             "files": file_hashes,
             "critical_configs": self.CRITICAL_CONFIGS,
-            "file_count": len(file_hashes)
+            "file_count": len(file_hashes),
         }
 
         # Save snapshot to file
         try:
-            with open(self.snapshot_path, 'w', encoding='utf-8') as f:
+            with open(self.snapshot_path, "w", encoding="utf-8") as f:
                 json.dump(snapshot, f, indent=2, ensure_ascii=False)
 
             self.logger.info(
@@ -263,7 +267,7 @@ class EnhancedImmutabilityContract:
             )
 
         try:
-            with open(self.snapshot_path, 'r', encoding='utf-8') as f:
+            with open(self.snapshot_path, "r", encoding="utf-8") as f:
                 snapshot = json.load(f)
 
             # Validate snapshot structure
@@ -329,11 +333,13 @@ class EnhancedImmutabilityContract:
                 current_hash = self._compute_file_hash(filepath)
 
                 if current_hash != expected_hash:
-                    mismatches.append({
-                        "file": filename,
-                        "expected": expected_hash[:12] + "...",
-                        "current": current_hash[:12] + "..."
-                    })
+                    mismatches.append(
+                        {
+                            "file": filename,
+                            "expected": expected_hash[:12] + "...",
+                            "current": current_hash[:12] + "...",
+                        }
+                    )
                     self.logger.error(
                         f"⨯ Config mismatch: {filename} "
                         f"(expected {expected_hash[:12]}..., got {current_hash[:12]}...)"
@@ -343,10 +349,7 @@ class EnhancedImmutabilityContract:
 
             except Exception as e:
                 self.logger.error("⨯ Error verifying %s: %s", filename, e)
-                mismatches.append({
-                    "file": filename,
-                    "error": str(e)
-                })
+                mismatches.append({"file": filename, "error": str(e)})
 
         # Report results
         if mismatches or missing_files:
@@ -358,7 +361,7 @@ class EnhancedImmutabilityContract:
             if mismatches:
                 self.logger.error("  Mismatched files:")
                 for m in mismatches:
-                    self.logger.error("    - %s", m['file'])
+                    self.logger.error("    - %s", m["file"])
 
             if missing_files:
                 self.logger.error("  Missing files:")
@@ -382,10 +385,7 @@ class EnhancedImmutabilityContract:
             Snapshot metadata
         """
         if not self.has_snapshot():
-            return {
-                "exists": False,
-                "message": "No snapshot found"
-            }
+            return {"exists": False, "message": "No snapshot found"}
 
         try:
             snapshot = self.load_snapshot()
@@ -396,13 +396,13 @@ class EnhancedImmutabilityContract:
                 "snapshot_hash": snapshot.get("snapshot_hash"),
                 "timestamp": snapshot.get("snapshot_timestamp"),
                 "file_count": snapshot.get("file_count"),
-                "files": list(snapshot.get("files", {}).keys())
+                "files": list(snapshot.get("files", {}).keys()),
             }
         except Exception as e:
             return {
                 "exists": True,
                 "error": str(e),
-                "message": "Snapshot exists but is invalid"
+                "message": "Snapshot exists but is invalid",
             }
 
     def diff_configs(self) -> Dict[str, Any]:
@@ -415,24 +415,18 @@ class EnhancedImmutabilityContract:
             Detailed diff report
         """
         if not self.has_snapshot():
-            return {
-                "status": "no_snapshot",
-                "message": "No snapshot exists"
-            }
+            return {"status": "no_snapshot", "message": "No snapshot exists"}
 
         try:
             snapshot = self.load_snapshot()
         except Exception as e:
-            return {
-                "status": "error",
-                "message": f"Failed to load snapshot: {e}"
-            }
+            return {"status": "error", "message": f"Failed to load snapshot: {e}"}
 
         diff_report = {
             "status": "diff_computed",
             "snapshot_hash": snapshot["snapshot_hash"],
             "snapshot_timestamp": snapshot.get("snapshot_timestamp"),
-            "files": {}
+            "files": {},
         }
 
         for filename, snapshot_data in snapshot["files"].items():
@@ -442,7 +436,7 @@ class EnhancedImmutabilityContract:
             if not filepath.exists():
                 diff_report["files"][filename] = {
                     "status": "missing",
-                    "expected_hash": expected_hash[:16] + "..."
+                    "expected_hash": expected_hash[:16] + "...",
                 }
             else:
                 try:
@@ -451,7 +445,7 @@ class EnhancedImmutabilityContract:
                     if current_hash == expected_hash:
                         diff_report["files"][filename] = {
                             "status": "match",
-                            "hash": current_hash[:16] + "..."
+                            "hash": current_hash[:16] + "...",
                         }
                     else:
                         diff_report["files"][filename] = {
@@ -459,12 +453,12 @@ class EnhancedImmutabilityContract:
                             "expected_hash": expected_hash[:16] + "...",
                             "current_hash": current_hash[:16] + "...",
                             "expected_size": snapshot_data.get("size_bytes"),
-                            "current_size": filepath.stat().st_size
+                            "current_size": filepath.stat().st_size,
                         }
                 except Exception as e:
                     diff_report["files"][filename] = {
                         "status": "error",
-                        "error": str(e)
+                        "error": str(e),
                     }
 
         # Summary
@@ -474,7 +468,7 @@ class EnhancedImmutabilityContract:
             "matching": statuses.count("match"),
             "mismatched": statuses.count("mismatch"),
             "missing": statuses.count("missing"),
-            "errors": statuses.count("error")
+            "errors": statuses.count("error"),
         }
 
         return diff_report
@@ -494,13 +488,14 @@ class EnhancedImmutabilityContract:
             "module": "Decatalogo_principal",
             "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "checks": {},
-            "status": "unknown"
+            "status": "unknown",
         }
 
         try:
             # Check 1: Module importable
             try:
                 import Decatalogo_principal
+
                 report["checks"]["importable"] = "PASS"
             except ImportError as e:
                 report["checks"]["importable"] = "FAIL"
@@ -531,7 +526,9 @@ class EnhancedImmutabilityContract:
             else:
                 if report["status"] == "unknown":
                     report["status"] = "PARTIAL"
-                self.logger.warning("⚠ Decatalogo_principal verification: %s", report['status'])
+                self.logger.warning(
+                    "⚠ Decatalogo_principal verification: %s", report["status"]
+                )
 
         except Exception as e:
             report["status"] = "ERROR"
@@ -545,10 +542,11 @@ class EnhancedImmutabilityContract:
 # CLI INTERFACE
 # ============================================================================
 
+
 def main():
     """CLI entry point for immutability contract operations"""
-    import sys
     import argparse
+    import sys
 
     parser = argparse.ArgumentParser(
         description="MINIMINIMOON Immutability Contract Tool (v2.0)",
@@ -569,7 +567,7 @@ Examples:
 
   # Verify Decatalogo integration
   python miniminimoon_immutability.py check-decatalogo
-"""
+""",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
@@ -595,7 +593,9 @@ Examples:
     diff_parser.add_argument("--snapshot", type=Path, help="Snapshot file path")
 
     # Check Decatalogo command
-    _check_parser = subparsers.add_parser("check-decatalogo", help="Verify Decatalogo integration")
+    _check_parser = subparsers.add_parser(
+        "check-decatalogo", help="Verify Decatalogo integration"
+    )
 
     args = parser.parse_args()
 
@@ -607,8 +607,7 @@ Examples:
     try:
         if args.command == "freeze":
             contract = EnhancedImmutabilityContract(
-                config_dir=args.config_dir,
-                snapshot_path=args.snapshot
+                config_dir=args.config_dir, snapshot_path=args.snapshot
             )
             snapshot = contract.freeze_configuration()
 
@@ -620,8 +619,7 @@ Examples:
 
         elif args.command == "verify":
             contract = EnhancedImmutabilityContract(
-                config_dir=args.config_dir,
-                snapshot_path=args.snapshot
+                config_dir=args.config_dir, snapshot_path=args.snapshot
             )
 
             is_valid = contract.verify_frozen_config()
@@ -636,8 +634,7 @@ Examples:
 
         elif args.command == "info":
             contract = EnhancedImmutabilityContract(
-                config_dir=args.config_dir,
-                snapshot_path=args.snapshot
+                config_dir=args.config_dir, snapshot_path=args.snapshot
             )
 
             info = contract.get_snapshot_info()
@@ -649,7 +646,7 @@ Examples:
                 print(f"  Timestamp: {info.get('timestamp', 'unknown')}")
                 print(f"  File count: {info.get('file_count', 0)}")
                 print("\n  Files:")
-                for filename in info.get('files', []):
+                for filename in info.get("files", []):
                     print(f"    - {filename}")
                 sys.exit(0)
             else:
@@ -658,8 +655,7 @@ Examples:
 
         elif args.command == "diff":
             contract = EnhancedImmutabilityContract(
-                config_dir=args.config_dir,
-                snapshot_path=args.snapshot
+                config_dir=args.config_dir, snapshot_path=args.snapshot
             )
 
             diff = contract.diff_configs()
@@ -677,7 +673,7 @@ Examples:
             print(f"    Mismatched: {diff['summary']['mismatched']}")
             print(f"    Missing: {diff['summary']['missing']}")
 
-            if diff['summary']['mismatched'] > 0 or diff['summary']['missing'] > 0:
+            if diff["summary"]["mismatched"] > 0 or diff["summary"]["missing"] > 0:
                 print("\n  Differences:")
                 for filename, file_info in diff["files"].items():
                     if file_info["status"] != "match":

@@ -359,9 +359,7 @@ def run_feasibility_mode(args: argparse.Namespace) -> int:
 
     LOGGER.info("Analysis complete. Results saved to %s", output_file)
     if top_results:
-        LOGGER.info(
-            f"Top {len(top_results)} results (threshold >= {args.umbral})"
-        )
+        LOGGER.info(f"Top {len(top_results)} results (threshold >= {args.umbral})")
         for index, (text, result) in enumerate(top_results, start=1):
             display_text = text[:100] + ("..." if len(text) > 100 else "")
             LOGGER.info(
