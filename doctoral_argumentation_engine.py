@@ -19,12 +19,9 @@ References:
 - Walton, D. (1995) "A Pragmatic Theory of Fallacy"
 - Sword, H. (2012) "Stylish Academic Writing"
 """
-
-import hashlib
 import json
 import logging
 import re
-from collections import Counter
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from enum import Enum
@@ -184,7 +181,8 @@ class LogicalCoherenceValidator:
         
         return max(0.0, score)
     
-    def _detect_circular_reasoning(self, argument: ToulminArgument) -> bool:
+    @staticmethod
+    def _detect_circular_reasoning(argument: ToulminArgument) -> bool:
         """
         Detect if claim appears in ground/warrant (circular reasoning).
         
@@ -208,7 +206,8 @@ class LogicalCoherenceValidator:
         
         return similarity > 0.70
     
-    def _warrant_connects_ground_to_claim(self, argument: ToulminArgument) -> bool:
+    @staticmethod
+    def _warrant_connects_ground_to_claim(argument: ToulminArgument) -> bool:
         """
         Check if warrant contains logical connectives and references both ground and claim.
         """
@@ -228,7 +227,8 @@ class LogicalCoherenceValidator:
         
         return has_connective and is_substantial
     
-    def _qualifier_matches_evidence_strength(self, argument: ToulminArgument) -> bool:
+    @staticmethod
+    def _qualifier_matches_evidence_strength(argument: ToulminArgument) -> bool:
         """
         Check if qualifier language matches confidence interval.
         
@@ -252,7 +252,8 @@ class LogicalCoherenceValidator:
             hedge_terms = ["limited", "preliminary", "suggestive", "partial", "tentative"]
             return any(term in qualifier_lower for term in hedge_terms)
     
-    def _rebuttal_addresses_counterclaim(self, argument: ToulminArgument) -> bool:
+    @staticmethod
+    def _rebuttal_addresses_counterclaim(argument: ToulminArgument) -> bool:
         """
         Check if rebuttal is substantial and addresses alternative interpretations.
         """
@@ -362,7 +363,8 @@ class AcademicWritingAnalyzer:
         
         return score
     
-    def _score_objectivity(self, text: str) -> float:
+    @staticmethod
+    def _score_objectivity(text: str) -> float:
         """
         Score objectivity by detecting subjective/emotional language.
         """
@@ -382,7 +384,8 @@ class AcademicWritingAnalyzer:
         
         return score
     
-    def _score_hedging(self, text: str) -> float:
+    @staticmethod
+    def _score_hedging(text: str) -> float:
         """
         Score appropriate hedging (uncertainty quantification).
         
@@ -414,7 +417,8 @@ class AcademicWritingAnalyzer:
         
         return score
     
-    def _score_citations(self, text: str) -> float:
+    @staticmethod
+    def _score_citations(text: str) -> float:
         """
         Score citation/evidence reference density.
         
@@ -444,7 +448,8 @@ class AcademicWritingAnalyzer:
         
         return score
     
-    def _score_coherence(self, paragraphs: List[str]) -> float:
+    @staticmethod
+    def _score_coherence(paragraphs: List[str]) -> float:
         """
         Score logical flow between paragraphs.
         
@@ -488,7 +493,8 @@ class AcademicWritingAnalyzer:
         score = 0.6 * transition_score + 0.4 * cohesion_score
         return min(1.0, score)
     
-    def _score_sophistication(self, text: str) -> float:
+    @staticmethod
+    def _score_sophistication(text: str) -> float:
         """
         Score lexical sophistication.
         
@@ -572,7 +578,8 @@ class DoctoralArgumentationEngine:
         
         logger.info("DoctoralArgumentationEngine initialized")
     
-    def _load_toulmin_templates(self) -> Dict[str, Any]:
+    @staticmethod
+    def _load_toulmin_templates() -> Dict[str, Any]:
         """Load Toulmin argument templates"""
         # Default templates if no file provided
         return {
@@ -709,8 +716,8 @@ class DoctoralArgumentationEngine:
             'validation_timestamp': datetime.utcnow().isoformat()
         }
     
+    @staticmethod
     def _rank_evidence_by_quality_and_diversity(
-        self,
         evidence_list: List[StructuredEvidence]
     ) -> List[StructuredEvidence]:
         """
@@ -753,8 +760,8 @@ class DoctoralArgumentationEngine:
         
         return ranked
     
+    @staticmethod
     def _generate_claim(
-        self,
         question_id: str,
         score: float,
         primary_evidence: StructuredEvidence
@@ -808,7 +815,8 @@ class DoctoralArgumentationEngine:
         
         return claim
     
-    def _generate_ground(self, primary_evidence: StructuredEvidence) -> str:
+    @staticmethod
+    def _generate_ground(primary_evidence: StructuredEvidence) -> str:
         """
         Generate ground from primary evidence.
         
@@ -839,7 +847,8 @@ class DoctoralArgumentationEngine:
         
         return ground
     
-    def _generate_qualifier(self, bayesian_posterior: Dict[str, float]) -> str:
+    @staticmethod
+    def _generate_qualifier(bayesian_posterior: Dict[str, float]) -> str:
         """
         Generate qualifier matching Bayesian posterior.
         
@@ -868,7 +877,8 @@ class DoctoralArgumentationEngine:
         
         return qualifier
     
-    def _generate_warrant(self, claim: str, ground: str, question_id: str) -> str:
+    @staticmethod
+    def _generate_warrant(claim: str, ground: str, question_id: str) -> str:
         """
         Generate explicit logical bridge.
         
@@ -891,7 +901,8 @@ class DoctoralArgumentationEngine:
         
         return warrant
     
-    def _generate_backing(self, secondary_evidence: List[StructuredEvidence]) -> List[str]:
+    @staticmethod
+    def _generate_backing(secondary_evidence: List[StructuredEvidence]) -> List[str]:
         """
         Generate backing from secondary evidence sources.
         
@@ -921,8 +932,8 @@ class DoctoralArgumentationEngine:
         
         return backing_statements
     
+    @staticmethod
     def _detect_counterclaim(
-        self,
         evidence_list: List[StructuredEvidence],
         claim: str
     ) -> str:
@@ -951,8 +962,8 @@ class DoctoralArgumentationEngine:
         
         return counterclaim
     
+    @staticmethod
     def _generate_rebuttal(
-        self,
         counterclaim: str,
         evidence_list: List[StructuredEvidence]
     ) -> str:
@@ -979,8 +990,8 @@ class DoctoralArgumentationEngine:
         
         return rebuttal
     
+    @staticmethod
     def _generate_synthesis(
-        self,
         evidence_list: List[StructuredEvidence],
         claim: str
     ) -> str:
@@ -993,8 +1004,8 @@ class DoctoralArgumentationEngine:
         - Addresses conflicts
         """
         # Analyze evidence convergence
-        source_types = set(e.evidence_type for e in evidence_list)
-        source_modules = set(e.source_module for e in evidence_list)
+        source_types = {e.evidence_type for e in evidence_list}
+        source_modules = {e.source_module for e in evidence_list}
         
         synthesis = (
             f"Synthesizing across {len(source_modules)} independent analytical modules "
@@ -1007,7 +1018,8 @@ class DoctoralArgumentationEngine:
         
         return synthesis
     
-    def _generate_confidence_statement(self, bayesian_posterior: Dict[str, float]) -> str:
+    @staticmethod
+    def _generate_confidence_statement(bayesian_posterior: Dict[str, float]) -> str:
         """
         Generate confidence statement with Bayesian interpretation.
         
@@ -1039,20 +1051,24 @@ class DoctoralArgumentationEngine:
         
         return confidence
     
-    def _assemble_paragraph1(self, claim: str, ground: str, qualifier: str) -> str:
+    @staticmethod
+    def _assemble_paragraph1(claim: str, ground: str, qualifier: str) -> str:
         """Assemble paragraph 1: CLAIM + GROUND + QUALIFIER"""
         return f"{claim} {ground} {qualifier}."
     
-    def _assemble_paragraph2(self, warrant: str, backing: List[str], counterclaim: str) -> str:
+    @staticmethod
+    def _assemble_paragraph2(warrant: str, backing: List[str], counterclaim: str) -> str:
         """Assemble paragraph 2: WARRANT + BACKING + COUNTERCLAIM"""
         backing_text = " ".join(backing)
         return f"{warrant} {backing_text} {counterclaim}."
     
-    def _assemble_paragraph3(self, rebuttal: str, synthesis: str, confidence: str) -> str:
+    @staticmethod
+    def _assemble_paragraph3(rebuttal: str, synthesis: str, confidence: str) -> str:
         """Assemble paragraph 3: REBUTTAL + SYNTHESIS + CONFIDENCE"""
         return f"{rebuttal} {synthesis} {confidence}"
     
-    def _extract_confidence_from_qualifier(self, qualifier: str) -> float:
+    @staticmethod
+    def _extract_confidence_from_qualifier(qualifier: str) -> float:
         """Extract numerical confidence from qualifier text"""
         # Look for "posterior mean: X.XX" pattern
         match = re.search(r'posterior mean:\s*([0-9.]+)', qualifier)
@@ -1070,8 +1086,8 @@ class DoctoralArgumentationEngine:
         else:
             return 0.40
     
+    @staticmethod
     def _build_synthesis_map(
-        self,
         evidence_list: List[StructuredEvidence],
         toulmin: ToulminArgument
     ) -> Dict[str, List[str]]:

@@ -16,16 +16,13 @@ Test Coverage:
 7. Deterministic output verification
 8. Edge cases and error handling
 """
-
-import json
+import sys
 import unittest
-from pathlib import Path
 from typing import Any, Dict, List
 
 import numpy as np
 
 from doctoral_argumentation_engine import (
-    ArgumentComponent,
     ToulminArgument,
     StructuredEvidence,
     DoctoralArgumentationEngine,
@@ -835,4 +832,4 @@ def run_test_suite():
 
 if __name__ == "__main__":
     success = run_test_suite()
-    exit(0 if success else 1)
+    sys.exit(0 if success else 1)
