@@ -15,7 +15,8 @@ class CausalForestDML:
     def effect(X):
         try:
             import numpy as _np
-            if hasattr(X, 'shape'):
+
+            if hasattr(X, "shape"):
                 return _np.zeros(X.shape[0])
             return 0.0
         except Exception:

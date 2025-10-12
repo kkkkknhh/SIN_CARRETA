@@ -76,7 +76,10 @@ class SpanishNLIDetector:
     def batch_check(
         self, pairs: Iterable[Tuple[str, str]], _batch_size: int = 8
     ) -> List[Dict[str, float | str | bool]]:
-        return [self.check_contradiction(premise, hypothesis) for premise, hypothesis in pairs]
+        return [
+            self.check_contradiction(premise, hypothesis)
+            for premise, hypothesis in pairs
+        ]
 
     def _negation_conflict(self, premise: List[str], hypothesis: List[str]) -> float:
         premise_neg = any(token in self.NEGATION_MARKERS for token in premise)

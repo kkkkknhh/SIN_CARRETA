@@ -217,7 +217,7 @@ class ContradictionDetector:
 
         if split_pos >= 0:
             premise = context[:split_pos].strip()
-            hypothesis = context[split_pos + len(adversative) :].strip()
+            hypothesis = context[split_pos + len(adversative):].strip()
         else:
             half = len(context) // 2
             premise = context[:half].strip()
@@ -414,7 +414,12 @@ class ContradictionDetector:
         if not candidates:
             return False
 
-        if self._encoder_available and self.encoder is not None and util is not None and torch is not None:
+        if (
+            self._encoder_available
+            and self.encoder is not None
+            and util is not None
+            and torch is not None
+        ):
             try:
                 emb1 = self.encoder.encode(text1[:500], convert_to_tensor=True)
                 emb2 = self.encoder.encode(candidates[:5], convert_to_tensor=True)
@@ -422,7 +427,9 @@ class ContradictionDetector:
                 max_sim = float(torch.max(similarities).item())
                 return max_sim > 0.6
             except Exception as exc:  # pragma: no cover - runtime fallback
-                logger.debug("Encoder alignment failed, using lexical fallback: %s", exc)
+                logger.debug(
+                    "Encoder alignment failed, using lexical fallback: %s", exc
+                )
 
         # Lexical fallback: Jaccard similarity on meaningful tokens
         tokens1 = set(self._tokenize(text1))
@@ -439,7 +446,9 @@ class ContradictionDetector:
 
     @staticmethod
     def _tokenize(text: str) -> List[str]:
-        return [token for token in re.findall(r"\b\w+\b", text.lower()) if len(token) > 3]
+        return [
+            token for token in re.findall(r"\b\w+\b", text.lower()) if len(token) > 3
+        ]
 
     @staticmethod
     def _score_to_risk(score: float) -> RiskLevel:

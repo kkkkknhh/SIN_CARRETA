@@ -12,11 +12,11 @@ Single entry point for complete PDM evaluation that:
 5. Returns unified, deterministic results
 """
 
-import logging
 import json
-from pathlib import Path
-from typing import Dict, Any, Optional
+import logging
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 # Import core orchestrator
 from miniminimoon_orchestrator import MINIMINIMOONOrchestrator
@@ -24,14 +24,16 @@ from miniminimoon_orchestrator import MINIMINIMOONOrchestrator
 # Import evaluators
 try:
     from questionnaire_engine import QuestionnaireEngine
+
     QUESTIONNAIRE_AVAILABLE = True
 except ImportError:
     QUESTIONNAIRE_AVAILABLE = False
     logging.warning("questionnaire_engine not available")
 
+from evidence_registry import EvidenceRegistry
+
 # Import validators
 from system_validators import SystemHealthValidator
-from evidence_registry import EvidenceRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +48,12 @@ class UnifiedEvaluationPipeline:
     - Post-execution validation
     """
 
-    def __init__(self, 
-                 repo_root: Optional[str] = None,
-                 rubric_path: Optional[str] = None,
-                 config_path: Optional[str] = "system_configuration.json"):
+    def __init__(
+        self,
+        repo_root: Optional[str] = None,
+        rubric_path: Optional[str] = None,
+        config_path: Optional[str] = "system_configuration.json",
+    ):
         """
         Initialize unified pipeline.
 
@@ -75,10 +79,10 @@ class UnifiedEvaluationPipeline:
         # Initialize evaluators (lazy loading)
         self.decalogo_evaluator = None
         self.questionnaire_evaluator = None
-        
+
         # Warm-up flag for thread-safe one-time initialization
         self._warmup_done = False
-        self._warmup_lock = __import__('threading').Lock()
+        self._warmup_lock = __import__("threading").Lock()
 
         logger.info("✅ Unified Evaluation Pipeline initialized")
 
@@ -90,17 +94,17 @@ class UnifiedEvaluationPipeline:
             return {
                 "evaluators": {
                     "decalogo": {"enabled": True},
-                    "questionnaire": {"enabled": True}
+                    "questionnaire": {"enabled": True},
                 },
                 "parallel_processing": {
                     "enabled": True,
                     "max_workers": 4,
-                    "components": ["questionnaire_engine"]
-                }
+                    "components": ["questionnaire_engine"],
+                },
             }
 
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             logger.error("Error loading config: %s", e)
@@ -111,10 +115,10 @@ class UnifiedEvaluationPipeline:
         Thread-safe warm-up of models before batch processing.
         Ensures embedding model and questionnaire engine are preloaded.
         Called once before processing the first document in a batch.
-        
+
         Thread-safety: Uses double-checked locking pattern with _warmup_lock
         to ensure warm-up executes exactly once across parallel workers.
-        
+
         Validates:
         - Orchestrator warm_up() method is invoked
         - Embedding model connection pool is accessible
@@ -122,28 +126,31 @@ class UnifiedEvaluationPipeline:
         """
         if self._warmup_done:
             return
-            
+
         with self._warmup_lock:
             if self._warmup_done:  # Double-check pattern
                 return
-                
+
             logger.info("🔥 Warming up models (embedding + questionnaire)...")
             try:
                 # Invoke orchestrator warm_up() method
-                if hasattr(self.orchestrator, 'warm_up'):
+                if hasattr(self.orchestrator, "warm_up"):
                     self.orchestrator.warm_up()
-                elif hasattr(self.orchestrator, 'warmup_models'):
+                elif hasattr(self.orchestrator, "warmup_models"):
                     # Fallback for compatibility
                     self.orchestrator.warmup_models()
-                    
+
                 # Verify connection pool state
-                if hasattr(self.orchestrator, '_get_shared_embedding_model'):
+                if hasattr(self.orchestrator, "_get_shared_embedding_model"):
                     model = self.orchestrator._get_shared_embedding_model()
-                    logger.info("✅ Embedding model connection pool validated: %s", type(model).__name__)
-                
+                    logger.info(
+                        "✅ Embedding model connection pool validated: %s",
+                        type(model).__name__,
+                    )
+
                 self._warmup_done = True
                 logger.info("✅ Warm-up complete - ready for parallel batch processing")
-                
+
             except Exception as e:
                 logger.warning("⚠️ Warm-up encountered issue (non-fatal): %s", e)
                 # Still mark as done to avoid repeated failures
@@ -155,7 +162,7 @@ class UnifiedEvaluationPipeline:
         municipality: str = "",
         department: str = "",
         export_json: bool = True,
-        output_dir: Optional[str] = "output"
+        output_dir: Optional[str] = "output",
     ) -> Dict[str, Any]:
         """
         Execute complete evaluation pipeline.
@@ -170,9 +177,9 @@ class UnifiedEvaluationPipeline:
         Returns:
             Complete evaluation results with both evaluators
         """
-        logger.info("="*80)
+        logger.info("=" * 80)
         logger.info("UNIFIED EVALUATION: %s", pdm_path)
-        logger.info("="*80)
+        logger.info("=" * 80)
 
         start_time = datetime.now()
 
@@ -187,9 +194,9 @@ class UnifiedEvaluationPipeline:
             logger.warning("⚠️ Pre-execution validation had warnings, continuing...")
 
         # STEP 1: RUN CANONICAL PIPELINE
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("STEP 1: Canonical Pipeline Execution")
-        logger.info("="*80)
+        logger.info("=" * 80)
 
         try:
             pipeline_results = self.orchestrator.process_plan(pdm_path)
@@ -198,15 +205,15 @@ class UnifiedEvaluationPipeline:
             return {
                 "status": "pipeline_error",
                 "error": str(e),
-                "timestamp": start_time.isoformat()
+                "timestamp": start_time.isoformat(),
             }
 
         if "error" in pipeline_results:
-            logger.error("Pipeline returned error: %s", pipeline_results['error'])
+            logger.error("Pipeline returned error: %s", pipeline_results["error"])
             return {
                 "status": "pipeline_error",
                 "pipeline_results": pipeline_results,
-                "timestamp": start_time.isoformat()
+                "timestamp": start_time.isoformat(),
             }
 
         # Get evidence registry reference
@@ -215,9 +222,9 @@ class UnifiedEvaluationPipeline:
         logger.info("✅ Pipeline completed: %s evidence items", len(evidence_registry))
 
         # STEP 2: DECÁLOGO EVALUATION
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("STEP 2: Decálogo Evaluation")
-        logger.info("="*80)
+        logger.info("=" * 80)
 
         decalogo_results = {}
         if self.config.get("evaluators", {}).get("decalogo", {}).get("enabled", True):
@@ -233,12 +240,16 @@ class UnifiedEvaluationPipeline:
             logger.info("→ Decálogo evaluation disabled in config")
 
         # STEP 3: QUESTIONNAIRE EVALUATION
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("STEP 3: Questionnaire Evaluation (300 questions)")
-        logger.info("="*80)
+        logger.info("=" * 80)
 
         questionnaire_results = {}
-        if self.config.get("evaluators", {}).get("questionnaire", {}).get("enabled", True):
+        if (
+            self.config.get("evaluators", {})
+            .get("questionnaire", {})
+            .get("enabled", True)
+        ):
             if QUESTIONNAIRE_AVAILABLE:
                 try:
                     questionnaire_results = self._run_questionnaire_evaluation(
@@ -255,25 +266,25 @@ class UnifiedEvaluationPipeline:
             logger.info("→ Questionnaire evaluation disabled in config")
 
         # STEP 4: POST-EXECUTION VALIDATION
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("STEP 4: Post-Execution Validation")
-        logger.info("="*80)
+        logger.info("=" * 80)
 
         # Build complete results for validation
         complete_results = {
             "plan_path": pdm_path,
             "executed_nodes": pipeline_results.get("executed_nodes", []),
-            "evidence_registry": {
-                "statistics": evidence_registry.get_statistics()
-            },
+            "evidence_registry": {"statistics": evidence_registry.get_statistics()},
             "evaluations": {
                 "decalogo": decalogo_results,
-                "questionnaire": questionnaire_results
+                "questionnaire": questionnaire_results,
             },
-            "immutability_proof": pipeline_results.get("immutability_proof", {})
+            "immutability_proof": pipeline_results.get("immutability_proof", {}),
         }
 
-        post_valid, post_report = self.system_validator.validate_post_execution(complete_results)
+        post_valid, post_report = self.system_validator.validate_post_execution(
+            complete_results
+        )
 
         if post_valid:
             logger.info("✅ Post-execution validation passed")
@@ -292,38 +303,37 @@ class UnifiedEvaluationPipeline:
                 "department": department,
                 "execution_start": start_time.isoformat(),
                 "execution_end": end_time.isoformat(),
-                "execution_time_seconds": execution_time
+                "execution_time_seconds": execution_time,
             },
             "pipeline": {
                 "executed_nodes": pipeline_results.get("executed_nodes", []),
                 "node_results": pipeline_results,
-                "execution_summary": pipeline_results.get("execution_summary", {})
+                "execution_summary": pipeline_results.get("execution_summary", {}),
             },
             "evidence_registry": {
                 "statistics": evidence_registry.get_statistics(),
-                "deterministic_hash": evidence_registry.deterministic_hash()
+                "deterministic_hash": evidence_registry.deterministic_hash(),
             },
             "evaluations": {
                 "decalogo": decalogo_results,
-                "questionnaire": questionnaire_results
+                "questionnaire": questionnaire_results,
             },
-            "validation": {
-                "pre_execution": pre_report,
-                "post_execution": post_report
-            },
-            "immutability_proof": pipeline_results.get("immutability_proof", {})
+            "validation": {"pre_execution": pre_report, "post_execution": post_report},
+            "immutability_proof": pipeline_results.get("immutability_proof", {}),
         }
 
         # EXPORT RESULTS
         if export_json and output_dir:
             self._export_results(final_results, output_dir, evidence_registry)
 
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("✅ UNIFIED EVALUATION COMPLETED")
         logger.info("   Total time: %.2fs", execution_time)
         logger.info("   Evidence items: %s", len(evidence_registry))
-        logger.info("   Evidence hash: %s...", evidence_registry.deterministic_hash()[:16])
-        logger.info("="*80)
+        logger.info(
+            "   Evidence hash: %s...", evidence_registry.deterministic_hash()[:16]
+        )
+        logger.info("=" * 80)
 
         return final_results
 
@@ -332,7 +342,7 @@ class UnifiedEvaluationPipeline:
         _pdm_path: str,
         evidence_registry: EvidenceRegistry,
         municipality: str,
-        department: str
+        department: str,
     ) -> Dict[str, Any]:
         """
         Run Decálogo evaluation consuming evidence registry.
@@ -351,13 +361,16 @@ class UnifiedEvaluationPipeline:
         try:
             # Use central path resolver
             from repo_paths import get_decalogo_path
+
             decalogo_json = get_decalogo_path()
 
-            with open(decalogo_json, 'r', encoding='utf-8') as f:
+            with open(decalogo_json, "r", encoding="utf-8") as f:
                 decalogo_data = json.load(f)
 
             questions = decalogo_data.get("questions", [])
-            logger.info("→ Loaded %s questions from %s", len(questions), decalogo_json.name)
+            logger.info(
+                "→ Loaded %s questions from %s", len(questions), decalogo_json.name
+            )
 
             # Evaluate each question using evidence from registry
             dimension_results = {}
@@ -372,8 +385,16 @@ class UnifiedEvaluationPipeline:
 
                 # Score based on evidence availability and confidence
                 if evidence_list:
-                    avg_confidence = sum(e.confidence for e in evidence_list) / len(evidence_list)
-                    score = 3.0 if avg_confidence > 0.7 else 2.0 if avg_confidence > 0.4 else 1.0
+                    avg_confidence = sum(e.confidence for e in evidence_list) / len(
+                        evidence_list
+                    )
+                    score = (
+                        3.0
+                        if avg_confidence > 0.7
+                        else 2.0
+                        if avg_confidence > 0.4
+                        else 1.0
+                    )
                 else:
                     score = 0.0
 
@@ -383,7 +404,7 @@ class UnifiedEvaluationPipeline:
                 if dimension not in dimension_results:
                     dimension_results[dimension] = {
                         "scores": [],
-                        "questions_evaluated": 0
+                        "questions_evaluated": 0,
                     }
 
                 dimension_results[dimension]["scores"].append(score)
@@ -401,13 +422,15 @@ class UnifiedEvaluationPipeline:
                     "score": round(sum(scores), 2),
                     "max_score": max_score,
                     "percentage": round(percentage, 1),
-                    "questions_evaluated": data["questions_evaluated"]
+                    "questions_evaluated": data["questions_evaluated"],
                 }
 
             # Calculate overall score
             total_score = sum(all_scores)
             max_possible = len(all_scores) * 3.0
-            overall_percentage = (total_score / max_possible * 100) if max_possible > 0 else 0.0
+            overall_percentage = (
+                (total_score / max_possible * 100) if max_possible > 0 else 0.0
+            )
 
             # Classify band
             if overall_percentage >= 85:
@@ -436,21 +459,15 @@ class UnifiedEvaluationPipeline:
                 "evidence_consumed": True,
                 "evidence_hash_verified": evidence_registry.deterministic_hash(),
                 "municipality": municipality,
-                "department": department
+                "department": department,
             }
 
         except Exception as e:
             logger.error("Decálogo evaluation failed: %s", e, exc_info=True)
-            return {
-                "status": "error",
-                "error": str(e),
-                "evidence_consumed": False
-            }
+            return {"status": "error", "error": str(e), "evidence_consumed": False}
 
     def _run_questionnaire_evaluation(
-        self,
-        _pdm_path: str,
-        evidence_registry: EvidenceRegistry
+        self, _pdm_path: str, evidence_registry: EvidenceRegistry
     ) -> Dict[str, Any]:
         """
         Run questionnaire evaluation (300 questions) consuming evidence registry.
@@ -471,8 +488,9 @@ class UnifiedEvaluationPipeline:
             # Get parallel execution config
             parallel_config = self.config.get("parallel_processing", {})
             max_workers = parallel_config.get("max_workers", 4)
-            parallel_enabled = parallel_config.get("enabled", True) and \
-                              "questionnaire_engine" in parallel_config.get("components", [])
+            parallel_enabled = parallel_config.get(
+                "enabled", True
+            ) and "questionnaire_engine" in parallel_config.get("components", [])
 
             # Execute evaluation consuming evidence registry
             if parallel_enabled:
@@ -481,7 +499,7 @@ class UnifiedEvaluationPipeline:
                     evidence_registry=evidence_registry,
                     municipality=self.config.get("municipality", ""),
                     department=self.config.get("department", ""),
-                    max_workers=max_workers
+                    max_workers=max_workers,
                 )
             else:
                 logger.info("→ Using sequential execution")
@@ -489,37 +507,36 @@ class UnifiedEvaluationPipeline:
                     evidence_registry=evidence_registry,
                     municipality="",
                     department="",
-                    max_workers=1
+                    max_workers=1,
                 )
 
-            logger.info("✅ Questionnaire: %s questions evaluated", results['metadata']['total_evaluations'])
+            logger.info(
+                "✅ Questionnaire: %s questions evaluated",
+                results["metadata"]["total_evaluations"],
+            )
 
             return {
                 "status": "completed",
-                "total_questions": results['metadata']['total_evaluations'],
-                "answered_questions": results['questionnaire_structure']['questions_evaluated'],
-                "execution_time_seconds": results['metadata']['execution_time_seconds'],
+                "total_questions": results["metadata"]["total_evaluations"],
+                "answered_questions": results["questionnaire_structure"][
+                    "questions_evaluated"
+                ],
+                "execution_time_seconds": results["metadata"]["execution_time_seconds"],
                 "parallel_execution": parallel_enabled,
                 "evidence_consumed": True,
-                "evidence_hash": results['metadata']['evidence_hash'],
-                "overall_score": results['results']['global'].score_percentage,
-                "classification": results['results']['global'].classification.name,
-                "detailed_results": results
+                "evidence_hash": results["metadata"]["evidence_hash"],
+                "overall_score": results["results"]["global"].score_percentage,
+                "classification": results["results"]["global"].classification.name,
+                "detailed_results": results,
             }
 
         except Exception as e:
             logger.error("Questionnaire evaluation failed: %s", e, exc_info=True)
-            return {
-                "status": "error",
-                "error": str(e),
-                "evidence_consumed": False
-            }
+            return {"status": "error", "error": str(e), "evidence_consumed": False}
 
     @staticmethod
     def _export_results(
-        results: Dict[str, Any],
-        output_dir: str,
-        evidence_registry: EvidenceRegistry
+        results: Dict[str, Any], output_dir: str, evidence_registry: EvidenceRegistry
     ):
         """Export results to JSON files"""
         output_path = Path(output_dir)
@@ -531,7 +548,7 @@ class UnifiedEvaluationPipeline:
 
         # Export main results
         results_file = output_path / f"{plan_name}_results_{timestamp}.json"
-        with open(results_file, 'w', encoding='utf-8') as f:
+        with open(results_file, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
         logger.info("→ Exported results to %s", results_file)
 
@@ -546,7 +563,9 @@ def main():
     import sys
 
     if len(sys.argv) < 2:
-        print("Usage: python unified_evaluation_pipeline.py <pdm_path> [municipality] [department]")
+        print(
+            "Usage: python unified_evaluation_pipeline.py <pdm_path> [municipality] [department]"
+        )
         sys.exit(1)
 
     pdm_path = sys.argv[1]
@@ -556,7 +575,7 @@ def main():
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     # Run evaluation
@@ -565,18 +584,20 @@ def main():
         pdm_path=pdm_path,
         municipality=municipality,
         department=department,
-        export_json=True
+        export_json=True,
     )
 
     # Print summary
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("EVALUATION SUMMARY")
-    print("="*80)
+    print("=" * 80)
     print(f"Status: {results['status']}")
     print(f"Execution time: {results['metadata']['execution_time_seconds']:.2f}s")
-    print(f"Evidence items: {results['evidence_registry']['statistics']['total_evidence']}")
+    print(
+        f"Evidence items: {results['evidence_registry']['statistics']['total_evidence']}"
+    )
     print(f"Evidence hash: {results['evidence_registry']['deterministic_hash']}")
-    print("="*80)
+    print("=" * 80)
 
 
 if __name__ == "__main__":
