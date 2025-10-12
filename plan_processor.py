@@ -38,7 +38,7 @@ class PlanProcessor:
     with the DECALOGO Causal Framework Questionnaire. This component is the
     primary evidence provider for the QuestionnaireEngine.
     """
-    QUESTIONNAIRE_FILENAME = "decalogo_causal_questions.json"
+    QUESTIONNAIRE_FILENAME = "decalogo-industrial.latest.clean.json"
 
     def __init__(self, config_dir: Union[str, Path]):
         """
@@ -78,7 +78,7 @@ class PlanProcessor:
 
     def _load_questionnaire(self) -> Dict[str, Any]:
         """Loads the questionnaire from the specified config directory."""
-        questionnaire_path = self.config_dir / self.QUESTIONNAIRE_FILENAME
+        questionnaire_path = Path(self.QUESTIONNAIRE_FILENAME)
         try:
             with open(questionnaire_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
