@@ -203,7 +203,7 @@ class TextProcessor:
 # Additional lightweight helpers expected by tests
 # These functions intentionally keep logic minimal and Unicode-safe.
 
-def normalize_unicode(text: str, form: str = 'NFKC') -> str:
+def normalize_text_unicode(text: str, form: str = 'NFKC') -> str:
     """Normalize Unicode text using the specified form (default NFKC)."""
     if not text:
         return ""
@@ -218,7 +218,7 @@ def find_quotes(text: str) -> List[str]:
     """Find quoted substrings using double quotes after normalization."""
     if not text:
         return []
-    t = normalize_unicode(text)
+    t = normalize_text_unicode(text)
     # Remove smart quotes by converting to straight quotes via NFKC, then match
     return re.findall(r'"(.*?)"', t)
 
@@ -227,7 +227,7 @@ def count_words(text: str) -> int:
     """Count words in Unicode text. Words are sequences of word chars or letters."""
     if not text:
         return 0
-    t = normalize_unicode(text)
+    t = normalize_text_unicode(text)
     # Split on whitespace for robustness with accents; filter empties
     return len([w for w in re.split(r'\s+', t.strip()) if w])
 
@@ -236,7 +236,7 @@ def extract_emails(text: str) -> List[str]:
     """Extract email addresses allowing Unicode letters in local/domain parts."""
     if not text:
         return []
-    t = normalize_unicode(text)
+    t = normalize_text_unicode(text)
     # Allow word chars (includes Unicode letters), dots, hyphens in local and domain
     pattern = re.compile(r'[\w\.-]+@[\w\.-]+\.[A-Za-z]{2,}', re.UNICODE)
     return pattern.findall(t)
@@ -246,7 +246,7 @@ def replace_special_chars(text: str) -> str:
     """Replace common Unicode punctuation with ASCII equivalents or remove quotes."""
     if not text:
         return ""
-    t = normalize_unicode(text)
+    t = normalize_text_unicode(text)
     # Replace various dash types with ASCII hyphen
     t = re.sub(r'[\u2012\u2013\u2014\u2015\u2212]', '-', t)
     # Remove straight and smart double quotes entirely
@@ -259,7 +259,7 @@ def split_sentences(text: str) -> List[str]:
     """Split text into sentences using ., !, ? boundaries."""
     if not text:
         return []
-    t = normalize_unicode(text)
+    t = normalize_text_unicode(text)
     parts = re.split(r'(?<=[.!?])\s+', t)
     return [p for p in parts if p.strip()]
 
@@ -268,8 +268,8 @@ def search_pattern(text: str, pattern: str):
     """Search for a literal pattern in normalized text; returns a match or None."""
     if text is None or pattern is None:
         return None
-    t = normalize_unicode(text)
-    p = normalize_unicode(pattern)
+    t = normalize_text_unicode(text)
+    p = normalize_text_unicode(pattern)
     return re.search(re.escape(p), t)
 
 
@@ -277,7 +277,7 @@ def match_phone_numbers(text: str) -> List[str]:
     """Match common US phone number formats like 123-456-7890 or (123) 456-7890."""
     if not text:
         return []
-    t = normalize_unicode(text)
+    t = normalize_text_unicode(text)
     # Use finditer to capture entire matches
     regex = re.compile(r'(?:\(\d{3}\)\s*|\d{3}-)\d{3}-\d{4}')
     return [m.group(0) for m in regex.finditer(t)]
@@ -288,12 +288,12 @@ def highlight_keywords(text: str, keywords: List[str]) -> str:
     if not text:
         return ""
     if not keywords:
-        return normalize_unicode(text)
-    t = normalize_unicode(text)
+        return normalize_text_unicode(text)
+    t = normalize_text_unicode(text)
     for kw in keywords:
         if not kw:
             continue
-        kwn = normalize_unicode(kw)
+        kwn = normalize_text_unicode(kw)
         # Replace exact occurrences; case-sensitive as tests expect exact matches
         t = t.replace(kwn, f'**{kwn}**')
     return t
@@ -430,21 +430,21 @@ def create_text_processor(
 
 if __name__ == "__main__":
     # Example usage
-    processor = create_text_processor()
+    text_proc = create_text_processor()
     
     # Test with some Spanish text containing different Unicode representations
     test_text = "Este  es  un\ttexto   con\nespaçios  irregulares y carácteres especiales.\nÑandú.\r\n"
-    normalized = processor.normalize_text(test_text)
+    normalized = text_proc.normalize_text(test_text)
     
     print(f"Original: {repr(test_text)}")
     print(f"Normalized: {repr(normalized)}")
     
     # Test segmentation
     long_text = "Primera oración. " * 50 + "Segunda oración muy larga. " * 50
-    segments = processor.segment_text(long_text, max_length=200, overlap=20)
+    text_segments = text_proc.segment_text(long_text, max_length=200, overlap=20)
     
-    print(f"\nSegmented into {len(segments)} chunks:")
-    for i, segment in enumerate(segments[:3]):
+    print(f"\nSegmented into {len(text_segments)} chunks:")
+    for i, segment in enumerate(text_segments[:3]):
         print(f"Segment {i+1}: {segment[:50]}...")
-    if len(segments) > 3:
-        print(f"...and {len(segments)-3} more segments")
+    if len(text_segments) > 3:
+        print(f"...and {len(text_segments)-3} more segments")

@@ -76,17 +76,17 @@ def validate_rubric_weights(rubric_file='rubric_scoring.json'):
     print(f"\nSample weight IDs: {sorted(list(weight_ids))[:5]}")
     print(f"Last weight IDs: {sorted(list(weight_ids))[-5:]}")
     
-    success = (has_questions and has_weights and len(weight_ids) == 300 and 
+    all_passed = (has_questions and has_weights and len(weight_ids) == 300 and 
                all_correct and within_tolerance)
     
     print("\n" + "="*50)
-    if success:
+    if all_passed:
         print("✓ ALL VALIDATIONS PASSED")
     else:
         print("✗ SOME VALIDATIONS FAILED")
     print("="*50)
     
-    return success
+    return all_passed
 
 if __name__ == "__main__":
     success = validate_rubric_weights()

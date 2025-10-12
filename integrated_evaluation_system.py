@@ -389,31 +389,31 @@ if __name__ == "__main__":
         print("  python integrated_evaluation_system.py plan_anori.txt Anorí Antioquia")
         sys.exit(1)
     
-    pdm_path = sys.argv[1]
-    municipality = sys.argv[2] if len(sys.argv) > 2 else ""
-    department = sys.argv[3] if len(sys.argv) > 3 else ""
+    plan_path = sys.argv[1]
+    plan_municipality = sys.argv[2] if len(sys.argv) > 2 else ""
+    plan_department = sys.argv[3] if len(sys.argv) > 3 else ""
     
     print("\n" + "="*80)
     print("SISTEMA DE EVALUACIÓN INTEGRADO - MINIMINIMOON + QUESTIONNAIRE ENGINE")
     print("="*80 + "\n")
     
-    results = evaluate_pdm(
-        pdm_path=pdm_path,
-        municipality=municipality,
-        department=department,
+    evaluation_results = evaluate_pdm(
+        pdm_path=plan_path,
+        municipality=plan_municipality,
+        department=plan_department,
         export_results=True
     )
     
     # Mostrar resumen
-    summary = results.get("executive_summary", {})
+    exec_summary = evaluation_results.get("executive_summary", {})
     print("\n" + "="*80)
     print("RESUMEN EJECUTIVO")
     print("="*80)
-    print(f"Score Combinado: {summary.get('combined_score', 0):.1f}%")
-    print(f"Clasificación: {summary.get('classification', 'N/A')}")
+    print(f"Score Combinado: {exec_summary.get('combined_score', 0):.1f}%")
+    print(f"Clasificación: {exec_summary.get('classification', 'N/A')}")
     print("\nRecomendación:")
-    print(f"  {summary.get('recommendation', 'N/A')}")
+    print(f"  {exec_summary.get('recommendation', 'N/A')}")
     print("\nAcciones Prioritarias:")
-    for action in summary.get('priority_actions', []):
+    for action in exec_summary.get('priority_actions', []):
         print(f"  • {action}")
     print("="*80 + "\n")
