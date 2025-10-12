@@ -102,12 +102,8 @@ def test_orchestrator_call_compatibility():
     # Find QuestionnaireEngine instantiation
     found_call = False
     for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Call)
-            and (
-            isinstance(node.func, ast.Name)
-            and node.func.id == "QuestionnaireEngine"
-        )
+        if isinstance(node, ast.Call) and (
+            isinstance(node.func, ast.Name) and node.func.id == "QuestionnaireEngine"
         ):
             keyword_args = [kw.arg for kw in node.keywords]
 

@@ -245,14 +245,11 @@ class Gate2SystemValidatorsTest(unittest.TestCase):
 
         subprocess_calls = []
         for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Call)
-                and (
+            if isinstance(node, ast.Call) and (
                 hasattr(node.func, "attr")
                 and node.func.attr == "run"
                 and hasattr(node.func.value, "id")
                 and node.func.value.id == "subprocess"
-            )
             ):
                 subprocess_calls.append(node)
 
