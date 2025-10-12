@@ -6,9 +6,9 @@ from importlib import metadata
 from typing import Dict, List, Tuple
 
 REQUIRED_PACKAGES: Dict[str, str] = {
-    "sentence-transformers": "2.0.0",
-    "torch": "1.10.0",
-    "scikit-learn": "1.0.0",
+    "sentence-transformers": "2.2.0",
+    "torch": "1.12.0",
+    "scikit-learn": "1.5.0",
 }
 
 

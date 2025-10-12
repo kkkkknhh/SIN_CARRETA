@@ -340,14 +340,14 @@ class MiniMiniMoonAuditor:
                 }
 
                 # Version-specific checks
-                if pkg == "torch" and version < "1.10":
+                if pkg == "torch" and version < "1.12":
                     self.findings.append(
                         AuditFinding(
                             category=AuditCategory.DEPENDENCIES,
                             severity=Severity.MEDIUM,
                             component=pkg,
                             issue=f"PyTorch version {version} is outdated",
-                            recommendation="Upgrade to PyTorch >= 1.10",
+                            recommendation="Upgrade to PyTorch >= 1.12",
                             impact="May have compatibility issues with modern models",
                         )
                     )

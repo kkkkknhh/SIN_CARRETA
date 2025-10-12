@@ -17,9 +17,9 @@ def test_sota_embedding_instantiates_with_declared_requirements():
 
     required_versions = {
         "sentence-transformers": "2.2.0",
-        "torch": "1.9.0",
+        "torch": "1.12.0",
         "numpy": "1.21.0",
-        "scikit-learn": "1.0.0",
+        "scikit-learn": "1.5.0",
     }
 
     def fake_version(package_name: str) -> str:
@@ -27,9 +27,11 @@ def test_sota_embedding_instantiates_with_declared_requirements():
             return required_versions[package_name]
         raise importlib.metadata.PackageNotFoundError
 
-    with patch("importlib.metadata.version", side_effect=fake_version), patch("embedding_model.torch") as mock_torch, patch(
-        "embedding_model.SentenceTransformer"
-    ) as mock_sentence_transformer:
+    with (
+        patch("importlib.metadata.version", side_effect=fake_version),
+        patch("embedding_model.torch") as mock_torch,
+        patch("embedding_model.SentenceTransformer") as mock_sentence_transformer,
+    ):
         mock_torch.cuda.is_available.return_value = False
         mock_torch.device.side_effect = lambda dev: SimpleNamespace(type=dev)
         mock_torch.inference_mode.return_value = nullcontext()
