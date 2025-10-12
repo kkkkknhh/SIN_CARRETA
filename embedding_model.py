@@ -121,17 +121,17 @@ class ProductionLogger:
     def get_metrics(self) -> Dict[str, Any]:
         """Get collected metrics and statistics."""
         with self._lock:
-            stats = {}
+            metrics = {}
             for name, values in self._timings.items():
                 if values:
-                    stats[f"{name}_avg_ms"] = np.mean(values) * 1000
-                    stats[f"{name}_p95_ms"] = np.percentile(values, 95) * 1000
-                    stats[f"{name}_count"] = len(values)
+                    metrics[f"{name}_avg_ms"] = np.mean(values) * 1000
+                    metrics[f"{name}_p95_ms"] = np.percentile(values, 95) * 1000
+                    metrics[f"{name}_count"] = len(values)
 
             for name, value in self._metrics.items():
-                stats[name] = value
+                metrics[name] = value
 
-            return stats
+            return metrics
 
     def info(self, msg: str, **kwargs):
         self.logger.info(msg, extra=kwargs)
@@ -1186,13 +1186,13 @@ class IndustrialEmbeddingModel:
                         values2 = [item['numeric_value'] for item in numerics2[numeric_type] if
                                    item['numeric_value'] is not None]
 
-                        stats = analyzer.compute_statistical_distances(values1, values2)
-                        statistical_analysis[numeric_type] = stats
+                        stat_distances = analyzer.compute_statistical_distances(values1, values2)
+                        statistical_analysis[numeric_type] = stat_distances
 
                         # Risk assessment
-                        if stats.get('valid', False):
+                        if stat_distances.get('valid', False):
                             high_semantic_sim = semantic_similarity > 0.85
-                            significant_numeric_diff = stats.get('max_relative_diff', 0) > 0.25
+                            significant_numeric_diff = stat_distances.get('max_relative_diff', 0) > 0.25
 
                             if high_semantic_sim and significant_numeric_diff and len(values1) > 0:
                                 overall_risk_indicators.append({

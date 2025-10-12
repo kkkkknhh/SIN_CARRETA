@@ -293,9 +293,9 @@ def get_question_by_id(
     if decalogo_industrial is None:
         decalogo_industrial = get_decalogo_industrial()
     
-    questions = decalogo_industrial.get("questions", [])
+    all_questions = decalogo_industrial.get("questions", [])
     
-    for question in questions:
+    for question in all_questions:
         if question.get("id") == question_id:
             return question
     
@@ -353,11 +353,11 @@ if __name__ == "__main__":
     
     # Show DNP standards sample
     dnp = templates["dnp_standards"]
-    mapping = dnp.get("decalogo_dimension_mapping", {})
-    if mapping:
-        print(f"\nDNP Standards - Points mapped: {len(mapping)}")
+    dimension_mapping = dnp.get("decalogo_dimension_mapping", {})
+    if dimension_mapping:
+        print(f"\nDNP Standards - Points mapped: {len(dimension_mapping)}")
         print("\nSample dimension weights (P1):")
-        p1_config = mapping.get("P1", {})
+        p1_config = dimension_mapping.get("P1", {})
         for key, value in list(p1_config.items())[:6]:
             if key.endswith("_weight"):
                 print(f"- {key}: {value}")

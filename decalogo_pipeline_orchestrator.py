@@ -887,20 +887,20 @@ if __name__ == "__main__":
     """
     
     # Evaluate plan
-    evaluations = orchestrator.evaluate_plan(sample_plan, "PLAN_EJEMPLO_001")
+    plan_evaluations = orchestrator.evaluate_plan(sample_plan, "PLAN_EJEMPLO_001")
     
     # Generate report
-    report = orchestrator.generate_evaluation_report(evaluations)
+    evaluation_report = orchestrator.generate_evaluation_report(plan_evaluations)
     
     # Display results
     print("=== DECALOGO EVALUATION RESULTS ===")
-    print(f"Overall Score: {report['overall_score']:.2f}")
-    print(f"Evaluation Coverage: {report['evaluation_coverage']:.1%}")
+    print(f"Overall Score: {evaluation_report['overall_score']:.2f}")
+    print(f"Evaluation Coverage: {evaluation_report['evaluation_coverage']:.1%}")
     print("\nDimension Scores:")
-    for dim_id, score in report['summary']['dimensions'].items():
-        print(f"- {dim_id}: {score:.2f}")
+    for dim_id, dim_score in evaluation_report['summary']['dimensions'].items():
+        print(f"- {dim_id}: {dim_score:.2f}")
     
     print("\nQuestion Answers:")
-    for question_id, evaluation in evaluations.items():
-        print(f"- {question_id}: {evaluation.answer} (Score: {evaluation.score:.2f}, Confidence: {evaluation.confidence:.2f})")
-        print(f"  Justification: {evaluation.justification}")
+    for q_id, q_evaluation in plan_evaluations.items():
+        print(f"- {q_id}: {q_evaluation.answer} (Score: {q_evaluation.score:.2f}, Confidence: {q_evaluation.confidence:.2f})")
+        print(f"  Justification: {q_evaluation.justification}")

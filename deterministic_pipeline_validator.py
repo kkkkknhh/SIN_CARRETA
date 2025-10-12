@@ -75,14 +75,14 @@ class NodeContract:
             return False, errors
 
         # Check required fields
-        for field in self.required_inputs:
-            if field not in data:
-                errors.append(f"Missing required input field: {field}")
+        for field_name in self.required_inputs:
+            if field_name not in data:
+                errors.append(f"Missing required input field: {field_name}")
 
         # Check types (basic validation)
-        for field, expected_type in self.input_schema.items():
-            if field in data:
-                actual_type = type(data[field]).__name__
+        for field_name, expected_type in self.input_schema.items():
+            if field_name in data:
+                actual_type = type(data[field_name]).__name__
                 if not self._types_compatible(actual_type, expected_type):
                     errors.append(
                         f"Type mismatch for {field}: "
@@ -99,13 +99,13 @@ class NodeContract:
             errors.append(f"Output must be dict, got {type(data)}")
             return False, errors
 
-        for field in self.required_outputs:
-            if field not in data:
-                errors.append(f"Missing required output field: {field}")
+        for field_name in self.required_outputs:
+            if field_name not in data:
+                errors.append(f"Missing required output field: {field_name}")
 
-        for field, expected_type in self.output_schema.items():
-            if field in data:
-                actual_type = type(data[field]).__name__
+        for field_name, expected_type in self.output_schema.items():
+            if field_name in data:
+                actual_type = type(data[field_name]).__name__
                 if not self._types_compatible(actual_type, expected_type):
                     errors.append(
                         f"Type mismatch for {field}: "

@@ -597,7 +597,7 @@ def run_diagnostic(
         Complete diagnostic results including orchestrator output and metrics
     """
     runner = DiagnosticRunner(config_dir=config_dir)
-    results = runner.run_with_diagnostics(input_text, plan_id=plan_id)
+    diagnostic_results = runner.run_with_diagnostics(input_text, plan_id=plan_id)
     
     # Generate and save reports
     if output_dir is None:
@@ -610,7 +610,7 @@ def run_diagnostic(
     
     print(report)
     
-    return results
+    return diagnostic_results
 
 
 # ============================================================================
