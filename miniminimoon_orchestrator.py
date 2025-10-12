@@ -745,7 +745,7 @@ class CanonicalDeterministicOrchestrator:
         from dag_validation import DAGValidator
 
         self.plan_sanitizer = PlanSanitizer()
-        self.plan_processor = PlanProcessor()
+        self.plan_processor = PlanProcessor(self.config_dir)
         self.document_segmenter = DocumentSegmenter()
         self.embedding_model = EmbeddingModelPool.get_model()
         self.responsibility_detector = ResponsibilityDetector()
