@@ -1393,7 +1393,9 @@ class DimensionDecalogoAvanzada:
                 "manejabilidad_complejidad": factor_manejabilidad,
                 "coherencia_temporal": coherencia_temporal,
                 "dependencias_circulares": factor_dependencias,
-                "nivel_coherencia": self._clasificar_coherencia(coherencia_global),
+                "nivel_coherencia": self._clasificar_coherencia(
+                    coherencia_global
+                ),
             }
 
         except Exception as e:
@@ -1562,8 +1564,10 @@ class DimensionDecalogoAvanzada:
             }
 
     def generar_matriz_riesgos_avanzada(
-            self, evidence_registry=None) -> Dict[str, Dict[str, Any]]:
-        """Generación de matriz de riesgos avanzada con análisis probabilístico."""
+            self, evidence_registry=None
+    ) -> Dict[str, Dict[str, Any]]:
+        """Generación de matriz de riesgos avanzada con análisis
+        probabilístico."""
         matriz_riesgos = {}
 
         try:
@@ -1661,8 +1665,10 @@ class DimensionDecalogoAvanzada:
                     "riesgo_agregado": riesgo_agregado,
                     "clasificacion": clasificacion,
                     "color_indicator": color,
-                    "medidas_mitigacion": self._generar_medidas_mitigacion(
-                        eslabon, riesgos_eslabon
+                    "medidas_mitigacion": (
+                        self._generar_medidas_mitigacion(
+                            eslabon, riesgos_eslabon
+                        )
                     ),
                     "monitoreo_indicadores": self._generar_indicadores_monitoreo(
                         eslabon
@@ -1742,10 +1748,14 @@ class DimensionDecalogoAvanzada:
         elif eslabon.tipo == TipoCadenaValor.ACTIVIDADES:
             indicadores.extend(
                 [
-                    "Porcentaje de actividades implementadas según cronograma",
-                    "Porcentaje de actividades críticas completadas según cronograma",
-                    "Número de cuellos de botella identificados y resueltos",
-                ])
+                    "Porcentaje de actividades implementadas según "
+                    "cronograma",
+                    "Porcentaje de actividades críticas completadas "
+                    "según cronograma",
+                    "Número de cuellos de botella identificados y "
+                    "resueltos",
+                ]
+            )
         elif eslabon.tipo == TipoCadenaValor.PRODUCTOS:
             indicadores.extend(
                 [
@@ -1831,11 +1841,17 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
                 )
 
                 # Validación de identificabilidad
-                identificabilidad = teoria_cambio.verificar_identificabilidad_avanzada()
-                if identificabilidad["puntaje_global_identificabilidad"] < 0.4:
+                identificabilidad = (
+                    teoria_cambio.verificar_identificabilidad_avanzada()
+                )
+                if (
+                    identificabilidad["puntaje_global_identificabilidad"]
+                    < 0.4
+                ):
                     raise ValueError(
-                        f"Teoría de cambio no suficientemente identificable en dimensión {
-                            i + 1}")
+                        f"Teoría de cambio no suficientemente "
+                        f"identificable en dimensión {i + 1}"
+                    )
 
                 # Construcción de eslabones avanzados
                 eslabones = []
@@ -1993,7 +2009,11 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
             ("PRODUCTOS", "Bienes y servicios específicos entregados"),
             ("RESULTADOS", "Cambios medibles en la población objetivo"),
             ("IMPACTOS", "Transformaciones territoriales sostenibles"),
-            ("CAUSALIDAD", "Teoría de cambio, enlaces causales y modelo lógico de intervención"),
+            (
+                "CAUSALIDAD",
+                "Teoría de cambio, enlaces causales y modelo lógico de "
+                "intervención"
+            ),
         ]
 
         for tipo_idx, (tipo_nombre, descripcion) in enumerate(tipos_eslabon):
@@ -2506,23 +2526,32 @@ class ExtractorEvidenciaIndustrialAvanzado:
         try:
             # Patrones causales básicos
             patrones_causales = [
-                r"\b(porque|debido a|como consecuencia de|en razón de|a causa de|por efecto de)\b",
-                r"\b(genera|produce|causa|determina|influye en|afecta a|resulta en|conlleva)\b",
-                r"\b(impacto|efecto|resultado|consecuencia|repercusión|derivación)\b",
-                r"\b(mejora|aumenta|incrementa|reduce|disminuye|fortalece|debilita|optimiza)\b",
-                r"\b(siempre que|cuando|si|en caso de que)\b.*\b(entonces|por lo tanto|en consecuencia|se logra)\b",
+                r"\b(porque|debido a|como consecuencia de|en razón de|"
+                r"a causa de|por efecto de)\b",
+                r"\b(genera|produce|causa|determina|influye en|afecta a|"
+                r"resulta en|conlleva)\b",
+                r"\b(impacto|efecto|resultado|consecuencia|repercusión|"
+                r"derivación)\b",
+                r"\b(mejora|aumenta|incrementa|reduce|disminuye|fortalece|"
+                r"debilita|optimiza)\b",
+                r"\b(siempre que|cuando|si|en caso de que)\b.*"
+                r"\b(entonces|por lo tanto|en consecuencia|se logra)\b",
             ]
 
             # Patrones de correlación
             patrones_correlacion = [
-                r"\b(correlación|asociación|relación|vínculo)\b.*\b(con|entre|hacia)\b",
-                r"\b(mientras|a medida que|conforme|en tanto que)\b.*\b(más|menos|mayor|menor)\b",
+                r"\b(correlación|asociación|relación|vínculo)\b.*"
+                r"\b(con|entre|hacia)\b",
+                r"\b(mientras|a medida que|conforme|en tanto que)\b.*"
+                r"\b(más|menos|mayor|menor)\b",
             ]
 
             # Patrones temporales
             patrones_temporales = [
-                r"\b(antes|después|durante|posteriormente|previamente|inicialmente|finalmente)\b",
-                r"\b(primero|segundo|luego|seguido de|en paralelo|simultáneamente)\b",
+                r"\b(antes|después|durante|posteriormente|previamente|"
+                r"inicialmente|finalmente)\b",
+                r"\b(primero|segundo|luego|seguido de|en paralelo|"
+                r"simultáneamente)\b",
             ]
 
             # Contar matches por categoría
