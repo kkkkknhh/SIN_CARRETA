@@ -111,7 +111,8 @@ class PatternMatcher:
                     "negations": self._find_in_context(context, self.negations),
                 }
                 match_info["complexity"] = sum(
-                    len(match_info[key]) for key in ("goals", "action_verbs", "quantitative")
+                    len(match_info[key])
+                    for key in ("goals", "action_verbs", "quantitative")
                 )
                 match_info["has_uncertainty"] = bool(match_info["modals"])
                 match_info["has_negation"] = bool(match_info["negations"])
