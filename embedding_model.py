@@ -957,7 +957,7 @@ class IndustrialEmbeddingModel:
             alignment_scores = embeddings @ instruction_emb
 
             # Apply non-linear transformation based on alignment
-            alignment_weights = np.tanh(alignment_scores * 2.0)  # Smooth weighting
+            _alignment_weights = np.tanh(alignment_scores * 2.0)  # Smooth weighting
 
             # Multi-dimensional projection
             projection_matrix = np.outer(alignment_scores, instruction_emb)

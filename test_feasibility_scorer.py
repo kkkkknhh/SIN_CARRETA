@@ -447,9 +447,9 @@ class TestFeasibilityScorer:
         # Test that the main scorer might not be picklable due to logger
         try:
             pickle.dumps(scorer)
-            main_picklable = True
+            _main_picklable = True
         except Exception:
-            main_picklable = False
+            _main_picklable = False
 
         # Test that the copy is always picklable
         copy = scorer._create_picklable_copy()
@@ -1026,13 +1026,13 @@ class TestAtomicReportGeneration:
     def test_unique_temporary_filenames(self, scorer, test_indicators):
         """Test that temporary files have unique names to avoid conflicts."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            report_path = Path(temp_dir) / "test_report.md"
+            _report_path = Path(temp_dir) / "test_report.md"
 
             # Intercept temporary file creation to check uniqueness
             created_temp_files = []
             original_open = Path.open
 
-            def mock_open(self, *args, **kwargs):
+            def _mock_open(self, *args, **kwargs):
                 if str(self).endswith(".tmp."):
                     created_temp_files.append(str(self))
                 return original_open(self, *args, **kwargs)

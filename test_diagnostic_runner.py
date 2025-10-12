@@ -174,7 +174,7 @@ def test_contract_validator_output_validation():
     validator = ContractValidator()
     
     # Valid output
-    valid, errors = validator.validate_output(
+    valid, _errors = validator.validate_output(
         PipelineStage.SANITIZATION,
         {"sanitized_text": "test"}
     )
@@ -260,7 +260,7 @@ def test_diagnostic_wrapper_metrics_collection(mock_orchestrator):
     wrapper = DiagnosticWrapper(mock_orchestrator)
     
     # Execute a wrapped method
-    result = mock_orchestrator._sanitize({"text": "test"})
+    _result = mock_orchestrator._sanitize({"text": "test"})
     
     # Verify metrics were collected
     metrics = wrapper.get_metrics()

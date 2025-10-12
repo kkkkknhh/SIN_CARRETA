@@ -171,7 +171,7 @@ class TestAnnotatedExamples(unittest.TestCase):
             expected = next((exp for exp in example['expected_causal'] 
                            if exp[0] == match.connector), None)
             if expected:
-                is_causal, expected_confidence = expected[1], expected[2]
+                is_causal, _expected_confidence = expected[1], expected[2]
                 if is_causal:
                     self.assertGreater(match.confidence, 0.5,
                         f"True causal '{match.connector}' should have higher confidence")

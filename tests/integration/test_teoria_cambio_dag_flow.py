@@ -79,7 +79,7 @@ class TestTeoriaCambioDAGFlow:
         
         grafo = tc.construir_grafo_causal(elementos)
         
-        is_acyclic, details = validate_dag_acyclicity(grafo, num_samples=500, seed=42)
+        is_acyclic, _details = validate_dag_acyclicity(grafo, num_samples=500, seed=42)
         assert is_acyclic, "Complex graph should remain acyclic"
         assert len(grafo.nodes) >= 11
     

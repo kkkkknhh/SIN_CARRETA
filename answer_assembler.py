@@ -192,7 +192,7 @@ class AnswerAssembler:
             evidence_list = self._get_evidence_for_question(uid)
             confidence = self._calc_confidence(evidence_list, score)
             caveats = self._caveats(evidence_list, score)
-            rationale = self._rationale(uid, evidence_list, score)
+            _rationale = self._rationale(uid, evidence_list, score)
 
             question_answers.append({
                 "question_id": uid,

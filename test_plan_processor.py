@@ -88,7 +88,7 @@ class TestErrorLogger(unittest.TestCase):
     def test_creates_log_directory(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             log_dir = Path(temp_dir) / "test_logs"
-            logger = ErrorLogger(str(log_dir))
+            _logger = ErrorLogger(str(log_dir))
             self.assertTrue(log_dir.exists())
 
     def test_logs_error_to_individual_file(self):

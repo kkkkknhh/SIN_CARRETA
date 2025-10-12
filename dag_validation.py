@@ -75,10 +75,10 @@ def _power_approx(p: float, n: int, alpha: float=0.05) -> float:
 def _acyclic_random_sample(n_nodes: int, p_edge: float=0.2) -> bool:
     # Generamos un DAG orientando de i->j (i<j) y muestreamos presencia
     # Esto es acíclico por construcción; para no sesgar, agregamos pequeñas permutaciones
-    nodes = list(range(n_nodes))
+    _nodes = list(range(n_nodes))
     present = 0
     for i in range(n_nodes):
-        for j in range(i+1, n_nodes):
+        for _ in range(i+1, n_nodes):
             if random.random() < p_edge: present += 1
     # Con pequeña prob, introducimos una inversión que puede crear ciclo
     if random.random() < 0.1 and n_nodes >= 3:

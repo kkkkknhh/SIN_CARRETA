@@ -1012,7 +1012,7 @@ class ScoringEngine:
         """
 
         found_count = sum(1 for v in elements_found.values() if v)
-        total_elements = len(elements_found)
+        _total_elements = len(elements_found)
 
         if modality == ScoringModality.TYPE_A:
             # (found / 4) × 3

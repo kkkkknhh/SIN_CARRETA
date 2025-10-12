@@ -26,7 +26,7 @@ def check_artifact_exists(artifact_path: Path) -> bool:
     
     try:
         with open(artifact_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            _data = json.load(f)
         print(f"  ✓ {artifact_path.name} - EXISTS and is valid JSON")
         return True
     except json.JSONDecodeError as e:
