@@ -23,7 +23,7 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Pattern, Tuple, Any
+from typing import Any, Dict, List, Optional, Pattern, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +71,13 @@ class ContradictionDetector:
 
     def __init__(self, *args, **kwargs) -> None:
         if args:
-            raise TypeError("ContradictionDetector does not accept positional arguments")
+            raise TypeError(
+                "ContradictionDetector does not accept positional arguments"
+            )
 
-        self.context_window = int(kwargs.pop("context_window", self.DEFAULT_CONTEXT_WINDOW))
+        self.context_window = int(
+            kwargs.pop("context_window", self.DEFAULT_CONTEXT_WINDOW)
+        )
         self.evidence_registry = kwargs.pop("evidence_registry", None)
         if kwargs:
             unexpected = ", ".join(sorted(kwargs))
@@ -138,8 +142,7 @@ class ContradictionDetector:
         self.compiled_adversative = [re.compile(p, flags) for p in adversative]
         self.compiled_goals = [re.compile(p, flags) for p in goals]
         self.compiled_actions = [re.compile(p, flags) for p in actions]
-        self.compiled_quantitative = [
-            re.compile(p, flags) for p in quantitative]
+        self.compiled_quantitative = [re.compile(p, flags) for p in quantitative]
 
     def attach_evidence_registry(self, evidence_registry) -> None:
         """Attach an evidence registry instance after construction."""
@@ -149,7 +152,9 @@ class ContradictionDetector:
         """Update the context window length in characters."""
         self.context_window = int(context_window)
 
-    def configure(self, *, context_window: Optional[int] = None, evidence_registry=None) -> None:
+    def configure(
+        self, *, context_window: Optional[int] = None, evidence_registry=None
+    ) -> None:
         """Convenience helper to update runtime configuration."""
         if context_window is not None:
             self.set_context_window(context_window)
@@ -284,13 +289,11 @@ class ContradictionDetector:
 
         for adv_text, adv_start, adv_end in adversative_matches:
             # Extraer ventana de contexto alrededor del inicio del conector
-            context_text, context_start = self._extract_context(
-                normalized, adv_start)
+            context_text, context_start = self._extract_context(normalized, adv_start)
             # Buscar patrones dentro de la ventana de contexto; las posiciones devueltas
             # son relativas a la ventana (0..len(context_text)) si queremos compararlas
             # con la posición del adversativo en esa ventana, debemos ajustar.
-            goal_matches = self._find_pattern_matches(
-                context_text, self.compiled_goals)
+            goal_matches = self._find_pattern_matches(context_text, self.compiled_goals)
             action_matches = self._find_pattern_matches(
                 context_text, self.compiled_actions
             )
@@ -310,11 +313,9 @@ class ContradictionDetector:
                 adv_pos_in_context, goal_matches, action_matches, quantitative_matches
             )
             context_complexity = (
-                len(goal_matches) + len(action_matches) +
-                len(quantitative_matches)
+                len(goal_matches) + len(action_matches) + len(quantitative_matches)
             )
-            risk_level = self._determine_risk_level(
-                confidence, context_complexity)
+            risk_level = self._determine_risk_level(confidence, context_complexity)
 
             contradiction = ContradictionMatch(
                 adversative_connector=adv_text,
@@ -333,11 +334,9 @@ class ContradictionDetector:
 
         # Agregar cálculos agregados
         if contradictions:
-            risk_score = sum(
-                c.confidence for c in contradictions) / len(contradictions)
+            risk_score = sum(c.confidence for c in contradictions) / len(contradictions)
             highest_conf = max(contradictions, key=lambda c: c.confidence)
-            overall_risk = self._determine_risk_level(
-                risk_score, len(contradictions))
+            overall_risk = self._determine_risk_level(risk_score, len(contradictions))
         else:
             risk_score = 0.0
             highest_conf = None
@@ -379,11 +378,9 @@ class ContradictionDetector:
             high_count = analysis.summary.get("high", 0)
             medium_high_count = analysis.summary.get("medium-high", 0)
             severity_risk = (high_count * 0.2) + (medium_high_count * 0.15)
-            contradiction_risk = min(
-                1.0, base_risk + confidence_risk + severity_risk)
+            contradiction_risk = min(1.0, base_risk + confidence_risk + severity_risk)
 
-        integrated_score = min(1.0, float(
-            existing_score) + contradiction_risk * 0.3)
+        integrated_score = min(1.0, float(existing_score) + contradiction_risk * 0.3)
 
         highest_confidence = (
             analysis.highest_confidence_contradiction.confidence
@@ -434,7 +431,9 @@ class ContradictionDetector:
         # Detectar contradicciones de plazos
         temporal_contradictions = self._detect_temporal_contradictions(text)
 
-        all_contradictions = numeric_contradictions + semantic_contradictions + temporal_contradictions
+        all_contradictions = (
+            numeric_contradictions + semantic_contradictions + temporal_contradictions
+        )
 
         # Normalizar outputs
         for contradiction in all_contradictions:
@@ -461,8 +460,8 @@ class ContradictionDetector:
                 "provenance": {
                     "plan_name": plan_name,
                     "detector": "contradiction_detector",
-                    "detection_method": contradiction.get("method", "pattern")
-                }
+                    "detection_method": contradiction.get("method", "pattern"),
+                },
             }
 
             matches.append(normalized)
@@ -474,7 +473,7 @@ class ContradictionDetector:
                     evidence_type="contradiction",
                     content=normalized,
                     confidence=confidence,
-                    applicable_questions=applicable_qs
+                    applicable_questions=applicable_qs,
                 )
 
         # Calcular coherence score
@@ -484,7 +483,7 @@ class ContradictionDetector:
             "matches": matches,
             "total_contradictions": len(matches),
             "high_severity_count": sum(1 for m in matches if m["severity"] > 0.7),
-            "coherence_score": coherence_score
+            "coherence_score": coherence_score,
         }
 
     @staticmethod
@@ -545,7 +544,9 @@ class ContradictionDetector:
             return 0.5
 
         # Normalizar por longitud del texto
-        contradiction_density = num_contradictions / (text_length / 1000)  # Por cada 1000 chars
+        contradiction_density = num_contradictions / (
+            text_length / 1000
+        )  # Por cada 1000 chars
 
         # Score inverso (más contradicciones = menor score)
         coherence = 1.0 - min(1.0, contradiction_density * 0.2)
