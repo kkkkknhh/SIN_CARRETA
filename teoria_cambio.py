@@ -129,7 +129,7 @@ class TfidfBackend(EmbeddingBackend):
     def __init__(self):
         from sklearn.feature_extraction.text import TfidfVectorizer
         self.vec = TfidfVectorizer(min_df=1, ngram_range=(1, 2), norm="l2")
-        seed = [*" ".join(v) for v in RUBRIC_HINTS.values()]
+        seed = [" ".join(v) for v in RUBRIC_HINTS.values()]
         self.vec.fit(list(seed)+["educación salud empleo vivienda agua infancia seguridad ambiente género víctimas indicadores base"])
     def encode(self, texts: Sequence[str]) -> np.ndarray:
         return self.vec.transform(list(texts)).astype(np.float64).toarray()
