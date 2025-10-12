@@ -124,7 +124,7 @@ def main():
                     getattr(em, "create_industrial_embedding_model", None)
                     if args.factory in ("industrial", "auto")
                     else None
-                ) or getattr(em, "create_embedding_model")
+                ) or em.create_embedding_model
                 model = _create_model()
                 print(f"Model loaded successfully (CPU): {model.get_model_info()}")
             except Exception as e2:
