@@ -875,7 +875,7 @@ class CanonicalDeterministicOrchestrator:
                 question_ids = []
 
         if not question_ids and hasattr(engine, "questions"):
-            q_attr = getattr(engine, "questions")
+            q_attr = engine.questions
             if isinstance(q_attr, dict):
                 question_ids = list(q_attr.keys())
             elif isinstance(q_attr, list):
