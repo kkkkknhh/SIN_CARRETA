@@ -1,4 +1,3 @@
-# coding=utf-8
 """
 DAG VALIDATION (industrial wrapper) v2.0.0
 - Exporta DAGValidator.calculate_acyclicity_pvalue_advanced(plan_name, iterations=...)

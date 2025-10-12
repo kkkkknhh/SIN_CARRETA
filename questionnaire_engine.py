@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 AUTHORITATIVE QUESTIONNAIRE ENGINE v2.0 - COMPLETE IMPLEMENTATION
 """
@@ -1020,7 +1019,6 @@ class ScoringEngine:
             detail = f"({found_count}/4) × 3 = {score:.2f}"
 
         elif modality == ScoringModality.TYPE_B:
-            # min(found, 3)
             score = min(found_count, 3)
             detail = f"min({found_count}, 3) = {score:.2f}"
 
@@ -1843,7 +1841,6 @@ class QuestionnaireEngine:
             # (found / expected) × 3
             return round((found / max(1, expected)) * 3.0, 2)
         elif rule.modality == ScoringModality.TYPE_B:
-            # min(found, 3)
             return float(min(found, 3))
         elif rule.modality == ScoringModality.TYPE_C:
             # (found / 2) × 3

@@ -1,4 +1,3 @@
-# coding=utf-8
 """
 ULTIMATE CANONICAL DETERMINISTIC ORCHESTRATOR v2.2.0
 ====================================================

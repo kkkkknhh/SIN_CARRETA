@@ -1,4 +1,3 @@
-# coding=utf-8
 """
 VALIDATE TEORÍA DE CAMBIO (industrial harness) v2.1.0
 - Exporta execute_industrial_validation_detailed() que el orquestador consume.

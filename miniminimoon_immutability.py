@@ -1,4 +1,3 @@
-# coding=utf-8
 """
 MINIMINIMOON Enhanced Immutability Contract (v2.2)
 ==================================================

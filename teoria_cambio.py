@@ -1,4 +1,3 @@
-# coding=utf-8
 """
 INDUSTRIAL-GRADE TEORÍA DE CAMBIO v5.0.0 (self-contained, P–D–Q canonical)
 - Deterministic, thread-safe, dependency-graceful.

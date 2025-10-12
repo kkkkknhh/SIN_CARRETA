@@ -1,4 +1,3 @@
-# coding=utf-8
 """
 EXAMPLE USAGE — Diagnostic Runner
 ==================================

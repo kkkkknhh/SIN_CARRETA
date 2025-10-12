@@ -1,4 +1,3 @@
-# coding=utf-8
 """
 Pattern Detection Module for Policy Indicator Analysis
 ======================================================

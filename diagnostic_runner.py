@@ -1,4 +1,3 @@
-# coding=utf-8
 """
 DIAGNOSTIC RUNNER — Comprehensive Per-Node Instrumentation
 ===========================================================

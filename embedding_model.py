@@ -1,4 +1,3 @@
-# coding=utf-8
 """
 Industrial-Grade Embedding Model Framework
 ==========================================
