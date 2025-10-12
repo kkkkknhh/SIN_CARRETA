@@ -81,7 +81,7 @@ class IntegratedEvaluationSystem:
             Diccionario con resultados completos de ambos sistemas
         """
         logger.info("="*80)
-        logger.info(f"INICIANDO EVALUACIÓN COMPLETA: {pdm_path}")
+        logger.info("INICIANDO EVALUACIÓN COMPLETA: %s", pdm_path)
         logger.info("="*80)
         
         start_time = datetime.now()
@@ -95,7 +95,7 @@ class IntegratedEvaluationSystem:
         orchestrator_results = self.orchestrator.process_plan(pdm_path)
         
         if "error" in orchestrator_results:
-            logger.error(f"❌ Error en MINIMINIMOON: {orchestrator_results['error']}")
+            logger.error("❌ Error en MINIMINIMOON: %s", orchestrator_results['error'])
             return {
                 "status": "error",
                 "error": orchestrator_results["error"],
@@ -176,7 +176,7 @@ class IntegratedEvaluationSystem:
                 output_dir
             )
             integrated_results["metadata"]["export_path"] = str(output_path)
-            logger.info(f"💾 Resultados exportados a: {output_path}")
+            logger.info("💾 Resultados exportados a: %s", output_path)
         
         logger.info("\n" + "="*80)
         logger.info("🎉 EVALUACIÓN COMPLETA FINALIZADA")
@@ -188,24 +188,24 @@ class IntegratedEvaluationSystem:
     def _log_orchestrator_summary(results: Dict[str, Any]):
         """Log resumen de resultados del orchestrator"""
         logger.info("\n  Resumen MINIMINIMOON:")
-        logger.info(f"    • Responsabilidades detectadas: {len(results.get('responsibilities', []))}")
-        logger.info(f"    • Contradicciones detectadas: {results.get('contradictions', {}).get('total', 0)}")
-        logger.info(f"    • Valores monetarios detectados: {len(results.get('monetary', []))}")
-        logger.info(f"    • Patrones causales detectados: {len(results.get('causal_patterns', []))}")
-        logger.info(f"    • Teoría de cambio válida: {results.get('teoria_cambio', {}).get('is_valid', False)}")
+        logger.info("    • Responsabilidades detectadas: %s", len(results.get('responsibilities', [])))
+        logger.info("    • Contradicciones detectadas: %s", results.get('contradictions', {}).get('total', 0))
+        logger.info("    • Valores monetarios detectados: %s", len(results.get('monetary', [])))
+        logger.info("    • Patrones causales detectados: %s", len(results.get('causal_patterns', [])))
+        logger.info("    • Teoría de cambio válida: %s", results.get('teoria_cambio', {}).get('is_valid', False))
         
         eval_score = results.get('evaluation', {}).get('global_score', 0)
-        logger.info(f"    • Score global Decálogo: {eval_score:.2f}")
+        logger.info("    • Score global Decálogo: %.2f", eval_score)
     
     @staticmethod
     def _log_questionnaire_summary(results: Dict[str, Any]):
         """Log resumen de resultados del questionnaire"""
         summary = results.get("global_summary", {})
         logger.info("\n  Resumen Questionnaire Engine:")
-        logger.info(f"    • Total preguntas evaluadas: {len(results.get('evaluation_matrix', []))}")
-        logger.info(f"    • Score global: {summary.get('score_percentage', 0):.1f}%")
-        logger.info(f"    • Clasificación: {summary.get('classification', 'N/A')}")
-        logger.info(f"    • Puntos temáticos evaluados: {summary.get('points_evaluated', 0)}")
+        logger.info("    • Total preguntas evaluadas: %s", len(results.get('evaluation_matrix', [])))
+        logger.info("    • Score global: %.1f%%", summary.get('score_percentage', 0))
+        logger.info("    • Clasificación: %s", summary.get('classification', 'N/A'))
+        logger.info("    • Puntos temáticos evaluados: %s", summary.get('points_evaluated', 0))
     
     def _generate_executive_summary(
         self, 

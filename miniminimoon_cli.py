@@ -247,8 +247,8 @@ def cmd_diagnostic(args: argparse.Namespace) -> int:
     
     diagnostic_logger.info("=" * 80)
     diagnostic_logger.info("MINIMINIMOON DIAGNOSTIC RUN STARTED")
-    diagnostic_logger.info(f"Plan: {plan_path}")
-    diagnostic_logger.info(f"Repo: {repo}")
+    diagnostic_logger.info("Plan: %s", plan_path)
+    diagnostic_logger.info("Repo: %s", repo)
     diagnostic_logger.info("=" * 80)
     
     start_time = time.time()
@@ -266,10 +266,10 @@ def cmd_diagnostic(args: argparse.Namespace) -> int:
         total_time_sec = end_time - start_time
         
         diagnostic_logger.info("=" * 80)
-        diagnostic_logger.info(f"DIAGNOSTIC RUN COMPLETED - Status: {report.status.upper()}")
-        diagnostic_logger.info(f"Total execution time: {total_time_sec:.3f}s")
-        diagnostic_logger.info(f"JSON report: {json_path}")
-        diagnostic_logger.info(f"Markdown report: {md_path}")
+        diagnostic_logger.info("DIAGNOSTIC RUN COMPLETED - Status: %s", report.status.upper())
+        diagnostic_logger.info("Total execution time: %.3fs", total_time_sec)
+        diagnostic_logger.info("JSON report: %s", json_path)
+        diagnostic_logger.info("Markdown report: %s", md_path)
         diagnostic_logger.info("=" * 80)
         
         # Read and print markdown report to stdout
@@ -304,7 +304,7 @@ def cmd_diagnostic(args: argparse.Namespace) -> int:
             print(f"   Details: {determinism.get('notes', 'N/A')}")
             diagnostic_logger.warning("Non-deterministic behavior detected in execution")
             for key, val in determinism.items():
-                diagnostic_logger.warning(f"  {key}: {val}")
+                diagnostic_logger.warning("  %s: %s", key, val)
         
         print("=" * 80)
         print(f"\nDetailed logs: {diagnostic_log_path}")
@@ -323,8 +323,8 @@ def cmd_diagnostic(args: argparse.Namespace) -> int:
         # Log error with full context
         diagnostic_logger.error("=" * 80)
         diagnostic_logger.error("DIAGNOSTIC RUN FAILED")
-        diagnostic_logger.error(f"Error: {str(e)}")
-        diagnostic_logger.error(f"Total time before failure: {total_time_sec:.3f}s")
+        diagnostic_logger.error("Error: %s", str(e))
+        diagnostic_logger.error("Total time before failure: %.3fs", total_time_sec)
         diagnostic_logger.error("=" * 80)
         diagnostic_logger.error("Stack trace:")
         diagnostic_logger.error(traceback.format_exc())

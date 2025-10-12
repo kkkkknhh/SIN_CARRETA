@@ -1162,8 +1162,8 @@ class QuestionnaireEngine:
             self._load_rubric()
 
         logger.info("✅ QuestionnaireEngine v2.0 initialized with COMPLETE 30×10 structure")
-        logger.info(f"   📋 {len(self.base_questions)} base questions loaded")
-        logger.info(f"   🎯 {len(self.thematic_points)} thematic points loaded")
+        logger.info("   📋 %s base questions loaded", len(self.base_questions))
+        logger.info("   🎯 %s thematic points loaded", len(self.thematic_points))
 
     def _load_rubric(self):
         """Load rubric data from the provided path."""
@@ -1173,9 +1173,9 @@ class QuestionnaireEngine:
         try:
             with open(self.rubric_path, 'r', encoding='utf-8') as f:
                 self.rubric_data = json.load(f)
-            logger.info(f"✓ Rubric loaded from {self.rubric_path}")
+            logger.info("✓ Rubric loaded from %s", self.rubric_path)
         except Exception as e:
-            logger.warning(f"Could not load rubric from {self.rubric_path}: {e}")
+            logger.warning("Could not load rubric from %s: %s", self.rubric_path, e)
             self.rubric_data = None
 
     def _load_thematic_points(self) -> List[ThematicPoint]:
@@ -1186,7 +1186,7 @@ class QuestionnaireEngine:
         json_path = get_decalogo_path()
 
         if not json_path.exists():
-            logger.warning(f"JSON file not found: {json_path}. Creating default points.")
+            logger.warning("JSON file not found: %s. Creating default points.", json_path)
             return self._create_default_points()
 
         try:
@@ -1210,13 +1210,13 @@ class QuestionnaireEngine:
             points.sort(key=lambda p: int(p.id[1:]))
 
             if len(points) != 10:
-                logger.warning(f"Expected 10 points, found {len(points)}. Using defaults.")
+                logger.warning("Expected 10 points, found %s. Using defaults.", len(points))
                 return self._create_default_points()
 
             return points
 
         except Exception as e:
-            logger.error(f"Failed to load thematic points: {e}. Using defaults.")
+            logger.error("Failed to load thematic points: %s. Using defaults.", e)
             return self._create_default_points()
 
     @staticmethod
@@ -1310,7 +1310,7 @@ class QuestionnaireEngine:
         # Each dimension has 5 base questions, expanded to 50 questions across 10 points
         
         for point_idx, point in enumerate(self.thematic_points):
-            logger.info(f"📋 Evaluating {point.id}: {point.title}")
+            logger.info("📋 Evaluating %s: %s", point.id, point.title)
 
             point_results = {
                 "point_id": point.id,
@@ -1382,7 +1382,7 @@ class QuestionnaireEngine:
 
                 evaluation_count += 1
 
-                logger.debug(f"  ✓ {question_id}: Score {evaluation_result.score:.2f}/{evaluation_result.max_score}")
+                logger.debug("  ✓ %s: Score %.2f/%s", question_id, evaluation_result.score, evaluation_result.max_score)
 
             # Calculate dimension scores for this point
             for dim in ["D1", "D2", "D3", "D4", "D5", "D6"]:
@@ -1399,7 +1399,7 @@ class QuestionnaireEngine:
             all_point_scores.append(point_results["score_percentage"])
             results["thematic_points"].append(point_results)
 
-            logger.info(f"  ✅ {point.id} completed: {point_results['score_percentage']:.1f}% ({point_results['classification']})")
+            logger.info("  ✅ %s completed: %.1f%% (%s)", point.id, point_results['score_percentage'], point_results['classification'])
 
         # Final validation
         if evaluation_count != self.structure.TOTAL_QUESTIONS:
@@ -1445,8 +1445,8 @@ class QuestionnaireEngine:
         end_time = datetime.now()
         results["metadata"]["processing_time_seconds"] = (end_time - start_time).total_seconds()
 
-        logger.info(f"🎉 EVALUATION COMPLETE: {evaluation_count} questions evaluated")
-        logger.info(f"📊 Global Score: {global_score:.1f}% - {results['global_summary']['classification']}")
+        logger.info("🎉 EVALUATION COMPLETE: %s questions evaluated", evaluation_count)
+        logger.info("📊 Global Score: %.1f%% - %s", global_score, results['global_summary']['classification'])
 
         return results
 
@@ -1665,8 +1665,8 @@ class QuestionnaireEngine:
         import random
 
         logger.info("🚀 Starting PARALLEL evaluation with EvidenceRegistry")
-        logger.info(f"   Evidence available: {len(evidence_registry)} items")
-        logger.info(f"   Deterministic hash: {evidence_registry.deterministic_hash()[:16]}...")
+        logger.info("   Evidence available: %s items", len(evidence_registry))
+        logger.info("   Deterministic hash: %s...", evidence_registry.deterministic_hash()[:16])
 
         evaluation_id = str(uuid.uuid4())
         start_time = datetime.now()
@@ -1693,7 +1693,7 @@ class QuestionnaireEngine:
         # Sort tasks for deterministic ordering
         tasks.sort(key=lambda t: t["task_id"])
 
-        logger.info(f"   📋 Prepared {len(tasks)} evaluation tasks")
+        logger.info("   📋 Prepared %s evaluation tasks", len(tasks))
 
         # Execute evaluations consuming evidence
         all_results = []
@@ -2012,8 +2012,8 @@ if __name__ == "__main__":
     logger.info("=" * 80)
     logger.info(
         f"📊 Structure: {engine.structure.DOMAINS} points × {engine.structure.QUESTIONS_PER_DOMAIN} questions = {engine.structure.TOTAL_QUESTIONS} total")
-    logger.info(f"📋 Questions loaded: {len(engine.base_questions)}")
-    logger.info(f"🎯 Thematic points loaded: {len(engine.thematic_points)}")
+    logger.info("📋 Questions loaded: %s", len(engine.base_questions))
+    logger.info("🎯 Thematic points loaded: %s", len(engine.thematic_points))
     logger.info("=" * 80)
 
     # Test evaluation (with sample orchestrator results)
@@ -2038,4 +2038,4 @@ if __name__ == "__main__":
     output_file = Path("test_evaluation_results.json")
     engine.export_results(test_results, output_file)
 
-    logger.info(f"\n✅ Test complete! Check {output_file} for results.")
+    logger.info("\n✅ Test complete! Check %s for results.", output_file)

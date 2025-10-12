@@ -75,12 +75,17 @@ def configure_logging(
     root_logger.setLevel(level)
 
     LOGGER.debug(
-        f"Logging configured with level: {logging.getLevelName(level)} ({level}), json_format={json_requested}"
+        "Logging configured with level: %s (%s), json_format=%s",
+        logging.getLevelName(level),
+        level,
+        json_requested
     )
 
     if level_string.upper() != logging.getLevelName(level):
         LOGGER.warning(
-            f"Invalid LOG_LEVEL value '{level_string}' - falling back to {logging.getLevelName(level)}"
+            "Invalid LOG_LEVEL value '%s' - falling back to %s",
+            level_string,
+            logging.getLevelName(level)
         )
 
 

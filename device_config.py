@@ -28,10 +28,10 @@ class DeviceConfig:
         self.device = self._configure_device(device_str)
         self._setup_thread_configuration()
 
-        logger.info(f"PyTorch device configured: {self.device}")
-        logger.info(f"CUDA available: {torch.cuda.is_available()}")
+        logger.info("PyTorch device configured: %s", self.device)
+        logger.info("CUDA available: %s", torch.cuda.is_available())
         if torch.cuda.is_available():
-            logger.info(f"CUDA device count: {torch.cuda.device_count()}")
+            logger.info("CUDA device count: %s", torch.cuda.device_count())
 
     def _configure_device(self, device_str: Optional[str]) -> torch.device:
         """Configure and validate the PyTorch device."""
@@ -74,7 +74,7 @@ class DeviceConfig:
                     # Test device accessibility
                     try:
                         torch.zeros(1, device=device)
-                        logger.info(f"Validated CUDA device: {device}")
+                        logger.info("Validated CUDA device: %s", device)
                     except RuntimeError as e:
                         logger.warning(
                             f"CUDA device {device} not accessible: {e}. Falling back to CPU."
@@ -85,7 +85,7 @@ class DeviceConfig:
                     device = torch.device("cuda:0")
                     try:
                         torch.zeros(1, device=device)
-                        logger.info(f"Validated CUDA device: {device}")
+                        logger.info("Validated CUDA device: %s", device)
                     except RuntimeError as e:
                         logger.warning(
                             f"Default CUDA device not accessible: {e}. Falling back to CPU."
@@ -95,7 +95,7 @@ class DeviceConfig:
             return device
 
         except RuntimeError as e:
-            logger.error(f"Invalid device specification '{device_str}': {e}")
+            logger.error("Invalid device specification '%s': %s", device_str, e)
             logger.info("Falling back to CPU")
             return torch.device("cpu")
 

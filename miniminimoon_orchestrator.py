@@ -164,7 +164,7 @@ class EvidenceRegistry:
         with self._lock:
             eid = entry.evidence_id
             if eid in self._evidence:
-                self.logger.warning(f"Evidence {eid} already exists, overwriting")
+                self.logger.warning("Evidence %s already exists, overwriting", eid)
 
             self._evidence[eid] = entry
 
@@ -341,7 +341,7 @@ class AnswerAssembler:
                 error_parts.append(f"extra weights for {len(extra)} non-existent questions: {sample}")
             raise ValueError("Rubric validation FAILED (gate #5): " + "; ".join(error_parts))
 
-        self.logger.info(f"✓ Rubric validated (gate #5): {len(questions)} questions with {len(weights)} weights")
+        self.logger.info("✓ Rubric validated (gate #5): %s questions with %s weights", len(questions), len(weights))
 
     def assemble(self, evidence_registry: Any, evaluation_results: Dict[str, Any]) -> Dict[str, Any]:
         question_scores = evaluation_results.get("question_scores", [])
@@ -363,7 +363,7 @@ class AnswerAssembler:
 
             weight = self.weights.get(question_unique_id, 0.0)
             if weight == 0.0 and question_unique_id:
-                self.logger.warning(f"No rubric weight found for question '{question_unique_id}'")
+                self.logger.warning("No rubric weight found for question '%s'", question_unique_id)
 
             confidence = self._calculate_confidence(evidence_list, score)
             reasoning = self._generate_reasoning(dimension, evidence_list, score)
@@ -709,7 +709,7 @@ class CanonicalDeterministicOrchestrator:
         # Warmup models
         self.warmup_models()
 
-        self.logger.info(f"CanonicalDeterministicOrchestrator {self.VERSION} initialized")
+        self.logger.info("CanonicalDeterministicOrchestrator %s initialized", self.VERSION)
 
     def _set_deterministic_seeds(self):
         """Set seeds for deterministic behavior."""
@@ -727,7 +727,7 @@ class CanonicalDeterministicOrchestrator:
                 torch.backends.cudnn.deterministic = True
                 torch.backends.cudnn.benchmark = False
             except Exception as e:
-                self.logger.warning(f"Could not set torch determinism: {e}")
+                self.logger.warning("Could not set torch determinism: %s", e)
 
         self.logger.info("Deterministic seeds set (random=42, numpy=42, torch=42)")
 
@@ -785,7 +785,7 @@ class CanonicalDeterministicOrchestrator:
             model.encode(["warmup embedding sentinel"])
             self.logger.info("✅ Embedding model warmed")
         except Exception as e:
-            self.logger.warning(f"Embedding warmup failed: {e}")
+            self.logger.warning("Embedding warmup failed: %s", e)
 
         try:
             if hasattr(self.questionnaire_engine, "get_question_ids"):
@@ -798,7 +798,7 @@ class CanonicalDeterministicOrchestrator:
                             pass
             self.logger.info("✅ Questionnaire engine warmed")
         except Exception as e:
-            self.logger.warning(f"Questionnaire warmup failed: {e}")
+            self.logger.warning("Questionnaire warmup failed: %s", e)
 
         self.logger.info("✅ Models warmed successfully")
 
@@ -818,7 +818,7 @@ class CanonicalDeterministicOrchestrator:
                 batch_embeddings = self.embedding_model.encode(batch)
                 results.extend(batch_embeddings)
             except Exception as e:
-                self.logger.error(f"Embedding batch failed: {e}")
+                self.logger.error("Embedding batch failed: %s", e)
                 raise
 
             idx += batch_size
@@ -846,7 +846,7 @@ class CanonicalDeterministicOrchestrator:
         if not question_ids or not hasattr(engine, "evaluate_question"):
             return engine.evaluate()
 
-        self.logger.info(f"Parallel questionnaire evaluation over {len(question_ids)} questions")
+        self.logger.info("Parallel questionnaire evaluation over %s questions", len(question_ids))
 
         results_map: Dict[str, Any] = {}
 
@@ -861,7 +861,7 @@ class CanonicalDeterministicOrchestrator:
                 try:
                     res = future.result()
                 except Exception as e:
-                    self.logger.error(f"Question {qid} evaluation failed: {e}")
+                    self.logger.error("Question %s evaluation failed: %s", qid, e)
                     res = {"question_id": qid, "error": str(e), "score": 0.0}
 
                 results_map[qid] = res
@@ -913,7 +913,7 @@ class CanonicalDeterministicOrchestrator:
 
                     self.evidence_registry.register(entry)
                 except (TypeError, AttributeError) as e:
-                    self.logger.warning(f"Could not process item in stage {stage.value}: {e}")
+                    self.logger.warning("Could not process item in stage %s: %s", stage.value, e)
 
         register_evidence(PipelineStage.RESPONSIBILITY, all_inputs.get('responsibilities', []), 'resp')
         register_evidence(PipelineStage.MONETARY, all_inputs.get('monetary', []), 'money')
@@ -938,7 +938,7 @@ class CanonicalDeterministicOrchestrator:
                 if isinstance(industrial_metrics, list) and industrial_metrics:
                     register_evidence(PipelineStage.TEORIA, industrial_metrics, 'toc_metric')
 
-        self.logger.info(f"Evidence registry built with {len(self.evidence_registry._evidence)} entries")
+        self.logger.info("Evidence registry built with %s entries", len(self.evidence_registry._evidence))
 
         return {"status": "built", "entries": len(self.evidence_registry._evidence)}
 
@@ -970,10 +970,10 @@ class CanonicalDeterministicOrchestrator:
             }
 
         except ImportError as e:
-            self.logger.error(f"Failed to import Decatalogo_principal: {e}")
+            self.logger.error("Failed to import Decatalogo_principal: %s", e)
             raise
         except Exception as e:
-            self.logger.error(f"Failed to initialize Decatalogo extractor: {e}")
+            self.logger.error("Failed to initialize Decatalogo extractor: %s", e)
             raise
 
     def _execute_decalogo_evaluation(self, evidence_registry: EvidenceRegistry) -> Dict[str, Any]:
@@ -1005,7 +1005,7 @@ class CanonicalDeterministicOrchestrator:
                 standardized_id = self._standardize_question_id(raw_id)
 
                 if standardized_id not in weights:
-                    self.logger.warning(f"Question ID '{standardized_id}' not found in rubric weights")
+                    self.logger.warning("Question ID '%s' not found in rubric weights", standardized_id)
 
                 question_scores.append({
                     "question_unique_id": standardized_id,
@@ -1049,9 +1049,9 @@ class CanonicalDeterministicOrchestrator:
 
         total_questions = final_report.get("global_summary", {}).get("answered_questions", 0)
         if total_questions < 300:
-            self.logger.warning(f"Coverage is {total_questions}/300 questions")
+            self.logger.warning("Coverage is %s/300 questions", total_questions)
         else:
-            self.logger.info(f"✓ Coverage is {total_questions}/300 questions")
+            self.logger.info("✓ Coverage is %s/300 questions", total_questions)
 
         return final_report
 
@@ -1088,7 +1088,7 @@ class CanonicalDeterministicOrchestrator:
         if not plan_path.exists():
             raise FileNotFoundError(f"Plan not found: {plan_path}")
 
-        self.logger.info(f"Starting canonical 16-stage pipeline for: {plan_path.name}")
+        self.logger.info("Starting canonical 16-stage pipeline for: %s", plan_path.name)
         start_time = datetime.utcnow()
 
         if self.enable_validation:
@@ -1285,7 +1285,7 @@ class CanonicalDeterministicOrchestrator:
             "evidence_entries": len(self.evidence_registry._evidence)
         }
 
-        self.logger.info(f"Pipeline completed in {results['runtime_stats']['duration_seconds']:.1f}s")
+        self.logger.info("Pipeline completed in %.1fs", results['runtime_stats']['duration_seconds'])
 
         # Cache complete result
         if self.enable_document_result_cache:
@@ -1296,7 +1296,7 @@ class CanonicalDeterministicOrchestrator:
     def _run_stage(self, stage: PipelineStage, func: Callable, stages_list: List[str]) -> Any:
         """Execute a single pipeline stage with error handling."""
         stage_name = stage.value
-        self.logger.info(f"→ {stage_name}")
+        self.logger.info("→ %s", stage_name)
 
         try:
             result = func()
@@ -1305,7 +1305,7 @@ class CanonicalDeterministicOrchestrator:
             stages_list.append(stage_name)
             return result
         except Exception as e:
-            self.logger.error(f"Stage {stage_name} FAILED: {e}")
+            self.logger.error("Stage %s FAILED: %s", stage_name, e)
             if self.enable_validation:
                 self.runtime_tracer.record_stage(stage_name, success=False, error=str(e))
             raise
@@ -1349,7 +1349,7 @@ class CanonicalDeterministicOrchestrator:
             with open(flow_path, 'w', encoding='utf-8') as f:
                 json.dump(flow_runtime, f, indent=2, sort_keys=True, ensure_ascii=False)
 
-        self.logger.info(f"Artifacts exported to: {output_dir}")
+        self.logger.info("Artifacts exported to: %s", output_dir)
 
 
 # ============================================================================

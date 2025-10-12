@@ -220,7 +220,7 @@ class ResponsibilityDetector:
                 spacy_entities = self._extract_spacy_entities(doc, context_window)
                 entities.extend(spacy_entities)
             except Exception as e:
-                logger.warning(f"Error in spaCy entity extraction: {e}")
+                logger.warning("Error in spaCy entity extraction: %s", e)
         
         # Then, use pattern matching for specific entity types
         pattern_entities = self._extract_pattern_entities(text, context_window)

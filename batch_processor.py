@@ -70,7 +70,7 @@ class BatchJobManager:
         self.artifacts_base_dir = Path(artifacts_base_dir)
         self.artifacts_base_dir.mkdir(parents=True, exist_ok=True)
         
-        logger.info(f"BatchJobManager initialized with Redis at {redis_host}:{redis_port}")
+        logger.info("BatchJobManager initialized with Redis at %s:%s", redis_host, redis_port)
     
     @staticmethod
     def get_job_key(job_id: str) -> str:
@@ -91,13 +91,13 @@ class BatchJobManager:
         job_data_json = self.redis_client.get(job_key)
         
         if not job_data_json:
-            logger.warning(f"Job {job_id} not found in Redis")
+            logger.warning("Job %s not found in Redis", job_id)
             return None
         
         try:
             return json.loads(job_data_json)
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to decode job data for {job_id}: {e}")
+            logger.error("Failed to decode job data for %s: %s", job_id, e)
             return None
     
     def update_job_data(self, job_id: str, updates: Dict[str, Any]) -> bool:
@@ -113,7 +113,7 @@ class BatchJobManager:
         """
         job_data = self.get_job_data(job_id)
         if not job_data:
-            logger.error(f"Cannot update non-existent job {job_id}")
+            logger.error("Cannot update non-existent job %s", job_id)
             return False
         
         job_data.update(updates)
@@ -127,7 +127,7 @@ class BatchJobManager:
             )
             return True
         except Exception as e:
-            logger.error(f"Failed to update job data for {job_id}: {e}")
+            logger.error("Failed to update job data for %s: %s", job_id, e)
             return False
     
     def transition_to_processing(self, job_id: str) -> bool:
@@ -153,7 +153,7 @@ class BatchJobManager:
         
         success = self.update_job_data(job_id, updates)
         if success:
-            logger.info(f"Job {job_id} transitioned to PROCESSING")
+            logger.info("Job %s transitioned to PROCESSING", job_id)
         return success
     
     def update_progress(
@@ -217,7 +217,7 @@ class BatchJobManager:
         
         success = self.update_job_data(job_id, updates)
         if success:
-            logger.info(f"Job {job_id} transitioned to COMPLETED")
+            logger.info("Job %s transitioned to COMPLETED", job_id)
         return success
     
     def transition_to_failed(
@@ -243,7 +243,7 @@ class BatchJobManager:
         
         success = self.update_job_data(job_id, updates)
         if success:
-            logger.error(f"Job {job_id} transitioned to FAILED: {error_message}")
+            logger.error("Job %s transitioned to FAILED: %s", job_id, error_message)
         return success
     
     def store_artifacts(
@@ -269,7 +269,7 @@ class BatchJobManager:
         with open(results_file, "w", encoding="utf-8") as f:
             json.dump(artifacts, f, indent=2, ensure_ascii=False)
         
-        logger.info(f"Stored artifacts for job {job_id} at {job_artifacts_dir}")
+        logger.info("Stored artifacts for job %s at %s", job_id, job_artifacts_dir)
         return job_artifacts_dir
     
     def get_queue_depth(self, queue_name: str = "pdm_evaluation_queue") -> int:
@@ -285,7 +285,7 @@ class BatchJobManager:
         try:
             return self.redis_client.llen(queue_name)
         except Exception as e:
-            logger.error(f"Failed to get queue depth: {e}")
+            logger.error("Failed to get queue depth: %s", e)
             return 0
     
     def get_active_jobs(self) -> List[str]:
@@ -312,7 +312,7 @@ class BatchJobManager:
             
             return active_jobs
         except Exception as e:
-            logger.error(f"Failed to get active jobs: {e}")
+            logger.error("Failed to get active jobs: %s", e)
             return []
     
     def cleanup_expired_jobs(self) -> int:
@@ -338,9 +338,9 @@ class BatchJobManager:
                 if not job_data:
                     import shutil
                     shutil.rmtree(job_dir)
-                    logger.info(f"Cleaned up expired artifacts for job {job_id}")
+                    logger.info("Cleaned up expired artifacts for job %s", job_id)
                     cleaned += 1
         except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+            logger.error("Error during cleanup: %s", e)
         
         return cleaned

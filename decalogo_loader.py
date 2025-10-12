@@ -129,11 +129,11 @@ def _atomic_write_json(target_path: Path, data: Any) -> bool:
         
         # Perform atomic rename
         os.replace(temp_path, target_path)
-        logger.debug(f"Successfully wrote template to {target_path}")
+        logger.debug("Successfully wrote template to %s", target_path)
         return True
     
     except (PermissionError, OSError) as e:
-        logger.warning(f"Failed to write template to {target_path}: {e}")
+        logger.warning("Failed to write template to %s: %s", target_path, e)
         # Clean up temporary file if it exists
         if 'temp_path' in locals() and temp_path.exists():
             try:
@@ -160,17 +160,17 @@ def load_decalogo_industrial(path: Optional[str] = None) -> Dict[str, Any]:
         if template_path.exists():
             with open(template_path, 'r', encoding='utf-8') as f:
                 template_data = json.load(f)
-                logger.debug(f"Loaded template from {template_path}")
+                logger.debug("Loaded template from %s", template_path)
                 return template_data
         
         # If file doesn't exist, try to create it with default template
-        logger.info(f"Template not found at {template_path}, creating with default")
+        logger.info("Template not found at %s, creating with default", template_path)
         if _atomic_write_json(template_path, DECALOGO_INDUSTRIAL_TEMPLATE):
             return DECALOGO_INDUSTRIAL_TEMPLATE
     
     except (PermissionError, OSError, IOError, json.JSONDecodeError) as e:
         # Log detailed error but continue with fallback
-        logger.warning(f"Error accessing template at {template_path}: {e}")
+        logger.warning("Error accessing template at %s: %s", template_path, e)
     
     # Return in-memory fallback template
     logger.info("Using in-memory fallback template")
@@ -231,10 +231,10 @@ def load_dnp_standards(path: Optional[str] = None) -> Dict[str, Any]:
         if standards_path.exists():
             with open(standards_path, 'r', encoding='utf-8') as f:
                 standards_data = json.load(f)
-                logger.debug(f"Loaded DNP standards from {standards_path}")
+                logger.debug("Loaded DNP standards from %s", standards_path)
                 return standards_data
     except (PermissionError, OSError, IOError, json.JSONDecodeError) as e:
-        logger.warning(f"Error accessing DNP standards at {standards_path}: {e}")
+        logger.warning("Error accessing DNP standards at %s: %s", standards_path, e)
     logger.warning("DNP standards file not found, returning empty structure")
     return {
         "metadata": {"version": "2.0.0"},
@@ -261,7 +261,7 @@ def ensure_aligned_templates() -> Dict[str, Any]:
     decalogo_questions = len(decalogo_industrial.get("questions", []))
     dnp_dimensions = len(dnp_standards.get("decalogo_dimension_mapping", {}))
     
-    logger.info(f"Loaded templates: {decalogo_questions} questions, {dnp_dimensions} dimension mappings")
+    logger.info("Loaded templates: %s questions, %s dimension mappings", decalogo_questions, dnp_dimensions)
     
     alignment_status = "verified" if decalogo_questions == 300 else "incomplete"
     

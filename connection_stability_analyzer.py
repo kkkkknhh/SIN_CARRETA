@@ -180,15 +180,15 @@ class ConnectionStabilityAnalyzer:
     
     def _load_flow_specifications(self):
         """Load flow specifications from tools/flow_doc.json and DEPENDENCY_FLOWS.md"""
-        logger.info(f"Loading flow specifications from {self.flow_doc_path}")
+        logger.info("Loading flow specifications from %s", self.flow_doc_path)
         
         if self.flow_doc_path.exists():
             try:
                 with open(self.flow_doc_path, 'r') as f:
                     flow_doc = json.load(f)
-                logger.info(f"Loaded flow_doc.json: {flow_doc}")
+                logger.info("Loaded flow_doc.json: %s", flow_doc)
             except Exception as e:
-                logger.warning(f"Failed to load flow_doc.json: {e}")
+                logger.warning("Failed to load flow_doc.json: %s", e)
         
         dependency_flows_path = Path("DEPENDENCY_FLOWS.md")
         if dependency_flows_path.exists():
@@ -196,7 +196,7 @@ class ConnectionStabilityAnalyzer:
         
         self._load_contract_specifications()
         
-        logger.info(f"Loaded {len(self.flow_specifications)} flow specifications")
+        logger.info("Loaded %s flow specifications", len(self.flow_specifications))
     
     def _parse_dependency_flows(self, path: Path):
         """Parse DEPENDENCY_FLOWS.md to extract flow specifications"""
@@ -227,9 +227,9 @@ class ConnectionStabilityAnalyzer:
                                 description=f"{source} depends on {target}"
                             )
             
-            logger.info(f"Parsed {current_flow_id} flows from DEPENDENCY_FLOWS.md")
+            logger.info("Parsed %s flows from DEPENDENCY_FLOWS.md", current_flow_id)
         except Exception as e:
-            logger.error(f"Failed to parse DEPENDENCY_FLOWS.md: {e}")
+            logger.error("Failed to parse DEPENDENCY_FLOWS.md: %s", e)
     
     def _load_contract_specifications(self):
         """Load contract specifications from data_flow_contract module"""
@@ -257,9 +257,9 @@ class ConnectionStabilityAnalyzer:
                         performance_budget_ms=contract.metadata.get("performance_budget_ms")
                     )
             
-            logger.info(f"Loaded {len(contracts)} contract specifications")
+            logger.info("Loaded %s contract specifications", len(contracts))
         except Exception as e:
-            logger.warning(f"Failed to load contract specifications: {e}")
+            logger.warning("Failed to load contract specifications: %s", e)
     
     def get_or_create_metrics(self, connection_id: str) -> ConnectionMetrics:
         """Get or create metrics for a connection"""
@@ -273,7 +273,7 @@ class ConnectionStabilityAnalyzer:
         metrics.retry_count += 1
         metrics.total_attempts += 1
         metrics.backoff_delays.append(backoff_delay)
-        logger.debug(f"Retry tracked for {connection_id}: delay={backoff_delay}ms, total_retries={metrics.retry_count}")
+        logger.debug("Retry tracked for %s: delay=%sms, total_retries=%s", connection_id, backoff_delay, metrics.retry_count)
     
     def track_attempt(self, connection_id: str, success: bool, latency_ms: float = 0.0):
         """Track a connection attempt"""
@@ -305,7 +305,7 @@ class ConnectionStabilityAnalyzer:
                 break
         
         if not flow_spec:
-            logger.warning(f"No flow specification found for {connection_id}")
+            logger.warning("No flow specification found for %s", connection_id)
             return True, []
         
         for field_name, expected_type in flow_spec.output_schema.items():
@@ -372,7 +372,7 @@ class ConnectionStabilityAnalyzer:
         
         if not is_valid:
             self.get_or_create_metrics(connection_id).cardinality_violations += 1
-            logger.warning(f"Cardinality violation for {connection_id}: {error_msg}")
+            logger.warning("Cardinality violation for %s: %s", connection_id, error_msg)
         
         return is_valid, error_msg
     
@@ -415,7 +415,7 @@ class ConnectionStabilityAnalyzer:
         metrics = self.get_or_create_metrics(connection_id)
         metrics.schema_mismatches += 1
         
-        logger.error(f"Schema mismatch captured for {connection_id}: {len(missing_fields)} missing, {len(type_mismatches)} type errors")
+        logger.error("Schema mismatch captured for %s: %s missing, %s type errors", connection_id, len(missing_fields), len(type_mismatches))
     
     def analyze_connection_stability(self, connection_id: str) -> Dict[str, Any]:
         """
@@ -658,7 +658,7 @@ class ConnectionStabilityAnalyzer:
         with open(output_file, 'w') as f:
             json.dump(report, f, indent=2)
         
-        logger.info(f"Connection stability report exported to {output_file}")
+        logger.info("Connection stability report exported to %s", output_file)
         return report
 
 

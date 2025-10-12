@@ -165,7 +165,7 @@ def normalize_unicode(text: str, form: str = 'NFC') -> str:
     try:
         return unicodedata.normalize(form, text)
     except (TypeError, ValueError) as e:
-        logging.warning(f"Unicode normalization failed: {e}")
+        logging.warning("Unicode normalization failed: %s", e)
         return text
 
 
@@ -455,7 +455,7 @@ class IndustrialUnicodeAnalyzer:
             'cache_misses': 0,
         }
 
-        self.logger.info(f"Analyzer initialized with config: {self.config}")
+        self.logger.info("Analyzer initialized with config: %s", self.config)
 
     @staticmethod
     def _validate_and_load_config(user_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -518,7 +518,7 @@ class IndustrialUnicodeAnalyzer:
                 file_handler.setFormatter(file_formatter)
                 logger.addHandler(file_handler)
             except Exception as e:
-                logger.warning(f"Could not set up file logging: {e}")
+                logger.warning("Could not set up file logging: %s", e)
 
         return logger
 
@@ -542,7 +542,7 @@ class IndustrialUnicodeAnalyzer:
                 matches = pattern.findall(text)
                 results[pattern_name] = len(matches)
             except Exception as e:
-                self.logger.warning(f"Pattern {pattern_name} failed: {e}")
+                self.logger.warning("Pattern %s failed: %s", pattern_name, e)
                 results[pattern_name] = 0
 
         return results
@@ -701,7 +701,7 @@ class IndustrialUnicodeAnalyzer:
                 return metrics
 
         except Exception as e:
-            self.logger.error(f"Analysis failed for text {text_id}: {e}")
+            self.logger.error("Analysis failed for text %s: %s", text_id, e)
             raise ProcessingError(f"Text analysis failed: {e}")
 
     @staticmethod
@@ -856,7 +856,7 @@ class IndustrialUnicodeAnalyzer:
                 )
 
             except Exception as e:
-                self.logger.error(f"Comparison failed for text {text_id}: {e}")
+                self.logger.error("Comparison failed for text %s: %s", text_id, e)
                 raise ProcessingError(f"Normalization comparison failed: {e}")
 
     @staticmethod
@@ -967,12 +967,12 @@ class IndustrialUnicodeAnalyzer:
                     completed += 1
 
                 except TimeoutError:
-                    self.logger.error(f"Timeout analyzing text {text_id}")
+                    self.logger.error("Timeout analyzing text %s", text_id)
                     failed_results.append(self._create_error_result(text, text_id, "Analysis timeout"))
                     completed += 1
 
                 except Exception as e:
-                    self.logger.error(f"Failed to analyze text {text_id}: {e}")
+                    self.logger.error("Failed to analyze text %s: %s", text_id, e)
                     failed_results.append(self._create_error_result(text, text_id, str(e)))
                     completed += 1
 
@@ -981,12 +981,12 @@ class IndustrialUnicodeAnalyzer:
                     try:
                         progress_callback(completed, total)
                     except Exception as e:
-                        self.logger.warning(f"Progress callback failed: {e}")
+                        self.logger.warning("Progress callback failed: %s", e)
 
         # Add failed results
         results.extend(failed_results)
 
-        self.logger.info(f"Batch analysis completed: {len(results) - len(failed_results)}/{total} successful")
+        self.logger.info("Batch analysis completed: %s/%s successful", len(results) - len(failed_results), total)
         return results
 
     @staticmethod
@@ -1013,10 +1013,10 @@ class IndustrialUnicodeAnalyzer:
             else:
                 raise ExportError(f"Unsupported format: {format_type}")
 
-            self.logger.info(f"Results exported to {output_path}")
+            self.logger.info("Results exported to %s", output_path)
 
         except Exception as e:
-            self.logger.error(f"Export failed: {e}")
+            self.logger.error("Export failed: %s", e)
             raise ExportError(f"Export to {output_path} failed: {e}")
 
     def _export_json(self, results: List[ComparisonResult], output_path: Path) -> None:

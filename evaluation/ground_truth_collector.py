@@ -75,13 +75,13 @@ class GroundTruthCollector:
         if PANDAS_AVAILABLE and output_file.suffix == '.csv':
             df = pd.DataFrame(self.pending_labels)
             df.to_csv(output_file, index=False)
-            logger.info(f"{len(df)} items exportados para labeling: {output_file}")
+            logger.info("%s items exportados para labeling: %s", len(df), output_file)
         else:
             # Fallback to JSON
             json_file = output_file.with_suffix('.json')
             with open(json_file, 'w') as f:
                 json.dump(self.pending_labels, f, indent=2)
-            logger.info(f"{len(self.pending_labels)} items exportados a JSON: {json_file}")
+            logger.info("%s items exportados a JSON: %s", len(self.pending_labels), json_file)
     
     @staticmethod
     def import_labeled_data(input_file: Path) -> Dict[str, List[Tuple]]:
@@ -105,7 +105,7 @@ class GroundTruthCollector:
                                subset['prediction'].astype(int)))
                 grouped[detector] = pairs
             
-            logger.info(f"Importados {len(df)} labels de {len(grouped)} detectores")
+            logger.info("Importados %s labels de %s detectores", len(df), len(grouped))
             return grouped
         else:
             # Fallback to JSON
@@ -124,7 +124,7 @@ class GroundTruthCollector:
                     grouped[detector] = []
                 grouped[detector].append((int(item['ground_truth']), int(item['prediction'])))
             
-            logger.info(f"Importados {len(labeled)} labels de {len(grouped)} detectores desde JSON")
+            logger.info("Importados %s labels de %s detectores desde JSON", len(labeled), len(grouped))
             return grouped
     
     def clear_pending(self):
@@ -144,7 +144,7 @@ class GroundTruthCollector:
         checkpoint_file.parent.mkdir(parents=True, exist_ok=True)
         with open(checkpoint_file, 'w') as f:
             json.dump(self.pending_labels, f, indent=2)
-        logger.info(f"Checkpoint guardado: {checkpoint_file}")
+        logger.info("Checkpoint guardado: %s", checkpoint_file)
     
     def load_checkpoint(self, checkpoint_file: Path = None):
         """Carga checkpoint de items pendientes"""
@@ -154,9 +154,9 @@ class GroundTruthCollector:
         if checkpoint_file.exists():
             with open(checkpoint_file, 'r') as f:
                 self.pending_labels = json.load(f)
-            logger.info(f"Checkpoint cargado: {checkpoint_file} ({len(self.pending_labels)} items)")
+            logger.info("Checkpoint cargado: %s (%s items)", checkpoint_file, len(self.pending_labels))
         else:
-            logger.warning(f"No checkpoint encontrado en {checkpoint_file}")
+            logger.warning("No checkpoint encontrado en %s", checkpoint_file)
 
 
 # ============================================================================

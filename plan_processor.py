@@ -83,7 +83,7 @@ class PlanProcessor:
             with open(questionnaire_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            logger.error(f"FATAL: Could not load or parse questionnaire at {questionnaire_path}: {e}")
+            logger.error("FATAL: Could not load or parse questionnaire at %s: %s", questionnaire_path, e)
             raise IOError(f"Questionnaire file not found or invalid: {questionnaire_path}") from e
 
     def _build_patterns_from_questionnaire(self):
@@ -108,7 +108,7 @@ class PlanProcessor:
             pattern_str = "|".join(r'\b' + re.escape(kw) + r'\b' for kw in sorted_keywords if kw)
             self.point_patterns[code] = re.compile(f"(?i)({pattern_str})")
 
-        logger.info(f"Built keyword patterns for {len(self.point_patterns)} policy points.")
+        logger.info("Built keyword patterns for %s policy points.", len(self.point_patterns))
 
     def process(self, text: str) -> Dict[str, Any]:
         """

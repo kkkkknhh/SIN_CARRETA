@@ -95,7 +95,7 @@ class EnhancedImmutabilityContract:
         self.snapshot_path = Path(snapshot_path) if snapshot_path else Path(self.SNAPSHOT_FILE)
         self.logger = logging.getLogger(__name__)
 
-        self.logger.debug(f"Immutability contract initialized (config_dir={self.config_dir})")
+        self.logger.debug("Immutability contract initialized (config_dir=%s)", self.config_dir)
 
     @classmethod
     def from_repo_root(cls, repo_root: Path) -> "EnhancedImmutabilityContract":
@@ -157,7 +157,7 @@ class EnhancedImmutabilityContract:
             filepath = self.config_dir / filename
             if filepath.exists():
                 files[filename] = filepath
-                self.logger.debug(f"Found optional config: {filename}")
+                self.logger.debug("Found optional config: %s", filename)
 
         return files
 
@@ -190,7 +190,7 @@ class EnhancedImmutabilityContract:
                     "path": str(filepath.absolute()),
                     "size_bytes": filepath.stat().st_size
                 }
-                self.logger.debug(f"  {filename}: {file_hash[:12]}...")
+                self.logger.debug("  %s: %s...", filename, file_hash[:12])
             except Exception as e:
                 raise RuntimeError(f"Failed to hash {filename}: {e}")
 
@@ -222,7 +222,7 @@ class EnhancedImmutabilityContract:
                 f"✓ Configuration frozen: {snapshot['snapshot_hash'][:16]}... "
                 f"({len(file_hashes)} files)"
             )
-            self.logger.info(f"  Snapshot saved to: {self.snapshot_path.absolute()}")
+            self.logger.info("  Snapshot saved to: %s", self.snapshot_path.absolute())
 
             return snapshot
 
@@ -239,9 +239,9 @@ class EnhancedImmutabilityContract:
         exists = self.snapshot_path.exists()
 
         if exists:
-            self.logger.debug(f"Snapshot found: {self.snapshot_path}")
+            self.logger.debug("Snapshot found: %s", self.snapshot_path)
         else:
-            self.logger.debug(f"No snapshot found at: {self.snapshot_path}")
+            self.logger.debug("No snapshot found at: %s", self.snapshot_path)
 
         return exists
 
@@ -307,7 +307,7 @@ class EnhancedImmutabilityContract:
             self.logger.error("⨯ No snapshot found (gate #1 prerequisite)")
             return False
         except Exception as e:
-            self.logger.error(f"⨯ Failed to load snapshot: {e}")
+            self.logger.error("⨯ Failed to load snapshot: %s", e)
             return False
 
         # Get current file hashes
@@ -321,7 +321,7 @@ class EnhancedImmutabilityContract:
             # Check file exists
             if not filepath.exists():
                 missing_files.append(filename)
-                self.logger.error(f"⨯ Config file missing: {filename}")
+                self.logger.error("⨯ Config file missing: %s", filename)
                 continue
 
             # Compute current hash
@@ -339,10 +339,10 @@ class EnhancedImmutabilityContract:
                         f"(expected {expected_hash[:12]}..., got {current_hash[:12]}...)"
                     )
                 else:
-                    self.logger.debug(f"  ✓ {filename}: hash matches")
+                    self.logger.debug("  ✓ %s: hash matches", filename)
 
             except Exception as e:
-                self.logger.error(f"⨯ Error verifying {filename}: {e}")
+                self.logger.error("⨯ Error verifying %s: %s", filename, e)
                 mismatches.append({
                     "file": filename,
                     "error": str(e)
@@ -358,12 +358,12 @@ class EnhancedImmutabilityContract:
             if mismatches:
                 self.logger.error("  Mismatched files:")
                 for m in mismatches:
-                    self.logger.error(f"    - {m['file']}")
+                    self.logger.error("    - %s", m['file'])
 
             if missing_files:
                 self.logger.error("  Missing files:")
                 for f in missing_files:
-                    self.logger.error(f"    - {f}")
+                    self.logger.error("    - %s", f)
 
             return False
 
@@ -531,12 +531,12 @@ class EnhancedImmutabilityContract:
             else:
                 if report["status"] == "unknown":
                     report["status"] = "PARTIAL"
-                self.logger.warning(f"⚠ Decatalogo_principal verification: {report['status']}")
+                self.logger.warning("⚠ Decatalogo_principal verification: %s", report['status'])
 
         except Exception as e:
             report["status"] = "ERROR"
             report["error"] = str(e)
-            self.logger.error(f"✗ Error verifying Decatalogo_principal: {e}")
+            self.logger.error("✗ Error verifying Decatalogo_principal: %s", e)
 
         return report
 

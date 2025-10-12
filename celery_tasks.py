@@ -78,7 +78,7 @@ def process_document_task(
     """
     start_time = time.time()
     
-    logger.info(f"Processing document {document_index} for job {job_id}: {document_path}")
+    logger.info("Processing document %s for job %s: %s", document_index, job_id, document_path)
     
     try:
         # Transition job to processing state (first document only)
@@ -134,7 +134,7 @@ def process_document_task(
         documents_processed_total.labels(status="success").inc()
         batch_document_processing_latency_seconds.observe(processing_time)
         
-        logger.info(f"Successfully processed document {document_index} for job {job_id} in {processing_time:.2f}s")
+        logger.info("Successfully processed document %s for job %s in %.2fs", document_index, job_id, processing_time)
         
         return {
             "status": "success",
@@ -148,7 +148,7 @@ def process_document_task(
         processing_time = time.time() - start_time
         error_msg = f"Document processing failed: {str(e)}\n{traceback.format_exc()}"
         
-        logger.error(f"Failed to process document {document_index} for job {job_id}: {error_msg}")
+        logger.error("Failed to process document %s for job %s: %s", document_index, job_id, error_msg)
         
         # Update metrics
         documents_processed_total.labels(status="error").inc()
@@ -177,7 +177,7 @@ def aggregate_batch_results_task(self, job_id: str) -> Dict[str, Any]:
     Returns:
         Aggregated results dictionary
     """
-    logger.info(f"Aggregating batch results for job {job_id}")
+    logger.info("Aggregating batch results for job %s", job_id)
     
     try:
         job_data = batch_manager.get_job_data(job_id)
@@ -229,12 +229,12 @@ def aggregate_batch_results_task(self, job_id: str) -> Dict[str, Any]:
         # Transition to completed
         batch_manager.transition_to_completed(job_id, aggregated_results)
         
-        logger.info(f"Successfully aggregated results for job {job_id}")
+        logger.info("Successfully aggregated results for job %s", job_id)
         
         return aggregated_results
         
     except Exception as e:
         error_msg = f"Batch aggregation failed: {str(e)}\n{traceback.format_exc()}"
-        logger.error(f"Failed to aggregate results for job {job_id}: {error_msg}")
+        logger.error("Failed to aggregate results for job %s: %s", job_id, error_msg)
         batch_manager.transition_to_failed(job_id, error_msg)
         raise

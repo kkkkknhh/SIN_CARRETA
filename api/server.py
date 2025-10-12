@@ -128,7 +128,7 @@ def get_redis_client() -> redis.Redis:
         client.ping()
         return client
     except redis.ConnectionError as e:
-        logger.error(f"Failed to connect to Redis: {e}")
+        logger.error("Failed to connect to Redis: %s", e)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Redis service unavailable",
@@ -305,7 +305,7 @@ def store_job_metadata(
         JOB_TTL_SECONDS,
         json.dumps(job_data),
     )
-    logger.info(f"Stored metadata for job {job_id} with TTL {JOB_TTL_SECONDS}s")
+    logger.info("Stored metadata for job %s with TTL %ss", job_id, JOB_TTL_SECONDS)
 
 
 def enqueue_job(job_id: str, job_data: Dict[str, Any]) -> None:
@@ -343,7 +343,7 @@ def enqueue_job(job_id: str, job_data: Dict[str, Any]) -> None:
     # Update queue depth metric
     queue_depth.labels(queue_name=TASK_QUEUE_NAME).set(batch_manager.get_queue_depth(TASK_QUEUE_NAME))
     
-    logger.info(f"Enqueued job {job_id} with {len(filenames)} documents to Celery")
+    logger.info("Enqueued job %s with %s documents to Celery", job_id, len(filenames))
 
 
 def get_worker_count(redis_client: redis.Redis) -> int:
@@ -364,7 +364,7 @@ def get_worker_count(redis_client: redis.Redis) -> int:
         worker_keys = list(redis_client.scan_iter(match=pattern, count=100))
         return len(worker_keys)
     except Exception as e:
-        logger.error(f"Failed to get worker count: {e}")
+        logger.error("Failed to get worker count: %s", e)
         return 0
 
 
@@ -468,7 +468,7 @@ async def upload_documents(
                 )
             
             stored_filenames.append(deterministic_filename)
-            logger.info(f"Stored file {file.filename} as {deterministic_filename}")
+            logger.info("Stored file %s as %s", file.filename, deterministic_filename)
         
         redis_client = get_redis_client()
         
@@ -503,7 +503,7 @@ async def upload_documents(
         
         enqueue_job(job_id, job_data)
         
-        logger.info(f"Job {job_id} scheduled with {len(batches)} batches, concurrency={current_concurrency}")
+        logger.info("Job %s scheduled with %s batches, concurrency=%s", job_id, len(batches), current_concurrency)
         
         submission_time = datetime.utcnow()
         estimated_completion = submission_time + timedelta(minutes=len(files) * 2)
@@ -523,7 +523,7 @@ async def upload_documents(
     except Exception as e:
         if job_dir.exists():
             shutil.rmtree(job_dir)
-        logger.error(f"Upload failed: {e}")
+        logger.error("Upload failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Upload failed: {str(e)}",
@@ -560,7 +560,7 @@ async def get_job_status(job_id: str) -> JobStatusResponse:
     try:
         job_data = json.loads(job_data_json)
     except json.JSONDecodeError as e:
-        logger.error(f"Failed to decode job data: {e}")
+        logger.error("Failed to decode job data: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve job data",
@@ -717,7 +717,7 @@ async def health_check() -> HealthResponse:
         queue_size = redis_client.llen(TASK_QUEUE_NAME)
         
     except Exception as e:
-        logger.warning(f"Health check Redis error: {e}")
+        logger.warning("Health check Redis error: %s", e)
     
     staging_dir_writable = False
     try:
@@ -726,7 +726,7 @@ async def health_check() -> HealthResponse:
         test_file.unlink()
         staging_dir_writable = True
     except Exception as e:
-        logger.warning(f"Staging directory not writable: {e}")
+        logger.warning("Staging directory not writable: %s", e)
     
     results_dir_writable = False
     try:
@@ -735,7 +735,7 @@ async def health_check() -> HealthResponse:
         test_file.unlink()
         results_dir_writable = True
     except Exception as e:
-        logger.warning(f"Results directory not writable: {e}")
+        logger.warning("Results directory not writable: %s", e)
     
     overall_healthy = (
         redis_connected
@@ -776,7 +776,7 @@ async def metrics() -> Response:
         current_queue_depth = redis_client.llen(TASK_QUEUE_NAME)
         queue_depth.labels(queue_name=TASK_QUEUE_NAME).set(current_queue_depth)
     except Exception as e:
-        logger.warning(f"Failed to update queue depth metric: {e}")
+        logger.warning("Failed to update queue depth metric: %s", e)
     
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
@@ -785,9 +785,9 @@ async def metrics() -> Response:
 async def startup_event():
     """Startup initialization"""
     logger.info("Starting PDM Evaluation API server")
-    logger.info(f"Redis: {REDIS_HOST}:{REDIS_PORT}")
-    logger.info(f"Staging directory: {STAGING_DIR}")
-    logger.info(f"Results directory: {RESULTS_DIR}")
+    logger.info("Redis: %s:%s", REDIS_HOST, REDIS_PORT)
+    logger.info("Staging directory: %s", STAGING_DIR)
+    logger.info("Results directory: %s", RESULTS_DIR)
 
 
 @app.on_event("shutdown")
@@ -828,9 +828,9 @@ if __name__ == "__main__":
     port = int(os.getenv("API_PORT", "8000"))
     host = os.getenv("API_HOST", "0.0.0.0")
     
-    logger.info(f"Starting DECALOGO API server on {host}:{port}")
-    logger.info(f"Redis: {REDIS_HOST}:{REDIS_PORT}")
-    logger.info(f"Staging: {STAGING_DIR}")
-    logger.info(f"Results: {RESULTS_DIR}")
+    logger.info("Starting DECALOGO API server on %s:%s", host, port)
+    logger.info("Redis: %s:%s", REDIS_HOST, REDIS_PORT)
+    logger.info("Staging: %s", STAGING_DIR)
+    logger.info("Results: %s", RESULTS_DIR)
     
     uvicorn.run(app, host=host, port=port)

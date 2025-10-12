@@ -161,8 +161,12 @@ class EvidenceRegistry:
                 self.component_index[source_component] = []
             self.component_index[source_component].append(evidence_id)
 
-            logger.debug(f"Registered evidence {evidence_id} from {source_component} "
-                        f"for {len(applicable_questions)} questions")
+            logger.debug(
+                "Registered evidence %s from %s for %s questions",
+                evidence_id,
+                source_component,
+                len(applicable_questions)
+            )
 
             return evidence_id
 
@@ -231,7 +235,7 @@ class EvidenceRegistry:
         """Freeze the registry (no more evidence can be added)"""
         with self._lock:
             self._frozen = True
-            logger.info(f"EvidenceRegistry frozen with {len(self.store)} evidence items")
+            logger.info("EvidenceRegistry frozen with %s evidence items", len(self.store))
 
     def is_frozen(self) -> bool:
         """Check if registry is frozen"""
@@ -302,7 +306,7 @@ class EvidenceRegistry:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-        logger.info(f"Exported registry to {filepath}")
+        logger.info("Exported registry to %s", filepath)
 
     def __len__(self) -> int:
         """Return number of evidence items"""

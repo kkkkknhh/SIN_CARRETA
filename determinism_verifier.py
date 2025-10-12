@@ -146,8 +146,8 @@ class DeterminismVerifier:
         self.run2_dir = self.output_dir / "run2"
         
         logger.info("Determinism Verifier initialized")
-        logger.info(f"  Input PDF: {self.input_pdf}")
-        logger.info(f"  Output directory: {self.output_dir}")
+        logger.info("  Input PDF: %s", self.input_pdf)
+        logger.info("  Output directory: %s", self.output_dir)
     
     def run_orchestrator(self, run_dir: Path) -> Tuple[bool, str]:
         """
@@ -161,7 +161,7 @@ class DeterminismVerifier:
         """
         run_dir.mkdir(parents=True, exist_ok=True)
         
-        logger.info(f"Executing miniminimoon_orchestrator.py -> {run_dir}")
+        logger.info("Executing miniminimoon_orchestrator.py -> %s", run_dir)
         
         # Construct command
         cmd = [
@@ -331,11 +331,11 @@ class DeterminismVerifier:
         )
         
         if match:
-            logger.info(f"  ✓ {artifact_name}: MATCH (hash={run1_hash[:16]}...)")
+            logger.info("  ✓ %s: MATCH (hash=%s...)", artifact_name, run1_hash[:16])
         else:
-            logger.error(f"  ✗ {artifact_name}: MISMATCH")
-            logger.error(f"    Run1 hash: {run1_hash}")
-            logger.error(f"    Run2 hash: {run2_hash}")
+            logger.error("  ✗ %s: MISMATCH", artifact_name)
+            logger.error("    Run1 hash: %s", run1_hash)
+            logger.error("    Run2 hash: %s", run2_hash)
         
         return comparison
     
@@ -438,7 +438,7 @@ class DeterminismVerifier:
             logger.error("EXECUTION ERRORS DETECTED")
             logger.error("=" * 80)
             for error in execution_errors:
-                logger.error(f"  {error}")
+                logger.error("  %s", error)
             
             return DeterminismReport(
                 timestamp=datetime.utcnow().isoformat(),
@@ -470,11 +470,11 @@ class DeterminismVerifier:
         
         logger.info("\n--- EVIDENCE HASH COMPARISON ---")
         if evidence_hash_match:
-            logger.info(f"  ✓ Evidence hashes MATCH: {evidence_hash_run1}")
+            logger.info("  ✓ Evidence hashes MATCH: %s", evidence_hash_run1)
         else:
             logger.error("  ✗ Evidence hashes MISMATCH")
-            logger.error(f"    Run1: {evidence_hash_run1}")
-            logger.error(f"    Run2: {evidence_hash_run2}")
+            logger.error("    Run1: %s", evidence_hash_run1)
+            logger.error("    Run2: %s", evidence_hash_run2)
         
         # Extract flow hashes
         flow_hash_run1 = self.extract_flow_hash(self.run1_dir / "flow_runtime.json")
@@ -483,11 +483,11 @@ class DeterminismVerifier:
         
         logger.info("\n--- FLOW HASH COMPARISON ---")
         if flow_hash_match:
-            logger.info(f"  ✓ Flow hashes MATCH: {flow_hash_run1}")
+            logger.info("  ✓ Flow hashes MATCH: %s", flow_hash_run1)
         else:
             logger.error("  ✗ Flow hashes MISMATCH")
-            logger.error(f"    Run1: {flow_hash_run1}")
-            logger.error(f"    Run2: {flow_hash_run2}")
+            logger.error("    Run1: %s", flow_hash_run1)
+            logger.error("    Run2: %s", flow_hash_run2)
         
         # Determine overall result
         all_artifacts_match = all(c.match for c in comparisons)
@@ -518,7 +518,7 @@ class DeterminismVerifier:
             logger.error("✗ DETERMINISM VIOLATIONS DETECTED")
             mismatches = [c.artifact_name for c in comparisons if not c.match]
             if mismatches:
-                logger.error(f"  Mismatched artifacts: {mismatches}")
+                logger.error("  Mismatched artifacts: %s", mismatches)
             if not evidence_hash_match:
                 logger.error("  Evidence hash mismatch")
             if not flow_hash_match:
@@ -538,13 +538,13 @@ class DeterminismVerifier:
         json_path = self.output_dir / "determinism_report.json"
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(report.to_dict(), f, indent=2, ensure_ascii=False, sort_keys=True)
-        logger.info(f"\n✓ JSON report exported: {json_path}")
+        logger.info("\n✓ JSON report exported: %s", json_path)
         
         # Export human-readable text report
         txt_path = self.output_dir / "determinism_report.txt"
         with open(txt_path, 'w', encoding='utf-8') as f:
             self._write_text_report(f, report)
-        logger.info(f"✓ Text report exported: {txt_path}")
+        logger.info("✓ Text report exported: %s", txt_path)
     
     @staticmethod
     def _write_text_report(f, report: DeterminismReport):
@@ -675,7 +675,7 @@ Exit Codes:
             sys.exit(4)
     
     except FileNotFoundError as e:
-        logger.error(f"Error: {e}")
+        logger.error("Error: %s", e)
         sys.exit(1)
     except Exception as e:
         logger.exception(f"Unexpected error: {e}")

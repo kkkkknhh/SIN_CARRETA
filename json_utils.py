@@ -54,14 +54,14 @@ def safe_read_text_file(file_path: Union[str, Path], encodings: List[str] = None
                 return f.read()
         except UnicodeDecodeError as e:
             last_error = e
-            logger.debug(f"Failed to read {file_path} with {encoding} encoding: {e}")
+            logger.debug("Failed to read %s with %s encoding: %s", file_path, encoding, e)
             continue
         except Exception as e:
-            logger.error(f"Failed to read file {file_path}: {e}")
+            logger.error("Failed to read file %s: %s", file_path, e)
             raise
     
     # If we get here, all encodings failed
-    logger.error(f"Failed to read file {file_path} with any encoding: {encodings}")
+    logger.error("Failed to read file %s with any encoding: %s", file_path, encodings)
     raise last_error or Exception(f"Failed to read {file_path} with any encoding")
 
 

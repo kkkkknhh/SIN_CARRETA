@@ -84,9 +84,9 @@ class Python310CompatibilityChecker:
     def validate_python_version(self) -> bool:
         """Validate Python 3.10 is being used."""
         if self.python_version.major != 3 or self.python_version.minor != 10:
-            logger.error(f"Python 3.10 required, found {self.python_version.major}.{self.python_version.minor}")
+            logger.error("Python 3.10 required, found %s.%s", self.python_version.major, self.python_version.minor)
             return False
-        logger.info(f"✓ Python {self.python_version.major}.{self.python_version.minor}.{self.python_version.micro} detected")
+        logger.info("✓ Python %s.%s.%s detected", self.python_version.major, self.python_version.minor, self.python_version.micro)
         return True
         
     @staticmethod
@@ -194,12 +194,12 @@ class Python310CompatibilityChecker:
             self.results.append(result)
             
             if result.success:
-                logger.info(f"✓ {module} v{result.version or 'unknown'}")
+                logger.info("✓ %s v%s", module, result.version or 'unknown')
                 if result.warnings:
                     for warning in result.warnings:
-                        logger.warning(f"  ⚠ {warning}")
+                        logger.warning("  ⚠ %s", warning)
             else:
-                logger.error(f"✗ {module}: {result.error_message}")
+                logger.error("✗ %s: %s", module, result.error_message)
         
         # Test system modules
         logger.info("Testing system modules...")
@@ -208,9 +208,9 @@ class Python310CompatibilityChecker:
             self.results.append(result)
             
             if result.success:
-                logger.info(f"✓ {module}")
+                logger.info("✓ %s", module)
             else:
-                logger.warning(f"⚠ {module}: {result.error_message}")
+                logger.warning("⚠ %s: %s", module, result.error_message)
         
         # Special NumPy check
         numpy_report = self.check_numpy_compatibility()

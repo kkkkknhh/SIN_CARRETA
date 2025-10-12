@@ -114,12 +114,12 @@ class SpacyModelLoader:
             if self.enable_caching:
                 with _CACHE_LOCK:
                     if model_to_load in _MODEL_CACHE:
-                        logger.debug(f"Using cached model: {model_to_load}")
+                        logger.debug("Using cached model: %s", model_to_load)
                         return _MODEL_CACHE[model_to_load]
             
             try:
                 # Attempt to load model
-                logger.info(f"Loading spaCy model: {model_to_load}")
+                logger.info("Loading spaCy model: %s", model_to_load)
                 nlp = spacy.load(model_to_load)
                 
                 # Cache model if enabled
@@ -143,12 +143,12 @@ class SpacyModelLoader:
                                     _MODEL_CACHE[model_to_load] = nlp
                             return nlp
                         except Exception as e:
-                            logger.warning(f"Download attempt failed for {model_to_load}: {e}")
+                            logger.warning("Download attempt failed for %s: %s", model_to_load, e)
                             continue
                 else:
-                    logger.warning(f"Model {model_to_load} not found and download is disabled")
+                    logger.warning("Model %s not found and download is disabled", model_to_load)
             except Exception as e:
-                logger.error(f"Unexpected error loading model {model_to_load}: {e}")
+                logger.error("Unexpected error loading model %s: %s", model_to_load, e)
         
         except ImportError:
             logger.error("spaCy not available. Install with: pip install spacy")

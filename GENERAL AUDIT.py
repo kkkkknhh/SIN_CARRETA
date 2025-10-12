@@ -170,10 +170,10 @@ class MiniMiniMoonAuditor:
             "RUBRIC_SCORING.json"
         ]
         
-        self.logger.info(f"=== MINIMINIMOON AUDITOR INITIALIZED ===")
-        self.logger.info(f"Config Dir: {self.config_dir}")
-        self.logger.info(f"Orchestrator: {self.orchestrator_path}")
-        self.logger.info(f"Test Dir: {self.test_dir}")
+        self.logger.info("=== MINIMINIMOON AUDITOR INITIALIZED ===")
+        self.logger.info("Config Dir: %s", self.config_dir)
+        self.logger.info("Orchestrator: %s", self.orchestrator_path)
+        self.logger.info("Test Dir: %s", self.test_dir)
     
     def _setup_logging(self):
         """Configure structured logging for audit trail."""
@@ -525,7 +525,7 @@ class MiniMiniMoonAuditor:
         self.logger.info("🔍 Auditing Pipeline Components...")
         
         for component_name in self.critical_components:
-            self.logger.info(f"  Checking {component_name}...")
+            self.logger.info("  Checking %s...", component_name)
             health = self._check_component_health(component_name)
             self.component_health[component_name] = health
             
@@ -1045,11 +1045,11 @@ class MiniMiniMoonAuditor:
         
         for category_name, audit_func in audit_functions:
             try:
-                self.logger.info(f"\n{'='*70}")
+                self.logger.info("\n%s", '='*70)
                 result = audit_func()
                 audit_report["results"][category_name] = result
             except Exception as e:
-                self.logger.error(f"❌ Audit category '{category_name}' failed: {e}")
+                self.logger.error("❌ Audit category '%s' failed: %s", category_name, e)
                 audit_report["results"][category_name] = {
                     "status": "error",
                     "error": str(e),
@@ -1132,12 +1132,12 @@ class MiniMiniMoonAuditor:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
         
-        self.logger.info(f"\n📄 Full report saved to: {output_path}")
+        self.logger.info("\n📄 Full report saved to: %s", output_path)
         
         # Also save a human-readable summary
         summary_path = output_path.with_suffix('.txt')
         self._save_human_readable_summary(report, summary_path)
-        self.logger.info(f"📄 Summary saved to: {summary_path}")
+        self.logger.info("📄 Summary saved to: %s", summary_path)
         
         return report
     
@@ -1225,9 +1225,9 @@ class MiniMiniMoonAuditor:
         try:
             if self.test_dir.exists():
                 shutil.rmtree(self.test_dir)
-                self.logger.info(f"Cleaned up test directory: {self.test_dir}")
+                self.logger.info("Cleaned up test directory: %s", self.test_dir)
         except Exception as e:
-            self.logger.warning(f"Failed to clean up test directory: {e}")
+            self.logger.warning("Failed to clean up test directory: %s", e)
 
 
 # ============================================================================

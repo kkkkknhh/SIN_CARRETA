@@ -355,7 +355,7 @@ class PlanSanitizer:
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(sanitized_text)
                 
-            logger.info(f"Sanitized text saved to {output_path}")
+            logger.info("Sanitized text saved to %s", output_path)
         
         return sanitized_text
     
