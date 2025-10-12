@@ -86,7 +86,7 @@ class UnifiedEvaluationPipeline:
     def _load_config(config_path: str) -> Dict[str, Any]:
         """Load system configuration"""
         if not Path(config_path).exists():
-            logger.warning(f"Config file not found: {config_path}, using defaults")
+            logger.warning("Config file not found: %s, using defaults", config_path)
             return {
                 "evaluators": {
                     "decalogo": {"enabled": True},
@@ -103,7 +103,7 @@ class UnifiedEvaluationPipeline:
             with open(config_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            logger.error(f"Error loading config: {e}")
+            logger.error("Error loading config: %s", e)
             return {}
 
     def _ensure_warmup(self):
@@ -139,13 +139,13 @@ class UnifiedEvaluationPipeline:
                 # Verify connection pool state
                 if hasattr(self.orchestrator, '_get_shared_embedding_model'):
                     model = self.orchestrator._get_shared_embedding_model()
-                    logger.info(f"✅ Embedding model connection pool validated: {type(model).__name__}")
+                    logger.info("✅ Embedding model connection pool validated: %s", type(model).__name__)
                 
                 self._warmup_done = True
                 logger.info("✅ Warm-up complete - ready for parallel batch processing")
                 
             except Exception as e:
-                logger.warning(f"⚠️ Warm-up encountered issue (non-fatal): {e}")
+                logger.warning("⚠️ Warm-up encountered issue (non-fatal): %s", e)
                 # Still mark as done to avoid repeated failures
                 self._warmup_done = True
 
@@ -171,7 +171,7 @@ class UnifiedEvaluationPipeline:
             Complete evaluation results with both evaluators
         """
         logger.info("="*80)
-        logger.info(f"UNIFIED EVALUATION: {pdm_path}")
+        logger.info("UNIFIED EVALUATION: %s", pdm_path)
         logger.info("="*80)
 
         start_time = datetime.now()
@@ -194,7 +194,7 @@ class UnifiedEvaluationPipeline:
         try:
             pipeline_results = self.orchestrator.process_plan(pdm_path)
         except Exception as e:
-            logger.error(f"Pipeline execution failed: {e}")
+            logger.error("Pipeline execution failed: %s", e)
             return {
                 "status": "pipeline_error",
                 "error": str(e),
@@ -202,7 +202,7 @@ class UnifiedEvaluationPipeline:
             }
 
         if "error" in pipeline_results:
-            logger.error(f"Pipeline returned error: {pipeline_results['error']}")
+            logger.error("Pipeline returned error: %s", pipeline_results['error'])
             return {
                 "status": "pipeline_error",
                 "pipeline_results": pipeline_results,
@@ -212,7 +212,7 @@ class UnifiedEvaluationPipeline:
         # Get evidence registry reference
         evidence_registry = self.orchestrator.evidence_registry
 
-        logger.info(f"✅ Pipeline completed: {len(evidence_registry)} evidence items")
+        logger.info("✅ Pipeline completed: %s evidence items", len(evidence_registry))
 
         # STEP 2: DECÁLOGO EVALUATION
         logger.info("\n" + "="*80)
@@ -227,7 +227,7 @@ class UnifiedEvaluationPipeline:
                 )
                 logger.info("✅ Decálogo evaluation completed")
             except Exception as e:
-                logger.error(f"Decálogo evaluation failed: {e}")
+                logger.error("Decálogo evaluation failed: %s", e)
                 decalogo_results = {"error": str(e)}
         else:
             logger.info("→ Decálogo evaluation disabled in config")
@@ -246,7 +246,7 @@ class UnifiedEvaluationPipeline:
                     )
                     logger.info("✅ Questionnaire evaluation completed")
                 except Exception as e:
-                    logger.error(f"Questionnaire evaluation failed: {e}")
+                    logger.error("Questionnaire evaluation failed: %s", e)
                     questionnaire_results = {"error": str(e)}
             else:
                 logger.warning("⚠️ Questionnaire evaluator not available")
@@ -320,9 +320,9 @@ class UnifiedEvaluationPipeline:
 
         logger.info("\n" + "="*80)
         logger.info("✅ UNIFIED EVALUATION COMPLETED")
-        logger.info(f"   Total time: {execution_time:.2f}s")
-        logger.info(f"   Evidence items: {len(evidence_registry)}")
-        logger.info(f"   Evidence hash: {evidence_registry.deterministic_hash()[:16]}...")
+        logger.info("   Total time: %.2fs", execution_time)
+        logger.info("   Evidence items: %s", len(evidence_registry))
+        logger.info("   Evidence hash: %s...", evidence_registry.deterministic_hash()[:16])
         logger.info("="*80)
 
         return final_results
@@ -357,7 +357,7 @@ class UnifiedEvaluationPipeline:
                 decalogo_data = json.load(f)
 
             questions = decalogo_data.get("questions", [])
-            logger.info(f"→ Loaded {len(questions)} questions from {decalogo_json.name}")
+            logger.info("→ Loaded %s questions from %s", len(questions), decalogo_json.name)
 
             # Evaluate each question using evidence from registry
             dimension_results = {}
@@ -421,8 +421,8 @@ class UnifiedEvaluationPipeline:
             else:
                 band = "DEFICIENTE"
 
-            logger.info(f"✅ Decálogo: {len(questions)} questions evaluated")
-            logger.info(f"   Overall score: {overall_percentage:.1f}% ({band})")
+            logger.info("✅ Decálogo: %s questions evaluated", len(questions))
+            logger.info("   Overall score: %.1f%% (%s)", overall_percentage, band)
 
             return {
                 "status": "completed",
@@ -440,7 +440,7 @@ class UnifiedEvaluationPipeline:
             }
 
         except Exception as e:
-            logger.error(f"Decálogo evaluation failed: {e}", exc_info=True)
+            logger.error("Decálogo evaluation failed: %s", e, exc_info=True)
             return {
                 "status": "error",
                 "error": str(e),
@@ -476,7 +476,7 @@ class UnifiedEvaluationPipeline:
 
             # Execute evaluation consuming evidence registry
             if parallel_enabled:
-                logger.info(f"→ Using parallel execution (max_workers={max_workers})")
+                logger.info("→ Using parallel execution (max_workers=%s)", max_workers)
                 results = self.questionnaire_evaluator.execute_full_evaluation_parallel(
                     evidence_registry=evidence_registry,
                     municipality=self.config.get("municipality", ""),
@@ -492,7 +492,7 @@ class UnifiedEvaluationPipeline:
                     max_workers=1
                 )
 
-            logger.info(f"✅ Questionnaire: {results['metadata']['total_evaluations']} questions evaluated")
+            logger.info("✅ Questionnaire: %s questions evaluated", results['metadata']['total_evaluations'])
 
             return {
                 "status": "completed",
@@ -508,7 +508,7 @@ class UnifiedEvaluationPipeline:
             }
 
         except Exception as e:
-            logger.error(f"Questionnaire evaluation failed: {e}", exc_info=True)
+            logger.error("Questionnaire evaluation failed: %s", e, exc_info=True)
             return {
                 "status": "error",
                 "error": str(e),
@@ -533,12 +533,12 @@ class UnifiedEvaluationPipeline:
         results_file = output_path / f"{plan_name}_results_{timestamp}.json"
         with open(results_file, 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
-        logger.info(f"→ Exported results to {results_file}")
+        logger.info("→ Exported results to %s", results_file)
 
         # Export evidence registry
         evidence_file = output_path / f"{plan_name}_evidence_{timestamp}.json"
         evidence_registry.export_to_json(str(evidence_file))
-        logger.info(f"→ Exported evidence registry to {evidence_file}")
+        logger.info("→ Exported evidence registry to %s", evidence_file)
 
 
 def main():

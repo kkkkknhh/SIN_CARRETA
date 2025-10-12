@@ -422,7 +422,7 @@ class ContradictionDetector:
                 max_sim = float(torch.max(similarities).item())
                 return max_sim > 0.6
             except Exception as exc:  # pragma: no cover - runtime fallback
-                logger.debug(f"Encoder alignment failed, using lexical fallback: {exc}")
+                logger.debug("Encoder alignment failed, using lexical fallback: %s", exc)
 
         # Lexical fallback: Jaccard similarity on meaningful tokens
         tokens1 = set(self._tokenize(text1))

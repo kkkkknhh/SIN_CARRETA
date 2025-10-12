@@ -67,7 +67,7 @@ class ReliabilityCalibrator:
         self.precision_b += fp
         self.n_updates += len(y_true)
         
-        logger.debug(f"{self.detector_name}: Precision updated TP={tp}, FP={fp}")
+        logger.debug("%s: Precision updated TP=%s, FP=%s", self.detector_name, tp, fp)
     
     def update_recall(self, y_true: np.ndarray, y_pred: np.ndarray):
         """
@@ -83,7 +83,7 @@ class ReliabilityCalibrator:
         self.recall_a += tp
         self.recall_b += fn
         
-        logger.debug(f"{self.detector_name}: Recall updated TP={tp}, FN={fn}")
+        logger.debug("%s: Recall updated TP=%s, FN=%s", self.detector_name, tp, fn)
     
     def update(self, y_true: np.ndarray, y_pred: np.ndarray):
         """Actualiza ambos: precisión y recall."""
@@ -156,7 +156,7 @@ class ReliabilityCalibrator:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, 'w') as f:
             json.dump(data, f, indent=2)
-        logger.info(f"Calibrador guardado en {path}")
+        logger.info("Calibrador guardado en %s", path)
     
     @classmethod
     def load(cls, path: Path) -> 'ReliabilityCalibrator':
@@ -209,12 +209,12 @@ class CalibratorManager:
             path = self.storage_dir / f"{detector_name}_calibrator.json"
             if path.exists():
                 self.calibrators[detector_name] = ReliabilityCalibrator.load(path)
-                logger.info(f"Calibrador cargado desde {path}")
+                logger.info("Calibrador cargado desde %s", path)
             else:
                 self.calibrators[detector_name] = ReliabilityCalibrator(
                     detector_name=detector_name
                 )
-                logger.info(f"Calibrador nuevo creado para {detector_name}")
+                logger.info("Calibrador nuevo creado para %s", detector_name)
         return self.calibrators[detector_name]
     
     def update_from_ground_truth(self, detector_name: str, 

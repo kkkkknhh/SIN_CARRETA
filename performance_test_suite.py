@@ -114,7 +114,7 @@ class PerformanceBenchmark:
         Returns:
             PerformanceResult with latency statistics
         """
-        logger.info(f"Benchmarking {component_name} ({warmup} warmup + {iterations} iterations)")
+        logger.info("Benchmarking %s (%s warmup + %s iterations)", component_name, warmup, iterations)
         
         # Warmup phase
         for _ in range(warmup):
@@ -163,7 +163,7 @@ class PerformanceBenchmark:
         
         self.results[component_name] = result
         
-        logger.info(f"{component_name}: p50={p50_ms:.2f}ms p95={p95_ms:.2f}ms p99={p99_ms:.2f}ms")
+        logger.info("%s: p50=%.2fms p95=%.2fms p99=%.2fms", component_name, p50_ms, p95_ms, p99_ms)
         logger.info(budget_message)
         
         return result
@@ -189,7 +189,7 @@ class PerformanceBenchmark:
         Returns:
             Soak test results with memory leak detection
         """
-        logger.info(f"Starting {duration_hours}h soak test for {component_name}")
+        logger.info("Starting %sh soak test for %s", duration_hours, component_name)
         
         tracemalloc.start()
         
@@ -256,9 +256,9 @@ class PerformanceBenchmark:
         }
         
         if leak_detected:
-            logger.warning(f"❌ Memory leak detected: {slope_mb_per_hour:.2f} MB/hour growth")
+            logger.warning("❌ Memory leak detected: %.2f MB/hour growth", slope_mb_per_hour)
         else:
-            logger.info(f"✅ No memory leak detected: {slope_mb_per_hour:.2f} MB/hour growth")
+            logger.info("✅ No memory leak detected: %.2f MB/hour growth", slope_mb_per_hour)
         
         return result
     
@@ -288,7 +288,7 @@ class PerformanceBenchmark:
         with open(output_path, 'w') as f:
             json.dump(report, f, indent=2)
         
-        logger.info(f"Performance report written to {output_path}")
+        logger.info("Performance report written to %s", output_path)
         return report
     
     def check_all_budgets(self) -> bool:

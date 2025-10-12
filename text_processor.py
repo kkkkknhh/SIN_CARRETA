@@ -53,7 +53,7 @@ class TextProcessor:
         self.normalize_case = normalize_case
         
         if unicode_form not in ('NFC', 'NFKC', 'NFD', 'NFKD'):
-            logger.warning(f"Invalid Unicode form '{unicode_form}', using 'NFKC'")
+            logger.warning("Invalid Unicode form '%s', using 'NFKC'", unicode_form)
             self.unicode_form = 'NFKC'
         else:
             self.unicode_form = unicode_form

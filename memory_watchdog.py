@@ -132,10 +132,10 @@ class MemoryWatchdog:
             return True
 
         except psutil.NoSuchProcess:
-            self.logger.warning(f"Cannot register process {pid}: process not found")
+            self.logger.warning("Cannot register process %s: process not found", pid)
             return False
         except psutil.AccessDenied:
-            self.logger.warning(f"Cannot register process {pid}: access denied")
+            self.logger.warning("Cannot register process %s: access denied", pid)
             return False
         except psutil.Error:
             self.logger.exception(f"Failed to register process {pid}")
@@ -146,7 +146,7 @@ class MemoryWatchdog:
         with self._lock:
             if pid in self._monitored_processes:
                 del self._monitored_processes[pid]
-                self.logger.info(f"Unregistered process {pid} from memory monitoring")
+                self.logger.info("Unregistered process %s from memory monitoring", pid)
 
     def start_monitoring(self) -> bool:
         """
@@ -235,7 +235,7 @@ class MemoryWatchdog:
                 # Check if process is still running
                 if not process.is_running():
                     processes_to_remove.append(pid)
-                    self.logger.debug(f"Process {pid} is no longer running")
+                    self.logger.debug("Process %s is no longer running", pid)
                     continue
 
                 # Get memory info
@@ -266,13 +266,13 @@ class MemoryWatchdog:
 
             except psutil.NoSuchProcess:
                 processes_to_remove.append(pid)
-                self.logger.debug(f"Process {pid} no longer exists")
+                self.logger.debug("Process %s no longer exists", pid)
             except psutil.AccessDenied:
-                self.logger.warning(f"Access denied to process {pid}")
+                self.logger.warning("Access denied to process %s", pid)
                 processes_to_remove.append(pid)
             except psutil.ZombieProcess:
                 processes_to_remove.append(pid)
-                self.logger.warning(f"Process {pid} became a zombie")
+                self.logger.warning("Process %s became a zombie", pid)
             except psutil.Error:
                 self.logger.exception(f"Error checking memory for process {pid}")
 
@@ -305,7 +305,7 @@ class MemoryWatchdog:
             # Wait briefly for graceful shutdown
             try:
                 process.wait(timeout=3.0)
-                self.logger.info(f"Process {pid} terminated gracefully")
+                self.logger.info("Process %s terminated gracefully", pid)
             except psutil.TimeoutExpired:
                 # Force kill if graceful termination failed
                 process.kill()
@@ -315,7 +315,7 @@ class MemoryWatchdog:
                 )
 
         except psutil.NoSuchProcess:
-            self.logger.info(f"Process {pid} already terminated")
+            self.logger.info("Process %s already terminated", pid)
         except psutil.Error:
             self.logger.exception(f"Failed to terminate process {pid}")
 
@@ -511,10 +511,10 @@ def demo_memory_watchdog():
 
         status = watchdog.get_monitored_processes()
         if current_pid in status:
-            LOGGER.info(f"Current memory usage: {status[current_pid]['rss_mb']:.1f}MB")
+            LOGGER.info("Current memory usage: %.1fMB", status[current_pid]['rss_mb'])
 
         events = watchdog.get_termination_events()
-        LOGGER.info(f"Termination events: {len(events)}")
+        LOGGER.info("Termination events: %s", len(events))
 
     LOGGER.info("Memory watchdog demo completed")
 

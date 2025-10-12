@@ -161,8 +161,12 @@ class EvidenceRegistry:
                 self.component_index[source_component] = []
             self.component_index[source_component].append(evidence_id)
 
-            logger.debug(f"Registered evidence {evidence_id} from {source_component} "
-                        f"for {len(applicable_questions)} questions")
+            logger.debug(
+                "Registered evidence %s from %s for %s questions",
+                evidence_id,
+                source_component,
+                len(applicable_questions)
+            )
 
             return evidence_id
 
