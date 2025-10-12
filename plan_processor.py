@@ -1,5 +1,3 @@
-# coding=utf-8
-# coding=utf-8
 """
 Causal Framework Plan Processor Module (Industrial Grade)
 

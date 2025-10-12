@@ -1,5 +1,3 @@
-# coding=utf-8
-# coding=utf-8
 """
 SpaCy Model Loader Module
 
