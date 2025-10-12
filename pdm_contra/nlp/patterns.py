@@ -111,7 +111,8 @@ class PatternMatcher:
                     "negations": self._find_in_context(context, self.negations),
                 }
                 match_info["complexity"] = sum(
-                    len(match_info[key]) for key in ("goals", "action_verbs", "quantitative")
+                    len(match_info[key])
+                    for key in ("goals", "action_verbs", "quantitative")
                 )
                 match_info["has_uncertainty"] = bool(match_info["modals"])
                 match_info["has_negation"] = bool(match_info["negations"])
@@ -120,11 +121,12 @@ class PatternMatcher:
 
     @staticmethod
     def _find_in_context(context: str, patterns: List[Pattern[str]]) -> List[str]:
-        found: List[str] = []
-        for pattern in patterns:
-            for match in pattern.finditer(context):
-                found.append(match.group().strip())
-        return sorted(set(found))
+        found = {
+            match.group().strip()
+            for pattern in patterns
+            for match in pattern.finditer(context)
+        }
+        return sorted(found)
 
 
 __all__ = ["PatternMatcher"]

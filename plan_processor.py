@@ -29,7 +29,7 @@ def normalize_text(text: str) -> str:
     """Normalizes a string by converting to lowercase and simplifying whitespace."""
     if not isinstance(text, str):
         return ""
-    return re.sub(r'\s+', ' ', text).lower().strip()
+    return re.sub(r"\s+", " ", text).lower().strip()
 
 
 class PlanProcessor:
@@ -38,6 +38,7 @@ class PlanProcessor:
     with the DECALOGO Causal Framework Questionnaire. This component is the
     primary evidence provider for the QuestionnaireEngine.
     """
+
     QUESTIONNAIRE_FILENAME = "decalogo-industrial.latest.clean.json"
 
     def __init__(self, config_dir: Union[str, Path]):
@@ -80,11 +81,17 @@ class PlanProcessor:
         """Loads the questionnaire from the specified config directory."""
         questionnaire_path = Path(self.QUESTIONNAIRE_FILENAME)
         try:
-            with open(questionnaire_path, 'r', encoding='utf-8') as f:
+            with open(questionnaire_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            logger.error("FATAL: Could not load or parse questionnaire at %s: %s", questionnaire_path, e)
-            raise IOError(f"Questionnaire file not found or invalid: {questionnaire_path}") from e
+            logger.error(
+                "FATAL: Could not load or parse questionnaire at %s: %s",
+                questionnaire_path,
+                e,
+            )
+            raise IOError(
+                f"Questionnaire file not found or invalid: {questionnaire_path}"
+            ) from e
 
     def _build_patterns_from_questionnaire(self):
         """Dynamically builds regex patterns for each policy point using its title and hints."""
@@ -96,7 +103,7 @@ class PlanProcessor:
 
             point_keywords[point_code].add(q.get("point_title", "").lower())
             for hint in q.get("hints", []):
-                cleaned_hint = re.sub(r'\(.*?\)', '', hint).strip()
+                cleaned_hint = re.sub(r"\(.*?\)", "", hint).strip()
                 if cleaned_hint:
                     point_keywords[point_code].add(cleaned_hint.lower())
 
@@ -104,11 +111,15 @@ class PlanProcessor:
         for code, keywords in point_keywords.items():
             # Create a large OR pattern, prioritizing longer phrases first
             # Use word boundaries for precise matching
-            sorted_keywords = sorted(list(keywords), key=len, reverse=True)
-            pattern_str = "|".join(r'\b' + re.escape(kw) + r'\b' for kw in sorted_keywords if kw)
+            sorted_keywords = sorted(keywords, key=len, reverse=True)
+            pattern_str = "|".join(
+                r"\b" + re.escape(kw) + r"\b" for kw in sorted_keywords if kw
+            )
             self.point_patterns[code] = re.compile(f"(?i)({pattern_str})")
 
-        logger.info("Built keyword patterns for %s policy points.", len(self.point_patterns))
+        logger.info(
+            "Built keyword patterns for %s policy points.", len(self.point_patterns)
+        )
 
     def process(self, text: str) -> Dict[str, Any]:
         """
@@ -123,7 +134,12 @@ class PlanProcessor:
         """
         if not text:
             logger.warning("PlanProcessor received empty text.")
-            return {"metadata": {}, "point_evidence": {}, "full_text": "", "processing_status": "failed"}
+            return {
+                "metadata": {},
+                "point_evidence": {},
+                "full_text": "",
+                "processing_status": "failed",
+            }
 
         normalized_text = normalize_text(text)
         point_evidence = {}
@@ -138,10 +154,12 @@ class PlanProcessor:
             "point_evidence": point_evidence,
             "text_length": len(normalized_text),
             "full_text": normalized_text,
-            "processing_status": "complete"
+            "processing_status": "complete",
         }
 
-    def _extract_point_evidence(self, text: str, point_code: str) -> Dict[str, List[str]]:
+    def _extract_point_evidence(
+        self, text: str, point_code: str
+    ) -> Dict[str, List[str]]:
         """
         Extracts all relevant evidence for a single policy point by first finding
         relevant sentences and then searching for evidence patterns within them.
@@ -153,7 +171,7 @@ class PlanProcessor:
         # 1. Efficiently find all sentences relevant to this policy point.
         relevant_sentences = []
         # Split text into sentences for more granular context matching.
-        sentences = re.split(r'(?<=[.!?])\s+', text)
+        sentences = re.split(r"(?<=[.!?])\s+", text)
         for sentence in sentences:
             if point_pattern.search(sentence):
                 relevant_sentences.append(sentence)
@@ -176,15 +194,26 @@ class PlanProcessor:
     @staticmethod
     def _extract_metadata(text: str) -> Dict[str, Any]:
         """Extracts key metadata from the first part of the document."""
-        title_match = re.search(r"(?i)^(?:plan\s+de\s+desarrollo\s+)?(.*?)(?:\n|\.|\d{4})", text[:1000])
-        title = title_match.group(1).strip() if title_match and len(
-            title_match.group(1).strip()) > 5 else "Untitled Plan"
+        title_match = re.search(
+            r"(?i)^(?:plan\s+de\s+desarrollo\s+)?(.*?)(?:\n|\.|\d{4})", text[:1000]
+        )
+        title = (
+            title_match.group(1).strip()
+            if title_match and len(title_match.group(1).strip()) > 5
+            else "Untitled Plan"
+        )
 
-        entity_match = re.search(r"(?i)(?:municipio|alcald[íi]a|gobernaci[óo]n)\s+de\s+([\w\s]+?)(?:\n|\.)",
-                                 text[:2000])
+        entity_match = re.search(
+            r"(?i)(?:municipio|alcald[íi]a|gobernaci[óo]n)\s+de\s+([\w\s]+?)(?:\n|\.)",
+            text[:2000],
+        )
         entity = entity_match.group(1).strip() if entity_match else "Unknown Entity"
 
         date_match = re.search(r"(20\d{2})\s*(?:-|a|al)\s*(20\d{2})", text[:2000])
-        date_range = {"start_year": date_match.group(1), "end_year": date_match.group(2)} if date_match else {}
+        date_range = (
+            {"start_year": date_match.group(1), "end_year": date_match.group(2)}
+            if date_match
+            else {}
+        )
 
         return {"title": title, "entity": entity, "date_range": date_range}
