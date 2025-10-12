@@ -5,6 +5,8 @@
 
 This document describes the architecture of the MINIMINIMOON system, including 66 dependency flows, 5 critical paths, and detailed component interactions.
 
+> **📝 Note:** For information on the canonical P-D-Q notation system used throughout the codebase, see [`docs/PDQ_CANONICAL_NOTATION.md`](docs/PDQ_CANONICAL_NOTATION.md).
+
 ## System Components
 
 ### Core Components

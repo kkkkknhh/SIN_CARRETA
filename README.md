@@ -1457,6 +1457,7 @@ Output: 300 DPI PNG files suitable for documentation and presentations.
 ## 📚 Documentación Adicional
 
 - **Visual Architecture Diagrams:** 7 advanced diagrams (see [Visual Architecture section](#-visual-architecture-diagrams))
+- **P-D-Q Canonical Notation:** `docs/PDQ_CANONICAL_NOTATION.md` - Complete specification for question identifiers
 - **Flujos Críticos Detallados:** `FLUJOS_CRITICOS_GARANTIZADOS.md`
 - **Arquitectura Completa:** `ARCHITECTURE.md`
 - **Deprecations y Migración:** `DEPRECATIONS.md`
