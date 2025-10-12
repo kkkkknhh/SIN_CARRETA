@@ -628,7 +628,9 @@ class TeoriaCambioAvanzada:
                 # Remover aleatoriamente algunos nodos mediadores
                 nodes_to_remove = (
                     np.random.choice(
-                        mediadores, size=min(len(mediadores) // 3, 2), replace=False
+                        mediadores,
+                        size=min(len(mediadores) // 3, 2),
+                        replace=False
                     )
                     if len(mediadores) > 2
                     else []
@@ -726,7 +728,9 @@ class EslabonCadenaAvanzado:
                     self.kpi_ponderacion / 3.0
                 ),  # Normalización
                 "criticidad_global": (
-                    complejidad_operativa + riesgo_agregado + lead_time_normalizado
+                    complejidad_operativa
+                    + riesgo_agregado
+                    + lead_time_normalizado
                 )
                 / 3,
             }
@@ -750,7 +754,8 @@ class EslabonCadenaAvanzado:
         """Generación de hash avanzado del eslabón."""
         data = (
             f"{self.id}|{self.tipo.value}|{sorted(self.indicadores)}|"
-            f"{sorted(self.capacidades_requeridas)}|{sorted(self.riesgos_especificos)}|"
+            f"{sorted(self.capacidades_requeridas)}|"
+            f"{sorted(self.riesgos_especificos)}|"
             f"{self.ventana_temporal}|{self.kpi_ponderacion}"
         )
         return hashlib.sha256(data.encode("utf-8")).hexdigest()
@@ -759,7 +764,8 @@ class EslabonCadenaAvanzado:
 # -------------------- Ontología avanzada --------------------
 @dataclass
 class OntologiaPoliticasAvanzada:
-    """Ontología avanzada para políticas públicas con capacidades de frontera."""
+    """Ontología avanzada para políticas públicas con capacidades de
+    frontera."""
 
     dimensiones: Dict[str, List[str]]
     relaciones_causales: Dict[str, List[str]]
@@ -981,9 +987,15 @@ class OntologiaPoliticasAvanzada:
                     r"\b(?:20\d{2}|diciembre|final|culminacion)\b",
                 ],
                 "impactos_resultados": [
-                    r"\b(?:impacto|efecto|resultado|consecuencia|cambio)\b.*\b(?:en|sobre|para)\b.*\b(?:poblacion|comunidad|territorio)\b",
-                    r"\b(?:beneficio|mejora|incremento|reduccion|disminucion)\b.*\b(?:del|de la|en el|en la)\b.*\b(?:\d+%|\d+ puntos)\b",
-                    r"\b(?:transformacion|cambio|modificacion)\b.*\b(?:social|economica|ambiental|institucional|territorial)\b",
+                    r"\b(?:impacto|efecto|resultado|consecuencia|cambio)\b.*"
+                    r"\b(?:en|sobre|para)\b.*"
+                    r"\b(?:poblacion|comunidad|territorio)\b",
+                    r"\b(?:beneficio|mejora|incremento|reduccion|"
+                    r"disminucion)\b.*\b(?:del|de la|en el|en la)\b.*"
+                    r"\b(?:\d+%|\d+ puntos)\b",
+                    r"\b(?:transformacion|cambio|modificacion)\b.*"
+                    r"\b(?:social|economica|ambiental|institucional|"
+                    r"territorial)\b",
                 ],
             }
 
@@ -1036,7 +1048,9 @@ class OntologiaPoliticasAvanzada:
             }
 
             # Carga de indicadores ODS especializados
-            indicadores_ods_especializados = cls._cargar_indicadores_ods_avanzados()
+            indicadores_ods_especializados = (
+                cls._cargar_indicadores_ods_avanzados()
+            )
 
             return cls(
                 dimensiones=dimensiones_frontier,
@@ -1170,11 +1184,13 @@ class OntologiaPoliticasAvanzada:
                     return data
                 else:
                     LOGGER.warning(
-                        "⚠️ Indicadores ODS avanzados inválidos, usando base especializada"
+                        "⚠️ Indicadores ODS avanzados inválidos, "
+                        "usando base especializada"
                     )
             except Exception as e:
                 LOGGER.warning(
-                    f"⚠️ Error leyendo indicadores avanzados {indicadores_path}: {e}"
+                    f"⚠️ Error leyendo indicadores avanzados "
+                    f"{indicadores_path}: {e}"
                 )
 
         # Guardar template avanzado
@@ -1259,20 +1275,26 @@ class OntologiaPoliticasAvanzada:
             return 0.5
 
 
-# -------------------- Decálogo avanzado con capacidades de frontera --------------------
+# ---- Decálogo avanzado con capacidades de frontera ----
 @dataclass(frozen=True)
 class DimensionDecalogoAvanzada:
     """Dimensión del decálogo con capacidades matemáticas de frontera.
 
-    Representa una dimensión de evaluación con múltiples eslabones de cadena de valor.
-    El sistema de dimensiones está alineado con el estándar DNP de 6 dimensiones:
-    D1=INSUMOS, D2=ACTIVIDADES, D3=PRODUCTOS, D4=RESULTADOS, D5=IMPACTOS, D6=CAUSALIDAD
+    Representa una dimensión de evaluación con múltiples eslabones de
+    cadena de valor.
+    El sistema de dimensiones está alineado con el estándar DNP de 6
+    dimensiones:
+    D1=INSUMOS, D2=ACTIVIDADES, D3=PRODUCTOS, D4=RESULTADOS,
+    D5=IMPACTOS, D6=CAUSALIDAD
 
-    Cada dimensión contiene 50 preguntas (300 total distribuidas en 6 dimensiones × 50).
+    Cada dimensión contiene 50 preguntas (300 total distribuidas en
+    6 dimensiones × 50).
 
     Fuentes canónicas:
-    - decalogo-industrial.latest.clean.json: estructura de 300 preguntas
-    - dnp-standards.latest.clean.json: criterios evaluación por dimensión
+    - decalogo-industrial.latest.clean.json: estructura de 300
+      preguntas
+    - dnp-standards.latest.clean.json: criterios evaluación por
+      dimensión
     """
 
     id: int
@@ -1884,9 +1906,12 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
             "cluster": clusters_avanzados.get(cluster_id, f"Cluster {cluster_id}"),
             "prioridad_estrategica": 1.0
             + (dim_id % 3) * 0.3,  # Variación en prioridades
-            "complejidad_implementacion": 0.4
-            + (dim_id % 4) * 0.15,  # Variación en complejidad
-            "interdependencias": [(dim_id % 10) + 1] if dim_id < 10 else [1],
+            "complejidad_implementacion": (
+                0.4 + (dim_id % 4) * 0.15
+            ),  # Variación en complejidad
+            "interdependencias": (
+                [(dim_id % 10) + 1] if dim_id < 10 else [1]
+            ),
             "contexto_territorial": {
                 "ambito_aplicacion": "municipal",
                 "poblacion_objetivo": "general",
@@ -1894,9 +1919,15 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
             },
             "teoria_cambio": {
                 "supuestos_causales": [
-                    f"La implementación efectiva de la dimensión {dim_id} genera cambios sostenibles en el territorio",
-                    f"Los actores territoriales tienen capacidad de apropiación de los procesos de la dimensión {dim_id}",
-                    f"Existe voluntad política e institucional para sostener las intervenciones de la dimensión {dim_id}",
+                    f"La implementación efectiva de la dimensión "
+                    f"{dim_id} genera cambios sostenibles en el "
+                    f"territorio",
+                    f"Los actores territoriales tienen capacidad de "
+                    f"apropiación de los procesos de la dimensión "
+                    f"{dim_id}",
+                    f"Existe voluntad política e institucional para "
+                    f"sostener las intervenciones de la dimensión "
+                    f"{dim_id}",
                 ],
                 "mediadores": {
                     "institucionales": [
