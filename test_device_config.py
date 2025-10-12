@@ -52,7 +52,7 @@ def test_tensor_operations():
     print("\n=== Testing Tensor Operations ===")
 
     config = get_device_config()
-    device = config.get_device()
+    _device = config.get_device()
 
     # Create test tensors
     x = torch.randn(100, 50)

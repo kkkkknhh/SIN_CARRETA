@@ -1,13 +1,17 @@
 """
 Example usage of the embedding model.
 """
+
+import argparse
+import importlib
 import os
 import sys
 import traceback
+
 import numpy as np
-import importlib
-import argparse
-from version_validator import validate_python_310, validate_numpy_compatibility
+
+from version_validator import validate_numpy_compatibility, validate_python_310
+
 
 def cosine_similarity(v1, v2):
     """Calculate cosine similarity between two vectors."""
@@ -18,22 +22,45 @@ def cosine_similarity(v1, v2):
         return 0.0
     return dot_product / (norm_v1 * norm_v2)
 
+
 def _report_error(context, exc):
     """Print concise error info; set DEBUG=1 to include traceback."""
     print(f"[ERROR] {context}: {type(exc).__name__}: {exc}")
     if os.getenv("DEBUG") == "1":
         traceback.print_exc()
 
+
 def parse_args():
     """CLI options to control model factory, device, and batching."""
     p = argparse.ArgumentParser(add_help=True)
-    p.add_argument("--factory", choices=["auto", "industrial", "generic"], default="auto")
+    p.add_argument(
+        "--factory", choices=["auto", "industrial", "generic"], default="auto"
+    )
     p.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
-    p.add_argument("--batch-size", type=int, default=0, help="Embed texts in batches; 0=single call")
-    p.add_argument("--ignite", action="store_true", help="Start full system: tracing + SLO + canary deployment")
-    p.add_argument("--deployment-id", default="deployment-v2.0", help="Deployment identifier for canary controller")
-    p.add_argument("--requests", type=int, default=20, help="Number of requests for the ignition run")
+    p.add_argument(
+        "--batch-size",
+        type=int,
+        default=0,
+        help="Embed texts in batches; 0=single call",
+    )
+    p.add_argument(
+        "--ignite",
+        action="store_true",
+        help="Start full system: tracing + SLO + canary deployment",
+    )
+    p.add_argument(
+        "--deployment-id",
+        default="deployment-v2.0",
+        help="Deployment identifier for canary controller",
+    )
+    p.add_argument(
+        "--requests",
+        type=int,
+        default=20,
+        help="Number of requests for the ignition run",
+    )
     return p.parse_args()
+
 
 def embed_in_batches(model, texts, batch_size: int):
     """Call model.embed in batches and return a 2D numpy array."""
@@ -45,7 +72,7 @@ def embed_in_batches(model, texts, batch_size: int):
         return embs
     out = []
     for i in range(0, len(texts), batch_size):
-        chunk = texts[i:i + batch_size]
+        chunk = texts[i: i + batch_size]
         embs = model.embed(chunk)
         embs = np.asarray(embs, dtype=np.float32)
         if embs.ndim == 1:
@@ -53,16 +80,17 @@ def embed_in_batches(model, texts, batch_size: int):
         out.append(embs)
     return np.vstack(out)
 
+
 def ignite_system(args):
     """Initialize tracing, SLO monitoring, and execute canary deployment."""
     try:
         print("Igniting deployment infrastructure...")
+        from canary_deployment import create_canary_controller
         from opentelemetry_instrumentation import initialize_tracing
         from slo_monitoring import create_slo_monitor
-        from canary_deployment import create_canary_controller
 
         initialize_tracing(service_name="decalogo-evaluation-system")
-        slo_monitor = create_slo_monitor()
+        _slo_monitor = create_slo_monitor()
         controller = create_canary_controller(args.deployment_id)
 
         def request_generator():
@@ -72,9 +100,12 @@ def ignite_system(args):
         result = controller.execute_deployment(request_generator())
         status = getattr(result, "status", None)
         routed = getattr(result, "routed_requests", None)
-        print(f"Deployment complete: status={status or 'unknown'}; routed={routed if routed is not None else 'n/a'}")
+        print(
+            f"Deployment complete: status={status or 'unknown'}; routed={routed if routed is not None else 'n/a'}"
+        )
     except Exception as e:
         _report_error("System ignition failed", e)
+
 
 def main():
     """Demonstrate the embedding model with examples."""
@@ -83,7 +114,9 @@ def main():
     try:
         validate_python_310()
         validate_numpy_compatibility()
-        print(f"Environment OK -> Python: {sys.version.split()[0]} | NumPy: {np.__version__}")
+        print(
+            f"Environment OK -> Python: {sys.version.split()[0]} | NumPy: {np.__version__}"
+        )
     except Exception as e:
         _report_error("Environment validation failed", e)
         return
@@ -96,18 +129,24 @@ def main():
     # Respect requested device before importing the model
     if args.device == "cpu":
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    print(f"Config -> factory={args.factory}, device={args.device}, batch_size={args.batch_size}")
+    print(
+        f"Config -> factory={args.factory}, device={args.device}, batch_size={args.batch_size}"
+    )
 
     print("Initializing embedding model...")
     try:
         # Choose factory per CLI
         if args.factory == "industrial":
-            from embedding_model import create_industrial_embedding_model as _create_model
+            from embedding_model import (
+                create_industrial_embedding_model as _create_model,
+            )
         elif args.factory == "generic":
             from embedding_model import create_embedding_model as _create_model
         else:
             try:
-                from embedding_model import create_industrial_embedding_model as _create_model
+                from embedding_model import (
+                    create_industrial_embedding_model as _create_model,
+                )
             except ImportError:
                 from embedding_model import create_embedding_model as _create_model
         model = _create_model()
@@ -140,11 +179,13 @@ def main():
             "Artificial intelligence is changing the world",
             "Los modelos de lenguaje son cada vez más avanzados",
             "Me gusta la programación y la ciencia de datos",
-            "I enjoy programming and data science"
+            "I enjoy programming and data science",
         ]
         print("\nCreating embeddings for example texts...")
         embeddings = embed_in_batches(model, texts, args.batch_size)
-        print(f"Created {len(embeddings)} embeddings of dimension {embeddings.shape[1]}")
+        print(
+            f"Created {len(embeddings)} embeddings of dimension {embeddings.shape[1]}"
+        )
 
         similarity = cosine_similarity(embeddings[0], embeddings[1])
         print(f"\nSimilarity between '{texts[0]}' and '{texts[1]}': {similarity:.4f}")
@@ -156,6 +197,7 @@ def main():
         print(f"Similarity between '{texts[3]}' and '{texts[4]}': {similarity:.4f}")
     except Exception as e:
         _report_error("Embedding or similarity demo failed", e)
+
 
 if __name__ == "__main__":
     main()

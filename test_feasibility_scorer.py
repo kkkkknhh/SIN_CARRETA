@@ -220,27 +220,23 @@ class TestFeasibilityScorer:
                     f"Missing component {expected_component} in '{indicator_data['text']}'"
                 )
 
-
     @staticmethod
     def _assert_indicator_results(result, indicator_data):
         """
         Helper method to assert common indicator result properties.
-        
+
         Args:
             result: FeasibilityScorer result object
             indicator_data: Expected indicator data dictionary
         """
-        assert (
-            abs(result.feasibility_score - indicator_data["expected_score"]) <= 0.15
-        )
+        assert abs(result.feasibility_score - indicator_data["expected_score"]) <= 0.15
         assert result.quality_tier == indicator_data["expected_tier"]
         assert (
             result.has_quantitative_baseline
             == indicator_data["has_quantitative_baseline"]
         )
         assert (
-            result.has_quantitative_target
-            == indicator_data["has_quantitative_target"]
+            result.has_quantitative_target == indicator_data["has_quantitative_target"]
         )
 
     @staticmethod
@@ -418,7 +414,9 @@ class TestFeasibilityScorer:
         assert len(results_extended) == 15
 
         # Test with parallel disabled
-        scorer_no_parallel = make_scorer(enable_parallel=False, n_jobs=1, backend="threading")
+        scorer_no_parallel = make_scorer(
+            enable_parallel=False, n_jobs=1, backend="threading"
+        )
         results_no_parallel = scorer_no_parallel.batch_score(indicators)
         assert len(results_no_parallel) == 3
 
@@ -436,7 +434,9 @@ class TestFeasibilityScorer:
         assert scorer_custom.backend == "threading"
 
         # Test with parallel disabled
-        scorer_disabled = make_scorer(enable_parallel=False, n_jobs=1, backend="threading")
+        scorer_disabled = make_scorer(
+            enable_parallel=False, n_jobs=1, backend="threading"
+        )
         assert not scorer_disabled.enable_parallel
 
     @staticmethod
@@ -447,9 +447,9 @@ class TestFeasibilityScorer:
         # Test that the main scorer might not be picklable due to logger
         try:
             pickle.dumps(scorer)
-            main_picklable = True
+            _main_picklable = True
         except Exception:
-            main_picklable = False
+            _main_picklable = False
 
         # Test that the copy is always picklable
         copy = scorer._create_picklable_copy()
@@ -1026,13 +1026,13 @@ class TestAtomicReportGeneration:
     def test_unique_temporary_filenames(self, scorer, test_indicators):
         """Test that temporary files have unique names to avoid conflicts."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            report_path = Path(temp_dir) / "test_report.md"
+            _report_path = Path(temp_dir) / "test_report.md"
 
             # Intercept temporary file creation to check uniqueness
             created_temp_files = []
             original_open = Path.open
 
-            def mock_open(self, *args, **kwargs):
+            def _mock_open(self, *args, **kwargs):
                 if str(self).endswith(".tmp."):
                     created_temp_files.append(str(self))
                 return original_open(self, *args, **kwargs)
@@ -1166,7 +1166,10 @@ def test_feasibility_scorer_picklable_roundtrip():
     original_score = scorer.calculate_feasibility_score(sample_text)
     restored_score = restored.calculate_feasibility_score(sample_text)
 
-    assert pytest.approx(original_score.feasibility_score) == restored_score.feasibility_score
+    assert (
+        pytest.approx(original_score.feasibility_score)
+        == restored_score.feasibility_score
+    )
     assert original_score.components_detected == restored_score.components_detected
 
 

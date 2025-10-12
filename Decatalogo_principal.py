@@ -9,7 +9,7 @@ Autor: Dr. en Políticas Públicas
 Enfoque: Evaluación estructural con econometría de políticas, minería causal avanzada,
 procesamiento paralelo industrial y reportes masivos granulares.
 
-ESTRUCTURA CANÓNICA DEL DECÁLOGO (Fuentes: decalogo-industrial.latest.clean.json, 
+ESTRUCTURA CANÓNICA DEL DECÁLOGO (Fuentes: decalogo-industrial.latest.clean.json,
 dnp-standards.latest.clean.json):
 - 6 DIMENSIONES (D1-D6): INSUMOS, ACTIVIDADES, PRODUCTOS, RESULTADOS, IMPACTOS, CAUSALIDAD
 - 10 PUNTOS PDET (P1-P10): Áreas temáticas prioritarias
@@ -170,13 +170,11 @@ LOGGER = logging.getLogger("EvaluacionPoliticasPublicasIndustrial")
 # -------------------- Carga de modelos con capacidades de frontera --------------------
 try:
     NLP = spacy.load("es_core_news_lg")
-    log_info_with_text(
-        LOGGER, "✅ Modelo SpaCy avanzado cargado (es_core_news_lg)")
+    log_info_with_text(LOGGER, "✅ Modelo SpaCy avanzado cargado (es_core_news_lg)")
 except OSError:
     try:
         NLP = spacy.load("es_core_news_sm")
-        log_warning_with_text(
-            LOGGER, "⚠️ Usando modelo SpaCy básico (es_core_news_sm)")
+        log_warning_with_text(LOGGER, "⚠️ Usando modelo SpaCy básico (es_core_news_sm)")
     except OSError as e:
         log_error_with_text(LOGGER, f"❌ Error cargando SpaCy: {e}")
         raise SystemExit(
@@ -189,8 +187,7 @@ try:
     )
     EMBEDDING_MODEL = to_device(EMBEDDING_MODEL)
     log_info_with_text(LOGGER, "✅ Modelo de embeddings multilingual cargado")
-    log_info_with_text(
-        LOGGER, f"✅ Dispositivo: {get_device_config().get_device()}")
+    log_info_with_text(LOGGER, f"✅ Dispositivo: {get_device_config().get_device()}")
 except Exception as e:
     log_error_with_text(LOGGER, f"❌ Error cargando embeddings: {e}")
     raise SystemExit(f"Error cargando modelo de embeddings: {e}")
@@ -208,8 +205,7 @@ if FRONTIER_NLP_AVAILABLE:
             LOGGER, "✅ Pipeline NLP avanzado cargado para análisis de sentimientos"
         )
     except Exception as e:
-        log_warning_with_text(
-            LOGGER, f"⚠️ Pipeline NLP avanzado no disponible: {e}")
+        log_warning_with_text(LOGGER, f"⚠️ Pipeline NLP avanzado no disponible: {e}")
 
 
 # -------------------- Innovaciones matemáticas --------------------
@@ -243,10 +239,8 @@ class MathematicalInnovations:
                 total_strength += path_strength * length_penalty
 
             # Normalización basada en la centralidad de los nodos
-            source_centrality = nx.betweenness_centrality(
-                graph).get(source, 0.1)
-            target_centrality = nx.betweenness_centrality(
-                graph).get(target, 0.1)
+            source_centrality = nx.betweenness_centrality(graph).get(source, 0.1)
+            target_centrality = nx.betweenness_centrality(graph).get(target, 0.1)
             centrality_factor = (source_centrality + target_centrality) / 2
 
             return min(1.0, total_strength * (1 + centrality_factor))
@@ -266,14 +260,13 @@ class MathematicalInnovations:
             # Innovación: Actualización bayesiana iterativa
             posterior = priors[0] if priors else 0.5
 
-            for i, evidence in enumerate(evidences):
+            for _, evidence in enumerate(evidences):
                 likelihood = evidence
                 prior = posterior
 
                 # Aplicación del teorema de Bayes
                 numerator = likelihood * prior
-                denominator = likelihood * prior + \
-                    (1 - likelihood) * (1 - prior)
+                denominator = likelihood * prior + (1 - likelihood) * (1 - prior)
                 posterior = numerator / denominator if denominator > 0 else prior
 
                 # Regularización para evitar valores extremos
@@ -335,16 +328,14 @@ class MathematicalInnovations:
 
             # Operadores avanzados
             weighted_mean = np.sum(values * weights)
-            geometric_mean = np.exp(
-                np.sum(weights * np.log(np.maximum(values, 1e-10))))
+            geometric_mean = np.exp(np.sum(weights * np.log(np.maximum(values, 1e-10))))
             harmonic_mean = 1.0 / np.sum(weights / np.maximum(values, 1e-10))
 
             # Agregación OWA (Ordered Weighted Averaging)
             sorted_values = np.sort(values)[::-1]  # Orden descendente
             owa_weights = np.array([0.4, 0.3, 0.2, 0.1])[: len(sorted_values)]
             owa_weights = owa_weights / np.sum(owa_weights)
-            owa_result = np.sum(
-                sorted_values[: len(owa_weights)] * owa_weights)
+            owa_result = np.sum(sorted_values[: len(owa_weights)] * owa_weights)
 
             return {
                 "min": float(np.min(values)),
@@ -384,7 +375,7 @@ class NivelAnalisis(Enum):
 
 class TipoCadenaValor(Enum):
     """Tipos de eslabones en cadena de valor alineados con dimensiones DNP.
-    
+
     Mapeo con dimensiones del decálogo (decalogo-industrial.latest.clean.json
     y dnp-standards.latest.clean.json):
     - D1: INSUMOS
@@ -394,6 +385,7 @@ class TipoCadenaValor(Enum):
     - D5: IMPACTOS
     - D6: CAUSALIDAD
     """
+
     INSUMOS = "Recursos financieros, humanos y físicos"
     ACTIVIDADES = "Actividades operacionales e implementación de procesos"
     PRODUCTOS = "Bienes/servicios entregables medibles"
@@ -468,8 +460,7 @@ class TeoriaCambioAvanzada:
 
         # Nodos básicos
         G.add_node("insumos", tipo="nodo_base", nivel="input", centralidad=1.0)
-        G.add_node("impactos", tipo="nodo_base",
-                   nivel="outcome", centralidad=1.0)
+        G.add_node("impactos", tipo="nodo_base", nivel="outcome", centralidad=1.0)
 
         # Adición de nodos con atributos enriquecidos
         for categoria, lista in self.mediadores.items():
@@ -481,8 +472,7 @@ class TeoriaCambioAvanzada:
                     orden=i,
                     peso_teorico=0.8 + (i * 0.1),
                 )
-                G.add_edge("insumos", mediador, weight=0.9,
-                           tipo="causal_directa")
+                G.add_edge("insumos", mediador, weight=0.9, tipo="causal_directa")
 
         # Resultados intermedios con conexiones complejas
         for i, resultado in enumerate(self.resultados_intermedios):
@@ -535,8 +525,7 @@ class TeoriaCambioAvanzada:
             avg_clustering = nx.average_clustering(G.to_undirected())
 
             # Análisis de caminos causales
-            mediadores = [n for n in G.nodes if G.nodes[n].get(
-                "tipo") == "mediador"]
+            mediadores = [n for n in G.nodes if G.nodes[n].get("tipo") == "mediador"]
             resultados = [
                 n for n in G.nodes if G.nodes[n].get("tipo") == "resultado_intermedio"
             ]
@@ -547,8 +536,7 @@ class TeoriaCambioAvanzada:
             )
 
             # Robustez estructural
-            robustez = self._calcular_robustez_estructural(
-                G, mediadores, resultados)
+            robustez = self._calcular_robustez_estructural(G, mediadores, resultados)
 
             # Complejidad causal
             elementos_causales = (
@@ -619,11 +607,11 @@ class TeoriaCambioAvanzada:
 @dataclass(frozen=True)
 class EslabonCadenaAvanzado:
     """Eslabón de cadena de valor con capacidades avanzadas.
-    
+
     Representa un eslabón en la cadena de valor de políticas públicas.
     Los tipos de eslabones están alineados con las 6 dimensiones del decálogo:
     D1=INSUMOS, D2=ACTIVIDADES, D3=PRODUCTOS, D4=RESULTADOS, D5=IMPACTOS, D6=CAUSALIDAD
-    
+
     Fuentes canónicas:
     - decalogo-industrial.latest.clean.json: 300 preguntas estructuradas
     - dnp-standards.latest.clean.json: mapeo dimensiones y criterios evaluación
@@ -728,8 +716,7 @@ class OntologiaPoliticasAvanzada:
     taxonomia_evidencia: Dict[str, List[str]]
     patrones_linguisticos: Dict[str, List[str]]
     vocabulario_especializado: Dict[str, List[str]]
-    fecha_creacion: str = field(
-        default_factory=lambda: datetime.now().isoformat())
+    fecha_creacion: str = field(default_factory=lambda: datetime.now().isoformat())
     version: str = "3.0-industrial-frontier"
 
     @classmethod
@@ -986,8 +973,7 @@ class OntologiaPoliticasAvanzada:
             )
 
         except Exception as e:
-            log_error_with_text(
-                LOGGER, f"❌ Error cargando ontología avanzada: {e}")
+            log_error_with_text(LOGGER, f"❌ Error cargando ontología avanzada: {e}")
             raise SystemExit("Fallo en carga de ontología avanzada")
 
     @staticmethod
@@ -1103,8 +1089,7 @@ class OntologiaPoliticasAvanzada:
                 with open(indicadores_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict) and len(data) >= 8:
-                    LOGGER.info(
-                        "✅ Indicadores ODS avanzados cargados desde archivo")
+                    LOGGER.info("✅ Indicadores ODS avanzados cargados desde archivo")
                     return data
                 else:
                     LOGGER.warning(
@@ -1118,10 +1103,8 @@ class OntologiaPoliticasAvanzada:
         # Guardar template avanzado
         try:
             with open(indicadores_path, "w", encoding="utf-8") as f:
-                json.dump(indicadores_especializados, f,
-                          indent=2, ensure_ascii=False)
-            LOGGER.info(
-                f"✅ Template ODS avanzado generado: {indicadores_path}")
+                json.dump(indicadores_especializados, f, indent=2, ensure_ascii=False)
+            LOGGER.info(f"✅ Template ODS avanzado generado: {indicadores_path}")
         except Exception as e:
             LOGGER.error("❌ Error generando template ODS avanzado: %s", e)
 
@@ -1139,8 +1122,7 @@ class OntologiaPoliticasAvanzada:
 
         for i, patron in enumerate(patrones):
             try:
-                matches = re.finditer(
-                    patron, texto, re.IGNORECASE | re.MULTILINE)
+                matches = re.finditer(patron, texto, re.IGNORECASE | re.MULTILINE)
                 for match in matches:
                     resultado = {
                         "texto_encontrado": match.group(),
@@ -1201,13 +1183,13 @@ class OntologiaPoliticasAvanzada:
 @dataclass(frozen=True)
 class DimensionDecalogoAvanzada:
     """Dimensión del decálogo con capacidades matemáticas de frontera.
-    
+
     Representa una dimensión de evaluación con múltiples eslabones de cadena de valor.
     El sistema de dimensiones está alineado con el estándar DNP de 6 dimensiones:
     D1=INSUMOS, D2=ACTIVIDADES, D3=PRODUCTOS, D4=RESULTADOS, D5=IMPACTOS, D6=CAUSALIDAD
-    
+
     Cada dimensión contiene 50 preguntas (300 total distribuidas en 6 dimensiones × 50).
-    
+
     Fuentes canónicas:
     - decalogo-industrial.latest.clean.json: estructura de 300 preguntas
     - dnp-standards.latest.clean.json: criterios evaluación por dimensión
@@ -1233,10 +1215,11 @@ class DimensionDecalogoAvanzada:
                 "Debe haber al menos 4 eslabones por dimensión para análisis robusto"
             )
         if not (0.1 <= self.prioridad_estrategica <= 3.0):
-            raise ValueError(
-                "Prioridad estratégica debe estar entre 0.1 y 3.0")
+            raise ValueError("Prioridad estratégica debe estar entre 0.1 y 3.0")
 
-    def evaluar_coherencia_causal_avanzada(self, evidence_registry=None) -> Dict[str, float]:
+    def evaluar_coherencia_causal_avanzada(
+        self, evidence_registry=None
+    ) -> Dict[str, float]:
         """Evaluación avanzada de coherencia causal con múltiples métricas."""
         try:
             # Verificación de identificabilidad
@@ -1265,8 +1248,7 @@ class DimensionDecalogoAvanzada:
             tiene_impactos = any(
                 e.tipo == TipoCadenaValor.IMPACTOS for e in self.eslabones
             )
-            bonus_cobertura = 0.3 if (
-                tiene_resultados and tiene_impactos) else 0.1
+            bonus_cobertura = 0.3 if (tiene_resultados and tiene_impactos) else 0.1
 
             # Análisis de complejidad vs manejabilidad
             complejidades = [
@@ -1274,13 +1256,11 @@ class DimensionDecalogoAvanzada:
                 for e in self.eslabones
             ]
             complejidad_promedio = np.mean(complejidades)
-            factor_manejabilidad = max(
-                0.3, 1.0 - (complejidad_promedio - 0.5) * 0.8)
+            factor_manejabilidad = max(0.3, 1.0 - (complejidad_promedio - 0.5) * 0.8)
 
             # Coherencia temporal
             ventanas_temporales = [e.ventana_temporal for e in self.eslabones]
-            coherencia_temporal = self._evaluar_coherencia_temporal(
-                ventanas_temporales)
+            coherencia_temporal = self._evaluar_coherencia_temporal(ventanas_temporales)
 
             # Análisis de dependencias circulares
             factor_dependencias = self._evaluar_dependencias_circulares()
@@ -1343,8 +1323,7 @@ class DimensionDecalogoAvanzada:
                     total_comparaciones += 1
 
             # Ratio de superposiciones (esperado en procesos paralelos)
-            ratio_superposicion = superposiciones_logicas / \
-                max(1, total_comparaciones)
+            ratio_superposicion = superposiciones_logicas / max(1, total_comparaciones)
 
             # Evaluar dispersión temporal
             inicios = [v[0] for v in ventanas]
@@ -1414,8 +1393,7 @@ class DimensionDecalogoAvanzada:
             )
 
             # Factor de complejidad agregada
-            complejidades = [m["complejidad_operativa"]
-                             for m in metricas_eslabones]
+            complejidades = [m["complejidad_operativa"] for m in metricas_eslabones]
             factor_complejidad = 1.0 - (np.mean(complejidades) * 0.3)
 
             # Factor de riesgo agregado
@@ -1424,8 +1402,7 @@ class DimensionDecalogoAvanzada:
 
             # Factor de recursos
             recursos = [m["intensidad_recursos"] for m in metricas_eslabones]
-            factor_recursos = np.mean(recursos) * \
-                0.8 + 0.2  # Base mínima del 20%
+            factor_recursos = np.mean(recursos) * 0.8 + 0.2  # Base mínima del 20%
 
             # KPI global ajustado
             kpi_global_ajustado = (
@@ -1433,8 +1410,7 @@ class DimensionDecalogoAvanzada:
             )
 
             # Métricas adicionales
-            lead_times = [m["lead_time_normalizado"]
-                          for m in metricas_eslabones]
+            lead_times = [m["lead_time_normalizado"] for m in metricas_eslabones]
             criticidades = [m["criticidad_global"] for m in metricas_eslabones]
 
             return {
@@ -1464,7 +1440,9 @@ class DimensionDecalogoAvanzada:
                 "score_implementabilidad": 0.6,
             }
 
-    def generar_matriz_riesgos_avanzada(self, evidence_registry=None) -> Dict[str, Dict[str, Any]]:
+    def generar_matriz_riesgos_avanzada(
+        self, evidence_registry=None
+    ) -> Dict[str, Dict[str, Any]]:
         """Generación de matriz de riesgos avanzada con análisis probabilístico."""
         matriz_riesgos = {}
 
@@ -1604,13 +1582,11 @@ class DimensionDecalogoAvanzada:
                 medidas.append("Fortalecer capacidades del equipo técnico")
                 medidas.append("Establecer comité directivo de alto nivel")
             elif "complejidad" in riesgo.lower():
-                medidas.append(
-                    "Implementar enfoque de implementación por fases")
+                medidas.append("Implementar enfoque de implementación por fases")
                 medidas.append("Establecer quick wins tempranos")
             elif "dependencias" in riesgo.lower():
                 medidas.append("Mapear y gestionar dependencias críticas")
-                medidas.append(
-                    "Establecer acuerdos de nivel de servicio (SLA)")
+                medidas.append("Establecer acuerdos de nivel de servicio (SLA)")
 
         # Medidas generales si no hay medidas específicas
         if not medidas:
@@ -1625,9 +1601,7 @@ class DimensionDecalogoAvanzada:
         return list(set(medidas))  # Eliminar duplicados
 
     @staticmethod
-    def _generar_indicadores_monitoreo(
-        eslabon: EslabonCadenaAvanzado
-    ) -> List[str]:
+    def _generar_indicadores_monitoreo(eslabon: EslabonCadenaAvanzado) -> List[str]:
         """Genera indicadores de monitoreo específicos."""
         indicadores = []
 
@@ -1688,7 +1662,7 @@ class DimensionDecalogoAvanzada:
 # -------------------- Sistema de carga del decálogo avanzado --------------------
 def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
     """Carga el decálogo industrial con capacidades avanzadas.
-    
+
     NOTA: Esta función carga un formato interno avanzado que organiza por
     10 puntos PDET (P1-P10), diferente del formato canónico de 6 dimensiones (D1-D6).
     Para acceso a la estructura canónica, usar decalogo_loader.get_decalogo_industrial().
@@ -1701,8 +1675,7 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
                 data = json.load(f)
 
             if not isinstance(data, list) or len(data) != 10:
-                raise ValueError(
-                    "Decálogo debe contener exactamente 10 dimensiones")
+                raise ValueError("Decálogo debe contener exactamente 10 dimensiones")
 
             decalogos = []
             for i, item in enumerate(data):
@@ -1728,8 +1701,7 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
                     resultados_intermedios=tc_data["resultados_intermedios"],
                     precondiciones=tc_data["precondiciones"],
                     moderadores=tc_data.get("moderadores", []),
-                    variables_contextuales=tc_data.get(
-                        "variables_contextuales", []),
+                    variables_contextuales=tc_data.get("variables_contextuales", []),
                     mecanismos_causales=tc_data.get("mecanismos_causales", []),
                 )
 
@@ -1742,7 +1714,7 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
 
                 # Construcción de eslabones avanzados
                 eslabones = []
-                for j, ed in enumerate(item["eslabones"]):
+                for _, ed in enumerate(item["eslabones"]):
                     eslabon = EslabonCadenaAvanzado(
                         id=ed["id"],
                         tipo=TipoCadenaValor[ed["tipo"]],
@@ -1765,8 +1737,7 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
                     cluster=item["cluster"],
                     teoria_cambio=teoria_cambio,
                     eslabones=eslabones,
-                    prioridad_estrategica=float(
-                        item.get("prioridad_estrategica", 1.0)),
+                    prioridad_estrategica=float(item.get("prioridad_estrategica", 1.0)),
                     complejidad_implementacion=float(
                         item.get("complejidad_implementacion", 0.5)
                     ),
@@ -1887,7 +1858,10 @@ def cargar_decalogo_industrial_avanzado() -> List[DimensionDecalogoAvanzada]:
             ("PRODUCTOS", "Bienes y servicios específicos entregados"),
             ("RESULTADOS", "Cambios medibles en la población objetivo"),
             ("IMPACTOS", "Transformaciones territoriales sostenibles"),
-            ("CAUSALIDAD", "Teoría de cambio, enlaces causales y modelo lógico de intervención"),
+            (
+                "CAUSALIDAD",
+                "Teoría de cambio, enlaces causales y modelo lógico de intervención",
+            ),
         ]
 
         for tipo_idx, (tipo_nombre, descripcion) in enumerate(tipos_eslabon):
@@ -1999,16 +1973,14 @@ class ClusterMetadataAvanzada:
             )
 
             # Factor de complejidad balanceada
-            factor_complejidad = min(
-                1.0, self.complejidad_agregada / num_puntos)
+            factor_complejidad = min(1.0, self.complejidad_agregada / num_puntos)
 
             return {
                 "densidad_interconexion": densidad_interconexion,
                 "fuerza_interconexion_promedio": fuerza_promedio,
                 "factor_complejidad_balanceada": factor_complejidad,
                 "puntaje_cohesion_cluster": (
-                    densidad_interconexion + fuerza_promedio +
-                    (1 - factor_complejidad)
+                    densidad_interconexion + fuerza_promedio + (1 - factor_complejidad)
                 )
                 / 3,
                 "implementabilidad_cluster": min(
@@ -2068,7 +2040,7 @@ class DecalogoContextoAvanzado:
                         )
 
             # Análisis de componentes principales
-            eigenvals, eigenvecs = np.linalg.eigh(matriz_sim)
+            eigenvals, _eigenvecs = np.linalg.eigh(matriz_sim)
             varianza_explicada = eigenvals / np.sum(eigenvals)
 
             # Detección de comunidades (clustering)
@@ -2091,14 +2063,11 @@ class DecalogoContextoAvanzado:
             }
 
         except Exception as e:
-            LOGGER.warning(
-                f"Error calculando interdependencias avanzadas: {e}")
+            LOGGER.warning(f"Error calculando interdependencias avanzadas: {e}")
             return {"error": str(e)}
 
     @staticmethod
-    def _calcular_modularidad(
-        matriz_adj: np.ndarray, clusters: np.ndarray
-    ) -> float:
+    def _calcular_modularidad(matriz_adj: np.ndarray, clusters: np.ndarray) -> float:
         """Calcula modularidad de la red de interdependencias."""
         try:
             m = np.sum(matriz_adj) / 2  # Número total de aristas
@@ -2134,8 +2103,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
         self.embeddings_doc: Optional[torch.Tensor] = None
         self.embeddings_metadata: List[Dict[str, Any]] = []
         self.textos_originales = [doc[1] for doc in documentos]
-        self.vectorizer_tfidf = TfidfVectorizer(
-            max_features=5000, ngram_range=(1, 3))
+        self.vectorizer_tfidf = TfidfVectorizer(max_features=5000, ngram_range=(1, 3))
         self.tfidf_matrix: Optional[np.ndarray] = None
         self.logger = get_truncation_logger(f"ExtractorAvanzado_{nombre_plan}")
 
@@ -2318,9 +2286,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
                     f"✅ Matriz TF-IDF precomputada: {self.tfidf_matrix.shape}",
                 )
         except Exception as e:
-            log_error_with_text(
-                self.logger, f"❌ Error precomputando TF-IDF: {e}"
-            )
+            log_error_with_text(self.logger, f"❌ Error precomputando TF-IDF: {e}")
             self.tfidf_matrix = None
 
     def _analizar_estructura_documental(self):
@@ -2328,8 +2294,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
         try:
             # Análisis de distribución de tipos de contenido
             tipos_contenido = [
-                meta["tipo_contenido_estimado"]
-                for meta in self.embeddings_metadata
+                meta["tipo_contenido_estimado"] for meta in self.embeddings_metadata
             ]
 
             from collections import Counter
@@ -2352,10 +2317,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
             paginas_criticas = []
             for pagina, densidades in densidades_pagina.items():
                 densidad_promedio = np.mean(
-                    [
-                        d["numerica"] + d["fechas"] + d["monetaria"]
-                        for d in densidades
-                    ]
+                    [d["numerica"] + d["fechas"] + d["monetaria"] for d in densidades]
                 )
                 if densidad_promedio > 5.0:  # Umbral de criticidad
                     paginas_criticas.append(pagina)
@@ -2366,10 +2328,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 "total_segmentos": len(self.embeddings_metadata),
                 "promedio_palabras_segmento": (
                     np.mean(
-                        [
-                            meta["longitud_palabras"]
-                            for meta in self.embeddings_metadata
-                        ]
+                        [meta["longitud_palabras"] for meta in self.embeddings_metadata]
                     )
                     if self.embeddings_metadata
                     else 0
@@ -2377,15 +2336,11 @@ class ExtractorEvidenciaIndustrialAvanzado:
             }
 
         except Exception as e:
-            log_warning_with_text(
-                self.logger, f"⚠️ Error analizando estructura: {e}"
-            )
+            log_warning_with_text(self.logger, f"⚠️ Error analizando estructura: {e}")
             self.estructura_documental = {}
 
     @staticmethod
-    def _calcular_densidad_causal_avanzada(
-        texto: str
-    ) -> Dict[str, float]:
+    def _calcular_densidad_causal_avanzada(texto: str) -> Dict[str, float]:
         """Cálculo avanzado de densidad causal con múltiples indicadores."""
         try:
             # Patrones causales básicos
@@ -2425,15 +2380,11 @@ class ExtractorEvidenciaIndustrialAvanzado:
             factor_normalizacion = max(1, num_palabras / 100)
 
             return {
-                "densidad_causal": min(
-                    1.0, densidad_causal / factor_normalizacion
-                ),
+                "densidad_causal": min(1.0, densidad_causal / factor_normalizacion),
                 "densidad_correlacional": min(
                     1.0, densidad_correlacional / factor_normalizacion
                 ),
-                "densidad_temporal": min(
-                    1.0, densidad_temporal / factor_normalizacion
-                ),
+                "densidad_temporal": min(1.0, densidad_temporal / factor_normalizacion),
                 "densidad_causal_agregada": min(
                     1.0,
                     (
@@ -2466,14 +2417,11 @@ class ExtractorEvidenciaIndustrialAvanzado:
             # Fragmentar texto si es muy largo
             max_length = 512  # Límite típico de modelos de transformers
             fragmentos = [
-                texto[i: i + max_length]
-                for i in range(0, len(texto), max_length)
+                texto[i: i + max_length] for i in range(0, len(texto), max_length)
             ]
 
             sentimientos_fragmentos = []
-            for fragmento in fragmentos[
-                :3
-            ]:  # Máximo 3 fragmentos para eficiencia
+            for fragmento in fragmentos[:3]:  # Máximo 3 fragmentos para eficiencia
                 if len(fragmento.strip()) > 10:
                     resultado = self.sentiment_analyzer(fragmento)
                     sentimientos_fragmentos.append(resultado)
@@ -2483,8 +2431,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 sentimientos_agregados = defaultdict(float)
                 for resultado_fragmento in sentimientos_fragmentos:
                     for item in resultado_fragmento:
-                        sentimientos_agregados[item["label"]
-                                               ] += item["score"]
+                        sentimientos_agregados[item["label"]] += item["score"]
 
                 # Normalizar
                 total_fragmentos = len(sentimientos_fragmentos)
@@ -2493,23 +2440,18 @@ class ExtractorEvidenciaIndustrialAvanzado:
 
                 return {
                     "sentimiento_positivo": sentimientos_agregados.get(
-                        "POSITIVE", sentimientos_agregados.get(
-                            "LABEL_2", 0.5)
+                        "POSITIVE", sentimientos_agregados.get("LABEL_2", 0.5)
                     ),
                     "sentimiento_negativo": sentimientos_agregados.get(
-                        "NEGATIVE", sentimientos_agregados.get(
-                            "LABEL_0", 0.5)
+                        "NEGATIVE", sentimientos_agregados.get("LABEL_0", 0.5)
                     ),
                     "sentimiento_neutral": sentimientos_agregados.get(
-                        "NEUTRAL", sentimientos_agregados.get(
-                            "LABEL_1", 0.5)
+                        "NEUTRAL", sentimientos_agregados.get("LABEL_1", 0.5)
                     ),
                 }
 
         except Exception as e:
-            log_debug_with_text(
-                self.logger, f"Error en análisis de sentimientos: {e}"
-            )
+            log_debug_with_text(self.logger, f"Error en análisis de sentimientos: {e}")
 
         return {
             "sentimiento_positivo": 0.5,
@@ -2547,12 +2489,10 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 }
 
             # Embedding de la query
-            q_emb = EMBEDDING_MODEL.encode(
-                query, convert_to_tensor=True)
+            q_emb = EMBEDDING_MODEL.encode(query, convert_to_tensor=True)
 
             # Calcular similitudes semánticas
-            similitudes = util.pytorch_cos_sim(
-                q_emb, self.embeddings_doc)[0]
+            similitudes = util.pytorch_cos_sim(q_emb, self.embeddings_doc)[0]
 
             resultados = []
 
@@ -2575,35 +2515,26 @@ class ExtractorEvidenciaIndustrialAvanzado:
                     continue
 
                 # Relevancia conceptual mejorada
-                relevancia_conceptual = (
-                    self._calcular_relevancia_conceptual_avanzada(
-                        texto, conceptos_clave
-                    )
+                relevancia_conceptual = self._calcular_relevancia_conceptual_avanzada(
+                    texto, conceptos_clave
                 )
 
                 # Densidad causal avanzada
-                densidad_causal_info = self._calcular_densidad_causal_avanzada(
-                    texto
-                )
+                densidad_causal_info = self._calcular_densidad_causal_avanzada(texto)
 
                 # Calidad del contenido
-                calidad_contenido = self._evaluar_calidad_contenido(
-                    texto, metadata
-                )
+                calidad_contenido = self._evaluar_calidad_contenido(texto, metadata)
 
                 # Análisis de sentimientos
                 sentimientos = self._analizar_sentimientos_texto(texto)
 
                 # Score final ponderado
                 score_final = (
-                    float(sim_score) *
-                    pesos_criterios["similitud_semantica"]
-                    + relevancia_conceptual
-                    * pesos_criterios["relevancia_conceptual"]
+                    float(sim_score) * pesos_criterios["similitud_semantica"]
+                    + relevancia_conceptual * pesos_criterios["relevancia_conceptual"]
                     + densidad_causal_info["densidad_causal_agregada"]
                     * pesos_criterios["densidad_causal"]
-                    + calidad_contenido *
-                    pesos_criterios["calidad_contenido"]
+                    + calidad_contenido * pesos_criterios["calidad_contenido"]
                 )
 
                 # Crear resultado enriquecido
@@ -2624,9 +2555,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
                             "longitud_palabras": metadata["longitud_palabras"],
                             "densidad_numerica": metadata["densidad_numerica"],
                             "densidad_fechas": metadata["densidad_fechas"],
-                            "densidad_monetaria": metadata[
-                                "densidad_monetaria"
-                            ],
+                            "densidad_monetaria": metadata["densidad_monetaria"],
                             "complejidad_sintactica": metadata[
                                 "complejidad_sintactica"
                             ],
@@ -2653,9 +2582,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
             return resultados_diversificados[:top_k]
 
         except Exception as e:
-            log_error_with_text(
-                self.logger, f"❌ Error en búsqueda avanzada: {e}"
-            )
+            log_error_with_text(self.logger, f"❌ Error en búsqueda avanzada: {e}")
             return self._buscar_evidencia_fallback(
                 query, conceptos_clave, top_k, umbral_certeza
             )
@@ -2672,17 +2599,13 @@ class ExtractorEvidenciaIndustrialAvanzado:
 
             # Coincidencias exactas
             coincidencias_exactas = sum(
-                1
-                for concepto in conceptos_clave
-                if concepto.lower() in texto_lower
+                1 for concepto in conceptos_clave if concepto.lower() in texto_lower
             )
 
             # Coincidencias parciales (stemming básico)
             coincidencias_parciales = 0
             for concepto in conceptos_clave:
-                raiz_concepto = concepto[
-                    : max(4, len(concepto) - 2)
-                ]  # Stemming básico
+                raiz_concepto = concepto[: max(4, len(concepto) - 2)]  # Stemming básico
                 if raiz_concepto.lower() in texto_lower:
                     coincidencias_parciales += (
                         0.7  # Peso menor para coincidencias parciales
@@ -2691,16 +2614,14 @@ class ExtractorEvidenciaIndustrialAvanzado:
             # Coincidencias semánticas usando ontología
             coincidencias_semanticas = 0
             for (
-                categoria,
+                _categoria,
                 terminos,
             ) in self.ontologia.vocabulario_especializado.items():
                 conceptos_categoria = set(
                     concepto.lower() for concepto in conceptos_clave
                 )
                 terminos_categoria = set(t.lower() for t in terminos)
-                interseccion = conceptos_categoria.intersection(
-                    terminos_categoria
-                )
+                interseccion = conceptos_categoria.intersection(terminos_categoria)
                 if interseccion:
                     coincidencias_semanticas += len(interseccion) * 0.5
 
@@ -2718,9 +2639,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
             return 0.0
 
     @staticmethod
-    def _evaluar_calidad_contenido(
-        texto: str, metadata: Dict[str, Any]
-    ) -> float:
+    def _evaluar_calidad_contenido(texto: str, metadata: Dict[str, Any]) -> float:
         """Evalúa la calidad del contenido basándose en múltiples factores."""
         try:
             calidad = 0.0
@@ -2794,10 +2713,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
 
             # Limitar resultados de la misma página
             pagina = resultado["pagina"]
-            if (
-                pagina in paginas_vistas
-                and len(resultados_diversos) >= top_k // 2
-            ):
+            if pagina in paginas_vistas and len(resultados_diversos) >= top_k // 2:
                 continue
 
             resultados_diversos.append(resultado)
@@ -2828,16 +2744,12 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 texto, conceptos_clave
             )
 
-            if (
-                relevancia >= umbral_certeza * 0.5
-            ):  # Umbral más bajo para fallback
+            if relevancia >= umbral_certeza * 0.5:  # Umbral más bajo para fallback
                 resultados.append(
                     {
                         "texto": texto,
                         "pagina": (
-                            self.documentos[i][0]
-                            if i < len(self.documentos)
-                            else 0
+                            self.documentos[i][0] if i < len(self.documentos) else 0
                         ),
                         "relevancia_conceptual": relevancia,
                         "score_final": relevancia,
@@ -2845,9 +2757,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
                     }
                 )
 
-        return sorted(resultados, key=lambda x: x["score_final"], reverse=True)[
-            :top_k
-        ]
+        return sorted(resultados, key=lambda x: x["score_final"], reverse=True)[:top_k]
 
 
 # -------------------- Main function --------------------
@@ -2885,9 +2795,7 @@ def main():
     args = parser.parse_args()
 
     LOGGER.info("=" * 80)
-    LOGGER.info(
-        "Sistema de Evaluación de Políticas Públicas - Versión Industrial 9.0"
-    )
+    LOGGER.info("Sistema de Evaluación de Políticas Públicas - Versión Industrial 9.0")
     LOGGER.info("=" * 80)
 
     # Cargar documento
@@ -2899,9 +2807,7 @@ def main():
                     texto = page.extract_text()
                     if texto:
                         documentos.append((i + 1, texto))
-            LOGGER.info(
-                f"✅ PDF cargado: {len(documentos)} páginas extraídas"
-            )
+            LOGGER.info(f"✅ PDF cargado: {len(documentos)} páginas extraídas")
         except Exception as e:
             LOGGER.error("❌ Error cargando PDF: %s", e)
             return 1
@@ -2917,8 +2823,7 @@ def main():
                 "Presupuesto: $500 millones para inversión social y desarrollo territorial...",
             ),
         ]
-        LOGGER.warning(
-            "⚠️ Usando documentos de ejemplo (PDF no disponible)")
+        LOGGER.warning("⚠️ Usando documentos de ejemplo (PDF no disponible)")
 
     # Inicializar sistema
     try:
@@ -2946,7 +2851,9 @@ def main():
             )
 
             # Evaluar coherencia
-            coherencia = dimension.evaluar_coherencia_causal_avanzada(evidence_registry=None)
+            coherencia = dimension.evaluar_coherencia_causal_avanzada(
+                evidence_registry=None
+            )
 
             # Calcular KPIs
             kpis = dimension.calcular_kpi_global_avanzado(evidence_registry=None)
@@ -2960,12 +2867,8 @@ def main():
                 "coherencia": coherencia,
                 "kpis": kpis,
                 "evidencias_encontradas": len(evidencias),
-                "evidencias_detalle": evidencias[
-                    :3
-                ],  # Top 3 para el reporte
-                "riesgos": {
-                    k: v["clasificacion"] for k, v in riesgos.items()
-                },
+                "evidencias_detalle": evidencias[:3],  # Top 3 para el reporte
+                "riesgos": {k: v["clasificacion"] for k, v in riesgos.items()},
                 "prioridad_estrategica": dimension.prioridad_estrategica,
                 "complejidad_implementacion": dimension.complejidad_implementacion,
             }
@@ -2985,10 +2888,7 @@ def main():
                 ]
             ),
             "evidencias_totales": sum(
-                [
-                    r["evidencias_encontradas"]
-                    for r in resultados_evaluacion.values()
-                ]
+                [r["evidencias_encontradas"] for r in resultados_evaluacion.values()]
             ),
             "timestamp_evaluacion": datetime.now().isoformat(),
             "configuracion": {
@@ -3023,9 +2923,7 @@ def main():
         LOGGER.info(
             f"📈 Coherencia global: {metricas_globales['coherencia_promedio']:.2%}"
         )
-        LOGGER.info(
-            f"📊 KPI global: {metricas_globales['kpi_promedio']:.2%}"
-        )
+        LOGGER.info(f"📊 KPI global: {metricas_globales['kpi_promedio']:.2%}")
 
         return 0
 
@@ -3047,8 +2945,7 @@ def obtener_decalogo_contexto_avanzado() -> DecalogoContextoAvanzado:
 
     try:
         # Construcción de dimensiones por ID
-        dimensiones_por_id = {
-            d.id: d for d in DECALOGO_INDUSTRIAL_AVANZADO}
+        dimensiones_por_id = {d.id: d for d in DECALOGO_INDUSTRIAL_AVANZADO}
 
         # Construcción de clusters avanzados
         clusters_por_id = {}
@@ -3100,14 +2997,10 @@ def obtener_decalogo_contexto_avanzado() -> DecalogoContextoAvanzado:
             for j in dim.interdependencias:
                 if 1 <= j <= n_dims:
                     matriz_interdependencias[i - 1, j - 1] = 1.0
-                    matriz_interdependencias[j - 1, i - 1] = (
-                        0.7  # Relación asimétrica
-                    )
+                    matriz_interdependencias[j - 1, i - 1] = 0.7  # Relación asimétrica
 
         # Carga de ontología avanzada
-        ontologia_avanzada = (
-            OntologiaPoliticasAvanzada.cargar_ontologia_avanzada()
-        )
+        ontologia_avanzada = OntologiaPoliticasAvanzada.cargar_ontologia_avanzada()
 
         # Construcción del contexto
         contexto = DecalogoContextoAvanzado(
@@ -3119,18 +3012,13 @@ def obtener_decalogo_contexto_avanzado() -> DecalogoContextoAvanzado:
         )
 
         _DECALOGO_CONTEXTO_AVANZADO_CACHE = contexto
-        LOGGER.info(
-            "✅ Contexto avanzado del decálogo construido exitosamente"
-        )
+        LOGGER.info("✅ Contexto avanzado del decálogo construido exitosamente")
 
         return contexto
 
     except Exception as e:
-        LOGGER.error(
-            f"❌ Error construyendo contexto avanzado: {e}")
-        raise SystemExit(
-            "Fallo en construcción de contexto avanzado del decálogo"
-        )
+        LOGGER.error(f"❌ Error construyendo contexto avanzado: {e}")
+        raise SystemExit("Fallo en construcción de contexto avanzado del decálogo")
 
 
 if __name__ == "__main__":
