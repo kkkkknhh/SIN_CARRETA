@@ -630,3 +630,7 @@ if __name__ == "__main__":
         )
 
     # Nota: El registro automático en el evidence_registry se realiza en el método detect()
+
+# Alias for backward compatibility
+MonetaryType = MonetaryCategory
+

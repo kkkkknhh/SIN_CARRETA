@@ -1,6 +1,6 @@
 import unittest
 
-from monetary_detector import MonetaryType, create_monetary_detector
+from monetary_detector import MonetaryCategory, create_monetary_detector
 
 
 class TestMonetaryDetector(unittest.TestCase):
@@ -65,12 +65,12 @@ class TestMonetaryDetector(unittest.TestCase):
 
         # First match: $100
         assert results[0].value == 100.0
-        assert results[0].type == MonetaryType.CURRENCY
+        assert results[0].type == MonetaryCategory.CURRENCY
         assert results[0].currency == "USD"
 
         # Second match: €200
         assert results[1].value == 200.0
-        assert results[1].type == MonetaryType.CURRENCY
+        assert results[1].type == MonetaryCategory.CURRENCY
         assert results[1].currency == "EUR"
 
     def test_monetary_with_scales(self):
@@ -102,7 +102,7 @@ class TestMonetaryDetector(unittest.TestCase):
             results = self.detector.detect_monetary_expressions(text)
             assert len(results) == 1
             assert results[0].value == expected_value
-            assert results[0].type == MonetaryType.PERCENTAGE
+            assert results[0].type == MonetaryCategory.PERCENTAGE
             assert results[0].currency is None
 
     def test_numeric_with_scales(self):
@@ -118,7 +118,7 @@ class TestMonetaryDetector(unittest.TestCase):
             results = self.detector.detect_monetary_expressions(text)
             assert len(results) == 1
             assert results[0].value == expected_value
-            assert results[0].type == MonetaryType.NUMERIC
+            assert results[0].type == MonetaryCategory.NUMERIC
             assert results[0].currency is None
 
     def test_complex_text_mixed_expressions(self):
@@ -139,11 +139,11 @@ class TestMonetaryDetector(unittest.TestCase):
 
         # 15%
         assert results[1].value == 0.15
-        assert results[1].type == MonetaryType.PERCENTAGE
+        assert results[1].type == MonetaryCategory.PERCENTAGE
 
         # 1,8M - detected as numeric with scale (no currency symbol)
         assert results[2].value == 1800000.0
-        assert results[2].type == MonetaryType.NUMERIC
+        assert results[2].type == MonetaryCategory.NUMERIC
 
         # €750K
         assert results[3].value == 750000.0
@@ -203,7 +203,7 @@ class TestMonetaryDetector(unittest.TestCase):
         # Should only match once as currency, not also as numeric
         assert len(results) == 1
         assert results[0].value == 100000000.0
-        assert results[0].type == MonetaryType.CURRENCY
+        assert results[0].type == MonetaryCategory.CURRENCY
 
     def test_position_tracking(self):
         """Test that match positions are correctly tracked."""
