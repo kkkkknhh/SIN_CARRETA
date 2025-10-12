@@ -486,7 +486,7 @@ class RuntimeTracer:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(self.export(), f, indent=2, ensure_ascii=False)
 
-        self.logger.info(f"Runtime trace saved to: {output_path}")
+        self.logger.info("Runtime trace saved to: %s", output_path)
 
 
 # ============================================================================
@@ -541,9 +541,9 @@ class CanonicalFlowValidator:
         try:
             with open(self.flow_doc_path, 'r', encoding='utf-8') as f:
                 self.canonical_doc = json.load(f)
-            self.logger.info(f"Loaded canonical doc: {self.flow_doc_path}")
+            self.logger.info("Loaded canonical doc: %s", self.flow_doc_path)
         except Exception as e:
-            self.logger.error(f"Failed to load canonical doc: {e}")
+            self.logger.error("Failed to load canonical doc: %s", e)
 
     def validate_order(self, runtime_trace: RuntimeTracer) -> Dict[str, Any]:
         """
@@ -778,9 +778,9 @@ class FlowDocGenerator:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(doc, f, indent=2, ensure_ascii=False)
-        logger.info(f"✓ Flow documentation generated (16 stages): {output_path}")
-        logger.info(f"  Flow hash: {flow_hash}")
-        logger.info(f"  Stages: {len(stages)}")
+        logger.info("✓ Flow documentation generated (16 stages): %s", output_path)
+        logger.info("  Flow hash: %s", flow_hash)
+        logger.info("  Stages: %s", len(stages))
 
         return doc
 

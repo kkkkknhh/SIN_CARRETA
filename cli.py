@@ -159,7 +159,7 @@ def validate_args(args: argparse.Namespace) -> None:
     # Validate input path exists
     input_path = Path(args.input)
     if not input_path.exists():
-        LOGGER.error(f"Input path '{args.input}' does not exist")
+        LOGGER.error("Input path '%s' does not exist", args.input)
         raise ValueError(f"Input path '{args.input}' does not exist")
 
     # Create output directory if it doesn't exist
@@ -172,12 +172,12 @@ def validate_args(args: argparse.Namespace) -> None:
 
     # Validate workers count
     if args.workers < 1:
-        LOGGER.error(f"Workers count must be at least 1 (received {args.workers})")
+        LOGGER.error("Workers count must be at least 1 (received %s)", args.workers)
         raise ValueError("Workers count must be at least 1")
 
     # Validate topk value
     if args.topk < 1:
-        LOGGER.error(f"topk value must be at least 1 (received {args.topk})")
+        LOGGER.error("topk value must be at least 1 (received %s)", args.topk)
         raise ValueError("topk value must be at least 1")
 
     # Validate umbral range
@@ -272,10 +272,10 @@ def run_feasibility_mode(args: argparse.Namespace) -> int:
         text_files.extend(input_path.glob(ext))
 
     if not text_files:
-        LOGGER.warning(f"No text files found in {args.input}")
+        LOGGER.warning("No text files found in %s", args.input)
         return 1
 
-    LOGGER.info(f"Found {len(text_files)} files to process")
+    LOGGER.info("Found %s files to process", len(text_files))
 
     indicators = []
     for file_path in text_files:
@@ -283,7 +283,7 @@ def run_feasibility_mode(args: argparse.Namespace) -> int:
             with open(file_path, "r", encoding="utf-8") as input_file:
                 content = input_file.read()
         except OSError as exc:
-            LOGGER.warning(f"Could not read {file_path}: {exc}")
+            LOGGER.warning("Could not read %s: %s", file_path, exc)
             continue
 
         segments = [
@@ -295,7 +295,7 @@ def run_feasibility_mode(args: argparse.Namespace) -> int:
         LOGGER.warning("No content found to analyze")
         return 1
 
-    LOGGER.info(f"Analyzing {len(indicators)} indicators")
+    LOGGER.info("Analyzing %s indicators", len(indicators))
 
     try:
         if args.workers > 1:
@@ -357,7 +357,7 @@ def run_feasibility_mode(args: argparse.Namespace) -> int:
         LOGGER.exception(f"Failed to write feasibility report to {output_file}")
         return 1
 
-    LOGGER.info(f"Analysis complete. Results saved to {output_file}")
+    LOGGER.info("Analysis complete. Results saved to %s", output_file)
     if top_results:
         LOGGER.info(
             f"Top {len(top_results)} results (threshold >= {args.umbral})"
@@ -404,19 +404,19 @@ def run_embedding_mode(args: argparse.Namespace) -> int:
                             }
                         )
             except OSError as exc:
-                LOGGER.warning(f"Could not read {file_path}: {exc}")
+                LOGGER.warning("Could not read %s: %s", file_path, exc)
 
         if not documents:
             LOGGER.warning("No documents found to process")
             return 1
 
-        LOGGER.info(f"Processing {len(documents)} documents")
+        LOGGER.info("Processing %s documents", len(documents))
 
         # Generate embeddings
         texts = [doc["content"] for doc in documents]
         embeddings = model.encode(texts)
 
-        LOGGER.info(f"Generated embeddings with shape {embeddings.shape}")
+        LOGGER.info("Generated embeddings with shape %s", embeddings.shape)
 
         # Save results
         output_file = Path(args.outdir) / "embeddings.npy"
@@ -440,8 +440,8 @@ def run_embedding_mode(args: argparse.Namespace) -> int:
         with open(metadata_file, "w", encoding="utf-8") as metadata_handle:
             json.dump(metadata, metadata_handle, indent=2)
 
-        LOGGER.info(f"Embeddings saved to {output_file}")
-        LOGGER.info(f"Metadata saved to {metadata_file}")
+        LOGGER.info("Embeddings saved to %s", output_file)
+        LOGGER.info("Metadata saved to %s", metadata_file)
 
         return 0
 
@@ -492,7 +492,7 @@ def main():
         try:
             config = load_config_file(args.config)
         except ValueError as exc:
-            LOGGER.error(f"Failed to load configuration file: {exc}")
+            LOGGER.error("Failed to load configuration file: %s", exc)
             return 1
         # Override command line args with config file values
         for key, value in config.items():
@@ -506,22 +506,22 @@ def main():
     try:
         validate_args(args)
     except ValueError as exc:
-        LOGGER.error(f"Invalid CLI configuration: {exc}")
+        LOGGER.error("Invalid CLI configuration: %s", exc)
         return 1
 
     # Show configuration and exit if dry-run
     if args.dry_run:
         LOGGER.info("Configuration (dry-run mode):")
-        LOGGER.info(f"  Input directory: {args.input}")
-        LOGGER.info(f"  Output directory: {args.outdir}")
-        LOGGER.info(f"  Workers: {args.workers}")
-        LOGGER.info(f"  Device: {get_device_config(args.device)}")
-        LOGGER.info(f"  Precision: {args.precision}")
-        LOGGER.info(f"  Top-k: {args.topk}")
-        LOGGER.info(f"  Umbral: {args.umbral}")
-        LOGGER.info(f"  Max segments: {args.max_segmentos}")
-        LOGGER.info(f"  Mode: {args.mode}")
-        LOGGER.info(f"  Verbose: {args.verbose}")
+        LOGGER.info("  Input directory: %s", args.input)
+        LOGGER.info("  Output directory: %s", args.outdir)
+        LOGGER.info("  Workers: %s", args.workers)
+        LOGGER.info("  Device: %s", get_device_config(args.device))
+        LOGGER.info("  Precision: %s", args.precision)
+        LOGGER.info("  Top-k: %s", args.topk)
+        LOGGER.info("  Umbral: %s", args.umbral)
+        LOGGER.info("  Max segments: %s", args.max_segmentos)
+        LOGGER.info("  Mode: %s", args.mode)
+        LOGGER.info("  Verbose: %s", args.verbose)
         return 0
 
     # Execute the selected mode
@@ -532,7 +532,7 @@ def main():
     elif args.mode == "demo":
         return run_demo_mode(args)
     else:
-        LOGGER.error(f"Unknown mode: {args.mode}")
+        LOGGER.error("Unknown mode: %s", args.mode)
         return 1
 
 

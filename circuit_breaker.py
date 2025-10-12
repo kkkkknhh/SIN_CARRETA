@@ -100,7 +100,7 @@ class CircuitBreaker:
             try:
                 callback(event_type, self.name, data)
             except Exception as e:
-                logger.error(f"Alert callback failed: {e}")
+                logger.error("Alert callback failed: %s", e)
 
     def _transition_to(self, new_state: CircuitState):
         """Transition to new circuit state"""
@@ -114,7 +114,7 @@ class CircuitBreaker:
         }
         self.metrics.state_transitions.append(transition)
 
-        logger.info(f"Circuit '{self.name}' transitioned: {old_state.value} -> {new_state.value}")
+        logger.info("Circuit '%s' transitioned: %s -> %s", self.name, old_state.value, new_state.value)
 
         self._trigger_alert("state_transition", transition)
 
@@ -300,7 +300,7 @@ def with_circuit_breaker(
                 return circuit.call(func, *args, **kwargs)
             except CircuitBreakerError as e:
                 if fallback:
-                    logger.info(f"Circuit open, using fallback for {func.__name__}")
+                    logger.info("Circuit open, using fallback for %s", func.__name__)
                     return fallback(*args, **kwargs)
                 raise
 
@@ -383,15 +383,15 @@ class FaultRecoveryManager:
         playbook = self.recovery_playbooks.get(fault_type)
 
         if not playbook:
-            logger.error(f"No recovery playbook found for fault type: {fault_type}")
+            logger.error("No recovery playbook found for fault type: %s", fault_type)
             return False
 
         try:
-            logger.info(f"Executing recovery playbook for {fault_type}")
+            logger.info("Executing recovery playbook for %s", fault_type)
             playbook(context)
             return True
         except Exception as e:
-            logger.error(f"Recovery playbook failed: {e}")
+            logger.error("Recovery playbook failed: %s", e)
             return False
 
     def get_system_health(self) -> Dict[str, Any]:

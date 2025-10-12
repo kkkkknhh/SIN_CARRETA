@@ -231,7 +231,7 @@ class EvidenceRegistry:
         """Freeze the registry (no more evidence can be added)"""
         with self._lock:
             self._frozen = True
-            logger.info(f"EvidenceRegistry frozen with {len(self.store)} evidence items")
+            logger.info("EvidenceRegistry frozen with %s evidence items", len(self.store))
 
     def is_frozen(self) -> bool:
         """Check if registry is frozen"""
@@ -302,7 +302,7 @@ class EvidenceRegistry:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-        logger.info(f"Exported registry to {filepath}")
+        logger.info("Exported registry to %s", filepath)
 
     def __len__(self) -> int:
         """Return number of evidence items"""

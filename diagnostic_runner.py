@@ -263,7 +263,7 @@ class DiagnosticWrapper:
         """Install entry/exit hooks for all stage methods."""
         for stage, method_name in self.STAGE_METHODS.items():
             if not hasattr(self.orchestrator, method_name):
-                self.logger.warning(f"Method {method_name} not found on orchestrator")
+                self.logger.warning("Method %s not found on orchestrator", method_name)
                 continue
             
             original_method = getattr(self.orchestrator, method_name)
@@ -272,7 +272,7 @@ class DiagnosticWrapper:
             wrapped_method = self._create_wrapper(stage, original_method)
             setattr(self.orchestrator, method_name, wrapped_method)
         
-        self.logger.info(f"Installed diagnostic hooks for {len(self._original_methods)} stages")
+        self.logger.info("Installed diagnostic hooks for %s stages", len(self._original_methods))
     
     def _create_wrapper(self, stage: PipelineStage, original_method: Callable) -> Callable:
         """Create a wrapper function for a stage method."""
@@ -321,7 +321,7 @@ class DiagnosticWrapper:
         except Exception as e:
             error_occurred = True
             node_metrics.error_count += 1
-            self.logger.error(f"Stage {stage.value} raised exception: {e}")
+            self.logger.error("Stage %s raised exception: %s", stage.value, e)
             raise
         finally:
             # Capture exit state
@@ -399,7 +399,7 @@ class DiagnosticRunner:
         Returns:
             Dict containing both orchestrator results and diagnostic metrics
         """
-        self.logger.info(f"Starting diagnostic run for plan_id={plan_id}")
+        self.logger.info("Starting diagnostic run for plan_id=%s", plan_id)
         
         # Initialize orchestrator if not provided
         if self.orchestrator is None:
@@ -422,7 +422,7 @@ class DiagnosticRunner:
                 **kwargs
             )
         except Exception as e:
-            self.logger.error(f"Orchestrator execution failed: {e}")
+            self.logger.error("Orchestrator execution failed: %s", e)
             raise
         finally:
             # Capture execution end
@@ -562,7 +562,7 @@ class DiagnosticRunner:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(report)
-            self.logger.info(f"Diagnostic report written to {output_path}")
+            self.logger.info("Diagnostic report written to %s", output_path)
         
         return report
     
@@ -571,7 +571,7 @@ class DiagnosticRunner:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(self.pipeline_metrics.to_dict(), f, indent=2, ensure_ascii=False)
-        self.logger.info(f"Metrics exported to {output_path}")
+        self.logger.info("Metrics exported to %s", output_path)
 
 
 # ============================================================================

@@ -51,7 +51,7 @@ try:
     from contradiction_detector import ContradictionDetector
 except ImportError as e:
     # Log import errors but continue - the orchestrator will handle missing components
-    logging.error(f"Failed to import component: {e}")
+    logging.error("Failed to import component: %s", e)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -282,49 +282,49 @@ class PipelineOrchestrator:
             self.components["teoria_cambio"] = TeoriaCambio()
             logger.info("Loaded teoria_cambio component")
         except Exception as e:
-            logger.warning(f"Failed to load teoria_cambio: {e}")
+            logger.warning("Failed to load teoria_cambio: %s", e)
         
         # Try to load causal_pattern_detector
         try:
             self.components["causal_pattern_detector"] = create_causal_pattern_detector()
             logger.info("Loaded causal_pattern_detector component")
         except Exception as e:
-            logger.warning(f"Failed to load causal_pattern_detector: {e}")
+            logger.warning("Failed to load causal_pattern_detector: %s", e)
         
         # Try to load monetary_detector
         try:
             self.components["monetary_detector"] = create_monetary_detector()
             logger.info("Loaded monetary_detector component")
         except Exception as e:
-            logger.warning(f"Failed to load monetary_detector: {e}")
+            logger.warning("Failed to load monetary_detector: %s", e)
         
         # Try to load feasibility_scorer
         try:
             self.components["feasibility_scorer"] = FeasibilityScorer()
             logger.info("Loaded feasibility_scorer component")
         except Exception as e:
-            logger.warning(f"Failed to load feasibility_scorer: {e}")
+            logger.warning("Failed to load feasibility_scorer: %s", e)
         
         # Try to load document_segmenter
         try:
             self.components["document_segmenter"] = DocumentSegmenter()
             logger.info("Loaded document_segmenter component")
         except Exception as e:
-            logger.warning(f"Failed to load document_segmenter: {e}")
+            logger.warning("Failed to load document_segmenter: %s", e)
         
         # Try to load responsibility_detector
         try:
             self.components["responsibility_detector"] = ResponsibilityDetector()
             logger.info("Loaded responsibility_detector component")
         except Exception as e:
-            logger.warning(f"Failed to load responsibility_detector: {e}")
+            logger.warning("Failed to load responsibility_detector: %s", e)
         
         # Try to load contradiction_detector
         try:
             self.components["contradiction_detector"] = ContradictionDetector()
             logger.info("Loaded contradiction_detector component")
         except Exception as e:
-            logger.warning(f"Failed to load contradiction_detector: {e}")
+            logger.warning("Failed to load contradiction_detector: %s", e)
         
         # Analyze component coverage
         self._analyze_component_coverage()
@@ -342,12 +342,12 @@ class PipelineOrchestrator:
         covered_count = len(covered_questions)
         coverage_pct = (covered_count / total_questions) * 100 if total_questions > 0 else 0
         
-        logger.info(f"DECALOGO question coverage: {covered_count}/{total_questions} questions ({coverage_pct:.1f}%)")
+        logger.info("DECALOGO question coverage: %s/%s questions (%.1f%%)", covered_count, total_questions, coverage_pct)
         
         # Log uncovered questions
         uncovered = set(self.questions.keys()) - covered_questions
         if uncovered:
-            logger.warning(f"Uncovered questions: {', '.join(sorted(uncovered))}")
+            logger.warning("Uncovered questions: %s", ', '.join(sorted(uncovered)))
     
     def extract_evidence(self, plan_text: str, plan_id: str) -> Dict[str, List[EvidenceItem]]:
         """
@@ -369,9 +369,9 @@ class PipelineOrchestrator:
             try:
                 segmenter = self.components["document_segmenter"]
                 plan_sections = segmenter.segment_document(plan_text)
-                logger.info(f"Document segmented into {len(plan_sections)} sections")
+                logger.info("Document segmented into %s sections", len(plan_sections))
             except Exception as e:
-                logger.error(f"Error segmenting document: {e}")
+                logger.error("Error segmenting document: %s", e)
                 # Use full text as fallback
                 plan_sections = {"full_text": plan_text}
         else:
@@ -407,7 +407,7 @@ class PipelineOrchestrator:
                 
                 logger.info("Collected evidence from teoria_cambio")
             except Exception as e:
-                logger.error(f"Error collecting evidence from teoria_cambio: {e}")
+                logger.error("Error collecting evidence from teoria_cambio: %s", e)
         
         # Collect evidence using causal_pattern_detector
         if "causal_pattern_detector" in self.components:
@@ -439,7 +439,7 @@ class PipelineOrchestrator:
                 
                 logger.info("Collected evidence from causal_pattern_detector")
             except Exception as e:
-                logger.error(f"Error collecting evidence from causal_pattern_detector: {e}")
+                logger.error("Error collecting evidence from causal_pattern_detector: %s", e)
         
         # Collect evidence using monetary_detector
         if "monetary_detector" in self.components:
@@ -475,7 +475,7 @@ class PipelineOrchestrator:
                 
                 logger.info("Collected evidence from monetary_detector")
             except Exception as e:
-                logger.error(f"Error collecting evidence from monetary_detector: {e}")
+                logger.error("Error collecting evidence from monetary_detector: %s", e)
         
         # Collect evidence using feasibility_scorer
         if "feasibility_scorer" in self.components:
@@ -521,7 +521,7 @@ class PipelineOrchestrator:
                 
                 logger.info("Collected evidence from feasibility_scorer")
             except Exception as e:
-                logger.error(f"Error collecting evidence from feasibility_scorer: {e}")
+                logger.error("Error collecting evidence from feasibility_scorer: %s", e)
         
         # Collect evidence using responsibility_detector
         if "responsibility_detector" in self.components:
@@ -549,7 +549,7 @@ class PipelineOrchestrator:
                 
                 logger.info("Collected evidence from responsibility_detector")
             except Exception as e:
-                logger.error(f"Error collecting evidence from responsibility_detector: {e}")
+                logger.error("Error collecting evidence from responsibility_detector: %s", e)
         
         # Add more component evidence extraction as needed...
         
@@ -579,7 +579,7 @@ class PipelineOrchestrator:
             
             if not question_evidence:
                 # Skip questions with no evidence
-                logger.warning(f"No evidence available for {question_id}: {question.text}")
+                logger.warning("No evidence available for %s: %s", question_id, question.text)
                 continue
             
             # Evaluate the question based on evidence
