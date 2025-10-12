@@ -294,7 +294,7 @@ def analyze_coverage_discrepancies(
     print(f"\nFiles covered: {covered_count} / {total_count}")
 
     # Identify uncovered files
-    uncovered = set(str(f) for f in project_files) - all_files
+    uncovered = {str(f) for f in project_files} - all_files
     if uncovered:
         print(f"\nUncovered files ({len(uncovered)}):")
         for f in sorted(uncovered)[:10]:

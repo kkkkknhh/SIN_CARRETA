@@ -484,7 +484,7 @@ class MiniMiniMoonAuditor:
                 question_ids = set(questions.keys())
             elif isinstance(questions, list):
                 validation["question_count"] = len(questions)
-                question_ids = set(q.get("id") for q in questions if "id" in q)
+                question_ids = {q.get("id") for q in questions if "id" in q}
             else:
                 question_ids = set()
         else:

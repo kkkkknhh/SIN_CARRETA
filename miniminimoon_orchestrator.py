@@ -331,7 +331,7 @@ class AnswerAssembler:
 
     def _validate_rubric_coverage(self):
         if isinstance(self.questions, list):
-            questions = set(q.get("id") for q in self.questions if "id" in q)
+            questions = {q.get("id") for q in self.questions if "id" in q}
         else:
             questions = set(self.questions.keys())
 
