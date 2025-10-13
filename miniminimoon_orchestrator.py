@@ -932,6 +932,122 @@ class CanonicalDeterministicOrchestrator:
             "industrial_validation": industrial_report,
         }
 
+    def _execute_feasibility_stage(
+        self, sanitized_text: str, segments: List[Any]
+    ) -> Dict[str, Any]:
+        """Execute feasibility scoring with factibilidad module integration (Stage 8: FEASIBILITY)."""
+        from factibilidad import PatternDetector, FactibilidadScorer
+
+        self.logger.info("Stage 8: FEASIBILITY - Enhanced pattern-based scoring")
+
+        # Extract PDM content from segments
+        pdm_content = []
+        for segment in segments:
+            if hasattr(segment, "text"):
+                pdm_content.append(segment.text)
+            elif isinstance(segment, dict):
+                pdm_content.append(segment.get("text", ""))
+            elif isinstance(segment, str):
+                pdm_content.append(segment)
+
+        combined_pdm_text = "\n".join(pdm_content)
+
+        # Instantiate PatternDetector and detect patterns
+        pattern_detector = PatternDetector()
+        detected_patterns = pattern_detector.detect_patterns(combined_pdm_text)
+
+        # Instantiate FactibilidadScorer with default weighting
+        factibilidad_scorer = FactibilidadScorer(
+            proximity_window=500, base_score=0.0, w1=0.5, w2=0.3, w3=0.3
+        )
+
+        # Compute enhanced feasibility scores using refinado scoring method
+        similarity_score = 0.7  # Default similarity; could be computed from embeddings
+        scoring_result = factibilidad_scorer.score_text(
+            combined_pdm_text, similarity_score=similarity_score
+        )
+
+        # Register evidence with proper provenance metadata
+        evidence_id = f"feas_refinado_{hashlib.sha256(combined_pdm_text.encode()).hexdigest()[:12]}"
+
+        evidence_entry = EvidenceEntry(
+            evidence_id=evidence_id,
+            stage=PipelineStage.FEASIBILITY.value,
+            content={
+                "score_final": scoring_result["score_final"],
+                "similarity_score": scoring_result["similarity_score"],
+                "causal_density": scoring_result["causal_density"],
+                "informative_length_ratio": scoring_result["informative_length_ratio"],
+                "pattern_matches": {
+                    "baseline": [
+                        {
+                            "text": m.text,
+                            "start": m.start,
+                            "end": m.end,
+                            "confidence": m.confidence,
+                        }
+                        for m in detected_patterns.get("baseline", [])
+                    ],
+                    "target": [
+                        {
+                            "text": m.text,
+                            "start": m.start,
+                            "end": m.end,
+                            "confidence": m.confidence,
+                        }
+                        for m in detected_patterns.get("target", [])
+                    ],
+                    "timeframe": [
+                        {
+                            "text": m.text,
+                            "start": m.start,
+                            "end": m.end,
+                            "confidence": m.confidence,
+                        }
+                        for m in detected_patterns.get("timeframe", [])
+                    ],
+                },
+                "clusters": len(scoring_result.get("clusters", [])),
+                "weights": scoring_result["weights"],
+            },
+            source_segment_ids=[
+                seg.get("id", f"seg_{i}")
+                if isinstance(seg, dict)
+                else f"seg_{i}"
+                for i, seg in enumerate(segments)
+            ],
+            confidence=min(scoring_result["score_final"], 1.0),
+            metadata={
+                "module": "factibilidad",
+                "pattern_detector_source": "factibilidad.pattern_detector.PatternDetector",
+                "scorer_source": "factibilidad.scoring.FactibilidadScorer",
+                "scoring_method": "refinado",
+                "pdm_content_length": len(combined_pdm_text),
+                "segment_count": len(segments),
+                "analysis": scoring_result.get("analysis", {}),
+            },
+        )
+
+        self.evidence_registry.register(evidence_entry)
+
+        self.logger.info(
+            "Feasibility scoring complete: score_final=%.3f, causal_density=%.4f",
+            scoring_result["score_final"],
+            scoring_result["causal_density"],
+        )
+
+        return {
+            "indicators": [evidence_entry.content],
+            "evidence_id": evidence_id,
+            "score_final": scoring_result["score_final"],
+            "pattern_counts": {
+                "baseline": len(detected_patterns.get("baseline", [])),
+                "target": len(detected_patterns.get("target", [])),
+                "timeframe": len(detected_patterns.get("timeframe", [])),
+            },
+            "metadata": evidence_entry.metadata,
+        }
+
     def _build_evidence_registry(self, all_inputs: Dict[str, Any]):
         """Build evidence registry from detector outputs (Stage 12)."""
         self.logger.info("Building evidence registry...")
@@ -1282,7 +1398,7 @@ class CanonicalDeterministicOrchestrator:
 
         feasibility = self._run_stage(
             PipelineStage.FEASIBILITY,
-            lambda: self.feasibility_scorer.evaluate_plan_feasibility(sanitized_text),
+            lambda: self._execute_feasibility_stage(sanitized_text, segments),
             results["stages_completed"],
         )
 
