@@ -132,17 +132,17 @@ class ProductionLogger:
 
             return metrics
 
-    def info(self, msg: str, **kwargs):
-        self.logger.info(msg, extra=kwargs)
+    def info(self, msg: str, *args, **kwargs):
+        self.logger.info(msg, *args, **kwargs)
 
-    def error(self, msg: str, **kwargs):
-        self.logger.error(msg, extra=kwargs)
+    def error(self, msg: str, *args, **kwargs):
+        self.logger.error(msg, *args, **kwargs)
 
-    def warning(self, msg: str, **kwargs):
-        self.logger.warning(msg, extra=kwargs)
+    def warning(self, msg: str, *args, **kwargs):
+        self.logger.warning(msg, *args, **kwargs)
 
-    def debug(self, msg: str, **kwargs):
-        self.logger.debug(msg, extra=kwargs)
+    def debug(self, msg: str, *args, **kwargs):
+        self.logger.debug(msg, *args, **kwargs)
 
 
 logger = ProductionLogger(__name__)
