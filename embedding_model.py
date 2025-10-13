@@ -10,6 +10,14 @@ Advanced semantic embedding system with enterprise-level features:
 - Industrial-strength error recovery and fault tolerance
 """
 
+# Python version enforcement - must be imported before other modules
+import sys
+if not ((3, 10) <= sys.version_info[:2] <= (3, 12)):
+    raise RuntimeError(
+        f"embedding_model requires Python 3.10-3.12, found {sys.version_info.major}.{sys.version_info.minor}\n"
+        "Install a compatible version: https://github.com/kkkkknhh/SIN_CARRETA#installation"
+    )
+
 import hashlib
 import logging
 import os

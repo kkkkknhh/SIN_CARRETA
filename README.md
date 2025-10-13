@@ -255,7 +255,258 @@ DEPLOYMENT_INFRASTRUCTURE.md       # Infraestructura de deployment
 
 ## 📦 Instalación Completa (Paso a Paso)
 
-### Requisitos Previos
+> **🚀 NEW: Automated Installation**
+> 
+> We now provide an automated installation script with dependency verification:
+> ```bash
+> bash scripts/install_verified.sh
+> ```
+> This script handles Python version checking, dependency installation, and verification automatically.
+>
+> For manual installation or troubleshooting, see the detailed steps below.
+
+### Quick Start (Automated Installation)
+
+The fastest way to get started is using our verified installation script:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/ANITALAVALATINACONPRISA/SIN_CARRETA.git
+cd SIN_CARRETA
+
+# 2. Run automated installation
+bash scripts/install_verified.sh
+```
+
+The script will:
+- ✅ Verify Python version (3.10-3.12)
+- ✅ Prompt for CPU or GPU PyTorch installation
+- ✅ Install all core dependencies
+- ✅ Download spaCy language models
+- ✅ Run conflict detection
+- ✅ Generate compatibility certificate
+- ✅ Verify critical imports
+
+### System Requirements
+
+**Python Version:**
+- **Python 3.10, 3.11, or 3.12** (REQUIRED)
+- Other versions are NOT supported due to:
+  - NumPy >=1.21.0 compatibility (first version with Python 3.10 wheels)
+  - Modern type hints and pattern matching features
+  - Tested dependency combinations
+
+**Operating System:**
+- Linux (Ubuntu 18.04+, Debian 10+)
+- macOS (10.15+, including Apple Silicon)
+- Windows 10+ (WSL2 recommended)
+
+**Hardware:**
+- **Disk Space:** 5-10 GB (includes ML models and cache)
+- **RAM:** 8 GB minimum, 16 GB recommended for large documents
+- **GPU:** Optional, CUDA 11.8 or 12.1 for GPU acceleration
+
+### Installation Options
+
+#### Option 1: Automated Installation (Recommended)
+
+Use the interactive installation script:
+
+```bash
+# Navigate to repository
+cd SIN_CARRETA
+
+# Run installation script
+bash scripts/install_verified.sh
+
+# Follow the prompts to select:
+# - PyTorch variant (CPU or CUDA)
+# - Optional dependencies (dev, prod, security)
+```
+
+#### Option 2: Manual Installation with Requirements Structure
+
+For more control, use the new structured requirements:
+
+```bash
+# 1. Create virtual environment with Python 3.10-3.12
+python3.10 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# 2. Upgrade pip
+python -m pip install --upgrade pip
+
+# 3. Choose your installation variant:
+
+# For CPU-only (development, CI/CD):
+pip install -r requirements/torch-cpu.txt --extra-index-url https://download.pytorch.org/whl/cpu
+
+# For CUDA 11.8 (NVIDIA GPU):
+pip install -r requirements/torch-cuda.txt --extra-index-url https://download.pytorch.org/whl/cu118
+
+# For CUDA 12.1 (NVIDIA GPU):
+pip install -r requirements/torch-cuda.txt --extra-index-url https://download.pytorch.org/whl/cu121
+
+# 4. Install spaCy models
+python -m spacy download es_core_news_sm
+
+# 5. Verify installation
+python scripts/validate_continuous.py
+```
+
+#### Option 3: Development Installation
+
+For contributors and developers:
+
+```bash
+# Install with development dependencies
+pip install -r requirements/dev.txt --extra-index-url https://download.pytorch.org/whl/cpu
+
+# Install pre-commit hooks
+pre-commit install
+
+# Run full validation
+python scripts/validate_continuous.py --all
+```
+
+#### Option 4: Production Installation
+
+For production deployments:
+
+```bash
+# Install with production dependencies (GPU)
+pip install -r requirements/prod.txt --extra-index-url https://download.pytorch.org/whl/cu118
+
+# Verify no conflicts
+python scripts/check_conflicts.py
+
+# Generate compatibility certificate
+python scripts/generate_certificate.py
+```
+
+### Dependency Management Tools
+
+The system now includes industrial-grade dependency management:
+
+**1. Python Version Enforcement**
+```bash
+# Check Python version compatibility
+python scripts/check_python_version.py
+```
+
+**2. Import Analysis**
+```bash
+# Analyze all Python imports in the codebase
+python scripts/analyze_imports.py --output import_analysis.json
+```
+
+**3. Conflict Detection**
+```bash
+# Check for dependency conflicts and version issues
+python scripts/check_conflicts.py
+```
+
+**4. Compatibility Certificate**
+```bash
+# Generate cryptographic proof of system compatibility
+python scripts/generate_certificate.py
+# Creates: certificates/compatibility_certificate.{json,md}
+```
+
+**5. Continuous Validation**
+```bash
+# Run all validation checks (for pre-commit/CI)
+python scripts/validate_continuous.py --all
+```
+
+### Requirements File Structure
+
+The system uses a modular requirements structure:
+
+```
+requirements/
+├── base.txt          # Core dependencies (always required)
+├── torch-cpu.txt     # CPU-only PyTorch (dev/CI)
+├── torch-cuda.txt    # GPU PyTorch (production)
+├── dev.txt           # Development tools (pytest, mypy, black)
+├── test.txt          # Testing dependencies only
+├── prod.txt          # Production deployment (FastAPI, Celery)
+└── security.txt      # Security scanning tools
+```
+
+### Verification Steps
+
+After installation, verify your setup:
+
+```bash
+# 1. Check Python version
+python scripts/check_python_version.py
+
+# 2. Verify critical imports
+python -c "import numpy, torch, transformers, spacy; print('✓ All critical imports OK')"
+
+# 3. Check for conflicts
+python scripts/check_conflicts.py
+
+# 4. Run validation suite
+python scripts/validate_continuous.py
+
+# 5. Generate certificate (optional)
+python scripts/generate_certificate.py
+```
+
+### Troubleshooting
+
+**Python Version Issues:**
+```bash
+# Check current version
+python --version
+
+# If wrong version, use pyenv:
+pyenv install 3.10.13
+pyenv local 3.10.13
+
+# Or use conda:
+conda create -n miniminimoon python=3.10
+conda activate miniminimoon
+```
+
+**Dependency Conflicts:**
+```bash
+# Check for conflicts
+python scripts/check_conflicts.py
+
+# If conflicts found, reinstall with pinned versions:
+pip install --force-reinstall -r requirements/torch-cpu.txt
+```
+
+**Import Errors:**
+```bash
+# Analyze imports to find issues
+python scripts/analyze_imports.py
+
+# Check specific module
+python -c "import <module_name>; print(<module_name>.__version__)"
+```
+
+**CUDA Issues:**
+```bash
+# Check CUDA availability
+python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
+
+# Verify CUDA version
+python -c "import torch; print('CUDA version:', torch.version.cuda)"
+```
+
+### Legacy Installation (Backward Compatible)
+
+The legacy installation method using `requirements.txt` is still supported:
+
+### Legacy Installation (Backward Compatible)
+
+The legacy installation method using `requirements.txt` is still supported:
+
+#### Requisitos Previos
 
 **Sistema Operativo:**
 - Linux (Ubuntu 18.04+, Debian 10+)

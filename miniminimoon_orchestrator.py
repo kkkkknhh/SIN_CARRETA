@@ -35,11 +35,18 @@ Version: 2.2.0 (Ultimate Edition)
 Date: 2025-10-09
 """
 
+# Python version enforcement - must be checked before other imports
+import sys
+if not ((3, 10) <= sys.version_info[:2] <= (3, 12)):
+    raise RuntimeError(
+        f"miniminimoon_orchestrator requires Python 3.10-3.12, found {sys.version_info.major}.{sys.version_info.minor}\n"
+        "Install a compatible version: https://github.com/kkkkknhh/SIN_CARRETA#installation"
+    )
+
 import hashlib
 import json
 import logging
 import random
-import sys
 import threading
 import time
 from collections import OrderedDict
