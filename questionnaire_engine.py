@@ -14,6 +14,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
+from evaluation.reliability_calibration import ReliabilityCalibrator
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -140,7 +142,6 @@ class BaseQuestion:
 
 
 @dataclass
-@dataclass
 class EvaluationResult:
     """Result of evaluating one question for one thematic point"""
 
@@ -160,6 +161,8 @@ class EvaluationResult:
     recommendation: str
     scoring_modality: str
     calculation_detail: str
+    calibrated_score: Optional[float] = None
+    uncertainty: Optional[float] = None
     metadata: Dict[str, Any] = field(
         default_factory=dict
     )  # For multi-source evidence tracking
@@ -1291,6 +1294,15 @@ class QuestionnaireEngine:
         self.thematic_points = self._load_thematic_points()
         self.scoring_engine = ScoringEngine()
 
+        # Initialize ReliabilityCalibrator for Stage 15 QUESTIONNAIRE_EVAL
+        self.reliability_calibrator = ReliabilityCalibrator(
+            detector_name="questionnaire_evaluator",
+            precision_a=5.0,
+            precision_b=1.0,
+            recall_a=5.0,
+            recall_b=1.0,
+        )
+
         # Validate exact counts
         if len(self.base_questions) != 30:
             raise ValueError(
@@ -1310,6 +1322,9 @@ class QuestionnaireEngine:
         )
         logger.info("   📋 %s base questions loaded", len(self.base_questions))
         logger.info("   🎯 %s thematic points loaded", len(self.thematic_points))
+        logger.info(
+            "   🎲 ReliabilityCalibrator initialized (Beta priors: α=5.0, β=1.0)"
+        )
 
     def _load_rubric(self):
         """Load rubric data from the provided path."""
@@ -2254,11 +2269,34 @@ class QuestionnaireEngine:
                     )
                     break  # Count each element only once
 
-        # Calculate score using scoring rule
+        # Calculate raw score using scoring rule
         expected_count = len(base_question.expected_elements)
-        score = self._calculate_score(
+        raw_score = self._calculate_score(
             elements_found_count, expected_count, base_question.scoring_rule
         )
+
+        # Apply Bayesian calibration to raw score (Stage 15 QUESTIONNAIRE_EVAL)
+        # Normalize raw score to [0, 1] range for calibration
+        normalized_raw = raw_score / base_question.max_score
+        
+        # Get expected reliability from calibrator
+        expected_reliability = self.reliability_calibrator.expected_f1
+        
+        # Apply Bayesian calibration: calibrated = raw × reliability
+        calibrated_normalized = normalized_raw * expected_reliability
+        calibrated_score = calibrated_normalized * base_question.max_score
+        
+        # Compute uncertainty metric (width of 95% credible interval for F1)
+        # Using precision and recall intervals as proxy for F1 uncertainty
+        precision_ci = self.reliability_calibrator.precision_credible_interval(
+            level=0.95
+        )
+        recall_ci = self.reliability_calibrator.recall_credible_interval(level=0.95)
+        
+        # Uncertainty: average width of precision and recall intervals
+        precision_width = precision_ci[1] - precision_ci[0]
+        recall_width = recall_ci[1] - recall_ci[0]
+        uncertainty = (precision_width + recall_width) / 2.0
 
         # Missing elements
         missing = [
@@ -2267,13 +2305,22 @@ class QuestionnaireEngine:
             if elem not in elements_found
         ]
 
-        # Recommendation
-        if score >= 2.5:
+        # Recommendation based on calibrated score
+        if calibrated_score >= 2.5:
             recommendation = "Cumple satisfactoriamente"
-        elif score >= 1.5:
+        elif calibrated_score >= 1.5:
             recommendation = "Cumple parcialmente, requiere mejoras"
         else:
             recommendation = "No cumple, requiere atención prioritaria"
+
+        # Register evidence of calibration application
+        calibration_evidence = {
+            "source": "reliability_calibrator",
+            "type": "bayesian_calibration",
+            "confidence": expected_reliability,
+            "content_summary": f"Raw score: {raw_score:.2f}, Calibrated: {calibrated_score:.2f}, Uncertainty: {uncertainty:.3f}, F1: {expected_reliability:.3f}",
+        }
+        evidence_details.append(calibration_evidence)
 
         return EvaluationResult(
             question_id=question_id,
@@ -2282,7 +2329,7 @@ class QuestionnaireEngine:
             dimension=base_question.dimension,
             question_no=base_question.question_no,
             prompt=prompt,
-            score=score,
+            score=raw_score,
             max_score=base_question.max_score,
             elements_found=elements_found,
             elements_expected=expected_count,
@@ -2291,7 +2338,9 @@ class QuestionnaireEngine:
             missing_elements=missing,
             recommendation=recommendation,
             scoring_modality=base_question.scoring_rule.modality.value,
-            calculation_detail=f"Found {elements_found_count}/{expected_count} elements",
+            calculation_detail=f"Found {elements_found_count}/{expected_count} elements | Raw: {raw_score:.2f} → Calibrated: {calibrated_score:.2f} (±{uncertainty:.3f})",
+            calibrated_score=round(calibrated_score, 2),
+            uncertainty=round(uncertainty, 3),
         )
 
     @staticmethod
