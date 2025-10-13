@@ -3057,7 +3057,148 @@ class ExtractorEvidenciaIndustrialAvanzado:
         )
 
         # ========================================================================
-        # STEP 8: Return comprehensive evaluation results
+        # STEP 8: Score each decalogue principle with enriched evidence
+        # ========================================================================
+        log_info_with_text(
+            self.logger, "🎯 Puntuando principios del decálogo con evidencia enriquecida..."
+        )
+
+        # Define all 6 dimensions (D1-D6) aligned with canonical decalogue structure
+        dimensiones_decalogo = {
+            "D1": {
+                "id": "D1",
+                "nombre": "INSUMOS",
+                "descripcion": "Recursos financieros, humanos y físicos",
+                "conceptos_clave": ["presupuesto", "recursos", "financiación", "dotación", "personal", "infraestructura"],
+                "preguntas": ["D1-Q1", "D1-Q2", "D1-Q3", "D1-Q4", "D1-Q5"]
+            },
+            "D2": {
+                "id": "D2",
+                "nombre": "ACTIVIDADES",
+                "descripcion": "Actividades operacionales e implementación de procesos",
+                "conceptos_clave": ["actividad", "acción", "implementar", "ejecutar", "proceso", "procedimiento"],
+                "preguntas": ["D2-Q1", "D2-Q2", "D2-Q3", "D2-Q4", "D2-Q5"]
+            },
+            "D3": {
+                "id": "D3",
+                "nombre": "PRODUCTOS",
+                "descripcion": "Bienes/servicios entregables medibles",
+                "conceptos_clave": ["producto", "entregable", "servicio", "bien", "output", "meta"],
+                "preguntas": ["D3-Q1", "D3-Q2", "D3-Q3", "D3-Q4", "D3-Q5"]
+            },
+            "D4": {
+                "id": "D4",
+                "nombre": "RESULTADOS",
+                "descripcion": "Cambios conductuales/institucionales",
+                "conceptos_clave": ["resultado", "logro", "cambio", "mejora", "avance", "indicador"],
+                "preguntas": ["D4-Q1", "D4-Q2", "D4-Q3", "D4-Q4", "D4-Q5"]
+            },
+            "D5": {
+                "id": "D5",
+                "nombre": "IMPACTOS",
+                "descripcion": "Bienestar y desarrollo humano sostenible",
+                "conceptos_clave": ["impacto", "bienestar", "desarrollo", "sostenible", "transformación", "consecuencia"],
+                "preguntas": ["D5-Q1", "D5-Q2", "D5-Q3", "D5-Q4", "D5-Q5"]
+            },
+            "D6": {
+                "id": "D6",
+                "nombre": "CAUSALIDAD",
+                "descripcion": "Teoría de cambio, enlaces causales y modelo lógico de intervención",
+                "conceptos_clave": ["causa", "efecto", "mecanismo", "teoría", "cadena", "causal", "lógica"],
+                "preguntas": ["D6-Q1", "D6-Q2", "D6-Q3", "D6-Q4", "D6-Q5"]
+            }
+        }
+
+        # Build enriched evidence dictionary with pdm_contra outputs
+        enriched_evidence_dict = {
+            "contradictions": [
+                {
+                    "text_a": getattr(c, "text_a", ""),
+                    "text_b": getattr(c, "text_b", ""),
+                    "confidence": getattr(c, "confidence", 0.5),
+                    "risk_level": getattr(c, "risk_level", "medium"),
+                    "explanation": getattr(c, "explanation", ""),
+                }
+                for c in contradiction_analysis.contradictions
+            ],
+            "risk_scores": {
+                "overall_risk": contradiction_analysis.risk_score,
+                "risk_level": contradiction_analysis.risk_level,
+                "confidence_intervals": contradiction_analysis.confidence_intervals,
+            },
+            "patterns": {
+                "adversative": adversative_patterns,
+                "factibilidad": factibilidad_patterns,
+                "factibilidad_clusters": factibilidad_clusters,
+            },
+            "nli_results": {
+                "detector_available": True,
+                "light_mode": nli_detector.light_mode if hasattr(nli_detector, 'light_mode') else True,
+            },
+            "trace_info": {
+                "trace_report": explanation_tracer.get_trace_report(),
+                "explanations": explanations,
+            },
+            "competence_issues": competence_issues_all,
+            "causal_evidence": question_enriched_evidence,
+        }
+
+        # Score each dimension using enriched evidence
+        dimension_scores = {}
+        for dim_id, dimension_info in dimensiones_decalogo.items():
+            log_info_with_text(
+                self.logger,
+                f"  📊 Evaluando dimensión {dim_id}: {dimension_info['nombre']}..."
+            )
+
+            # Extract relevant evidence for this dimension
+            dimension_evidence = self._extract_dimension_evidence(
+                dimension_info=dimension_info,
+                enriched_evidence=enriched_evidence_dict,
+                evidence_registry=evidence_registry,
+            )
+
+            # Calculate dimension score using enriched evidence
+            dimension_score = self._calculate_dimension_score(
+                dimension_info=dimension_info,
+                dimension_evidence=dimension_evidence,
+                enriched_evidence=enriched_evidence_dict,
+            )
+
+            # Store dimension score with Stage 14 provenance
+            evidence_registry.register(
+                EvidenceEntry(
+                    evidence_id=f"stage_14_dimension_score::{dim_id}",
+                    stage="stage_14_contradiction_analysis",
+                    content={
+                        "dimension_id": dim_id,
+                        "dimension_name": dimension_info["nombre"],
+                        "score": dimension_score["score"],
+                        "raw_scores": dimension_score["raw_scores"],
+                        "enrichment_impact": dimension_score["enrichment_impact"],
+                        "evidence_count": dimension_score["evidence_count"],
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                    confidence=dimension_score["confidence"],
+                    metadata={
+                        "stage": "stage_14_contradiction_analysis",
+                        "module": "DecatalogoEvaluator",
+                        "detector": "pdm_contra_pipeline",
+                        "dimension": dim_id,
+                        "provenance": "Stage 14 - Contradiction Analysis Pipeline",
+                    },
+                )
+            )
+
+            dimension_scores[dim_id] = dimension_score
+
+        log_info_with_text(
+            self.logger,
+            f"  ✓ {len(dimension_scores)} dimensiones evaluadas con evidencia enriquecida"
+        )
+
+        # ========================================================================
+        # STEP 9: Return comprehensive evaluation results with dimension scores
         # ========================================================================
         evaluation_results = {
             "status": "completed",
@@ -3075,6 +3216,8 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 "factibilidad_clusters": len(factibilidad_clusters),
                 "risk_score": contradiction_analysis.risk_score,
                 "risk_level": contradiction_analysis.risk_level,
+                "dimensions_evaluated": len(dimension_scores),
+                "average_dimension_score": np.mean([d["score"] for d in dimension_scores.values()]),
             },
             "detailed_analysis": {
                 "contradiction_analysis": {
@@ -3094,6 +3237,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 "adversative_patterns": adversative_patterns[:10],  # Top 10
                 "factibilidad_clusters": factibilidad_clusters[:10],  # Top 10
             },
+            "dimension_scores": dimension_scores,
             "explanations": explanations,
             "trace_report": explanation_tracer.get_trace_report(),
             "question_enriched_evidence": question_enriched_evidence,
@@ -3117,14 +3261,135 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 "ExplanationTracer",
                 "buscar_evidencia_causal_avanzada",
             ],
+            "enriched_evidence_summary": {
+                "total_contradictions": len(enriched_evidence_dict["contradictions"]),
+                "total_patterns": len(enriched_evidence_dict["patterns"]["adversative"]),
+                "total_competence_issues": len(enriched_evidence_dict["competence_issues"]),
+                "risk_level": enriched_evidence_dict["risk_scores"]["risk_level"],
+            },
         }
 
         log_info_with_text(
             self.logger,
-            "✅ Evaluación enriquecida completada - Todos los módulos ejecutados",
+            "✅ Evaluación enriquecida completada - Todos los módulos ejecutados y dimensiones puntuadas",
         )
 
         return evaluation_results
+
+    def _extract_dimension_evidence(
+        self,
+        dimension_info: Dict[str, Any],
+        enriched_evidence: Dict[str, Any],
+        evidence_registry,
+    ) -> Dict[str, Any]:
+        """Extract evidence relevant to a specific dimension from enriched evidence."""
+        dimension_id = dimension_info["id"]
+        conceptos_clave = dimension_info["conceptos_clave"]
+
+        # Filter contradictions relevant to this dimension
+        relevant_contradictions = []
+        for contra in enriched_evidence["contradictions"]:
+            text_combined = f"{contra.get('text_a', '')} {contra.get('text_b', '')}"
+            if any(concepto.lower() in text_combined.lower() for concepto in conceptos_clave):
+                relevant_contradictions.append(contra)
+
+        # Filter patterns relevant to this dimension
+        relevant_patterns = []
+        for pattern in enriched_evidence["patterns"]["adversative"]:
+            pattern_text = pattern.get("text", "") if isinstance(pattern, dict) else str(pattern)
+            if any(concepto.lower() in pattern_text.lower() for concepto in conceptos_clave):
+                relevant_patterns.append(pattern)
+
+        # Filter competence issues relevant to this dimension
+        relevant_competence = []
+        for issue in enriched_evidence["competence_issues"]:
+            issue_text = str(issue)
+            if any(concepto.lower() in issue_text.lower() for concepto in conceptos_clave):
+                relevant_competence.append(issue)
+
+        # Get causal evidence for dimension questions
+        relevant_causal = {}
+        for pregunta_id in dimension_info.get("preguntas", []):
+            if pregunta_id in enriched_evidence["causal_evidence"]:
+                relevant_causal[pregunta_id] = enriched_evidence["causal_evidence"][pregunta_id]
+
+        return {
+            "dimension_id": dimension_id,
+            "contradictions": relevant_contradictions,
+            "patterns": relevant_patterns,
+            "competence_issues": relevant_competence,
+            "causal_evidence": relevant_causal,
+            "risk_level": enriched_evidence["risk_scores"]["risk_level"],
+            "overall_risk": enriched_evidence["risk_scores"]["overall_risk"],
+        }
+
+    def _calculate_dimension_score(
+        self,
+        dimension_info: Dict[str, Any],
+        dimension_evidence: Dict[str, Any],
+        enriched_evidence: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Calculate dimension score using enriched evidence from pdm_contra pipeline."""
+        dim_id = dimension_info["id"]
+
+        # Base score from evidence presence
+        evidence_count = sum([
+            len(dimension_evidence["contradictions"]),
+            len(dimension_evidence["patterns"]),
+            len(dimension_evidence["competence_issues"]),
+            sum(len(items) for items in dimension_evidence["causal_evidence"].values()),
+        ])
+
+        base_score = min(1.0, evidence_count / 20.0)  # Normalize to 0-1
+
+        # Penalty for contradictions
+        contradiction_penalty = len(dimension_evidence["contradictions"]) * 0.05
+        contradiction_penalty = min(0.5, contradiction_penalty)  # Cap at 50% penalty
+
+        # Penalty for competence issues
+        competence_penalty = len(dimension_evidence["competence_issues"]) * 0.03
+        competence_penalty = min(0.3, competence_penalty)  # Cap at 30% penalty
+
+        # Risk level penalty
+        risk_level = dimension_evidence["risk_level"]
+        risk_penalties = {"low": 0.0, "medium": 0.1, "high": 0.2, "critical": 0.4}
+        risk_penalty = risk_penalties.get(risk_level.lower() if isinstance(risk_level, str) else "low", 0.1)
+
+        # Pattern bonus (adversative patterns indicate detailed analysis)
+        pattern_bonus = min(0.2, len(dimension_evidence["patterns"]) * 0.02)
+
+        # Calculate final score
+        final_score = base_score + pattern_bonus - contradiction_penalty - competence_penalty - risk_penalty
+        final_score = max(0.0, min(1.0, final_score))  # Clamp to [0, 1]
+
+        # Calculate confidence based on evidence diversity
+        evidence_types = sum([
+            1 if dimension_evidence["contradictions"] else 0,
+            1 if dimension_evidence["patterns"] else 0,
+            1 if dimension_evidence["competence_issues"] else 0,
+            1 if dimension_evidence["causal_evidence"] else 0,
+        ])
+        confidence = min(0.95, 0.5 + (evidence_types * 0.15))  # Higher confidence with diverse evidence
+
+        return {
+            "score": final_score,
+            "confidence": confidence,
+            "evidence_count": evidence_count,
+            "raw_scores": {
+                "base_score": base_score,
+                "pattern_bonus": pattern_bonus,
+                "contradiction_penalty": -contradiction_penalty,
+                "competence_penalty": -competence_penalty,
+                "risk_penalty": -risk_penalty,
+            },
+            "enrichment_impact": {
+                "contradictions_found": len(dimension_evidence["contradictions"]),
+                "patterns_found": len(dimension_evidence["patterns"]),
+                "competence_issues_found": len(dimension_evidence["competence_issues"]),
+                "risk_level": dimension_evidence["risk_level"],
+                "causal_evidence_questions": len(dimension_evidence["causal_evidence"]),
+            },
+        }
 
     def _buscar_evidencia_fallback(
         self,
