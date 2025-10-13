@@ -8,8 +8,7 @@ messages and installation guidance.
 """
 
 import sys
-from typing import Tuple, NoReturn
-
+from typing import NoReturn, Tuple
 
 MIN_PYTHON_VERSION: Tuple[int, int] = (3, 10)
 MAX_PYTHON_VERSION: Tuple[int, int] = (3, 12)
@@ -18,16 +17,16 @@ MAX_PYTHON_VERSION: Tuple[int, int] = (3, 12)
 def check_python_version(strict: bool = True) -> Tuple[bool, str]:
     """
     Check if current Python version is within supported range.
-    
+
     Args:
         strict: If True, exit on version mismatch. If False, return status.
-        
+
     Returns:
         Tuple of (is_valid, message)
     """
     current = sys.version_info
     current_version = f"{current.major}.{current.minor}.{current.micro}"
-    
+
     # Check minimum version
     if (current.major, current.minor) < MIN_PYTHON_VERSION:
         message = f"""
@@ -71,7 +70,7 @@ After installation, verify:
 For more information, see: README.md#installation
 """
         return False, message
-    
+
     # Check maximum version
     if (current.major, current.minor) > MAX_PYTHON_VERSION:
         message = f"""
@@ -101,7 +100,7 @@ RECOMMENDED ACTIONS:
 WARNING: Proceeding with untested Python version may cause runtime errors.
 """
         return False, message
-    
+
     # Version is within range
     message = f"✓ Python {current_version} is supported (3.10-3.12 range)"
     return True, message
@@ -113,7 +112,7 @@ def enforce_python_version() -> None:
     Call this from module imports to fail fast.
     """
     is_valid, message = check_python_version(strict=True)
-    
+
     if not is_valid:
         print(message, file=sys.stderr)
         sys.exit(1)
@@ -122,23 +121,23 @@ def enforce_python_version() -> None:
 def main() -> int:
     """Command-line interface for version checking."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(
-        description='Check Python version compatibility for MINIMINIMOON'
+        description="Check Python version compatibility for MINIMINIMOON"
     )
     parser.add_argument(
-        '--strict',
-        action='store_true',
-        help='Exit with error code if version is incompatible'
+        "--strict",
+        action="store_true",
+        help="Exit with error code if version is incompatible",
     )
-    
+
     args = parser.parse_args()
-    
+
     is_valid, message = check_python_version(strict=args.strict)
     print(message)
-    
+
     return 0 if is_valid else 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
