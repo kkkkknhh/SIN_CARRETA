@@ -21,9 +21,9 @@ def verify_syntax(file_path):
 def main():
     """Verify orchestrator syntax."""
     print("Verifying miniminimoon_orchestrator.py syntax...")
-    
+
     success, message = verify_syntax("miniminimoon_orchestrator.py")
-    
+
     if success:
         print(f"✓ {message}")
         return 0

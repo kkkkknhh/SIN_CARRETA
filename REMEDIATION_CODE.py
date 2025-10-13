@@ -10,21 +10,22 @@ Apply these changes to miniminimoon_orchestrator.py
 # Location: _build_evidence_registry method, after line ~1132
 # Insert after the monetary registration call
 
+
 def remediation_issue_1():
     """
     Add this code after the monetary evidence registration:
-    
+
     register_evidence(
         PipelineStage.MONETARY, all_inputs.get("monetary", []), "money"
     )
-    
+
     # ← INSERT THIS CODE HERE:
     """
-    code = '''
+    code = """
     register_evidence(
         PipelineStage.CONTRADICTION, all_inputs.get("contradictions", []), "contra"
     )
-    '''
+    """
     return code
 
 
@@ -34,10 +35,11 @@ def remediation_issue_1():
 # Location: _build_evidence_registry method, after line ~1167
 # Insert after the teoria_cambio industrial metrics registration
 
+
 def remediation_issue_2():
     """
     Add this code after the teoria industrial metrics registration:
-    
+
     industrial_validation = teoria_result.get("industrial_validation")
     if isinstance(industrial_validation, dict):
         industrial_metrics = industrial_validation.get("metrics")
@@ -45,10 +47,10 @@ def remediation_issue_2():
             register_evidence(
                 PipelineStage.TEORIA, industrial_metrics, "toc_metric"
             )
-    
+
     # ← INSERT THIS CODE HERE:
     """
-    code = '''
+    code = """
     # Register DAG validation evidence
     dag_diagnostics_entry = all_inputs.get("dag_diagnostics")
     if isinstance(dag_diagnostics_entry, dict):
@@ -74,13 +76,14 @@ def remediation_issue_2():
             self.logger.warning(
                 "Could not register DAG evidence: %s", e
             )
-    '''
+    """
     return code
 
 
 # ============================================================================
 # COMPLETE PATCHED _build_evidence_registry METHOD
 # ============================================================================
+
 
 def complete_patched_method():
     """
@@ -199,17 +202,17 @@ if __name__ == "__main__":
     print("REMEDIATION CODE FOR MINIMINIMOON_ORCHESTRATOR.PY")
     print("=" * 80)
     print()
-    
+
     print("ISSUE #1: Missing Contradiction Evidence Registration")
     print("-" * 80)
     print(remediation_issue_1())
     print()
-    
+
     print("ISSUE #2: Missing DAG Evidence Registration")
     print("-" * 80)
     print(remediation_issue_2())
     print()
-    
+
     print("=" * 80)
     print("See complete_patched_method() for full replacement code")
     print("=" * 80)
