@@ -111,7 +111,7 @@ class SystemHealthValidator:
                 self.order = []
 
     def validate_question_id_format(self) -> None:
-        rubric_path = self.repo / "rubric_scoring.json"
+        rubric_path = self.repo / "RUBRIC_SCORING.json"
         
         if not rubric_path.exists():
             raise ValidationError("RUBRIC_SCORING.json missing - cannot validate question ID format")
@@ -119,13 +119,14 @@ class SystemHealthValidator:
         try:
             rubric_data = json.loads(rubric_path.read_text(encoding="utf-8"))
         except Exception as e:
-            raise ValidationError(f"Failed to parse rubric_scoring.json: {e}")
+            raise ValidationError(f"Failed to parse RUBRIC_SCORING.json: {e}")
         
         weights = rubric_data.get("weights", {})
         if not weights:
-            raise ValidationError("rubric_scoring.json 'weights' section is empty or missing")
+            raise ValidationError("RUBRIC_SCORING.json 'weights' section is empty or missing")
         
-        question_id_pattern = re.compile(r"^D[1-6]-Q([1-9]|[1-9][0-9]|[1-2][0-9][0-9]|300)$")
+        # Pattern: P{1-10}-D{1-6}-Q{1-30}
+        question_id_pattern = re.compile(r"^P([1-9]|10)-D[1-6]-Q([1-9]|[12][0-9]|30)$")
         
         malformed_ids: List[str] = []
         for question_id in weights.keys():
@@ -137,14 +138,14 @@ class SystemHealthValidator:
         error_messages: List[str] = []
         if malformed_ids:
             error_messages.append(
-                f"Found {len(malformed_ids)} malformed question ID(s) in rubric_scoring.json weights section. "
-                f"Expected format: D[1-6]-Q[1-300]. Malformed IDs: {malformed_ids[:10]}" +
+                f"Found {len(malformed_ids)} malformed question ID(s) in RUBRIC_SCORING.json weights section. "
+                f"Expected format: P{{1-10}}-D{{1-6}}-Q{{1-30}}. Malformed IDs: {malformed_ids[:10]}" +
                 (f" (showing first 10 of {len(malformed_ids)})" if len(malformed_ids) > 10 else "")
             )
         
         if total_count != 300:
             error_messages.append(
-                f"Question count mismatch in rubric_scoring.json: found {total_count} questions, expected exactly 300"
+                f"Question count mismatch in RUBRIC_SCORING.json: found {total_count} questions, expected exactly 300"
             )
         
         if error_messages:
@@ -178,9 +179,9 @@ class SystemHealthValidator:
                 errors.append(f"immutability check failed: {e}")
 
         # 2) Rúbrica presente
-        rubric_path = self.repo / "rubric_scoring.json"
+        rubric_path = self.repo / "RUBRIC_SCORING.json"
         if not rubric_path.exists():
-            errors.append("rubric_scoring.json missing")
+            errors.append("RUBRIC_SCORING.json missing")
 
         # 3) Doc de flujo canónico presente
         flow_doc_path = self.repo / "tools" / "flow_doc.json"
