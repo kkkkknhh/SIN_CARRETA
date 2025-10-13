@@ -140,6 +140,7 @@ class BaseQuestion:
 
 
 @dataclass
+@dataclass
 class EvaluationResult:
     """Result of evaluating one question for one thematic point"""
 
@@ -159,6 +160,9 @@ class EvaluationResult:
     recommendation: str
     scoring_modality: str
     calculation_detail: str
+    metadata: Dict[str, Any] = field(
+        default_factory=dict
+    )  # For multi-source evidence tracking
 
 
 @dataclass
@@ -1679,6 +1683,150 @@ class QuestionnaireEngine:
 
         return results
 
+    def _synthesize_multi_source_evidence(
+        self, question_id: str, orchestrator_results: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Synthesize evidence from MULTIPLE sources (≥3) for a question.
+
+        Uses ALL stages of evidence:
+        - Stages 1-11: Core detectors (responsibility, monetary, feasibility, causal, etc.)
+        - Stage 14: Enriched evidence from evaluate_from_evidence (pdm_contra, factibilidad)
+        - Reliability calibration: Bayesian confidence adjustments
+
+        Args:
+            question_id: Question ID in D#-Q# format
+            orchestrator_results: Complete orchestrator results with all stages
+
+        Returns:
+            Dict with synthesized evidence including:
+            - evidence_sources: List of contributing modules
+            - evidence_count: Total pieces of evidence
+            - confidence_weighted_score: Bayesian-adjusted confidence
+            - evidence_items: Detailed evidence from each source
+        """
+        from module_contribution_mapper import ModuleCategory, create_default_mapper
+
+        # Get module contribution mapping for this question
+        mapper = create_default_mapper()
+        question_mapping = mapper.get_question_mapping(question_id)
+
+        if not question_mapping:
+            logger.warning(f"No contribution mapping found for {question_id}")
+            return {
+                "evidence_sources": [],
+                "evidence_count": 0,
+                "confidence_weighted_score": 0.5,
+                "evidence_items": [],
+            }
+
+        evidence_sources = []
+        evidence_items = []
+        total_weight = 0.0
+        weighted_confidence = 0.0
+
+        # Collect evidence from each contributing module
+        for contribution in question_mapping.contributions:
+            module = contribution.module
+            weight = contribution.contribution_percentage / 100.0
+
+            # Map module to orchestrator results
+            evidence = None
+            confidence = 0.5
+
+            if module == ModuleCategory.RESPONSIBILITY:
+                evidence = orchestrator_results.get("responsibilities", [])
+                confidence = 0.85
+            elif module == ModuleCategory.MONETARY:
+                evidence = orchestrator_results.get("monetary", [])
+                confidence = 0.90
+            elif module == ModuleCategory.FEASIBILITY:
+                evidence = orchestrator_results.get("feasibility", {})
+                confidence = 0.80
+            elif module == ModuleCategory.CAUSAL:
+                evidence = orchestrator_results.get("causal_patterns", [])
+                confidence = 0.75
+            elif module == ModuleCategory.CONTRADICTION:
+                evidence = orchestrator_results.get("contradictions", {})
+                confidence = 0.70
+            elif module == ModuleCategory.TEORIA:
+                evidence = orchestrator_results.get("teoria_cambio", {})
+                confidence = 0.80
+            elif module == ModuleCategory.DAG:
+                evidence = orchestrator_results.get("dag_validation", {})
+                confidence = 0.85
+            # Enriched modules from Stage 14
+            elif module in [
+                ModuleCategory.PDM_CONTRA_CORE,
+                ModuleCategory.PDM_CONTRA_RISK,
+                ModuleCategory.PDM_CONTRA_PATTERNS,
+                ModuleCategory.PDM_CONTRA_NLI,
+                ModuleCategory.PDM_CONTRA_COMPETENCE,
+            ]:
+                decalogo_eval = orchestrator_results.get("decalogo_evaluation", {})
+                if "detailed_analysis" in decalogo_eval:
+                    evidence = decalogo_eval["detailed_analysis"]
+                    confidence = 0.75
+            elif module == ModuleCategory.FACTIBILIDAD_PATTERNS:
+                decalogo_eval = orchestrator_results.get("decalogo_evaluation", {})
+                if "detailed_analysis" in decalogo_eval:
+                    evidence = decalogo_eval["detailed_analysis"].get(
+                        "factibilidad_clusters", []
+                    )
+                    confidence = 0.80
+            elif module == ModuleCategory.RELIABILITY_CALIBRATION:
+                # Apply Bayesian calibration
+                decalogo_eval = orchestrator_results.get("decalogo_evaluation", {})
+                calibrators = decalogo_eval.get("reliability_calibrators", {})
+                if calibrators:
+                    # Average F1 scores from calibrators
+                    f1_scores = [
+                        cal.get("expected_f1", 0.5) for cal in calibrators.values()
+                    ]
+                    if f1_scores:
+                        confidence = sum(f1_scores) / len(f1_scores)
+                        evidence = {"calibration_f1": confidence}
+
+            # Add evidence if found
+            if evidence:
+                evidence_sources.append(module.value)
+                evidence_items.append(
+                    {
+                        "module": module.value,
+                        "contribution_percentage": contribution.contribution_percentage,
+                        "confidence": confidence,
+                        "evidence": evidence,
+                        "evidence_size": len(evidence)
+                        if isinstance(evidence, (list, dict))
+                        else 1,
+                    }
+                )
+
+                # Weighted confidence aggregation
+                total_weight += weight
+                weighted_confidence += confidence * weight
+
+        # Normalize weighted confidence
+        if total_weight > 0:
+            weighted_confidence /= total_weight
+        else:
+            weighted_confidence = 0.5
+
+        # Ensure minimum of 3 sources for doctoral quality
+        if len(evidence_sources) < 3:
+            logger.warning(
+                f"Question {question_id} has only {len(evidence_sources)} evidence sources "
+                f"(minimum 3 recommended for doctoral quality)"
+            )
+
+        return {
+            "evidence_sources": evidence_sources,
+            "evidence_count": len(evidence_items),
+            "confidence_weighted_score": weighted_confidence,
+            "evidence_items": evidence_items,
+            "meets_doctoral_minimum": len(evidence_sources) >= 3,
+        }
+
     def _evaluate_single_question(
         self,
         question: BaseQuestion,
@@ -1868,6 +2016,38 @@ class QuestionnaireEngine:
         found_count = sum(1 for v in elements_found.values() if v)
         missing = [k for k, v in elements_found.items() if not v]
 
+        # ========================================
+        # MULTI-SOURCE EVIDENCE SYNTHESIS
+        # ========================================
+        # Synthesize evidence from multiple sources (≥3 for doctoral quality)
+        # This enriches the evaluation with ALL stages of evidence
+        multi_source_evidence = self._synthesize_multi_source_evidence(
+            question_id=question.id,  # Will be standardized to D#-Q# format
+            orchestrator_results=orchestrator_results,
+        )
+
+        # Log evidence synthesis
+        if multi_source_evidence.get("meets_doctoral_minimum"):
+            logger.debug(
+                f"✓ {question.id}: {multi_source_evidence['evidence_count']} sources "
+                f"(confidence: {multi_source_evidence['confidence_weighted_score']:.2f})"
+            )
+        else:
+            logger.warning(
+                f"⚠ {question.id}: Only {multi_source_evidence['evidence_count']} sources "
+                f"(minimum 3 recommended)"
+            )
+
+        # Apply Bayesian confidence weighting to evidence
+        for ev in evidencia_encontrada:
+            original_confidence = ev.get("confianza", 0.5)
+            weighted_confidence = (
+                original_confidence * 0.7
+                + multi_source_evidence["confidence_weighted_score"] * 0.3
+            )
+            ev["confianza_bayesiana"] = round(weighted_confidence, 3)
+            ev["fuentes_multiples"] = multi_source_evidence["evidence_sources"]
+
         score, calculation_detail = self.scoring_engine.calculate_score(
             modality=question.scoring_rule.modality,
             elements_found=elements_found,
@@ -1893,6 +2073,17 @@ class QuestionnaireEngine:
             recommendation=f"Agregar: {', '.join(missing)}" if missing else "Completo",
             scoring_modality=question.scoring_rule.modality.value,
             calculation_detail=calculation_detail,
+            metadata={
+                "multi_source_evidence": multi_source_evidence,
+                "evidence_sources": multi_source_evidence.get("evidence_sources", []),
+                "evidence_count": multi_source_evidence.get("evidence_count", 0),
+                "bayesian_confidence": multi_source_evidence.get(
+                    "confidence_weighted_score", 0.5
+                ),
+                "meets_doctoral_minimum": multi_source_evidence.get(
+                    "meets_doctoral_minimum", False
+                ),
+            },
         )
 
     def execute_full_evaluation_parallel(

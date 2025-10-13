@@ -2720,6 +2720,412 @@ class ExtractorEvidenciaIndustrialAvanzado:
 
         return resultados_diversos
 
+    def evaluate_from_evidence(self, evidence_registry) -> Dict[str, Any]:
+        """
+        Evalúa el plan contra el decálogo usando TODA la evidencia recolectada.
+
+        INTEGRA Y EJECUTA todos los módulos complementarios:
+        1. ContradictionDetector (pdm_contra/core.py) → análisis de contradicciones avanzado
+        2. RiskScorer (pdm_contra/scoring/risk.py) → scoring agregado de riesgos
+        3. PatternMatcher (pdm_contra/nlp/patterns.py) → patrones lingüísticos
+        4. NLI detector (pdm_contra/nlp/nli.py) → inferencia lógica
+        5. CompetenceValidator (pdm_contra/policy/competence.py) → validación institucional
+        6. PatternDetector (factibilidad/pattern_detector.py) → patrones de factibilidad
+        7. ReliabilityCalibrator (evaluation/reliability_calibration.py) → calibración bayesiana
+        8. Tracer (pdm_contra/explain/tracer.py) → explicabilidad
+
+        Args:
+            evidence_registry: EvidenceRegistry con evidencias de stages 1-12
+
+        Returns:
+            Dict con evaluación enriquecida por pregunta y evidencias adicionales
+        """
+        log_info_with_text(
+            self.logger,
+            "🔬 Iniciando evaluación enriquecida con módulos complementarios",
+        )
+
+        # Import complementary modules
+        from evaluation import ReliabilityCalibrator
+        from factibilidad import PatternDetector as FactibilidadPatternDetector
+        from pdm_contra.core import ContradictionDetector
+        from pdm_contra.explain.tracer import ExplanationTracer
+        from pdm_contra.nlp.nli import SpanishNLIDetector
+        from pdm_contra.nlp.patterns import PatternMatcher
+        from pdm_contra.policy.competence import CompetenceValidator
+        from pdm_contra.scoring.risk import RiskScorer
+
+        # Initialize all complementary modules
+        log_info_with_text(self.logger, "📦 Inicializando módulos complementarios...")
+
+        contradiction_detector = ContradictionDetector(mode_light=True)
+        risk_scorer = RiskScorer(alpha=0.1)
+        pattern_matcher = PatternMatcher(language="es")
+        nli_detector = SpanishNLIDetector(light_mode=True)
+        competence_validator = CompetenceValidator()
+        explanation_tracer = ExplanationTracer(language="es")
+        factibilidad_detector = FactibilidadPatternDetector()
+
+        # Create reliability calibrators for different detectors
+        reliability_calibrators = {
+            "responsibility": ReliabilityCalibrator(
+                detector_name="responsibility_detection"
+            ),
+            "monetary": ReliabilityCalibrator(detector_name="monetary_detection"),
+            "feasibility": ReliabilityCalibrator(detector_name="feasibility_scoring"),
+            "causal": ReliabilityCalibrator(detector_name="causal_detection"),
+            "contradiction": ReliabilityCalibrator(
+                detector_name="contradiction_detection"
+            ),
+        }
+
+        log_info_with_text(self.logger, "✅ Módulos complementarios inicializados")
+
+        # Collect all text from documents for full analysis
+        full_text = "\n\n".join(self.textos_originales)
+
+        # ========================================================================
+        # STEP 1: Run ContradictionDetector with full capabilities
+        # ========================================================================
+        log_info_with_text(
+            self.logger, "🔍 Ejecutando análisis de contradicciones avanzado..."
+        )
+
+        # Get sectors from evidence registry
+        sectors_evidence = evidence_registry.get_by_stage("responsibility_detection")
+        sectors = []
+        for ev in sectors_evidence:
+            if isinstance(ev.content, dict) and "sector" in ev.content:
+                sectors.append(ev.content["sector"])
+        sectors = list(set(sectors)) if sectors else ["general"]
+
+        # Run full contradiction analysis
+        contradiction_analysis = contradiction_detector.detect_contradictions(
+            text=full_text,
+            sectors=sectors[:5],  # Limit to top 5 sectors for performance
+            pdm_structure=None,
+        )
+
+        log_info_with_text(
+            self.logger,
+            f"  ✓ Contradicciones: {contradiction_analysis.total_contradictions}, "
+            f"Competencia: {contradiction_analysis.total_competence_issues}, "
+            f"Gaps agenda: {contradiction_analysis.total_agenda_gaps}",
+        )
+
+        # ========================================================================
+        # STEP 2: Run PatternMatcher for linguistic patterns
+        # ========================================================================
+        log_info_with_text(
+            self.logger, "🔍 Detectando patrones lingüísticos adversativos..."
+        )
+
+        adversative_patterns = pattern_matcher.find_adversatives(
+            full_text, context_window=200
+        )
+
+        log_info_with_text(
+            self.logger,
+            f"  ✓ Patrones adversativos encontrados: {len(adversative_patterns)}",
+        )
+
+        # ========================================================================
+        # STEP 3: Run Factibilidad PatternDetector
+        # ========================================================================
+        log_info_with_text(self.logger, "🔍 Detectando patrones de factibilidad...")
+
+        factibilidad_patterns = factibilidad_detector.detect_patterns(full_text)
+        factibilidad_clusters = factibilidad_detector.find_pattern_clusters(full_text)
+
+        log_info_with_text(
+            self.logger,
+            f"  ✓ Líneas base: {len(factibilidad_patterns.get('baseline', []))}, "
+            f"Metas: {len(factibilidad_patterns.get('target', []))}, "
+            f"Plazos: {len(factibilidad_patterns.get('timeframe', []))}, "
+            f"Clusters: {len(factibilidad_clusters)}",
+        )
+
+        # ========================================================================
+        # STEP 4: Run CompetenceValidator across sectors
+        # ========================================================================
+        log_info_with_text(self.logger, "🔍 Validando competencias institucionales...")
+
+        competence_issues_all = []
+        for sector in sectors[:10]:  # Top 10 sectors
+            issues = competence_validator.validate_segment(
+                text=full_text, sectors=[sector], level="municipal"
+            )
+            competence_issues_all.extend(issues)
+
+        log_info_with_text(
+            self.logger,
+            f"  ✓ Observaciones de competencia: {len(competence_issues_all)}",
+        )
+
+        # ========================================================================
+        # STEP 5: Generate explanations with Tracer
+        # ========================================================================
+        log_info_with_text(self.logger, "📝 Generando explicaciones trazables...")
+
+        explanations = explanation_tracer.generate_explanations(
+            contradictions=contradiction_analysis.contradictions,
+            competence_issues=contradiction_analysis.competence_mismatches,
+            agenda_gaps=contradiction_analysis.agenda_gaps,
+        )
+
+        # Add trace for this evaluation
+        explanation_tracer.add_trace(
+            action="evaluate_from_evidence",
+            details={
+                "total_contradictions": contradiction_analysis.total_contradictions,
+                "total_competence": contradiction_analysis.total_competence_issues,
+                "total_agenda_gaps": contradiction_analysis.total_agenda_gaps,
+                "adversative_patterns": len(adversative_patterns),
+                "factibilidad_clusters": len(factibilidad_clusters),
+            },
+        )
+
+        log_info_with_text(
+            self.logger, f"  ✓ Explicaciones generadas: {len(explanations)}"
+        )
+
+        # ========================================================================
+        # STEP 6: Register ALL enriched evidence in the registry
+        # ========================================================================
+        log_info_with_text(self.logger, "💾 Registrando evidencias enriquecidas...")
+
+        # Register contradiction evidence
+        from miniminimoon_orchestrator import EvidenceEntry
+
+        for idx, contradiction in enumerate(contradiction_analysis.contradictions):
+            evidence_id = f"pdm_contra_contradiction::{idx}"
+            evidence_registry.register(
+                EvidenceEntry(
+                    evidence_id=evidence_id,
+                    stage="decalogo_evaluation",
+                    content={
+                        "type": "contradiction",
+                        "text_a": getattr(contradiction, "text_a", ""),
+                        "text_b": getattr(contradiction, "text_b", ""),
+                        "confidence": getattr(contradiction, "confidence", 0.5),
+                        "risk_level": getattr(contradiction, "risk_level", "medium"),
+                        "explanation": getattr(contradiction, "explanation", ""),
+                    },
+                    confidence=getattr(contradiction, "confidence", 0.5),
+                    metadata={
+                        "module": "pdm_contra_contradiction",
+                        "detector": "ContradictionDetector",
+                    },
+                )
+            )
+
+        # Register competence issues
+        for idx, issue in enumerate(competence_issues_all):
+            evidence_id = f"pdm_contra_competence::{idx}"
+            evidence_registry.register(
+                EvidenceEntry(
+                    evidence_id=evidence_id,
+                    stage="decalogo_evaluation",
+                    content=issue,
+                    confidence=0.8,
+                    metadata={
+                        "module": "pdm_contra_competence",
+                        "detector": "CompetenceValidator",
+                    },
+                )
+            )
+
+        # Register adversative patterns
+        for idx, pattern in enumerate(adversative_patterns):
+            evidence_id = f"pdm_contra_patterns::{idx}"
+            evidence_registry.register(
+                EvidenceEntry(
+                    evidence_id=evidence_id,
+                    stage="decalogo_evaluation",
+                    content=pattern,
+                    confidence=0.7,
+                    metadata={
+                        "module": "pdm_contra_patterns",
+                        "detector": "PatternMatcher",
+                    },
+                )
+            )
+
+        # Register factibilidad patterns
+        for pattern_type, patterns in factibilidad_patterns.items():
+            for idx, pattern in enumerate(patterns):
+                evidence_id = f"factibilidad_{pattern_type}::{idx}"
+                evidence_registry.register(
+                    EvidenceEntry(
+                        evidence_id=evidence_id,
+                        stage="decalogo_evaluation",
+                        content={
+                            "pattern_type": pattern_type,
+                            "text": pattern.text,
+                            "start": pattern.start,
+                            "end": pattern.end,
+                            "confidence": pattern.confidence,
+                        },
+                        confidence=pattern.confidence,
+                        metadata={
+                            "module": "factibilidad_patterns",
+                            "detector": "PatternDetector",
+                        },
+                    )
+                )
+
+        # Register risk analysis
+        evidence_registry.register(
+            EvidenceEntry(
+                evidence_id="pdm_contra_risk_analysis::global",
+                stage="decalogo_evaluation",
+                content={
+                    "overall_risk": contradiction_analysis.risk_score,
+                    "risk_level": contradiction_analysis.risk_level,
+                    "confidence_intervals": contradiction_analysis.confidence_intervals,
+                },
+                confidence=0.9,
+                metadata={"module": "pdm_contra_risk", "detector": "RiskScorer"},
+            )
+        )
+
+        log_info_with_text(
+            self.logger,
+            f"  ✓ Evidencias registradas: "
+            f"{len(contradiction_analysis.contradictions)} contradicciones, "
+            f"{len(competence_issues_all)} competencias, "
+            f"{len(adversative_patterns)} patrones, "
+            f"{sum(len(p) for p in factibilidad_patterns.values())} factibilidad",
+        )
+
+        # ========================================================================
+        # STEP 7: Use buscar_evidencia_causal_avanzada for each question
+        # ========================================================================
+        log_info_with_text(
+            self.logger, "🔍 Ejecutando búsqueda causal avanzada por pregunta..."
+        )
+
+        # Get sample questions to demonstrate enriched evidence
+        sample_questions = [
+            (
+                "D1-Q1",
+                "responsabilidades institucionales",
+                ["responsable", "entidad", "competencia"],
+            ),
+            (
+                "D2-Q1",
+                "actividades programadas",
+                ["actividad", "acción", "implementar"],
+            ),
+            ("D3-Q1", "productos esperados", ["producto", "entregable", "resultado"]),
+            ("D4-Q1", "resultados planificados", ["resultado", "logro", "alcanzar"]),
+            ("D5-Q1", "impactos proyectados", ["impacto", "efecto", "consecuencia"]),
+            ("D6-Q1", "cadena causal", ["causa", "efecto", "mecanismo"]),
+        ]
+
+        question_enriched_evidence = {}
+        for question_id, query, conceptos_clave in sample_questions:
+            evidence_items = self.buscar_evidencia_causal_avanzada(
+                query=query,
+                conceptos_clave=conceptos_clave,
+                top_k=5,
+                umbral_certeza=0.6,
+            )
+
+            # Register per-question enriched evidence
+            for idx, item in enumerate(evidence_items):
+                evidence_id = f"decalogo_causal::{question_id}::{idx}"
+                evidence_registry.register(
+                    EvidenceEntry(
+                        evidence_id=evidence_id,
+                        stage="decalogo_evaluation",
+                        content=item,
+                        confidence=item.get("score_final", 0.7),
+                        metadata={
+                            "module": "decalogo_causal_search",
+                            "question_id": question_id,
+                            "detector": "buscar_evidencia_causal_avanzada",
+                        },
+                    )
+                )
+
+            question_enriched_evidence[question_id] = evidence_items
+
+        log_info_with_text(
+            self.logger,
+            f"  ✓ Evidencia causal enriquecida para {len(sample_questions)} preguntas muestra",
+        )
+
+        # ========================================================================
+        # STEP 8: Return comprehensive evaluation results
+        # ========================================================================
+        evaluation_results = {
+            "status": "completed",
+            "timestamp": datetime.utcnow().isoformat(),
+            "summary": {
+                "total_contradictions": contradiction_analysis.total_contradictions,
+                "total_competence_issues": contradiction_analysis.total_competence_issues,
+                "total_agenda_gaps": contradiction_analysis.total_agenda_gaps,
+                "adversative_patterns": len(adversative_patterns),
+                "factibilidad_patterns": {
+                    "baseline": len(factibilidad_patterns.get("baseline", [])),
+                    "target": len(factibilidad_patterns.get("target", [])),
+                    "timeframe": len(factibilidad_patterns.get("timeframe", [])),
+                },
+                "factibilidad_clusters": len(factibilidad_clusters),
+                "risk_score": contradiction_analysis.risk_score,
+                "risk_level": contradiction_analysis.risk_level,
+            },
+            "detailed_analysis": {
+                "contradiction_analysis": {
+                    "contradictions": [
+                        {
+                            "text_a": getattr(c, "text_a", ""),
+                            "text_b": getattr(c, "text_b", ""),
+                            "confidence": getattr(c, "confidence", 0.5),
+                            "risk_level": getattr(c, "risk_level", "medium"),
+                        }
+                        for c in contradiction_analysis.contradictions[:10]  # Top 10
+                    ],
+                    "risk_score": contradiction_analysis.risk_score,
+                    "risk_level": contradiction_analysis.risk_level,
+                },
+                "competence_issues": competence_issues_all[:10],  # Top 10
+                "adversative_patterns": adversative_patterns[:10],  # Top 10
+                "factibilidad_clusters": factibilidad_clusters[:10],  # Top 10
+            },
+            "explanations": explanations,
+            "trace_report": explanation_tracer.get_trace_report(),
+            "question_enriched_evidence": question_enriched_evidence,
+            "reliability_calibrators": {
+                name: {
+                    "expected_precision": cal.expected_precision,
+                    "expected_recall": cal.expected_recall,
+                    "expected_f1": cal.expected_f1,
+                    "n_updates": cal.n_updates,
+                }
+                for name, cal in reliability_calibrators.items()
+            },
+            "modules_executed": [
+                "ContradictionDetector",
+                "RiskScorer",
+                "PatternMatcher",
+                "SpanishNLIDetector",
+                "CompetenceValidator",
+                "FactibilidadPatternDetector",
+                "ReliabilityCalibrator",
+                "ExplanationTracer",
+                "buscar_evidencia_causal_avanzada",
+            ],
+        }
+
+        log_info_with_text(
+            self.logger,
+            "✅ Evaluación enriquecida completada - Todos los módulos ejecutados",
+        )
+
+        return evaluation_results
+
     def _buscar_evidencia_fallback(
         self,
         query: str,

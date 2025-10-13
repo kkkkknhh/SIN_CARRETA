@@ -194,11 +194,39 @@ class AnswerAssembler:
     def assemble(self, evaluation_inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
         Ensambla el reporte final en dos niveles:
-          - question_answers: lista de respuestas por P–D–Q
+          - question_answers: lista de respuestas por P–D–Q con argumentación doctoral
           - global_summary: cobertura, pesos y score ponderado
 
         evaluation_inputs espera `{"questionnaire_eval": {"question_results": [...]}}`
+
+        ENHANCED: Integrates doctoral_argumentation_engine for rigorous justifications
         """
+        # Import doctoral argumentation engine
+        try:
+            from doctoral_argumentation_engine import (
+                DoctoralArgumentationEngine,
+                StructuredEvidence,
+            )
+
+            doctoral_engine_available = True
+        except ImportError:
+            doctoral_engine_available = False
+            print(
+                "Warning: doctoral_argumentation_engine not available, using basic rationale"
+            )
+
+        # Initialize doctoral engine if available
+        if doctoral_engine_available and self.evidence_registry:
+            try:
+                doctoral_engine = DoctoralArgumentationEngine(
+                    evidence_registry=self.evidence_registry
+                )
+            except Exception as e:
+                print(f"Warning: Could not initialize doctoral engine: {e}")
+                doctoral_engine = None
+        else:
+            doctoral_engine = None
+
         questionnaire_eval = (
             evaluation_inputs.get("questionnaire_eval", {})
             if isinstance(evaluation_inputs, dict)
@@ -230,25 +258,126 @@ class AnswerAssembler:
             caveats = self._caveats(evidence_list, score)
             rationale = self._rationale(uid, evidence_list, score)
 
-            question_answers.append(
-                {
-                    "question_id": uid,
-                    "dimension": uid.split("-")[1],  # D#
-                    "raw_score": score,
-                    "rubric_key": rk,
-                    "rubric_weight": weight,
-                    "confidence": confidence,
-                    "evidence_ids": [],  # no exponemos IDs internos aquí; el orquestador ya guarda el registry aparte
-                    "evidence_count": len(evidence_list),
-                    "supporting_quotes": [q.text for q in evidence_list[:3] if q.text],
-                    "caveats": caveats,
-                    "scoring_modality": "CANONICAL_PDQ",
-                }
-            )
+            # ========================================
+            # DOCTORAL ARGUMENTATION INTEGRATION
+            # ========================================
+            doctoral_argument = None
+            toulmin_structure = None
+            argument_quality = {}
+
+            if doctoral_engine and len(evidence_list) >= 1:
+                try:
+                    # Convert evidence to StructuredEvidence format
+                    structured_evidence = []
+                    for idx, ev in enumerate(evidence_list[:5]):  # Top 5 evidence items
+                        structured_evidence.append(
+                            StructuredEvidence(
+                                source_module=f"detector_{idx}",
+                                evidence_type="textual",
+                                content=ev.text,
+                                confidence=ev.confidence,
+                                applicable_questions=[uid],
+                                metadata={},
+                            )
+                        )
+
+                    # Create Bayesian posterior (simplified)
+                    bayesian_posterior = {
+                        "mean": confidence,
+                        "lower_bound": max(0.0, confidence - 0.1),
+                        "upper_bound": min(1.0, confidence + 0.1),
+                    }
+
+                    # Generate doctoral argument
+                    if len(structured_evidence) >= 1:
+                        argument_result = doctoral_engine.generate_argument(
+                            question_id=uid,
+                            score=score,
+                            evidence_list=structured_evidence,
+                            bayesian_posterior=bayesian_posterior,
+                        )
+
+                        # Extract components
+                        doctoral_argument = {
+                            "paragraphs": argument_result.get(
+                                "argument_paragraphs", []
+                            ),
+                            "claim": argument_result.get("toulmin_structure", {}).get(
+                                "claim", ""
+                            ),
+                            "ground": argument_result.get("toulmin_structure", {}).get(
+                                "ground", ""
+                            ),
+                            "warrant": argument_result.get("toulmin_structure", {}).get(
+                                "warrant", ""
+                            ),
+                        }
+
+                        toulmin_structure = argument_result.get("toulmin_structure", {})
+
+                        argument_quality = {
+                            "logical_coherence": argument_result.get(
+                                "logical_coherence_score", 0.0
+                            ),
+                            "academic_quality": argument_result.get(
+                                "academic_quality_scores", {}
+                            ),
+                            "evidence_sources": argument_result.get(
+                                "toulmin_structure", {}
+                            ).get("evidence_sources", []),
+                            "meets_doctoral_standards": (
+                                argument_result.get("logical_coherence_score", 0.0)
+                                >= 0.85
+                                and argument_result.get(
+                                    "academic_quality_scores", {}
+                                ).get("overall", 0.0)
+                                >= 0.80
+                            ),
+                        }
+
+                except Exception as e:
+                    print(
+                        f"Warning: Could not generate doctoral argument for {uid}: {e}"
+                    )
+                    doctoral_argument = None
+
+            # Build answer entry
+            answer_entry = {
+                "question_id": uid,
+                "dimension": uid.split("-")[1],  # D#
+                "raw_score": score,
+                "rubric_key": rk,
+                "rubric_weight": weight,
+                "confidence": confidence,
+                "evidence_ids": [],
+                "evidence_count": len(evidence_list),
+                "supporting_quotes": [q.text for q in evidence_list[:3] if q.text],
+                "caveats": caveats,
+                "scoring_modality": "CANONICAL_PDQ",
+                "rationale": rationale,
+            }
+
+            # Add doctoral argumentation if available
+            if doctoral_argument:
+                answer_entry["doctoral_justification"] = doctoral_argument
+                answer_entry["toulmin_structure"] = toulmin_structure
+                answer_entry["argument_quality"] = argument_quality
+
+            question_answers.append(answer_entry)
 
         total_weight = sum(qa["rubric_weight"] for qa in question_answers)
         weighted_score = sum(
             qa["raw_score"] * qa["rubric_weight"] for qa in question_answers
+        )
+
+        # Calculate doctoral quality statistics
+        doctoral_coverage = sum(
+            1 for qa in question_answers if "doctoral_justification" in qa
+        )
+        doctoral_high_quality = sum(
+            1
+            for qa in question_answers
+            if qa.get("argument_quality", {}).get("meets_doctoral_standards", False)
         )
 
         global_summary = {
@@ -261,6 +390,19 @@ class AnswerAssembler:
             )
             if question_answers
             else 0.0,
+            "doctoral_argumentation": {
+                "coverage": doctoral_coverage,
+                "coverage_percentage": (doctoral_coverage / len(question_answers) * 100)
+                if question_answers
+                else 0.0,
+                "high_quality_count": doctoral_high_quality,
+                "high_quality_percentage": (
+                    doctoral_high_quality / doctoral_coverage * 100
+                )
+                if doctoral_coverage > 0
+                else 0.0,
+                "engine_available": doctoral_engine_available,
+            },
         }
 
         return {
@@ -270,6 +412,7 @@ class AnswerAssembler:
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                 "rubric_loaded": bool(weights),
                 "rubric_path": str(self.rubric_path) if self.rubric_path else None,
+                "doctoral_engine_enabled": doctoral_engine is not None,
             },
         }
 
