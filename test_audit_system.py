@@ -73,11 +73,29 @@ class TestAuditSystemStructure(unittest.TestCase):
     def test_module_stage_mappings(self):
         """Verify module-to-stage mappings are correct."""
         modules = MINIMINIMOONAuditor.EXPECTED_MODULES
-        self.assertEqual(modules["pdm_contra"], 6, "pdm_contra should map to stage 6 (CONTRADICTION)")
-        self.assertEqual(modules["factibilidad"], 8, "factibilidad should map to stage 8 (FEASIBILITY)")
-        self.assertEqual(modules["CompetenceValidator"], 15, "CompetenceValidator should map to stage 15 (QUESTIONNAIRE_EVAL)")
-        self.assertEqual(modules["ReliabilityCalibrator"], 15, "ReliabilityCalibrator should map to stage 15 (QUESTIONNAIRE_EVAL)")
-        self.assertEqual(modules["doctoral_argumentation_engine"], 16, "doctoral_argumentation_engine should map to stage 16 (ANSWER_ASSEMBLY)")
+        self.assertEqual(
+            modules["pdm_contra"], 6, "pdm_contra should map to stage 6 (CONTRADICTION)"
+        )
+        self.assertEqual(
+            modules["factibilidad"],
+            8,
+            "factibilidad should map to stage 8 (FEASIBILITY)",
+        )
+        self.assertEqual(
+            modules["CompetenceValidator"],
+            15,
+            "CompetenceValidator should map to stage 15 (QUESTIONNAIRE_EVAL)",
+        )
+        self.assertEqual(
+            modules["ReliabilityCalibrator"],
+            15,
+            "ReliabilityCalibrator should map to stage 15 (QUESTIONNAIRE_EVAL)",
+        )
+        self.assertEqual(
+            modules["doctoral_argumentation_engine"],
+            16,
+            "doctoral_argumentation_engine should map to stage 16 (ANSWER_ASSEMBLY)",
+        )
 
     def test_stage_audit_result_structure(self):
         """Verify StageAuditResult has required fields."""
@@ -87,7 +105,7 @@ class TestAuditSystemStructure(unittest.TestCase):
             executed=True,
             has_evidence=True,
             evidence_count=5,
-            error=None
+            error=None,
         )
         self.assertEqual(result.stage_name, "test_stage")
         self.assertEqual(result.stage_number, 1)
@@ -107,7 +125,7 @@ class TestAuditSystemStructure(unittest.TestCase):
             file_location=None,
             import_statement=None,
             invocation_method=None,
-            issues=["Not found in codebase"]
+            issues=["Not found in codebase"],
         )
         self.assertEqual(result.module_name, "test_module")
         self.assertEqual(result.expected_stage, 8)
@@ -125,7 +143,7 @@ class TestAuditSystemStructure(unittest.TestCase):
             questions_with_3plus_sources=190,
             questions_with_doctoral_justification=200,
             coverage_percentage=63.3,
-            meets_requirements=False
+            meets_requirements=False,
         )
         self.assertEqual(result.total_questions_expected, 300)
         self.assertEqual(result.questions_with_3plus_sources, 190)
@@ -148,7 +166,7 @@ class TestAuditSystemStructure(unittest.TestCase):
             score_mismatches=[],
             max_score_difference=0.0,
             is_deterministic=True,
-            errors=[]
+            errors=[],
         )
         self.assertTrue(result.is_deterministic)
         self.assertTrue(result.evidence_hashes_match)
@@ -161,16 +179,25 @@ class TestModuleIntegrationChecks(unittest.TestCase):
     def test_doctoral_argumentation_engine_exists(self):
         """Verify doctoral_argumentation_engine.py exists."""
         path = Path("doctoral_argumentation_engine.py")
-        self.assertTrue(path.exists(), "doctoral_argumentation_engine.py should exist in codebase")
+        self.assertTrue(
+            path.exists(), "doctoral_argumentation_engine.py should exist in codebase"
+        )
 
     def test_missing_modules_identified(self):
         """Verify missing modules are correctly identified."""
-        missing_modules = ["pdm_contra", "factibilidad", "CompetenceValidator", "ReliabilityCalibrator"]
+        missing_modules = [
+            "pdm_contra",
+            "factibilidad",
+            "CompetenceValidator",
+            "ReliabilityCalibrator",
+        ]
         for module in missing_modules:
             path = Path(f"{module}.py")
             # These should NOT exist (expected to be missing)
             if path.exists():
-                self.fail(f"{module}.py exists but is expected to be missing per requirements")
+                self.fail(
+                    f"{module}.py exists but is expected to be missing per requirements"
+                )
 
 
 if __name__ == "__main__":
