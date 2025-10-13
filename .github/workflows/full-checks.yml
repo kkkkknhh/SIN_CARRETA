@@ -1,0 +1,192 @@
+name: Full Compilation & Verification Suite
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  full-checks:
+    name: Full Checks (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ["3.10", "3.11"]
+    
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+            ${{ runner.os }}-pip-
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+      
+      - name: Install protoc (optional)
+        run: |
+          # Install protoc if proto files are present
+          if [ -d "protos" ] || [ -d "proto" ]; then
+            sudo apt-get install -y protobuf-compiler
+          else
+            echo "No proto directory found, skipping protoc installation"
+          fi
+        continue-on-error: true
+      
+      - name: Create virtual environment
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip setuptools wheel
+      
+      - name: Install dependencies
+        run: |
+          source .venv/bin/activate
+          pip install -r requirements.txt
+          pip freeze > .venv/pip-freeze.txt
+      
+      - name: Install development dependencies
+        run: |
+          source .venv/bin/activate
+          # Install test dependencies if not in requirements.txt
+          pip install pytest pytest-json-report || true
+          pip install mypy || true
+          pip install flake8 || true
+          pip install black || true
+          pip install bandit safety || true
+      
+      - name: Verify Python version
+        run: |
+          source .venv/bin/activate
+          python --version
+          which python
+      
+      - name: Run comprehensive checks
+        id: checks
+        run: |
+          # Set auto-repair for CI
+          export AUTO_REPAIR_VENV=1
+          
+          # Run the master verification script
+          bash devtools/run_all_checks.sh
+        continue-on-error: false
+      
+      - name: Display summary
+        if: always()
+        run: |
+          if [ -f devtools/reports/checks-summary.json ]; then
+            echo "=== Checks Summary ==="
+            cat devtools/reports/checks-summary.json | jq .
+            
+            # Extract status
+            status=$(jq -r '.status // "unknown"' devtools/reports/checks-summary.json)
+            echo "Overall Status: ${status}"
+            
+            # Show failed steps
+            echo ""
+            echo "=== Failed Steps ==="
+            jq -r '.steps[] | select(.status == "failed") | "- \(.name) (exit code: \(.exit_code))"' devtools/reports/checks-summary.json || echo "None"
+          else
+            echo "Summary file not found"
+          fi
+      
+      - name: Upload reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: check-reports-py${{ matrix.python-version }}
+          path: devtools/reports/
+          retention-days: 7
+      
+      - name: Upload pytest report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report-py${{ matrix.python-version }}
+          path: devtools/reports/pytest-report.json
+          retention-days: 7
+        continue-on-error: true
+      
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            try {
+              if (!fs.existsSync('devtools/reports/checks-summary.json')) {
+                console.log('Summary file not found');
+                return;
+              }
+              
+              const summary = JSON.parse(fs.readFileSync('devtools/reports/checks-summary.json', 'utf8'));
+              
+              let comment = `## 🔍 Full Verification Suite Results (Python ${{ matrix.python-version }})\n\n`;
+              comment += `**Status**: ${summary.status === 'success' ? '✅ PASSED' : '❌ FAILED'}\n`;
+              comment += `**Timestamp**: ${summary.run_timestamp}\n\n`;
+              
+              if (summary.steps && summary.steps.length > 0) {
+                comment += '### Step Results\n\n';
+                comment += '| Step | Status | Exit Code |\n';
+                comment += '|------|--------|----------|\n';
+                
+                for (const step of summary.steps) {
+                  const icon = step.status === 'success' ? '✅' : '❌';
+                  comment += `| ${step.name} | ${icon} ${step.status} | ${step.exit_code} |\n`;
+                }
+                
+                // Show failed steps details
+                const failedSteps = summary.steps.filter(s => s.status === 'failed');
+                if (failedSteps.length > 0) {
+                  comment += '\n### ❌ Failed Steps Details\n\n';
+                  for (const step of failedSteps) {
+                    comment += `#### ${step.name}\n`;
+                    comment += `- Exit Code: ${step.exit_code}\n`;
+                    if (step.stderr) {
+                      comment += `- Error: \`\`\`\n${step.stderr.slice(-500)}\n\`\`\`\n`;
+                    }
+                  }
+                }
+              }
+              
+              comment += '\n---\n';
+              comment += `📊 Full report available in artifacts: \`check-reports-py${{ matrix.python-version }}\`\n`;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.error('Error posting comment:', error);
+            }
+      
+      - name: Check exit status
+        if: always()
+        run: |
+          if [ -f devtools/reports/checks-summary.json ]; then
+            status=$(jq -r '.status // "unknown"' devtools/reports/checks-summary.json)
+            
+            if [ "${status}" != "success" ]; then
+              echo "❌ Checks failed - see summary above"
+              exit 1
+            fi
+          fi
