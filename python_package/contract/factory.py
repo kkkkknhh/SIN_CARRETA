@@ -9,7 +9,7 @@ Factory functions to create signed EvidencePacket instances with validation.
 
 from typing import Any, Dict, List
 
-from .evidence_proto_gen import EvidencePacketModel, get_hmac_secret, PipelineStage
+from .evidence_proto_gen import EvidencePacketModel, PipelineStage, get_hmac_secret
 
 
 def create_evidence_packet(
@@ -25,7 +25,7 @@ def create_evidence_packet(
 ) -> EvidencePacketModel:
     """
     Create a new EvidencePacket with optional signing.
-    
+
     Args:
         stage: Pipeline stage (0-16)
         source_component: Component that produced evidence
@@ -36,10 +36,10 @@ def create_evidence_packet(
         metadata: Additional metadata (optional)
         schema_version: Schema version (default: "1.0.0")
         sign: Whether to sign the packet (default: True)
-        
+
     Returns:
         Signed EvidencePacketModel
-        
+
     Raises:
         ValueError: If validation fails or HMAC secret not set (when sign=True)
     """
@@ -54,12 +54,12 @@ def create_evidence_packet(
         applicable_questions=applicable_questions,
         metadata=metadata or {},
     )
-    
+
     # Sign if requested
     if sign:
         secret = get_hmac_secret()
         packet = packet.with_signature(secret)
-    
+
     return packet
 
 
@@ -126,11 +126,11 @@ def create_decalogo_evidence(
 def validate_packet(packet: EvidencePacketModel, secret: str | None = None) -> bool:
     """
     Validate an EvidencePacket.
-    
+
     Args:
         packet: EvidencePacket to validate
         secret: HMAC secret for signature verification (uses env var if None)
-        
+
     Returns:
         True if valid, False otherwise
     """
@@ -143,5 +143,5 @@ def validate_packet(packet: EvidencePacketModel, secret: str | None = None) -> b
             except ValueError:
                 return False
         return packet.verify_signature(secret)
-    
+
     return True
