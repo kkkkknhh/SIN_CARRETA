@@ -2846,20 +2846,27 @@ class ExtractorEvidenciaIndustrialAvanzado:
         )
 
         # ========================================================================
-        # STEP 4: Run CompetenceValidator across sectors
+        # STEP 4: Run CompetenceValidator across sectors (global analysis)
         # ========================================================================
-        log_info_with_text(self.logger, "🔍 Validando competencias institucionales...")
+        log_info_with_text(self.logger, "🔍 Validando competencias institucionales (análisis global)...")
 
         competence_issues_all = []
         for sector in sectors[:10]:  # Top 10 sectors
-            issues = competence_validator.validate_segment(
-                text=full_text, sectors=[sector], level="municipal"
-            )
-            competence_issues_all.extend(issues)
+            try:
+                issues = competence_validator.validate_segment(
+                    text=full_text, sectors=[sector], level="municipal"
+                )
+                competence_issues_all.extend(issues)
+            except Exception as e:
+                log_warning_with_text(
+                    self.logger,
+                    f"⚠️ Error validando competencias para sector {sector}: {e}"
+                )
+                continue
 
         log_info_with_text(
             self.logger,
-            f"  ✓ Observaciones de competencia: {len(competence_issues_all)}",
+            f"  ✓ Observaciones de competencia (global): {len(competence_issues_all)}",
         )
 
         # ========================================================================
@@ -3024,6 +3031,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
         ]
 
         question_enriched_evidence = {}
+        question_competence_validations = {}
         for question_id, query, conceptos_clave in sample_questions:
             evidence_items = self.buscar_evidencia_causal_avanzada(
                 query=query,
@@ -3031,6 +3039,72 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 top_k=5,
                 umbral_certeza=0.6,
             )
+
+            # ====================================================================
+            # COMPETENCE VALIDATION PER QUESTION
+            # Run CompetenceValidator for each question's evidence context
+            # ====================================================================
+            question_competence_issues = []
+            try:
+                # Extract text snippets from evidence items for this question
+                question_text_snippets = [
+                    item.get("texto", "") for item in evidence_items if "texto" in item
+                ]
+                question_context = "\n".join(question_text_snippets)
+                
+                if question_context.strip():
+                    # Validate competence boundaries for this question's context
+                    for sector in sectors[:5]:  # Top 5 sectors per question
+                        try:
+                            issues = competence_validator.validate_segment(
+                                text=question_context,
+                                sectors=[sector],
+                                level="municipal"
+                            )
+                            question_competence_issues.extend(issues)
+                        except Exception as sector_error:
+                            log_warning_with_text(
+                                self.logger,
+                                f"⚠️ Error validando competencias para {question_id} sector {sector}: {sector_error}"
+                            )
+                            continue
+                    
+                    # Register competence validation results as evidence entries
+                    for idx, issue in enumerate(question_competence_issues):
+                        evidence_id = f"competence_validation::{question_id}::{idx}"
+                        evidence_registry.register(
+                            EvidenceEntry(
+                                evidence_id=evidence_id,
+                                stage="decalogo_evaluation",
+                                content={
+                                    "validation_type": "institutional_competence",
+                                    "question_id": question_id,
+                                    "issue": issue,
+                                    "validator_source": "CompetenceValidator",
+                                    "provenance": {
+                                        "module": "pdm_contra.policy.competence",
+                                        "class": "CompetenceValidator",
+                                        "timestamp": datetime.utcnow().isoformat(),
+                                    }
+                                },
+                                confidence=0.8,
+                                metadata={
+                                    "module": "pdm_contra_competence_per_question",
+                                    "detector": "CompetenceValidator",
+                                    "question_id": question_id,
+                                    "stage": "after_contradiction_before_scoring",
+                                },
+                            )
+                        )
+                    
+                    question_competence_validations[question_id] = question_competence_issues
+                    
+            except Exception as e:
+                log_warning_with_text(
+                    self.logger,
+                    f"⚠️ Error en validación de competencias para {question_id}: {e}"
+                )
+                question_competence_validations[question_id] = []
 
             # Register per-question enriched evidence
             for idx, item in enumerate(evidence_items):
@@ -3054,6 +3128,10 @@ class ExtractorEvidenciaIndustrialAvanzado:
         log_info_with_text(
             self.logger,
             f"  ✓ Evidencia causal enriquecida para {len(sample_questions)} preguntas muestra",
+        )
+        log_info_with_text(
+            self.logger,
+            f"  ✓ Validaciones de competencia por pregunta: {sum(len(v) for v in question_competence_validations.values())} total",
         )
 
         # ========================================================================
@@ -3241,6 +3319,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
             "explanations": explanations,
             "trace_report": explanation_tracer.get_trace_report(),
             "question_enriched_evidence": question_enriched_evidence,
+            "question_competence_validations": question_competence_validations,
             "reliability_calibrators": {
                 name: {
                     "expected_precision": cal.expected_precision,
