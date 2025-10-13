@@ -154,7 +154,7 @@ def demonstrate_usage():
     print("EXPECTED USAGE PATTERN")
     print("=" * 80)
 
-    usage_example = '''
+    usage_example = """
 # Initialize AnswerAssembler with evidence registry
 from answer_assembler import AnswerAssembler
 
@@ -215,7 +215,7 @@ print(f"High quality: {doctoral['high_quality_percentage']:.1f}%")
 print(f"Status: {doctoral['status_breakdown']}")
 print(f"Avg coherence: {doctoral['average_coherence_score']:.3f}")
 print(f"Avg quality: {doctoral['average_quality_score']:.3f}")
-'''
+"""
 
     print(usage_example)
 
@@ -233,8 +233,12 @@ if __name__ == "__main__":
         print("✓ ALL VALIDATIONS PASSED")
         print("=" * 80)
         print("\nSummary of enhancements:")
-        print("  1. ✓ Calls doctoral_argumentation_engine.generate_argument() for each question")
-        print("  2. ✓ Passes accumulated evidence from prior stages via evidence_registry")
+        print(
+            "  1. ✓ Calls doctoral_argumentation_engine.generate_argument() for each question"
+        )
+        print(
+            "  2. ✓ Passes accumulated evidence from prior stages via evidence_registry"
+        )
         print("  3. ✓ Validates complete Toulmin structure (6 components)")
         print("  4. ✓ Checks ≥3 evidence sources before generation")
         print("  5. ✓ Verifies coherence_score ≥ 0.85")
@@ -242,7 +246,9 @@ if __name__ == "__main__":
         print("  7. ✓ Rejects/flags answers that fail criteria")
         print("  8. ✓ Includes full doctoral argument structure in output")
         print("  9. ✓ Serializes quality metrics for downstream traceability")
-        print(" 10. ✓ Tracks argumentation status (success/insufficient/validation_failed/generation_failed)")
+        print(
+            " 10. ✓ Tracks argumentation status (success/insufficient/validation_failed/generation_failed)"
+        )
     else:
         print("✗ SOME VALIDATIONS FAILED")
         print("=" * 80)
