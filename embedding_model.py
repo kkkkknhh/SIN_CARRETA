@@ -12,6 +12,7 @@ Advanced semantic embedding system with enterprise-level features:
 
 # Python version enforcement - must be imported before other modules
 import sys
+
 if not ((3, 10) <= sys.version_info[:2] <= (3, 12)):
     raise RuntimeError(
         f"embedding_model requires Python 3.10-3.12, found {sys.version_info.major}.{sys.version_info.minor}\n"
