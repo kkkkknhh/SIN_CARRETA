@@ -184,9 +184,24 @@ def verify_weights(weights):
 def update_rubric_scoring_json(weights):
     """Update RUBRIC_SCORING.json with new weights"""
     
-    # Read current RUBRIC_SCORING.json
-    with open('RUBRIC_SCORING.json', 'r', encoding='utf-8') as f:
-        rubric = json.load(f)
+    # Read current RUBRIC_SCORING.json if it exists
+    try:
+        with open('RUBRIC_SCORING.json', 'r', encoding='utf-8') as f:
+            rubric = json.load(f)
+    except FileNotFoundError:
+        # Create minimal rubric structure if file doesn't exist
+        rubric = {
+            "metadata": {
+                "version": "2.0",
+                "created": "2025-01-15",
+                "description": "Complete scoring system for 300-question PDM evaluation (30 base questions × 10 thematic points)",
+                "total_questions": 300,
+                "base_questions": 30,
+                "thematic_points": 10,
+                "dimensions": 6
+            },
+            "weights": {}
+        }
     
     # Update weights section
     rubric['weights'] = weights
