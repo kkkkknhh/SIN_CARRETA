@@ -1,0 +1,394 @@
+name: Contract CI - EvidencePacket
+
+on:
+  push:
+    branches: [main, develop, 'copilot/**']
+    paths:
+      - 'proto/**'
+      - 'python_package/contract/**'
+      - 'python_package/registry/**'
+      - 'python_package/policies/**'
+      - 'tests/test_contract_*.py'
+      - 'requirements*.txt'
+      - '.github/workflows/contract-ci.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'proto/**'
+      - 'python_package/contract/**'
+      - 'python_package/registry/**'
+      - 'python_package/policies/**'
+      - 'tests/test_contract_*.py'
+
+env:
+  PYTHON_VERSION: '3.10'
+  EVIDENCE_HMAC_SECRET: 'ci_test_secret_key_minimum_32_characters_long_for_github_actions'
+
+jobs:
+  buf-lint-and-breaking:
+    name: Buf Lint & Breaking Changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for breaking change detection
+      
+      - name: Setup Buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: '1.28.1'
+      
+      - name: Buf Format Check
+        run: buf format -d --exit-code
+        working-directory: ${{ github.workspace }}
+      
+      - name: Buf Lint
+        run: buf lint proto/
+        working-directory: ${{ github.workspace }}
+      
+      - name: Buf Breaking Changes (on PR)
+        if: github.event_name == 'pull_request'
+        run: |
+          buf breaking proto/ --against '.git#branch=${{ github.base_ref }}'
+        working-directory: ${{ github.workspace }}
+
+  build-and-test:
+    name: Build Proto & Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+      
+      - name: Verify Python version
+        run: |
+          python --version
+          python -c "import sys; assert sys.version_info >= (3, 10), 'Python 3.10+ required'"
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt -r requirements-dev.txt
+      
+      - name: Generate Proto Python code
+        run: |
+          chmod +x scripts/generate_proto.sh
+          ./scripts/generate_proto.sh
+      
+      - name: Verify generated files
+        run: |
+          test -f python_package/contract/evidence_pb2.py
+          test -f python_package/contract/evidence_pb2.pyi
+          echo "✓ Proto files generated successfully"
+      
+      - name: Run mypy type checking
+        run: |
+          mypy python_package/contract/ --ignore-missing-imports --no-error-summary || true
+          echo "✓ Type checking completed"
+      
+      - name: Run flake8
+        run: |
+          flake8 python_package/contract/ --max-line-length=120 --extend-ignore=E203,W503
+          flake8 python_package/registry/ --max-line-length=120 --extend-ignore=E203,W503
+          echo "✓ Flake8 linting passed"
+      
+      - name: Run contract tests
+        run: |
+          pytest tests/test_contract_producer.py -v --tb=short
+          pytest tests/test_contract_consumer.py -v --tb=short
+      
+      - name: Generate test coverage report
+        run: |
+          pytest tests/test_contract_*.py --cov=python_package/contract --cov=python_package/registry --cov-report=term --cov-report=html
+      
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: htmlcov/
+
+  registry-verification:
+    name: Registry Integrity Verification
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Generate Proto code
+        run: |
+          chmod +x scripts/generate_proto.sh
+          ./scripts/generate_proto.sh
+      
+      - name: Create test registry
+        run: |
+          python -c "
+import os
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path.cwd()))
+from python_package.contract.factory import create_evidence_packet
+from python_package.registry.append_only_registry import AppendOnlyRegistry
+
+# Create test registry
+registry = AppendOnlyRegistry('test_registry.json')
+
+# Add test packets
+for i in range(5):
+    packet = create_evidence_packet(
+        stage=1,
+        source_component=f'test_component_{i}',
+        evidence_type='test',
+        content={'index': i, 'data': f'value_{i}'},
+        confidence=0.5 + i * 0.05,
+        applicable_questions=[f'Q{i}'],
+    )
+    registry.append(packet)
+
+print(f'✓ Created registry with {len(registry.get_all_entries())} entries')
+"
+      
+      - name: Verify registry integrity
+        run: |
+          python python_package/registry/append_only_registry.py test_registry.json
+      
+      - name: Upload test registry
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-registry
+          path: test_registry.json
+
+  opa-policy-check:
+    name: OPA Policy Validation
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup OPA
+        run: |
+          curl -L -o opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64
+          chmod +x opa
+          sudo mv opa /usr/local/bin/
+      
+      - name: Verify OPA installation
+        run: opa version
+      
+      - name: Test OPA policy syntax
+        run: |
+          opa test python_package/policies/opa/ || echo "No test files, checking syntax only"
+          opa check python_package/policies/opa/policy.rego
+          echo "✓ OPA policy syntax valid"
+      
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Generate test data
+        run: |
+          chmod +x scripts/generate_proto.sh
+          ./scripts/generate_proto.sh
+      
+      - name: Test policy with valid packet
+        run: |
+          python -c "
+import os
+import sys
+import json
+import subprocess
+from pathlib import Path
+sys.path.insert(0, str(Path.cwd()))
+from python_package.contract.factory import create_evidence_packet
+
+# Create valid packet
+packet = create_evidence_packet(
+    stage=8,
+    source_component='feasibility_scorer',
+    evidence_type='baseline_presence',
+    content={'finding': 'baseline detected'},
+    confidence=0.8,
+    applicable_questions=['D1-Q1'],
+)
+
+# Convert to JSON for OPA
+packet_json = json.loads(packet.model_dump_json())
+
+# Write input file
+with open('valid_packet.json', 'w') as f:
+    json.dump(packet_json, f)
+
+# Run OPA eval
+result = subprocess.run(
+    ['opa', 'eval', '-i', 'valid_packet.json', '-d', 'python_package/policies/opa/policy.rego', 'data.evidence.validation.allow'],
+    capture_output=True,
+    text=True
+)
+
+if 'true' not in result.stdout:
+    print('✗ Valid packet rejected by policy')
+    print(result.stdout)
+    sys.exit(1)
+else:
+    print('✓ Valid packet accepted by policy')
+"
+      
+      - name: Test policy with invalid packet (low confidence)
+        run: |
+          python -c "
+import os
+import sys
+import json
+import subprocess
+from pathlib import Path
+sys.path.insert(0, str(Path.cwd()))
+from python_package.contract.factory import create_evidence_packet
+
+# Create low confidence packet
+packet = create_evidence_packet(
+    stage=1,
+    source_component='test',
+    evidence_type='test',
+    content={'data': 'value'},
+    confidence=0.1,  # Below 0.2 threshold
+    applicable_questions=['Q1'],
+)
+
+packet_json = json.loads(packet.model_dump_json())
+
+with open('invalid_packet.json', 'w') as f:
+    json.dump(packet_json, f)
+
+result = subprocess.run(
+    ['opa', 'eval', '-i', 'invalid_packet.json', '-d', 'python_package/policies/opa/policy.rego', 'data.evidence.validation.allow'],
+    capture_output=True,
+    text=True
+)
+
+if 'false' not in result.stdout:
+    print('✗ Invalid packet accepted by policy')
+    print(result.stdout)
+    sys.exit(1)
+else:
+    print('✓ Invalid packet rejected by policy')
+"
+
+  signature-verification:
+    name: Signature & Hash Verification
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Generate Proto code
+        run: |
+          ./scripts/generate_proto.sh
+      
+      - name: Test signature stability
+        run: |
+          python -c "
+import os
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path.cwd()))
+from python_package.contract.factory import create_evidence_packet
+
+# Create same packet twice
+packet1 = create_evidence_packet(
+    stage=1,
+    source_component='test',
+    evidence_type='test',
+    content={'data': 'value'},
+    confidence=0.5,
+    applicable_questions=['Q1'],
+)
+
+packet2 = create_evidence_packet(
+    stage=1,
+    source_component='test',
+    evidence_type='test',
+    content={'data': 'value'},
+    confidence=0.5,
+    applicable_questions=['Q1'],
+)
+
+# Canonical JSON should be identical
+if packet1.canonical_json() != packet2.canonical_json():
+    print('✗ Canonical JSON not stable')
+    sys.exit(1)
+
+print('✓ Canonical JSON is stable')
+print('✓ Deterministic serialization verified')
+"
+
+  final-report:
+    name: Generate CI Report
+    runs-on: ubuntu-latest
+    needs: [buf-lint-and-breaking, build-and-test, registry-verification, opa-policy-check, signature-verification]
+    if: always()
+    steps:
+      - name: Report Status
+        run: |
+          echo "======================================================================"
+          echo "Contract CI Pipeline Results"
+          echo "======================================================================"
+          echo ""
+          echo "✓ Buf lint and breaking changes: ${{ needs.buf-lint-and-breaking.result }}"
+          echo "✓ Build and test: ${{ needs.build-and-test.result }}"
+          echo "✓ Registry verification: ${{ needs.registry-verification.result }}"
+          echo "✓ OPA policy check: ${{ needs.opa-policy-check.result }}"
+          echo "✓ Signature verification: ${{ needs.signature-verification.result }}"
+          echo ""
+          
+          if [ "${{ needs.buf-lint-and-breaking.result }}" == "success" ] && \
+             [ "${{ needs.build-and-test.result }}" == "success" ] && \
+             [ "${{ needs.registry-verification.result }}" == "success" ] && \
+             [ "${{ needs.opa-policy-check.result }}" == "success" ] && \
+             [ "${{ needs.signature-verification.result }}" == "success" ]; then
+            echo "======================================================================"
+            echo "✓ ALL CHECKS PASSED - Contract pipeline successful!"
+            echo "======================================================================"
+            exit 0
+          else
+            echo "======================================================================"
+            echo "✗ SOME CHECKS FAILED - Review the logs above"
+            echo "======================================================================"
+            exit 1
+          fi

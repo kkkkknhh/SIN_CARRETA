@@ -1,0 +1,86 @@
+// evidence.proto
+// EvidencePacket contract for MINIMINIMOON Decatalogo pipeline
+// Version: 1.0.0
+
+syntax = "proto3";
+
+package evidence.v1;
+
+// Stage enum representing pipeline stages where evidence is produced
+enum PipelineStage {
+  PIPELINE_STAGE_UNSPECIFIED = 0;
+  PIPELINE_STAGE_SANITIZATION = 1;
+  PIPELINE_STAGE_PLAN_PROCESSING = 2;
+  PIPELINE_STAGE_SEGMENTATION = 3;
+  PIPELINE_STAGE_EMBEDDING = 4;
+  PIPELINE_STAGE_RESPONSIBILITY = 5;
+  PIPELINE_STAGE_CONTRADICTION = 6;
+  PIPELINE_STAGE_MONETARY = 7;
+  PIPELINE_STAGE_FEASIBILITY = 8;
+  PIPELINE_STAGE_CAUSAL = 9;
+  PIPELINE_STAGE_TEORIA = 10;
+  PIPELINE_STAGE_DAG = 11;
+  PIPELINE_STAGE_REGISTRY_BUILD = 12;
+  PIPELINE_STAGE_DECALOGO_LOAD = 13;
+  PIPELINE_STAGE_DECALOGO_EVAL = 14;
+  PIPELINE_STAGE_QUESTIONNAIRE_EVAL = 15;
+  PIPELINE_STAGE_ANSWERS_ASSEMBLY = 16;
+}
+
+// EvidencePacket - Immutable evidence item with signature
+message EvidencePacket {
+  // Schema version for compatibility tracking
+  string schema_version = 1;
+  
+  // Pipeline stage that produced this evidence
+  PipelineStage stage = 2;
+  
+  // Component that produced this evidence (e.g., 'feasibility_scorer')
+  string source_component = 3;
+  
+  // Type of evidence (e.g., 'baseline_presence', 'monetary_value')
+  string evidence_type = 4;
+  
+  // Actual evidence content as JSON string (must be JSON-serializable)
+  string content_json = 5;
+  
+  // Confidence score [0.0, 1.0]
+  double confidence = 6;
+  
+  // List of question IDs this evidence answers (e.g., ['D1-Q1', 'D2-Q5'])
+  repeated string applicable_questions = 7;
+  
+  // Metadata as JSON string
+  string metadata_json = 8;
+  
+  // Timestamp in RFC3339 format
+  string timestamp = 9;
+  
+  // HMAC-SHA256 signature of canonical representation
+  string signature = 10;
+  
+  // Hash of the evidence (SHA-256 of canonical JSON)
+  string evidence_hash = 11;
+}
+
+// EvidencePacketBatch - For batch operations
+message EvidencePacketBatch {
+  repeated EvidencePacket packets = 1;
+  string batch_id = 2;
+  string batch_timestamp = 3;
+}
+
+// RegistryEntry - Entry in append-only registry
+message RegistryEntry {
+  // Hash of the previous entry (for chaining)
+  string prev_hash = 1;
+  
+  // The evidence packet
+  EvidencePacket packet = 2;
+  
+  // Hash of this entry (prev_hash + packet canonical JSON)
+  string entry_hash = 3;
+  
+  // Entry sequence number
+  uint64 sequence_number = 4;
+}
