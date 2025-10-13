@@ -98,11 +98,20 @@ def test_answer_assembler_doctoral_argumentation():
 
         # Validate Toulmin structure completeness
         toulmin = q1["toulmin_structure"]
-        required_fields = ["claim", "ground", "warrant", "backing", "qualifier", "rebuttal"]
+        required_fields = [
+            "claim",
+            "ground",
+            "warrant",
+            "backing",
+            "qualifier",
+            "rebuttal",
+        ]
         for field in required_fields:
             assert field in toulmin, f"Missing Toulmin field: {field}"
             assert toulmin[field], f"Empty Toulmin field: {field}"
-        print(f"  ✓ Complete Toulmin structure validated ({len(required_fields)} components)")
+        print(
+            f"  ✓ Complete Toulmin structure validated ({len(required_fields)} components)"
+        )
 
         # Validate quality thresholds
         quality = q1["argument_quality"]
@@ -113,15 +122,21 @@ def test_answer_assembler_doctoral_argumentation():
 
         assert coherence >= 0.85, f"Coherence score {coherence} below threshold"
         assert qual_score >= 0.80, f"Quality score {qual_score} below threshold"
-        assert quality.get("meets_doctoral_standards", False), "Should meet doctoral standards"
+        assert quality.get("meets_doctoral_standards", False), (
+            "Should meet doctoral standards"
+        )
 
     # Validate P1-D2-Q1 (2 evidence sources - should fail with insufficient evidence)
     q2 = next(qa for qa in question_answers if qa["question_id"] == "P1-D2-Q1")
     print(f"\n--- Question: {q2['question_id']} ---")
     print(f"  Evidence count: {q2['evidence_count']}")
     print(f"  Argumentation status: {q2['argumentation_status']}")
-    assert q2["argumentation_status"] == "insufficient_evidence", "Should fail with insufficient evidence"
-    assert "Insufficient evidence" in " ".join(q2["caveats"]), "Should have caveat about insufficient evidence"
+    assert q2["argumentation_status"] == "insufficient_evidence", (
+        "Should fail with insufficient evidence"
+    )
+    assert "Insufficient evidence" in " ".join(q2["caveats"]), (
+        "Should have caveat about insufficient evidence"
+    )
     print("  ✓ Correctly rejected due to insufficient evidence")
 
     # Validate P1-D3-Q1 (1 evidence source - should fail with insufficient evidence)
@@ -129,7 +144,9 @@ def test_answer_assembler_doctoral_argumentation():
     print(f"\n--- Question: {q3['question_id']} ---")
     print(f"  Evidence count: {q3['evidence_count']}")
     print(f"  Argumentation status: {q3['argumentation_status']}")
-    assert q3["argumentation_status"] == "insufficient_evidence", "Should fail with insufficient evidence"
+    assert q3["argumentation_status"] == "insufficient_evidence", (
+        "Should fail with insufficient evidence"
+    )
     print("  ✓ Correctly rejected due to insufficient evidence")
 
     # Validate global summary
@@ -148,8 +165,17 @@ def test_answer_assembler_doctoral_argumentation():
     print(f"  Doctoral engine enabled: {metadata['doctoral_engine_enabled']}")
     print(f"  Toulmin components validated: {metadata['toulmin_components_validated']}")
 
-    required_components = ["claim", "ground", "warrant", "backing", "qualifier", "rebuttal"]
-    assert metadata["toulmin_components_validated"] == required_components, "Wrong Toulmin components"
+    required_components = [
+        "claim",
+        "ground",
+        "warrant",
+        "backing",
+        "qualifier",
+        "rebuttal",
+    ]
+    assert metadata["toulmin_components_validated"] == required_components, (
+        "Wrong Toulmin components"
+    )
 
     # Validate validation thresholds
     thresholds = doctoral_stats["validation_thresholds"]

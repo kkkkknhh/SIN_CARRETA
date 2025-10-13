@@ -21,8 +21,8 @@ def test_syntax():
 def test_stage_entry_logging():
     """Test that stage entry logging is present in _run_stage."""
     code = Path("miniminimoon_orchestrator.py").read_text()
-    
-    if 'event": "stage_entry"' in code and 'STAGE_ENTRY:' in code:
+
+    if 'event": "stage_entry"' in code and "STAGE_ENTRY:" in code:
         print("✓ Stage entry logging: PRESENT")
         return True
     else:
@@ -33,8 +33,8 @@ def test_stage_entry_logging():
 def test_stage_exit_logging():
     """Test that stage exit logging is present in _run_stage."""
     code = Path("miniminimoon_orchestrator.py").read_text()
-    
-    if 'event": "stage_exit"' in code and 'STAGE_EXIT:' in code:
+
+    if 'event": "stage_exit"' in code and "STAGE_EXIT:" in code:
         print("✓ Stage exit logging: PRESENT")
         return True
     else:
@@ -45,8 +45,8 @@ def test_stage_exit_logging():
 def test_output_analysis():
     """Test that output artifact analysis is present."""
     code = Path("miniminimoon_orchestrator.py").read_text()
-    
-    if '_analyze_output_artifact' in code:
+
+    if "_analyze_output_artifact" in code:
         print("✓ Output artifact analysis: PRESENT")
         return True
     else:
@@ -57,8 +57,8 @@ def test_output_analysis():
 def test_evidence_count():
     """Test that evidence counting is present."""
     code = Path("miniminimoon_orchestrator.py").read_text()
-    
-    if '_count_evidence_for_stage' in code:
+
+    if "_count_evidence_for_stage" in code:
         print("✓ Evidence counting: PRESENT")
         return True
     else:
@@ -69,8 +69,8 @@ def test_evidence_count():
 def test_contradiction_evidence():
     """Test that contradiction evidence registration was added."""
     code = Path("miniminimoon_orchestrator.py").read_text()
-    
-    if 'PipelineStage.CONTRADICTION' in code and 'contra"' in code:
+
+    if "PipelineStage.CONTRADICTION" in code and 'contra"' in code:
         print("✓ Contradiction evidence registration: ADDED")
         return True
     else:
@@ -81,8 +81,8 @@ def test_contradiction_evidence():
 def test_dag_evidence():
     """Test that DAG evidence registration was added."""
     code = Path("miniminimoon_orchestrator.py").read_text()
-    
-    if 'dag_evidence_id' in code and 'PipelineStage.DAG.value' in code:
+
+    if "dag_evidence_id" in code and "PipelineStage.DAG.value" in code:
         print("✓ DAG evidence registration: ADDED")
         return True
     else:
@@ -96,7 +96,7 @@ def main():
     print("TRACE INSTRUMENTATION VERIFICATION")
     print("=" * 60)
     print()
-    
+
     tests = [
         test_syntax,
         test_stage_entry_logging,
@@ -106,15 +106,15 @@ def main():
         test_contradiction_evidence,
         test_dag_evidence,
     ]
-    
+
     results = [test() for test in tests]
-    
+
     print()
     print("=" * 60)
     passed = sum(results)
     total = len(results)
     print(f"RESULTS: {passed}/{total} tests passed")
-    
+
     if passed == total:
         print("✓ ALL TESTS PASSED")
         return 0
@@ -125,4 +125,5 @@ def main():
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(main())

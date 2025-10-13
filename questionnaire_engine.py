@@ -2278,21 +2278,21 @@ class QuestionnaireEngine:
         # Apply Bayesian calibration to raw score (Stage 15 QUESTIONNAIRE_EVAL)
         # Normalize raw score to [0, 1] range for calibration
         normalized_raw = raw_score / base_question.max_score
-        
+
         # Get expected reliability from calibrator
         expected_reliability = self.reliability_calibrator.expected_f1
-        
+
         # Apply Bayesian calibration: calibrated = raw × reliability
         calibrated_normalized = normalized_raw * expected_reliability
         calibrated_score = calibrated_normalized * base_question.max_score
-        
+
         # Compute uncertainty metric (width of 95% credible interval for F1)
         # Using precision and recall intervals as proxy for F1 uncertainty
         precision_ci = self.reliability_calibrator.precision_credible_interval(
             level=0.95
         )
         recall_ci = self.reliability_calibrator.recall_credible_interval(level=0.95)
-        
+
         # Uncertainty: average width of precision and recall intervals
         precision_width = precision_ci[1] - precision_ci[0]
         recall_width = recall_ci[1] - recall_ci[0]

@@ -72,7 +72,7 @@ def embed_in_batches(model, texts, batch_size: int):
         return embs
     out = []
     for i in range(0, len(texts), batch_size):
-        chunk = texts[i: i + batch_size]
+        chunk = texts[i : i + batch_size]
         embs = model.embed(chunk)
         embs = np.asarray(embs, dtype=np.float32)
         if embs.ndim == 1:
