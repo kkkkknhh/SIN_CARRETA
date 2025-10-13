@@ -7,11 +7,14 @@ No modifica ningún otro archivo.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------
 # Regex canónicos P–D–Q
@@ -200,6 +203,7 @@ class AnswerAssembler:
         evaluation_inputs espera `{"questionnaire_eval": {"question_results": [...]}}`
 
         ENHANCED: Integrates doctoral_argumentation_engine for rigorous justifications
+        with complete Toulmin structure validation and quality thresholds.
         """
         # Import doctoral argumentation engine
         try:
@@ -211,8 +215,8 @@ class AnswerAssembler:
             doctoral_engine_available = True
         except ImportError:
             doctoral_engine_available = False
-            print(
-                "Warning: doctoral_argumentation_engine not available, using basic rationale"
+            logger.warning(
+                "doctoral_argumentation_engine not available, using basic rationale"
             )
 
         # Initialize doctoral engine if available
@@ -222,7 +226,7 @@ class AnswerAssembler:
                     evidence_registry=self.evidence_registry
                 )
             except Exception as e:
-                print(f"Warning: Could not initialize doctoral engine: {e}")
+                logger.warning(f"Could not initialize doctoral engine: {e}")
                 doctoral_engine = None
         else:
             doctoral_engine = None
@@ -243,6 +247,7 @@ class AnswerAssembler:
 
         weights = (self.rubric or {}).get("weights", {})
         question_answers: List[Dict[str, Any]] = []
+        argumentation_failures: List[Dict[str, Any]] = []
 
         for res in q_results:
             raw_id = str(res.get("question_id", "")).strip()
@@ -264,12 +269,32 @@ class AnswerAssembler:
             doctoral_argument = None
             toulmin_structure = None
             argument_quality = {}
+            argumentation_status = "not_attempted"
 
-            if doctoral_engine and len(evidence_list) >= 1:
+            # VALIDATION GATE 1: Check minimum evidence requirement (≥3 sources)
+            if len(evidence_list) < 3:
+                caveats.append(
+                    f"Insufficient evidence for doctoral argumentation: {len(evidence_list)}/3 required sources"
+                )
+                argumentation_status = "insufficient_evidence"
+                argumentation_failures.append(
+                    {
+                        "question_id": uid,
+                        "reason": "insufficient_evidence",
+                        "evidence_count": len(evidence_list),
+                        "required_count": 3,
+                    }
+                )
+
+            if (
+                doctoral_engine
+                and len(evidence_list) >= 3
+                and argumentation_status == "not_attempted"
+            ):
                 try:
                     # Convert evidence to StructuredEvidence format
                     structured_evidence = []
-                    for idx, ev in enumerate(evidence_list[:5]):  # Top 5 evidence items
+                    for idx, ev in enumerate(evidence_list):
                         structured_evidence.append(
                             StructuredEvidence(
                                 source_module=f"detector_{idx}",
@@ -281,65 +306,127 @@ class AnswerAssembler:
                             )
                         )
 
-                    # Create Bayesian posterior (simplified)
+                    # Create Bayesian posterior with proper format
                     bayesian_posterior = {
-                        "mean": confidence,
-                        "lower_bound": max(0.0, confidence - 0.1),
-                        "upper_bound": min(1.0, confidence + 0.1),
+                        "posterior_mean": confidence,
+                        "credible_interval_95": (
+                            max(0.0, confidence - 0.1),
+                            min(1.0, confidence + 0.1),
+                        ),
                     }
 
-                    # Generate doctoral argument
-                    if len(structured_evidence) >= 1:
-                        argument_result = doctoral_engine.generate_argument(
-                            question_id=uid,
-                            score=score,
-                            evidence_list=structured_evidence,
-                            bayesian_posterior=bayesian_posterior,
+                    # Generate doctoral argument with quality validation
+                    argument_result = doctoral_engine.generate_argument(
+                        question_id=uid,
+                        score=score,
+                        evidence_list=structured_evidence,
+                        bayesian_posterior=bayesian_posterior,
+                    )
+
+                    # Extract Toulmin structure components
+                    toulmin_structure = argument_result.get("toulmin_structure", {})
+
+                    # VALIDATION GATE 2: Verify complete Toulmin structure
+                    required_toulmin_fields = [
+                        "claim",
+                        "ground",
+                        "warrant",
+                        "backing",
+                        "qualifier",
+                        "rebuttal",
+                    ]
+                    missing_fields = [
+                        field
+                        for field in required_toulmin_fields
+                        if not toulmin_structure.get(field)
+                    ]
+
+                    if missing_fields:
+                        raise ValueError(
+                            f"Incomplete Toulmin structure: missing {', '.join(missing_fields)}"
                         )
 
-                        # Extract components
-                        doctoral_argument = {
-                            "paragraphs": argument_result.get(
-                                "argument_paragraphs", []
-                            ),
-                            "claim": argument_result.get("toulmin_structure", {}).get(
-                                "claim", ""
-                            ),
-                            "ground": argument_result.get("toulmin_structure", {}).get(
-                                "ground", ""
-                            ),
-                            "warrant": argument_result.get("toulmin_structure", {}).get(
-                                "warrant", ""
-                            ),
-                        }
+                    # VALIDATION GATE 3: Check coherence_score threshold (≥0.85)
+                    coherence_score = argument_result.get(
+                        "logical_coherence_score", 0.0
+                    )
+                    if coherence_score < 0.85:
+                        raise ValueError(
+                            f"Coherence score {coherence_score:.3f} below threshold 0.85"
+                        )
 
-                        toulmin_structure = argument_result.get("toulmin_structure", {})
+                    # VALIDATION GATE 4: Check quality_score threshold (≥0.80)
+                    academic_quality = argument_result.get(
+                        "academic_quality_scores", {}
+                    )
+                    quality_score = academic_quality.get("overall_score", 0.0)
+                    if quality_score < 0.80:
+                        raise ValueError(
+                            f"Quality score {quality_score:.3f} below threshold 0.80"
+                        )
 
-                        argument_quality = {
-                            "logical_coherence": argument_result.get(
-                                "logical_coherence_score", 0.0
-                            ),
-                            "academic_quality": argument_result.get(
-                                "academic_quality_scores", {}
-                            ),
-                            "evidence_sources": argument_result.get(
-                                "toulmin_structure", {}
-                            ).get("evidence_sources", []),
-                            "meets_doctoral_standards": (
-                                argument_result.get("logical_coherence_score", 0.0)
-                                >= 0.85
-                                and argument_result.get(
-                                    "academic_quality_scores", {}
-                                ).get("overall", 0.0)
-                                >= 0.80
-                            ),
+                    # All validations passed - assemble doctoral argument
+                    doctoral_argument = {
+                        "paragraphs": argument_result.get("argument_paragraphs", []),
+                        "claim": toulmin_structure.get("claim", ""),
+                        "ground": toulmin_structure.get("ground", ""),
+                        "warrant": toulmin_structure.get("warrant", ""),
+                        "backing": toulmin_structure.get("backing", []),
+                        "qualifier": toulmin_structure.get("qualifier", ""),
+                        "rebuttal": toulmin_structure.get("rebuttal", ""),
+                    }
+
+                    argument_quality = {
+                        "coherence_score": coherence_score,
+                        "quality_score": quality_score,
+                        "academic_quality_breakdown": academic_quality,
+                        "evidence_sources": toulmin_structure.get(
+                            "evidence_sources", []
+                        ),
+                        "evidence_synthesis_map": argument_result.get(
+                            "evidence_synthesis_map", {}
+                        ),
+                        "meets_doctoral_standards": True,
+                        "confidence_alignment_error": argument_result.get(
+                            "confidence_alignment_error", 0.0
+                        ),
+                        "validation_timestamp": argument_result.get(
+                            "validation_timestamp", ""
+                        ),
+                    }
+
+                    argumentation_status = "success"
+
+                except ValueError as e:
+                    # Quality threshold failures
+                    error_msg = str(e)
+                    caveats.append(f"Doctoral argument validation failed: {error_msg}")
+                    argumentation_status = "validation_failed"
+                    argumentation_failures.append(
+                        {
+                            "question_id": uid,
+                            "reason": "validation_failed",
+                            "error": error_msg,
+                            "evidence_count": len(evidence_list),
                         }
+                    )
+                    logger.warning(f"Argumentation validation failed for {uid}: {e}")
 
                 except Exception as e:
-                    print(
-                        f"Warning: Could not generate doctoral argument for {uid}: {e}"
+                    # Other errors (generation failures)
+                    caveats.append(
+                        f"Doctoral argument generation error: {type(e).__name__}"
                     )
-                    doctoral_argument = None
+                    argumentation_status = "generation_failed"
+                    argumentation_failures.append(
+                        {
+                            "question_id": uid,
+                            "reason": "generation_failed",
+                            "error": str(e),
+                            "evidence_count": len(evidence_list),
+                        }
+                    )
+                    logger.error(f"Argumentation generation failed for {uid}: {e}")
 
             # Build answer entry
             answer_entry = {
@@ -355,10 +442,11 @@ class AnswerAssembler:
                 "caveats": caveats,
                 "scoring_modality": "CANONICAL_PDQ",
                 "rationale": rationale,
+                "argumentation_status": argumentation_status,
             }
 
-            # Add doctoral argumentation if available
-            if doctoral_argument:
+            # Add doctoral argumentation if successfully generated and validated
+            if doctoral_argument and toulmin_structure:
                 answer_entry["doctoral_justification"] = doctoral_argument
                 answer_entry["toulmin_structure"] = toulmin_structure
                 answer_entry["argument_quality"] = argument_quality
@@ -378,6 +466,61 @@ class AnswerAssembler:
             1
             for qa in question_answers
             if qa.get("argument_quality", {}).get("meets_doctoral_standards", False)
+        )
+
+        # Categorize argumentation outcomes
+        argumentation_by_status = {
+            "success": sum(
+                1 for qa in question_answers if qa.get("argumentation_status") == "success"
+            ),
+            "insufficient_evidence": sum(
+                1
+                for qa in question_answers
+                if qa.get("argumentation_status") == "insufficient_evidence"
+            ),
+            "validation_failed": sum(
+                1
+                for qa in question_answers
+                if qa.get("argumentation_status") == "validation_failed"
+            ),
+            "generation_failed": sum(
+                1
+                for qa in question_answers
+                if qa.get("argumentation_status") == "generation_failed"
+            ),
+            "not_attempted": sum(
+                1
+                for qa in question_answers
+                if qa.get("argumentation_status") == "not_attempted"
+            ),
+        }
+
+        # Calculate quality metrics for successful arguments
+        successful_arguments = [
+            qa
+            for qa in question_answers
+            if qa.get("argumentation_status") == "success"
+            and "argument_quality" in qa
+        ]
+
+        avg_coherence = (
+            sum(
+                qa["argument_quality"].get("coherence_score", 0.0)
+                for qa in successful_arguments
+            )
+            / len(successful_arguments)
+            if successful_arguments
+            else 0.0
+        )
+
+        avg_quality = (
+            sum(
+                qa["argument_quality"].get("quality_score", 0.0)
+                for qa in successful_arguments
+            )
+            / len(successful_arguments)
+            if successful_arguments
+            else 0.0
         )
 
         global_summary = {
@@ -402,6 +545,15 @@ class AnswerAssembler:
                 if doctoral_coverage > 0
                 else 0.0,
                 "engine_available": doctoral_engine_available,
+                "status_breakdown": argumentation_by_status,
+                "average_coherence_score": round(avg_coherence, 3),
+                "average_quality_score": round(avg_quality, 3),
+                "validation_thresholds": {
+                    "min_evidence_sources": 3,
+                    "min_coherence_score": 0.85,
+                    "min_quality_score": 0.80,
+                },
+                "failures": argumentation_failures if argumentation_failures else [],
             },
         }
 
@@ -413,6 +565,14 @@ class AnswerAssembler:
                 "rubric_loaded": bool(weights),
                 "rubric_path": str(self.rubric_path) if self.rubric_path else None,
                 "doctoral_engine_enabled": doctoral_engine is not None,
+                "toulmin_components_validated": [
+                    "claim",
+                    "ground",
+                    "warrant",
+                    "backing",
+                    "qualifier",
+                    "rebuttal",
+                ],
             },
         }
 
