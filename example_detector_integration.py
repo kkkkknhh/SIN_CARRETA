@@ -320,10 +320,173 @@ def example_ensemble_with_calibration():
     print(f"  Adjustment: {weighted_avg - simple_avg:+.2%}")
 
 
+def example_evidence_validation_layer():
+    """Example demonstrating evidence validation layer with stage tracking"""
+    print("\n\n" + "=" * 70)
+    print("EXAMPLE: Evidence Validation Layer")
+    print("=" * 70)
+    
+    from evidence_registry import EvidenceRegistry, EvidenceProvenance
+    from datetime import datetime
+    
+    # Create registry
+    registry = EvidenceRegistry()
+    
+    # Simulate detector stages 1-12 producing evidence for 300 questions
+    print("\nSimulating evidence collection from 12 detector stages...")
+    
+    # Generate 300 question IDs (10 decalogos × 30 questions each)
+    all_questions = []
+    for d in range(1, 11):
+        for q in range(1, 31):
+            all_questions.append(f"D{d}-Q{q}")
+    
+    print(f"Total questions to evaluate: {len(all_questions)}")
+    
+    # Simulate evidence from different detector stages
+    # Stage 1-3: Monetary detector
+    # Stage 4-6: Responsibility detector
+    # Stage 7-9: Causal pattern detector
+    # Stage 10-12: Contradiction detector
+    
+    detector_configs = [
+        (range(1, 4), "monetary", 0.85),
+        (range(4, 7), "responsibility", 0.80),
+        (range(7, 10), "causal_pattern", 0.75),
+        (range(10, 13), "contradiction", 0.70),
+    ]
+    
+    evidence_count = 0
+    for stages, detector_type, base_confidence in detector_configs:
+        for stage_num in stages:
+            # Each stage produces evidence for a subset of questions
+            # To simulate realistic scenario, some questions get more evidence than others
+            for i, qid in enumerate(all_questions):
+                # Not every stage produces evidence for every question
+                if (i + stage_num) % 4 == 0:  # 25% coverage per stage
+                    provenance = EvidenceProvenance(
+                        detector_type=detector_type,
+                        stage_number=stage_num,
+                        source_text_location={
+                            "page": (i % 50) + 1,
+                            "line": (stage_num * 10) + (i % 30),
+                            "char_start": i * 100,
+                            "char_end": (i * 100) + 200
+                        },
+                        execution_timestamp=datetime.utcnow().isoformat() + "Z",
+                        quality_metrics={
+                            "precision": base_confidence,
+                            "recall": base_confidence - 0.05,
+                            "f1": base_confidence - 0.02
+                        }
+                    )
+                    
+                    registry.register(
+                        source_component=f"{detector_type}_stage_{stage_num}",
+                        evidence_type=f"{detector_type}_evidence",
+                        content={
+                            "detected_value": f"evidence_from_stage_{stage_num}",
+                            "question_id": qid
+                        },
+                        confidence=base_confidence,
+                        applicable_questions=[qid],
+                        provenance=provenance
+                    )
+                    evidence_count += 1
+    
+    print(f"Registered {evidence_count} evidence items from {len(detector_configs) * 3} stages")
+    
+    # Perform validation
+    print("\n" + "-" * 70)
+    print("Performing evidence validation...")
+    
+    validation_result = registry.validate_evidence_counts(
+        all_question_ids=all_questions,
+        min_evidence_threshold=3
+    )
+    
+    # Display results
+    print("\n" + "=" * 70)
+    print("VALIDATION RESULTS")
+    print("=" * 70)
+    print(f"Valid: {validation_result['valid']}")
+    print(f"Total Questions: {validation_result['total_questions']}")
+    print(f"Meeting Threshold: {validation_result['questions_meeting_threshold']}")
+    print(f"Below Threshold: {len(validation_result['questions_below_threshold'])}")
+    print(f"Minimum Evidence Required: {validation_result['min_evidence_threshold']}")
+    print(f"Validation Timestamp: {validation_result['validation_timestamp']}")
+    
+    # Stage coverage summary
+    print("\n" + "-" * 70)
+    print("STAGE COVERAGE SUMMARY")
+    print("-" * 70)
+    stage_coverage = validation_result["stage_coverage_summary"]
+    print("\nEvidence Count Per Stage:")
+    for stage in range(1, 13):
+        count = stage_coverage["evidence_count_per_stage"][stage]
+        print(f"  Stage {stage:2d}: {count:4d} evidence items")
+    
+    print(f"\nStages with evidence: {stage_coverage['stages_with_evidence']}")
+    print(f"Stages without evidence: {stage_coverage['stages_without_evidence']}")
+    
+    # Sample questions below threshold
+    if validation_result["questions_below_threshold"]:
+        print("\n" + "-" * 70)
+        print("SAMPLE QUESTIONS BELOW THRESHOLD (first 5)")
+        print("-" * 70)
+        
+        for qid in validation_result["questions_below_threshold"][:5]:
+            summary = validation_result["evidence_summary"][qid]
+            print(f"\n{qid}:")
+            print(f"  Evidence Count: {summary['evidence_count']}")
+            print(f"  Contributing Stages: {sorted(summary['stage_contributions'].keys())}")
+            print(f"  Missing Stages: {summary['missing_stages'][:5]}...")  # Show first 5
+            
+            # Show evidence sources
+            for source in summary["evidence_sources"]:
+                print(f"  - Stage {source['stage_number']}: "
+                      f"{source['detector_type']} (confidence: {source['confidence']:.2f})")
+    
+    # Sample questions meeting threshold
+    meeting_threshold = [
+        qid for qid in all_questions 
+        if qid not in validation_result["questions_below_threshold"]
+    ]
+    
+    if meeting_threshold:
+        print("\n" + "-" * 70)
+        print("SAMPLE QUESTIONS MEETING THRESHOLD (first 3)")
+        print("-" * 70)
+        
+        for qid in meeting_threshold[:3]:
+            summary = validation_result["evidence_summary"][qid]
+            print(f"\n{qid}:")
+            print(f"  Evidence Count: {summary['evidence_count']}")
+            print(f"  Contributing Stages: {sorted(summary['stage_contributions'].keys())}")
+            
+            # Show traceability chain
+            print("  Traceability Chain:")
+            for source in summary["evidence_sources"]:
+                print(f"    • {source['evidence_id'][:40]}...")
+                print(f"      Detector: {source['detector_type']}, Stage: {source['stage_number']}")
+                print(f"      Component: {source['source_component']}")
+                print(f"      Confidence: {source['confidence']:.2%}")
+                print(f"      Timestamp: {source['execution_timestamp']}")
+    
+    # Export validation results
+    print("\n" + "-" * 70)
+    output_file = "validation_results_example.json"
+    registry.export_validation_results(validation_result, output_file)
+    print(f"Validation results exported to: {output_file}")
+    
+    return registry, validation_result
+
+
 if __name__ == "__main__":
     example_basic_usage()
     example_with_labeled_data()
     example_ensemble_with_calibration()
+    example_evidence_validation_layer()
     
     print("\n\n" + "=" * 70)
     print("Integration examples completed successfully!")
@@ -334,3 +497,6 @@ if __name__ == "__main__":
     print("3. Collect predictions with GroundTruthCollector")
     print("4. Periodically update calibrators from labeled data")
     print("5. Use calibrated scores in ensemble evaluation")
+    print("6. Track evidence with provenance metadata (detector type, stage, location)")
+    print("7. Validate evidence counts across all questions post-execution")
+    print("8. Export validation results with full traceability chains")

@@ -16,11 +16,46 @@ import hashlib
 import json
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 from threading import Lock
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class EvidenceProvenance:
+    """
+    Provenance metadata for evidence tracking across detector stages.
+    
+    Attributes:
+        detector_type: Type of detector that produced evidence (e.g., 'monetary', 'responsibility')
+        stage_number: Detector stage number (1-12)
+        source_text_location: Location in source text (page, line, character offsets)
+        execution_timestamp: ISO 8601 timestamp of evidence generation
+        quality_metrics: Evidence quality scores and metadata
+    """
+    detector_type: str
+    stage_number: int
+    source_text_location: Dict[str, Any]
+    execution_timestamp: str
+    quality_metrics: Dict[str, float] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        """Validate provenance metadata"""
+        if not 1 <= self.stage_number <= 12:
+            raise ValueError(f"Stage number must be 1-12, got {self.stage_number}")
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization"""
+        return {
+            "detector_type": self.detector_type,
+            "stage_number": self.stage_number,
+            "source_text_location": self.source_text_location,
+            "execution_timestamp": self.execution_timestamp,
+            "quality_metrics": self.quality_metrics
+        }
 
 
 @dataclass(frozen=True)
@@ -35,6 +70,7 @@ class CanonicalEvidence:
         confidence: Confidence score [0.0, 1.0]
         applicable_questions: List of question IDs this evidence answers (e.g., ['D1-Q1', 'D2-Q5'])
         metadata: Additional metadata (timestamps, version, etc.)
+        provenance: Provenance tracking information
     """
     source_component: str
     evidence_type: str
@@ -42,6 +78,7 @@ class CanonicalEvidence:
     confidence: float
     applicable_questions: tuple  # Tuple for immutability
     metadata: Dict[str, Any] = field(default_factory=dict)
+    provenance: Optional[EvidenceProvenance] = None
 
     def __post_init__(self):
         """Validate evidence at creation"""
@@ -53,7 +90,7 @@ class CanonicalEvidence:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
-        return {
+        result = {
             "source_component": self.source_component,
             "evidence_type": self.evidence_type,
             "content": self.content,
@@ -61,6 +98,9 @@ class CanonicalEvidence:
             "applicable_questions": list(self.applicable_questions),
             "metadata": self.metadata
         }
+        if self.provenance:
+            result["provenance"] = self.provenance.to_dict()
+        return result
 
 
 class EvidenceRegistry:
@@ -92,7 +132,8 @@ class EvidenceRegistry:
         content: Any,
         confidence: float,
         applicable_questions: List[str],
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        provenance: Optional[EvidenceProvenance] = None
     ) -> str:
         """
         Register new evidence in the registry.
@@ -104,6 +145,7 @@ class EvidenceRegistry:
             confidence: Confidence score [0.0, 1.0]
             applicable_questions: List of question IDs this evidence applies to
             metadata: Optional additional metadata
+            provenance: Optional provenance tracking information
 
         Returns:
             Evidence ID (deterministic hash)
@@ -130,7 +172,8 @@ class EvidenceRegistry:
                 content=content,
                 confidence=confidence,
                 applicable_questions=tuple(applicable_questions),
-                metadata=meta
+                metadata=meta,
+                provenance=provenance
             )
 
             # Generate deterministic evidence ID
@@ -144,7 +187,8 @@ class EvidenceRegistry:
                 content=content,
                 confidence=confidence,
                 applicable_questions=tuple(applicable_questions),
-                metadata=meta
+                metadata=meta,
+                provenance=provenance
             )
 
             # Store evidence
@@ -311,6 +355,147 @@ class EvidenceRegistry:
     def __len__(self) -> int:
         """Return number of evidence items"""
         return len(self.store)
+
+    def validate_evidence_counts(
+        self,
+        all_question_ids: List[str],
+        min_evidence_threshold: int = 3
+    ) -> Dict[str, Any]:
+        """
+        Validate that all questions meet minimum evidence count threshold.
+        
+        Args:
+            all_question_ids: List of all question IDs to validate (e.g., 300 questions)
+            min_evidence_threshold: Minimum number of evidence sources required (default: 3)
+        
+        Returns:
+            Dictionary containing:
+                - valid: Whether all questions meet threshold
+                - total_questions: Total number of questions validated
+                - questions_below_threshold: List of question IDs that fail validation
+                - evidence_summary: Per-question evidence counts and stage breakdown
+                - validation_timestamp: ISO 8601 timestamp of validation
+        """
+        questions_below_threshold = []
+        evidence_summary = {}
+        
+        for question_id in all_question_ids:
+            # Get all evidence for this question
+            evidence_list = self.for_question(question_id)
+            evidence_count = len(evidence_list)
+            
+            # Track stage contributions
+            stage_contributions = {}
+            missing_stages = set(range(1, 13))  # Stages 1-12
+            
+            for evidence in evidence_list:
+                if evidence.provenance:
+                    stage_num = evidence.provenance.stage_number
+                    if stage_num not in stage_contributions:
+                        stage_contributions[stage_num] = []
+                    stage_contributions[stage_num].append({
+                        "evidence_id": evidence.metadata.get("evidence_id"),
+                        "detector_type": evidence.provenance.detector_type,
+                        "confidence": evidence.confidence,
+                        "source_component": evidence.source_component
+                    })
+                    missing_stages.discard(stage_num)
+            
+            # Build evidence summary for this question
+            evidence_summary[question_id] = {
+                "evidence_count": evidence_count,
+                "meets_threshold": evidence_count >= min_evidence_threshold,
+                "stage_contributions": stage_contributions,
+                "missing_stages": sorted(missing_stages),
+                "evidence_sources": [
+                    {
+                        "evidence_id": e.metadata.get("evidence_id"),
+                        "source_component": e.source_component,
+                        "evidence_type": e.evidence_type,
+                        "confidence": e.confidence,
+                        "detector_type": e.provenance.detector_type if e.provenance else None,
+                        "stage_number": e.provenance.stage_number if e.provenance else None,
+                        "execution_timestamp": e.provenance.execution_timestamp if e.provenance else None,
+                        "quality_metrics": e.provenance.quality_metrics if e.provenance else {}
+                    }
+                    for e in evidence_list
+                ]
+            }
+            
+            # Track questions below threshold
+            if evidence_count < min_evidence_threshold:
+                questions_below_threshold.append(question_id)
+                logger.warning(
+                    "Question %s has only %d evidence sources (threshold: %d). "
+                    "Contributing stages: %s. Missing stages: %s",
+                    question_id,
+                    evidence_count,
+                    min_evidence_threshold,
+                    sorted(stage_contributions.keys()),
+                    sorted(missing_stages)
+                )
+        
+        validation_result = {
+            "valid": len(questions_below_threshold) == 0,
+            "total_questions": len(all_question_ids),
+            "questions_meeting_threshold": len(all_question_ids) - len(questions_below_threshold),
+            "questions_below_threshold": questions_below_threshold,
+            "evidence_summary": evidence_summary,
+            "validation_timestamp": datetime.utcnow().isoformat() + "Z",
+            "min_evidence_threshold": min_evidence_threshold,
+            "stage_coverage_summary": self._compute_stage_coverage(evidence_summary)
+        }
+        
+        logger.info(
+            "Evidence validation complete: %d/%d questions meet threshold (%d evidence minimum)",
+            validation_result["questions_meeting_threshold"],
+            validation_result["total_questions"],
+            min_evidence_threshold
+        )
+        
+        return validation_result
+    
+    def _compute_stage_coverage(self, evidence_summary: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Compute stage coverage statistics across all questions.
+        
+        Args:
+            evidence_summary: Per-question evidence summary
+        
+        Returns:
+            Dictionary with stage coverage statistics
+        """
+        stage_counts = {stage: 0 for stage in range(1, 13)}
+        questions_per_stage = {stage: [] for stage in range(1, 13)}
+        
+        for question_id, summary in evidence_summary.items():
+            for stage_num in summary.get("stage_contributions", {}).keys():
+                stage_counts[stage_num] += 1
+                questions_per_stage[stage_num].append(question_id)
+        
+        return {
+            "evidence_count_per_stage": stage_counts,
+            "questions_per_stage": questions_per_stage,
+            "stages_with_evidence": [s for s, count in stage_counts.items() if count > 0],
+            "stages_without_evidence": [s for s, count in stage_counts.items() if count == 0]
+        }
+    
+    def export_validation_results(
+        self,
+        validation_result: Dict[str, Any],
+        filepath: str
+    ):
+        """
+        Export validation results to JSON file with full traceability.
+        
+        Args:
+            validation_result: Result from validate_evidence_counts()
+            filepath: Path to output JSON file
+        """
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(validation_result, f, indent=2, ensure_ascii=False)
+        
+        logger.info("Exported validation results to %s", filepath)
 
     def __repr__(self) -> str:
         return (f"EvidenceRegistry(evidence={len(self.store)}, "
