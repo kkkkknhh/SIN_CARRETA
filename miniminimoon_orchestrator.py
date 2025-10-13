@@ -850,7 +850,7 @@ class CanonicalDeterministicOrchestrator:
 
         while idx < len(segment_texts):
             batch_size = 64 if (len(segment_texts) - idx) >= 64 else 32
-            batch = segment_texts[idx: idx + batch_size]
+            batch = segment_texts[idx : idx + batch_size]
 
             try:
                 batch_embeddings = self.embedding_model.encode(batch)
@@ -936,7 +936,7 @@ class CanonicalDeterministicOrchestrator:
         self, sanitized_text: str, segments: List[Any]
     ) -> Dict[str, Any]:
         """Execute feasibility scoring with factibilidad module integration (Stage 8: FEASIBILITY)."""
-        from factibilidad import PatternDetector, FactibilidadScorer
+        from factibilidad import FactibilidadScorer, PatternDetector
 
         self.logger.info("Stage 8: FEASIBILITY - Enhanced pattern-based scoring")
 
@@ -1011,9 +1011,7 @@ class CanonicalDeterministicOrchestrator:
                 "weights": scoring_result["weights"],
             },
             source_segment_ids=[
-                seg.get("id", f"seg_{i}")
-                if isinstance(seg, dict)
-                else f"seg_{i}"
+                seg.get("id", f"seg_{i}") if isinstance(seg, dict) else f"seg_{i}"
                 for i, seg in enumerate(segments)
             ],
             confidence=min(scoring_result["score_final"], 1.0),
