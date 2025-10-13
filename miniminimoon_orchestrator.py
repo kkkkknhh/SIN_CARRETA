@@ -1460,9 +1460,12 @@ class CanonicalDeterministicOrchestrator:
             ),
             results["stages_completed"],
         )
-        
+
         # Enrich monetary results with numeric analysis if available
-        if isinstance(embedding_result, dict) and "numeric_analysis" in embedding_result:
+        if (
+            isinstance(embedding_result, dict)
+            and "numeric_analysis" in embedding_result
+        ):
             try:
                 numeric_analysis = embedding_result["numeric_analysis"]
                 # Check for monetary value inconsistencies in numeric analysis
@@ -1470,10 +1473,12 @@ class CanonicalDeterministicOrchestrator:
                     inconsistencies_found = 0
                     for analysis in numeric_analysis:
                         # Check for high semantic similarity but different numeric values
-                        if (analysis.get("semantic_similarity", 0) > 0.7 and
-                            analysis.get("numeric_divergence_score", 0) > 0.5):
+                        if (
+                            analysis.get("semantic_similarity", 0) > 0.7
+                            and analysis.get("numeric_divergence_score", 0) > 0.5
+                        ):
                             inconsistencies_found += 1
-                    
+
                     if inconsistencies_found > 0:
                         # Register numeric inconsistency evidence
                         inconsistency_evidence = EvidenceEntry(
@@ -1482,14 +1487,19 @@ class CanonicalDeterministicOrchestrator:
                             content={
                                 "inconsistencies_detected": inconsistencies_found,
                                 "total_analyzed": len(numeric_analysis),
-                                "details": "Numeric values differ despite semantic similarity"
+                                "details": "Numeric values differ despite semantic similarity",
                             },
                             confidence=0.75,
-                            metadata={"stage": "monetary", "type": "numeric_inconsistency"},
+                            metadata={
+                                "stage": "monetary",
+                                "type": "numeric_inconsistency",
+                            },
                         )
                         self.evidence_registry.register(inconsistency_evidence)
             except Exception as e:
-                self.logger.warning("Failed to enrich monetary with numeric analysis: %s", e)
+                self.logger.warning(
+                    "Failed to enrich monetary with numeric analysis: %s", e
+                )
 
         feasibility = self._run_stage(
             PipelineStage.FEASIBILITY,
