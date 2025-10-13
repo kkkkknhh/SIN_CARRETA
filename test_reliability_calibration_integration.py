@@ -8,12 +8,12 @@ import sys
 from dataclasses import asdict
 
 from questionnaire_engine import (
-    QuestionnaireEngine,
     BaseQuestion,
-    ThematicPoint,
-    SearchPattern,
-    ScoringRule,
+    QuestionnaireEngine,
     ScoringModality,
+    ScoringRule,
+    SearchPattern,
+    ThematicPoint,
 )
 
 
@@ -22,9 +22,9 @@ def test_calibrator_initialization():
     engine = QuestionnaireEngine()
 
     # Verify calibrator exists
-    assert hasattr(
-        engine, "reliability_calibrator"
-    ), "Engine should have reliability_calibrator attribute"
+    assert hasattr(engine, "reliability_calibrator"), (
+        "Engine should have reliability_calibrator attribute"
+    )
 
     # Verify calibrator configuration
     calibrator = engine.reliability_calibrator
@@ -72,18 +72,18 @@ def test_calibrated_score_in_evaluation():
     result = engine._evaluate_question_with_evidence(base_q, point, evidence_list)
 
     # Verify calibration fields are present
-    assert hasattr(
-        result, "calibrated_score"
-    ), "EvaluationResult should have calibrated_score"
+    assert hasattr(result, "calibrated_score"), (
+        "EvaluationResult should have calibrated_score"
+    )
     assert hasattr(result, "uncertainty"), "EvaluationResult should have uncertainty"
 
     # Verify calibration was applied
-    assert (
-        result.calibrated_score is not None
-    ), "calibrated_score should not be None after evaluation"
-    assert (
-        result.uncertainty is not None
-    ), "uncertainty should not be None after evaluation"
+    assert result.calibrated_score is not None, (
+        "calibrated_score should not be None after evaluation"
+    )
+    assert result.uncertainty is not None, (
+        "uncertainty should not be None after evaluation"
+    )
 
     # Verify calibrated score is different from raw score (unless reliability is 1.0)
     calibrator = engine.reliability_calibrator
@@ -98,7 +98,9 @@ def test_calibrated_score_in_evaluation():
     assert result.uncertainty >= 0.0, "Uncertainty should be non-negative"
     assert result.uncertainty <= 1.0, "Uncertainty should be <= 1.0"
 
-    print(f"✓ Calibration applied: Raw={result.score:.2f}, Calibrated={result.calibrated_score:.2f}, Uncertainty=±{result.uncertainty:.3f}")
+    print(
+        f"✓ Calibration applied: Raw={result.score:.2f}, Calibrated={result.calibrated_score:.2f}, Uncertainty=±{result.uncertainty:.3f}"
+    )
 
 
 def test_calibration_evidence_registration():
@@ -134,13 +136,13 @@ def test_calibration_evidence_registration():
     for evidence in result.evidence:
         if evidence.get("source") == "reliability_calibrator":
             calibration_evidence_found = True
-            assert (
-                evidence.get("type") == "bayesian_calibration"
-            ), "Evidence type should be bayesian_calibration"
+            assert evidence.get("type") == "bayesian_calibration", (
+                "Evidence type should be bayesian_calibration"
+            )
             assert "confidence" in evidence, "Evidence should include confidence"
-            assert (
-                "content_summary" in evidence
-            ), "Evidence should include content_summary"
+            assert "content_summary" in evidence, (
+                "Evidence should include content_summary"
+            )
             # Verify content summary includes key metrics
             summary = evidence["content_summary"]
             assert "Raw score" in summary, "Summary should mention raw score"
@@ -148,9 +150,9 @@ def test_calibration_evidence_registration():
             assert "Uncertainty" in summary, "Summary should mention uncertainty"
             assert "F1" in summary, "Summary should mention F1 score"
 
-    assert (
-        calibration_evidence_found
-    ), "Calibration evidence should be registered in evidence list"
+    assert calibration_evidence_found, (
+        "Calibration evidence should be registered in evidence list"
+    )
 
     print("✓ Calibration evidence registration verified")
 
@@ -175,16 +177,16 @@ def test_300_questions_calibrated():
 
     # Verify 300 questions were evaluated
     all_questions = results["results"]["all_questions"]
-    assert (
-        len(all_questions) == 300
-    ), f"Should have 300 questions, got {len(all_questions)}"
+    assert len(all_questions) == 300, (
+        f"Should have 300 questions, got {len(all_questions)}"
+    )
 
     # Verify all have calibration
     calibrated_count = 0
     for q in all_questions:
-        assert (
-            "calibrated_score" in q
-        ), f"Question {q['question_id']} missing calibrated_score"
+        assert "calibrated_score" in q, (
+            f"Question {q['question_id']} missing calibrated_score"
+        )
         assert "uncertainty" in q, f"Question {q['question_id']} missing uncertainty"
 
         if q["calibrated_score"] is not None:
@@ -194,13 +196,13 @@ def test_300_questions_calibrated():
         has_calibration_evidence = any(
             e.get("source") == "reliability_calibrator" for e in q.get("evidence", [])
         )
-        assert (
-            has_calibration_evidence
-        ), f"Question {q['question_id']} missing calibration evidence"
+        assert has_calibration_evidence, (
+            f"Question {q['question_id']} missing calibration evidence"
+        )
 
-    assert (
-        calibrated_count == 300
-    ), f"All 300 questions should be calibrated, got {calibrated_count}"
+    assert calibrated_count == 300, (
+        f"All 300 questions should be calibrated, got {calibrated_count}"
+    )
 
     print(f"✓ All 300 questions calibrated with uncertainty quantification")
 

@@ -850,7 +850,7 @@ class CanonicalDeterministicOrchestrator:
 
         while idx < len(segment_texts):
             batch_size = 64 if (len(segment_texts) - idx) >= 64 else 32
-            batch = segment_texts[idx: idx + batch_size]
+            batch = segment_texts[idx : idx + batch_size]
 
             try:
                 batch_embeddings = self.embedding_model.encode(batch)
@@ -936,7 +936,7 @@ class CanonicalDeterministicOrchestrator:
         self, sanitized_text: str, segments: List[Any]
     ) -> Dict[str, Any]:
         """Execute feasibility scoring with factibilidad module integration (Stage 8: FEASIBILITY)."""
-        from factibilidad import PatternDetector, FactibilidadScorer
+        from factibilidad import FactibilidadScorer, PatternDetector
 
         self.logger.info("Stage 8: FEASIBILITY - Enhanced pattern-based scoring")
 
@@ -1011,9 +1011,7 @@ class CanonicalDeterministicOrchestrator:
                 "weights": scoring_result["weights"],
             },
             source_segment_ids=[
-                seg.get("id", f"seg_{i}")
-                if isinstance(seg, dict)
-                else f"seg_{i}"
+                seg.get("id", f"seg_{i}") if isinstance(seg, dict) else f"seg_{i}"
                 for i, seg in enumerate(segments)
             ],
             confidence=min(scoring_result["score_final"], 1.0),
@@ -1120,8 +1118,10 @@ class CanonicalDeterministicOrchestrator:
         if isinstance(dag_diagnostics_entry, dict):
             try:
                 dag_str = json.dumps(dag_diagnostics_entry, sort_keys=True, default=str)
-                dag_evidence_id = f"dag_{hashlib.sha1(dag_str.encode()).hexdigest()[:10]}"
-                
+                dag_evidence_id = (
+                    f"dag_{hashlib.sha1(dag_str.encode()).hexdigest()[:10]}"
+                )
+
                 dag_entry = EvidenceEntry(
                     evidence_id=dag_evidence_id,
                     stage=PipelineStage.DAG.value,
@@ -1131,15 +1131,13 @@ class CanonicalDeterministicOrchestrator:
                     metadata={
                         "p_value": dag_diagnostics_entry.get("p_value"),
                         "acyclic": dag_diagnostics_entry.get("acyclic"),
-                    }
+                    },
                 )
-                
+
                 self.evidence_registry.register(dag_entry)
-                
+
             except (TypeError, AttributeError) as e:
-                self.logger.warning(
-                    "Could not register DAG evidence: %s", e
-                )
+                self.logger.warning("Could not register DAG evidence: %s", e)
 
         self.logger.info(
             "Evidence registry built with %s entries",
@@ -1164,6 +1162,7 @@ class CanonicalDeterministicOrchestrator:
                     BUNDLE,
                     ExtractorEvidenciaIndustrialAvanzado,
                 )
+
                 implementation = "full"
             except (ImportError, Exception) as e:
                 self.logger.warning("Full Decatalogo not available: %s. Using mock.", e)
@@ -1171,6 +1170,7 @@ class CanonicalDeterministicOrchestrator:
                     BUNDLE,
                     ExtractorEvidenciaIndustrialAvanzado,
                 )
+
                 implementation = "mock"
 
             self.decatalogo_extractor = ExtractorEvidenciaIndustrialAvanzado(BUNDLE)
@@ -1552,7 +1552,7 @@ class CanonicalDeterministicOrchestrator:
         """Execute a single pipeline stage with error handling and structured logging."""
         stage_name = stage.value
         stage_start_time = time.time()
-        
+
         # ENTRY POINT LOGGING
         entry_log = {
             "event": "stage_entry",
@@ -1566,10 +1566,10 @@ class CanonicalDeterministicOrchestrator:
         try:
             result = func()
             stage_duration = time.time() - stage_start_time
-            
+
             # Analyze output artifacts
             output_summary = self._analyze_output_artifact(result, stage_name)
-            
+
             # EXIT POINT LOGGING (SUCCESS)
             exit_log = {
                 "event": "stage_exit",
@@ -1583,15 +1583,15 @@ class CanonicalDeterministicOrchestrator:
                 "thread_id": threading.get_ident(),
             }
             self.logger.info("STAGE_EXIT: %s", json.dumps(exit_log, sort_keys=True))
-            
+
             if self.enable_validation:
                 self.runtime_tracer.record_stage(stage_name, success=True)
             stages_list.append(stage_name)
             return result
-            
+
         except Exception as e:
             stage_duration = time.time() - stage_start_time
-            
+
             # EXIT POINT LOGGING (FAILURE)
             exit_log = {
                 "event": "stage_exit",
@@ -1606,7 +1606,7 @@ class CanonicalDeterministicOrchestrator:
                 "thread_id": threading.get_ident(),
             }
             self.logger.error("STAGE_EXIT: %s", json.dumps(exit_log, sort_keys=True))
-            
+
             if self.enable_validation:
                 self.runtime_tracer.record_stage(
                     stage_name, success=False, error=str(e)
@@ -1621,46 +1621,48 @@ class CanonicalDeterministicOrchestrator:
             "is_empty": False,
             "is_malformed": False,
             "size": 0,
-            "validation_errors": []
+            "validation_errors": [],
         }
-        
+
         if result is None:
             summary["is_empty"] = True
             summary["validation_errors"].append("Output is None")
             return summary
-            
+
         if isinstance(result, (list, dict, str)):
             if not result:
                 summary["is_empty"] = True
                 summary["validation_errors"].append("Output is empty collection/string")
-                
+
         if isinstance(result, dict):
             summary["size"] = len(result)
             summary["keys"] = list(result.keys())[:10]  # First 10 keys
-            
+
             # Check for error indicators
             if "error" in result or "status" in result:
                 status = result.get("status", "")
                 if status in ["failed", "error"] or "error" in result:
                     summary["is_malformed"] = True
-                    summary["validation_errors"].append(f"Error indicator in output: {result.get('error', status)}")
-                    
+                    summary["validation_errors"].append(
+                        f"Error indicator in output: {result.get('error', status)}"
+                    )
+
         elif isinstance(result, list):
             summary["size"] = len(result)
             if result:
                 summary["first_item_type"] = type(result[0]).__name__
-                
+
         elif isinstance(result, str):
             summary["size"] = len(result)
             if len(result) < 10:
                 summary["is_malformed"] = True
                 summary["validation_errors"].append("String output suspiciously short")
-                
+
         return summary
 
     def _count_evidence_for_stage(self, stage_name: str) -> int:
         """Count evidence entries registered for a specific stage."""
-        if hasattr(self, 'evidence_registry'):
+        if hasattr(self, "evidence_registry"):
             return len(self.evidence_registry.get_by_stage(stage_name))
         return 0
 

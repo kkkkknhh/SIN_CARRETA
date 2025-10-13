@@ -471,7 +471,9 @@ class AnswerAssembler:
         # Categorize argumentation outcomes
         argumentation_by_status = {
             "success": sum(
-                1 for qa in question_answers if qa.get("argumentation_status") == "success"
+                1
+                for qa in question_answers
+                if qa.get("argumentation_status") == "success"
             ),
             "insufficient_evidence": sum(
                 1
@@ -499,8 +501,7 @@ class AnswerAssembler:
         successful_arguments = [
             qa
             for qa in question_answers
-            if qa.get("argumentation_status") == "success"
-            and "argument_quality" in qa
+            if qa.get("argumentation_status") == "success" and "argument_quality" in qa
         ]
 
         avg_coherence = (

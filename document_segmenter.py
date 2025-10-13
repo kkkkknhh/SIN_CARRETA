@@ -1016,7 +1016,7 @@ class DocumentSegmenter:
         out: List[Dict[str, object]] = []
         start = 0
         for c in cuts:
-            chunk = " ".join(sents[start: c + 1]).strip()
+            chunk = " ".join(sents[start : c + 1]).strip()
             m = self._metrics(
                 chunk,
                 "advanced"
@@ -1131,7 +1131,7 @@ class DocumentSegmenter:
                     }
                 )
             )
-        return segs[:idx] + replacement + segs[idx + 1:]
+        return segs[:idx] + replacement + segs[idx + 1 :]
 
     def _split_if_oversized(self, seg: Dict[str, object]) -> List[Dict[str, object]]:
         if seg["metrics"].char_count <= self.max_segment_chars:
@@ -1158,7 +1158,7 @@ class DocumentSegmenter:
         words = text.split()
         if not words:
             size = max(1, self.max_segment_chars)
-            return [text[i: i + size] for i in range(0, len(text), size)]
+            return [text[i : i + size] for i in range(0, len(text), size)]
         parts: List[str] = []
         cur: List[str] = []
         length = 0
@@ -1169,7 +1169,7 @@ class DocumentSegmenter:
                     parts.append(" ".join(cur))
                     cur, length = [], 0
                 size = max(1, self.max_segment_chars)
-                parts.extend(w[i: i + size] for i in range(0, wl, size))
+                parts.extend(w[i : i + size] for i in range(0, wl, size))
                 continue
             add = wl + (1 if cur else 0)
             if cur and length + add > self.max_segment_chars:

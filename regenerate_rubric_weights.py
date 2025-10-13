@@ -13,20 +13,21 @@ Architecture (from questionnaire_engine.py):
 import json
 import re
 
+
 def generate_all_300_weights():
     """
     Generate weights for all 300 questions using the correct ID pattern.
-    
+
     Pattern from questionnaire_engine.py line 124:
       question_id: str  # P1-D1-Q1, P2-D1-Q1, etc.
-    
+
     And line 1607:
       question_id = f"{point.id}-{base_q.id}"
-    
+
     Where:
     - point.id = P1, P2, ..., P10 (10 thematic points)
     - base_q.id = D1-Q1, D1-Q2, ..., D6-Q30 (30 base questions)
-    
+
     Base question mapping per dimension:
     - D1: Q1, Q2, Q3, Q4, Q5
     - D2: Q6, Q7, Q8, Q9, Q10
@@ -35,38 +36,39 @@ def generate_all_300_weights():
     - D5: Q21, Q22, Q23, Q24, Q25
     - D6: Q26, Q27, Q28, Q29, Q30
     """
-    
+
     weights = {}
     weight_per_question = 1.0 / 300.0
-    
+
     # Define base questions per dimension (from questionnaire_engine.py)
     dimension_questions = {
-        'D1': [1, 2, 3, 4, 5],
-        'D2': [6, 7, 8, 9, 10],
-        'D3': [11, 12, 13, 14, 15],
-        'D4': [16, 17, 18, 19, 20],
-        'D5': [21, 22, 23, 24, 25],
-        'D6': [26, 27, 28, 29, 30]
+        "D1": [1, 2, 3, 4, 5],
+        "D2": [6, 7, 8, 9, 10],
+        "D3": [11, 12, 13, 14, 15],
+        "D4": [16, 17, 18, 19, 20],
+        "D5": [21, 22, 23, 24, 25],
+        "D6": [26, 27, 28, 29, 30],
     }
-    
+
     # Generate all 300 question IDs
     for point in range(1, 11):  # P1-P10
         point_id = f"P{point}"
-        for dimension in ['D1', 'D2', 'D3', 'D4', 'D5', 'D6']:
+        for dimension in ["D1", "D2", "D3", "D4", "D5", "D6"]:
             for q_num in dimension_questions[dimension]:
                 question_id = f"{point_id}-{dimension}-Q{q_num}"
                 weights[question_id] = weight_per_question
-    
+
     return weights
+
 
 def verify_weights(weights):
     """Verify the generated weights meet all requirements"""
-    
+
     print("=" * 80)
     print("VERIFICATION RESULTS")
     print("=" * 80)
     print()
-    
+
     # Check 1: Exactly 300 entries
     num_entries = len(weights)
     print(f"1. Number of entries: {num_entries}")
@@ -76,7 +78,7 @@ def verify_weights(weights):
         print(f"   ✗ FAIL: Expected 300 entries, got {num_entries}")
         return False
     print()
-    
+
     # Check 2: All weights sum to 1.0
     total_weight = sum(weights.values())
     print(f"2. Sum of all weights: {total_weight:.15f}")
@@ -87,7 +89,7 @@ def verify_weights(weights):
         print(f"   Difference: {abs(total_weight - 1.0):.15e}")
         return False
     print()
-    
+
     # Check 3: Each weight is exactly 1/300
     expected_weight = 1.0 / 300.0
     print(f"3. Expected weight per question: {expected_weight:.15f}")
@@ -97,17 +99,19 @@ def verify_weights(weights):
         if abs(weight - expected_weight) > 1e-15:
             incorrect_weights.append((question_id, weight))
             if len(incorrect_weights) <= 3:  # Show first few
-                print(f"   ✗ {question_id}: {weight:.15f} (expected {expected_weight:.15f})")
-    
+                print(
+                    f"   ✗ {question_id}: {weight:.15f} (expected {expected_weight:.15f})"
+                )
+
     if not incorrect_weights:
         print(f"   ✓ PASS: All weights equal {expected_weight:.15f}")
     else:
         print(f"   ✗ FAIL: {len(incorrect_weights)} weights are incorrect")
         return False
     print()
-    
+
     # Check 4: All keys follow P{point}-D{dimension}-Q{question} pattern
-    pattern = re.compile(r'^P([1-9]|10)-D[1-6]-Q([1-9]|[12][0-9]|30)$')
+    pattern = re.compile(r"^P([1-9]|10)-D[1-6]-Q([1-9]|[12][0-9]|30)$")
     print("4. Verify ID pattern P{1-10}-D{1-6}-Q{1-30}:")
     invalid_keys = [k for k in weights.keys() if not pattern.match(k)]
     if not invalid_keys:
@@ -117,7 +121,7 @@ def verify_weights(weights):
         print(f"   First few invalid: {invalid_keys[:5]}")
         return False
     print()
-    
+
     # Check 5: Each thematic point has exactly 30 questions
     print("5. Questions per thematic point:")
     all_correct = True
@@ -132,11 +136,11 @@ def verify_weights(weights):
     if not all_correct:
         return False
     print()
-    
+
     # Check 6: Each dimension appears 10 times (once per thematic point)
     print("6. Questions per dimension (across all thematic points):")
     all_correct = True
-    for dim in ['D1', 'D2', 'D3', 'D4', 'D5', 'D6']:
+    for dim in ["D1", "D2", "D3", "D4", "D5", "D6"]:
         dim_questions = [k for k in weights.keys() if f"-{dim}-" in k]
         # Each dimension has 5 questions, each appears 10 times
         expected_count = 5 * 10
@@ -148,45 +152,48 @@ def verify_weights(weights):
     if not all_correct:
         return False
     print()
-    
+
     # Check 7: Verify question number ranges per dimension
     print("7. Question number ranges per dimension:")
     dimension_ranges = {
-        'D1': list(range(1, 6)),
-        'D2': list(range(6, 11)),
-        'D3': list(range(11, 16)),
-        'D4': list(range(16, 21)),
-        'D5': list(range(21, 26)),
-        'D6': list(range(26, 31))
+        "D1": list(range(1, 6)),
+        "D2": list(range(6, 11)),
+        "D3": list(range(11, 16)),
+        "D4": list(range(16, 21)),
+        "D5": list(range(21, 26)),
+        "D6": list(range(26, 31)),
     }
-    
+
     all_correct = True
     for dim, expected_qs in dimension_ranges.items():
         # Extract unique question numbers for this dimension
         dim_keys = [k for k in weights.keys() if f"-{dim}-Q" in k]
-        q_numbers = sorted(set([int(k.split('-Q')[1]) for k in dim_keys]))
-        
+        q_numbers = sorted(set([int(k.split("-Q")[1]) for k in dim_keys]))
+
         if q_numbers == expected_qs:
-            print(f"   ✓ {dim}: Q{expected_qs[0]}-Q{expected_qs[-1]} (appears 10 times each)")
+            print(
+                f"   ✓ {dim}: Q{expected_qs[0]}-Q{expected_qs[-1]} (appears 10 times each)"
+            )
         else:
             print(f"   ✗ {dim}: Expected {expected_qs}, got {q_numbers}")
             all_correct = False
-    
+
     if not all_correct:
         return False
     print()
-    
+
     print("=" * 80)
     print("ALL VERIFICATION CHECKS PASSED ✓")
     print("=" * 80)
     return True
 
+
 def update_rubric_scoring_json(weights):
     """Update RUBRIC_SCORING.json with new weights"""
-    
+
     # Read current RUBRIC_SCORING.json if it exists
     try:
-        with open('RUBRIC_SCORING.json', 'r', encoding='utf-8') as f:
+        with open("RUBRIC_SCORING.json", "r", encoding="utf-8") as f:
             rubric = json.load(f)
     except FileNotFoundError:
         # Create minimal rubric structure if file doesn't exist
@@ -198,25 +205,28 @@ def update_rubric_scoring_json(weights):
                 "total_questions": 300,
                 "base_questions": 30,
                 "thematic_points": 10,
-                "dimensions": 6
+                "dimensions": 6,
             },
-            "weights": {}
+            "weights": {},
         }
-    
+
     # Update weights section
-    rubric['weights'] = weights
-    
+    rubric["weights"] = weights
+
     # Update metadata
-    rubric['metadata']['total_questions'] = 300
-    rubric['metadata']['description'] = "Complete scoring system for 300-question PDM evaluation (30 base questions × 10 thematic points)"
-    
+    rubric["metadata"]["total_questions"] = 300
+    rubric["metadata"]["description"] = (
+        "Complete scoring system for 300-question PDM evaluation (30 base questions × 10 thematic points)"
+    )
+
     # Write back with sorted keys for readability
-    with open('RUBRIC_SCORING.json', 'w', encoding='utf-8') as f:
+    with open("RUBRIC_SCORING.json", "w", encoding="utf-8") as f:
         json.dump(rubric, f, indent=2, ensure_ascii=False)
-    
+
     print()
     print("✓ RUBRIC_SCORING.json updated successfully")
     print(f"✓ Weights section now contains {len(weights)} entries")
+
 
 def main():
     print("=" * 80)
@@ -236,46 +246,47 @@ def main():
     print("  • Dimensions: D1-D6")
     print("  • Questions: Q1-Q30 (distributed across dimensions)")
     print()
-    
+
     # Generate weights
     print("Generating weights...")
     weights = generate_all_300_weights()
     print(f"✓ Generated {len(weights)} weight entries")
     print()
-    
+
     # Verify weights
     if not verify_weights(weights):
         print()
         print("✗ VERIFICATION FAILED - aborting")
         return False
-    
+
     # Show sample entries
     print()
     print("Sample weight entries:")
     sample_keys = [
-        'P1-D1-Q1',   # First question of first point
-        'P1-D1-Q5',   # Last question of D1 in first point
-        'P1-D2-Q6',   # First question of D2 in first point
-        'P5-D3-Q15',  # Middle point, middle dimension
-        'P10-D6-Q26', # Last point, last dimension first question
-        'P10-D6-Q30'  # Last question overall
+        "P1-D1-Q1",  # First question of first point
+        "P1-D1-Q5",  # Last question of D1 in first point
+        "P1-D2-Q6",  # First question of D2 in first point
+        "P5-D3-Q15",  # Middle point, middle dimension
+        "P10-D6-Q26",  # Last point, last dimension first question
+        "P10-D6-Q30",  # Last question overall
     ]
     for key in sample_keys:
         if key in weights:
             print(f"  {key}: {weights[key]:.15f}")
     print()
-    
+
     # Update RUBRIC_SCORING.json
     print("Updating RUBRIC_SCORING.json...")
     update_rubric_scoring_json(weights)
-    
+
     print()
     print("=" * 80)
     print("REGENERATION COMPLETE ✓")
     print("=" * 80)
-    
+
     return True
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     success = main()
     exit(0 if success else 1)

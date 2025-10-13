@@ -1131,7 +1131,7 @@ class OntologiaPoliticasAvanzada:
                             match.group(), patron
                         ),
                         "contexto": texto[
-                            max(0, match.start() - 50): match.end() + 50
+                            max(0, match.start() - 50) : match.end() + 50
                         ],
                     }
                     resultados.append(resultado)
@@ -2169,7 +2169,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 embeddings_lotes = []
 
                 for i in range(0, len(textos_validos), self.batch_size):
-                    lote = textos_validos[i: i + self.batch_size]
+                    lote = textos_validos[i : i + self.batch_size]
                     embeddings_lote = EMBEDDING_MODEL.encode(
                         lote,
                         convert_to_tensor=True,
@@ -2414,7 +2414,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
             # Fragmentar texto si es muy largo
             max_length = 512  # Límite típico de modelos de transformers
             fragmentos = [
-                texto[i: i + max_length] for i in range(0, len(texto), max_length)
+                texto[i : i + max_length] for i in range(0, len(texto), max_length)
             ]
 
             sentimientos_fragmentos = []
@@ -2848,7 +2848,10 @@ class ExtractorEvidenciaIndustrialAvanzado:
         # ========================================================================
         # STEP 4: Run CompetenceValidator across sectors (global analysis)
         # ========================================================================
-        log_info_with_text(self.logger, "🔍 Validando competencias institucionales (análisis global)...")
+        log_info_with_text(
+            self.logger,
+            "🔍 Validando competencias institucionales (análisis global)...",
+        )
 
         competence_issues_all = []
         for sector in sectors[:10]:  # Top 10 sectors
@@ -2860,7 +2863,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
             except Exception as e:
                 log_warning_with_text(
                     self.logger,
-                    f"⚠️ Error validando competencias para sector {sector}: {e}"
+                    f"⚠️ Error validando competencias para sector {sector}: {e}",
                 )
                 continue
 
@@ -3051,7 +3054,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
                     item.get("texto", "") for item in evidence_items if "texto" in item
                 ]
                 question_context = "\n".join(question_text_snippets)
-                
+
                 if question_context.strip():
                     # Validate competence boundaries for this question's context
                     for sector in sectors[:5]:  # Top 5 sectors per question
@@ -3059,16 +3062,16 @@ class ExtractorEvidenciaIndustrialAvanzado:
                             issues = competence_validator.validate_segment(
                                 text=question_context,
                                 sectors=[sector],
-                                level="municipal"
+                                level="municipal",
                             )
                             question_competence_issues.extend(issues)
                         except Exception as sector_error:
                             log_warning_with_text(
                                 self.logger,
-                                f"⚠️ Error validando competencias para {question_id} sector {sector}: {sector_error}"
+                                f"⚠️ Error validando competencias para {question_id} sector {sector}: {sector_error}",
                             )
                             continue
-                    
+
                     # Register competence validation results as evidence entries
                     for idx, issue in enumerate(question_competence_issues):
                         evidence_id = f"competence_validation::{question_id}::{idx}"
@@ -3085,7 +3088,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
                                         "module": "pdm_contra.policy.competence",
                                         "class": "CompetenceValidator",
                                         "timestamp": datetime.utcnow().isoformat(),
-                                    }
+                                    },
                                 },
                                 confidence=0.8,
                                 metadata={
@@ -3096,13 +3099,15 @@ class ExtractorEvidenciaIndustrialAvanzado:
                                 },
                             )
                         )
-                    
-                    question_competence_validations[question_id] = question_competence_issues
-                    
+
+                    question_competence_validations[question_id] = (
+                        question_competence_issues
+                    )
+
             except Exception as e:
                 log_warning_with_text(
                     self.logger,
-                    f"⚠️ Error en validación de competencias para {question_id}: {e}"
+                    f"⚠️ Error en validación de competencias para {question_id}: {e}",
                 )
                 question_competence_validations[question_id] = []
 
@@ -3138,7 +3143,8 @@ class ExtractorEvidenciaIndustrialAvanzado:
         # STEP 8: Score each decalogue principle with enriched evidence
         # ========================================================================
         log_info_with_text(
-            self.logger, "🎯 Puntuando principios del decálogo con evidencia enriquecida..."
+            self.logger,
+            "🎯 Puntuando principios del decálogo con evidencia enriquecida...",
         )
 
         # Define all 6 dimensions (D1-D6) aligned with canonical decalogue structure
@@ -3147,44 +3153,87 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 "id": "D1",
                 "nombre": "INSUMOS",
                 "descripcion": "Recursos financieros, humanos y físicos",
-                "conceptos_clave": ["presupuesto", "recursos", "financiación", "dotación", "personal", "infraestructura"],
-                "preguntas": ["D1-Q1", "D1-Q2", "D1-Q3", "D1-Q4", "D1-Q5"]
+                "conceptos_clave": [
+                    "presupuesto",
+                    "recursos",
+                    "financiación",
+                    "dotación",
+                    "personal",
+                    "infraestructura",
+                ],
+                "preguntas": ["D1-Q1", "D1-Q2", "D1-Q3", "D1-Q4", "D1-Q5"],
             },
             "D2": {
                 "id": "D2",
                 "nombre": "ACTIVIDADES",
                 "descripcion": "Actividades operacionales e implementación de procesos",
-                "conceptos_clave": ["actividad", "acción", "implementar", "ejecutar", "proceso", "procedimiento"],
-                "preguntas": ["D2-Q1", "D2-Q2", "D2-Q3", "D2-Q4", "D2-Q5"]
+                "conceptos_clave": [
+                    "actividad",
+                    "acción",
+                    "implementar",
+                    "ejecutar",
+                    "proceso",
+                    "procedimiento",
+                ],
+                "preguntas": ["D2-Q1", "D2-Q2", "D2-Q3", "D2-Q4", "D2-Q5"],
             },
             "D3": {
                 "id": "D3",
                 "nombre": "PRODUCTOS",
                 "descripcion": "Bienes/servicios entregables medibles",
-                "conceptos_clave": ["producto", "entregable", "servicio", "bien", "output", "meta"],
-                "preguntas": ["D3-Q1", "D3-Q2", "D3-Q3", "D3-Q4", "D3-Q5"]
+                "conceptos_clave": [
+                    "producto",
+                    "entregable",
+                    "servicio",
+                    "bien",
+                    "output",
+                    "meta",
+                ],
+                "preguntas": ["D3-Q1", "D3-Q2", "D3-Q3", "D3-Q4", "D3-Q5"],
             },
             "D4": {
                 "id": "D4",
                 "nombre": "RESULTADOS",
                 "descripcion": "Cambios conductuales/institucionales",
-                "conceptos_clave": ["resultado", "logro", "cambio", "mejora", "avance", "indicador"],
-                "preguntas": ["D4-Q1", "D4-Q2", "D4-Q3", "D4-Q4", "D4-Q5"]
+                "conceptos_clave": [
+                    "resultado",
+                    "logro",
+                    "cambio",
+                    "mejora",
+                    "avance",
+                    "indicador",
+                ],
+                "preguntas": ["D4-Q1", "D4-Q2", "D4-Q3", "D4-Q4", "D4-Q5"],
             },
             "D5": {
                 "id": "D5",
                 "nombre": "IMPACTOS",
                 "descripcion": "Bienestar y desarrollo humano sostenible",
-                "conceptos_clave": ["impacto", "bienestar", "desarrollo", "sostenible", "transformación", "consecuencia"],
-                "preguntas": ["D5-Q1", "D5-Q2", "D5-Q3", "D5-Q4", "D5-Q5"]
+                "conceptos_clave": [
+                    "impacto",
+                    "bienestar",
+                    "desarrollo",
+                    "sostenible",
+                    "transformación",
+                    "consecuencia",
+                ],
+                "preguntas": ["D5-Q1", "D5-Q2", "D5-Q3", "D5-Q4", "D5-Q5"],
             },
             "D6": {
                 "id": "D6",
                 "nombre": "CAUSALIDAD",
                 "descripcion": "Teoría de cambio, enlaces causales y modelo lógico de intervención",
-                "conceptos_clave": ["causa", "efecto", "mecanismo", "teoría", "cadena", "causal", "lógica"],
-                "preguntas": ["D6-Q1", "D6-Q2", "D6-Q3", "D6-Q4", "D6-Q5"]
-            }
+                "conceptos_clave": [
+                    "causa",
+                    "efecto",
+                    "mecanismo",
+                    "teoría",
+                    "cadena",
+                    "causal",
+                    "lógica",
+                ],
+                "preguntas": ["D6-Q1", "D6-Q2", "D6-Q3", "D6-Q4", "D6-Q5"],
+            },
         }
 
         # Build enriched evidence dictionary with pdm_contra outputs
@@ -3211,7 +3260,9 @@ class ExtractorEvidenciaIndustrialAvanzado:
             },
             "nli_results": {
                 "detector_available": True,
-                "light_mode": nli_detector.light_mode if hasattr(nli_detector, 'light_mode') else True,
+                "light_mode": nli_detector.light_mode
+                if hasattr(nli_detector, "light_mode")
+                else True,
             },
             "trace_info": {
                 "trace_report": explanation_tracer.get_trace_report(),
@@ -3226,7 +3277,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
         for dim_id, dimension_info in dimensiones_decalogo.items():
             log_info_with_text(
                 self.logger,
-                f"  📊 Evaluando dimensión {dim_id}: {dimension_info['nombre']}..."
+                f"  📊 Evaluando dimensión {dim_id}: {dimension_info['nombre']}...",
             )
 
             # Extract relevant evidence for this dimension
@@ -3272,7 +3323,7 @@ class ExtractorEvidenciaIndustrialAvanzado:
 
         log_info_with_text(
             self.logger,
-            f"  ✓ {len(dimension_scores)} dimensiones evaluadas con evidencia enriquecida"
+            f"  ✓ {len(dimension_scores)} dimensiones evaluadas con evidencia enriquecida",
         )
 
         # ========================================================================
@@ -3295,7 +3346,9 @@ class ExtractorEvidenciaIndustrialAvanzado:
                 "risk_score": contradiction_analysis.risk_score,
                 "risk_level": contradiction_analysis.risk_level,
                 "dimensions_evaluated": len(dimension_scores),
-                "average_dimension_score": np.mean([d["score"] for d in dimension_scores.values()]),
+                "average_dimension_score": np.mean(
+                    [d["score"] for d in dimension_scores.values()]
+                ),
             },
             "detailed_analysis": {
                 "contradiction_analysis": {
@@ -3342,8 +3395,12 @@ class ExtractorEvidenciaIndustrialAvanzado:
             ],
             "enriched_evidence_summary": {
                 "total_contradictions": len(enriched_evidence_dict["contradictions"]),
-                "total_patterns": len(enriched_evidence_dict["patterns"]["adversative"]),
-                "total_competence_issues": len(enriched_evidence_dict["competence_issues"]),
+                "total_patterns": len(
+                    enriched_evidence_dict["patterns"]["adversative"]
+                ),
+                "total_competence_issues": len(
+                    enriched_evidence_dict["competence_issues"]
+                ),
                 "risk_level": enriched_evidence_dict["risk_scores"]["risk_level"],
             },
         }
@@ -3369,28 +3426,39 @@ class ExtractorEvidenciaIndustrialAvanzado:
         relevant_contradictions = []
         for contra in enriched_evidence["contradictions"]:
             text_combined = f"{contra.get('text_a', '')} {contra.get('text_b', '')}"
-            if any(concepto.lower() in text_combined.lower() for concepto in conceptos_clave):
+            if any(
+                concepto.lower() in text_combined.lower()
+                for concepto in conceptos_clave
+            ):
                 relevant_contradictions.append(contra)
 
         # Filter patterns relevant to this dimension
         relevant_patterns = []
         for pattern in enriched_evidence["patterns"]["adversative"]:
-            pattern_text = pattern.get("text", "") if isinstance(pattern, dict) else str(pattern)
-            if any(concepto.lower() in pattern_text.lower() for concepto in conceptos_clave):
+            pattern_text = (
+                pattern.get("text", "") if isinstance(pattern, dict) else str(pattern)
+            )
+            if any(
+                concepto.lower() in pattern_text.lower() for concepto in conceptos_clave
+            ):
                 relevant_patterns.append(pattern)
 
         # Filter competence issues relevant to this dimension
         relevant_competence = []
         for issue in enriched_evidence["competence_issues"]:
             issue_text = str(issue)
-            if any(concepto.lower() in issue_text.lower() for concepto in conceptos_clave):
+            if any(
+                concepto.lower() in issue_text.lower() for concepto in conceptos_clave
+            ):
                 relevant_competence.append(issue)
 
         # Get causal evidence for dimension questions
         relevant_causal = {}
         for pregunta_id in dimension_info.get("preguntas", []):
             if pregunta_id in enriched_evidence["causal_evidence"]:
-                relevant_causal[pregunta_id] = enriched_evidence["causal_evidence"][pregunta_id]
+                relevant_causal[pregunta_id] = enriched_evidence["causal_evidence"][
+                    pregunta_id
+                ]
 
         return {
             "dimension_id": dimension_id,
@@ -3412,12 +3480,17 @@ class ExtractorEvidenciaIndustrialAvanzado:
         dim_id = dimension_info["id"]
 
         # Base score from evidence presence
-        evidence_count = sum([
-            len(dimension_evidence["contradictions"]),
-            len(dimension_evidence["patterns"]),
-            len(dimension_evidence["competence_issues"]),
-            sum(len(items) for items in dimension_evidence["causal_evidence"].values()),
-        ])
+        evidence_count = sum(
+            [
+                len(dimension_evidence["contradictions"]),
+                len(dimension_evidence["patterns"]),
+                len(dimension_evidence["competence_issues"]),
+                sum(
+                    len(items)
+                    for items in dimension_evidence["causal_evidence"].values()
+                ),
+            ]
+        )
 
         base_score = min(1.0, evidence_count / 20.0)  # Normalize to 0-1
 
@@ -3432,23 +3505,35 @@ class ExtractorEvidenciaIndustrialAvanzado:
         # Risk level penalty
         risk_level = dimension_evidence["risk_level"]
         risk_penalties = {"low": 0.0, "medium": 0.1, "high": 0.2, "critical": 0.4}
-        risk_penalty = risk_penalties.get(risk_level.lower() if isinstance(risk_level, str) else "low", 0.1)
+        risk_penalty = risk_penalties.get(
+            risk_level.lower() if isinstance(risk_level, str) else "low", 0.1
+        )
 
         # Pattern bonus (adversative patterns indicate detailed analysis)
         pattern_bonus = min(0.2, len(dimension_evidence["patterns"]) * 0.02)
 
         # Calculate final score
-        final_score = base_score + pattern_bonus - contradiction_penalty - competence_penalty - risk_penalty
+        final_score = (
+            base_score
+            + pattern_bonus
+            - contradiction_penalty
+            - competence_penalty
+            - risk_penalty
+        )
         final_score = max(0.0, min(1.0, final_score))  # Clamp to [0, 1]
 
         # Calculate confidence based on evidence diversity
-        evidence_types = sum([
-            1 if dimension_evidence["contradictions"] else 0,
-            1 if dimension_evidence["patterns"] else 0,
-            1 if dimension_evidence["competence_issues"] else 0,
-            1 if dimension_evidence["causal_evidence"] else 0,
-        ])
-        confidence = min(0.95, 0.5 + (evidence_types * 0.15))  # Higher confidence with diverse evidence
+        evidence_types = sum(
+            [
+                1 if dimension_evidence["contradictions"] else 0,
+                1 if dimension_evidence["patterns"] else 0,
+                1 if dimension_evidence["competence_issues"] else 0,
+                1 if dimension_evidence["causal_evidence"] else 0,
+            ]
+        )
+        confidence = min(
+            0.95, 0.5 + (evidence_types * 0.15)
+        )  # Higher confidence with diverse evidence
 
         return {
             "score": final_score,
