@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 try:
     import numpy as np
+
     NUMPY_AVAILABLE = True
 except ImportError:
     NUMPY_AVAILABLE = False
@@ -1449,57 +1450,62 @@ class QuestionnaireEngine:
     ) -> List[Any]:
         """
         Perform semantic search on evidence using advanced embedding model features.
-        
+
         Args:
             query_text: Search query
             evidence_list: List of evidence items to search
             top_k: Number of top results to return
             use_mmr: Whether to apply MMR diversification
-            
+
         Returns:
             Reranked evidence list
         """
         if not evidence_list or len(evidence_list) == 0:
             return []
-        
+
         try:
             from miniminimoon_orchestrator import EnhancedEmbeddingPool
-            
+
             model = EnhancedEmbeddingPool.get_model()
-            
+
             # Encode query
             query_embedding = model.encode([query_text], normalize_embeddings=True)
-            if hasattr(query_embedding, '__len__') and len(query_embedding) > 0:
+            if hasattr(query_embedding, "__len__") and len(query_embedding) > 0:
                 query_embedding = query_embedding[0]
-            
+
             # Encode evidence items (or use stored embeddings if available)
             evidence_embeddings = []
             evidence_items = []
-            
+
             for evidence in evidence_list:
                 # Check if evidence has stored embedding
-                if hasattr(evidence, 'embedding') and evidence.embedding is not None:
+                if hasattr(evidence, "embedding") and evidence.embedding is not None:
                     evidence_embeddings.append(evidence.embedding)
                     evidence_items.append(evidence)
                 else:
                     # Encode evidence content
-                    evidence_text = str(evidence.content) if hasattr(evidence, 'content') else str(evidence)
+                    evidence_text = (
+                        str(evidence.content)
+                        if hasattr(evidence, "content")
+                        else str(evidence)
+                    )
                     emb = model.encode([evidence_text], normalize_embeddings=True)
-                    if hasattr(emb, '__len__') and len(emb) > 0:
+                    if hasattr(emb, "__len__") and len(emb) > 0:
                         evidence_embeddings.append(emb[0])
                         evidence_items.append(evidence)
-            
+
             if not evidence_embeddings:
                 return evidence_list[:top_k]
-            
+
             # Convert to numpy array
             if NUMPY_AVAILABLE:
                 import numpy as np
+
                 evidence_emb_array = np.array(evidence_embeddings)
                 query_emb_array = np.array([query_embedding])
-                
+
                 # Apply MMR if enabled
-                if use_mmr and hasattr(model, 'rerank_with_mmr'):
+                if use_mmr and hasattr(model, "rerank_with_mmr"):
                     try:
                         reranked_indices = model.rerank_with_mmr(
                             query_embedding=query_emb_array[0],
@@ -1512,16 +1518,16 @@ class QuestionnaireEngine:
                         return [evidence_items[idx] for idx in reranked_indices]
                     except Exception as e:
                         logger.warning("MMR reranking failed: %s", e)
-                
+
                 # Fallback to cosine similarity
                 similarities = model.compute_similarity(
                     query_emb_array, evidence_emb_array, metric="cosine"
                 )
                 top_indices = np.argsort(similarities[0])[::-1][:top_k]
                 return [evidence_items[idx] for idx in top_indices]
-            
+
             return evidence_list[:top_k]
-            
+
         except Exception as e:
             logger.warning("Semantic search failed: %s", e)
             return evidence_list[:top_k]

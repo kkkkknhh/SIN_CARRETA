@@ -983,7 +983,7 @@ class CanonicalDeterministicOrchestrator:
     def _encode_segments_dynamic(self, segment_texts: List[str]) -> Dict[str, Any]:
         """
         Encode text segments with enhanced features.
-        
+
         Returns comprehensive result including embeddings, quality, and analysis.
         """
         if not segment_texts:
@@ -991,14 +991,14 @@ class CanonicalDeterministicOrchestrator:
 
         # Use instruction-aware encoding
         instruction = "Encode municipal development plan segments for semantic analysis and evidence matching"
-        
+
         result = self.enhanced_embedding_stage.encode_with_context(
             texts=segment_texts,
             instruction=instruction,
             quality_check=True,
             enable_numeric_analysis=True,
         )
-        
+
         return result
 
     def _parallel_questionnaire_evaluation(self) -> Dict[str, Any]:
@@ -1400,7 +1400,7 @@ class CanonicalDeterministicOrchestrator:
         # Extract embeddings for downstream use
         if isinstance(embedding_result, dict):
             embeddings = embedding_result.get("embeddings", [])
-            
+
             # Register embedding quality as evidence
             if "quality_score" in embedding_result:
                 quality_evidence = EvidenceEntry(
@@ -1409,21 +1409,28 @@ class CanonicalDeterministicOrchestrator:
                     content={
                         "quality_score": embedding_result["quality_score"],
                         "text_count": embedding_result.get("text_count", 0),
-                        "instruction_used": embedding_result.get("instruction_used", False),
+                        "instruction_used": embedding_result.get(
+                            "instruction_used", False
+                        ),
                     },
                     confidence=float(embedding_result["quality_score"]),
                     metadata={"stage": "embedding", "type": "quality_assessment"},
                 )
                 self.evidence_registry.register(quality_evidence)
-            
+
             # Register numeric analysis as evidence if available
-            if "numeric_analysis" in embedding_result and embedding_result["numeric_analysis"]:
+            if (
+                "numeric_analysis" in embedding_result
+                and embedding_result["numeric_analysis"]
+            ):
                 numeric_evidence = EvidenceEntry(
                     evidence_id=f"numeric_analysis_{doc_hash[:8]}",
                     stage="embedding",
                     content={
                         "analysis": embedding_result["numeric_analysis"],
-                        "pairs_analyzed": embedding_result.get("numeric_pairs_analyzed", 0),
+                        "pairs_analyzed": embedding_result.get(
+                            "numeric_pairs_analyzed", 0
+                        ),
                     },
                     confidence=0.8,
                     metadata={"stage": "embedding", "type": "numeric_semantics"},
@@ -1560,13 +1567,17 @@ class CanonicalDeterministicOrchestrator:
             if embedding_diagnostics:
                 results["embedding_diagnostics"] = embedding_diagnostics
                 self.logger.info("Embedding diagnostics collected")
-                
+
                 # Auto-optimize if performance monitoring is enabled
-                optimization_results = EnhancedEmbeddingPool.optimize(target_latency_ms=100.0)
+                optimization_results = EnhancedEmbeddingPool.optimize(
+                    target_latency_ms=100.0
+                )
                 if optimization_results and optimization_results.get("changes_made"):
                     results["embedding_optimization"] = optimization_results
-                    self.logger.info("Embedding model auto-optimized: %s changes", 
-                                   len(optimization_results["changes_made"]))
+                    self.logger.info(
+                        "Embedding model auto-optimized: %s changes",
+                        len(optimization_results["changes_made"]),
+                    )
         except Exception as e:
             self.logger.warning("Failed to collect embedding diagnostics: %s", e)
 
