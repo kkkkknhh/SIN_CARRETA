@@ -1081,6 +1081,9 @@ class CanonicalDeterministicOrchestrator:
             PipelineStage.RESPONSIBILITY, all_inputs.get("responsibilities", []), "resp"
         )
         register_evidence(
+            PipelineStage.CONTRADICTION, all_inputs.get("contradictions", []), "contra"
+        )
+        register_evidence(
             PipelineStage.MONETARY, all_inputs.get("monetary", []), "money"
         )
 
@@ -1112,6 +1115,32 @@ class CanonicalDeterministicOrchestrator:
                         PipelineStage.TEORIA, industrial_metrics, "toc_metric"
                     )
 
+        # Register DAG validation evidence
+        dag_diagnostics_entry = all_inputs.get("dag_diagnostics")
+        if isinstance(dag_diagnostics_entry, dict):
+            try:
+                dag_str = json.dumps(dag_diagnostics_entry, sort_keys=True, default=str)
+                dag_evidence_id = f"dag_{hashlib.sha1(dag_str.encode()).hexdigest()[:10]}"
+                
+                dag_entry = EvidenceEntry(
+                    evidence_id=dag_evidence_id,
+                    stage=PipelineStage.DAG.value,
+                    content=dag_diagnostics_entry,
+                    source_segment_ids=[],
+                    confidence=0.9,
+                    metadata={
+                        "p_value": dag_diagnostics_entry.get("p_value"),
+                        "acyclic": dag_diagnostics_entry.get("acyclic"),
+                    }
+                )
+                
+                self.evidence_registry.register(dag_entry)
+                
+            except (TypeError, AttributeError) as e:
+                self.logger.warning(
+                    "Could not register DAG evidence: %s", e
+                )
+
         self.logger.info(
             "Evidence registry built with %s entries",
             len(self.evidence_registry._evidence),
@@ -1129,28 +1158,39 @@ class CanonicalDeterministicOrchestrator:
         self.logger.info("Loading Decálogo extractor and bundle...")
 
         try:
-            from Decatalogo_principal import (
-                BUNDLE,
-                ExtractorEvidenciaIndustrialAvanzado,
-            )
+            # Try full implementation first
+            try:
+                from Decatalogo_principal import (
+                    BUNDLE,
+                    ExtractorEvidenciaIndustrialAvanzado,
+                )
+                implementation = "full"
+            except (ImportError, Exception) as e:
+                self.logger.warning("Full Decatalogo not available: %s. Using mock.", e)
+                from Decatalogo_principal_mock import (
+                    BUNDLE,
+                    ExtractorEvidenciaIndustrialAvanzado,
+                )
+                implementation = "mock"
 
             self.decatalogo_extractor = ExtractorEvidenciaIndustrialAvanzado(BUNDLE)
 
             self.logger.info(
-                f"✓ Decálogo extractor loaded: "
+                f"✓ Decálogo extractor loaded ({implementation}): "
                 f"version={BUNDLE.get('version', 'unknown')}, "
                 f"categories={len(BUNDLE.get('categories', []))}"
             )
 
             return {
                 "status": "loaded",
+                "implementation": implementation,
                 "bundle_version": BUNDLE.get("version", "unknown"),
                 "categories_count": len(BUNDLE.get("categories", [])),
                 "extractor_type": type(self.decatalogo_extractor).__name__,
             }
 
         except ImportError as e:
-            self.logger.error("Failed to import Decatalogo_principal: %s", e)
+            self.logger.error("Failed to import Decatalogo (even mock): %s", e)
             raise
         except Exception as e:
             self.logger.error("Failed to initialize Decatalogo extractor: %s", e)
@@ -1509,23 +1549,120 @@ class CanonicalDeterministicOrchestrator:
     def _run_stage(
         self, stage: PipelineStage, func: Callable, stages_list: List[str]
     ) -> Any:
-        """Execute a single pipeline stage with error handling."""
+        """Execute a single pipeline stage with error handling and structured logging."""
         stage_name = stage.value
-        self.logger.info("→ %s", stage_name)
+        stage_start_time = time.time()
+        
+        # ENTRY POINT LOGGING
+        entry_log = {
+            "event": "stage_entry",
+            "stage_name": stage_name,
+            "stage_number": len(stages_list) + 1,
+            "timestamp": datetime.utcnow().isoformat(),
+            "thread_id": threading.get_ident(),
+        }
+        self.logger.info("STAGE_ENTRY: %s", json.dumps(entry_log, sort_keys=True))
 
         try:
             result = func()
+            stage_duration = time.time() - stage_start_time
+            
+            # Analyze output artifacts
+            output_summary = self._analyze_output_artifact(result, stage_name)
+            
+            # EXIT POINT LOGGING (SUCCESS)
+            exit_log = {
+                "event": "stage_exit",
+                "stage_name": stage_name,
+                "stage_number": len(stages_list) + 1,
+                "status": "success",
+                "duration_seconds": round(stage_duration, 3),
+                "timestamp": datetime.utcnow().isoformat(),
+                "output_summary": output_summary,
+                "evidence_registered": self._count_evidence_for_stage(stage_name),
+                "thread_id": threading.get_ident(),
+            }
+            self.logger.info("STAGE_EXIT: %s", json.dumps(exit_log, sort_keys=True))
+            
             if self.enable_validation:
                 self.runtime_tracer.record_stage(stage_name, success=True)
             stages_list.append(stage_name)
             return result
+            
         except Exception as e:
-            self.logger.error("Stage %s FAILED: %s", stage_name, e)
+            stage_duration = time.time() - stage_start_time
+            
+            # EXIT POINT LOGGING (FAILURE)
+            exit_log = {
+                "event": "stage_exit",
+                "stage_name": stage_name,
+                "stage_number": len(stages_list) + 1,
+                "status": "failure",
+                "duration_seconds": round(stage_duration, 3),
+                "timestamp": datetime.utcnow().isoformat(),
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "evidence_registered": self._count_evidence_for_stage(stage_name),
+                "thread_id": threading.get_ident(),
+            }
+            self.logger.error("STAGE_EXIT: %s", json.dumps(exit_log, sort_keys=True))
+            
             if self.enable_validation:
                 self.runtime_tracer.record_stage(
                     stage_name, success=False, error=str(e)
                 )
             raise
+
+    def _analyze_output_artifact(self, result: Any, stage_name: str) -> Dict[str, Any]:
+        """Analyze output artifact to detect empty, malformed, or missing data."""
+        summary = {
+            "type": type(result).__name__,
+            "is_none": result is None,
+            "is_empty": False,
+            "is_malformed": False,
+            "size": 0,
+            "validation_errors": []
+        }
+        
+        if result is None:
+            summary["is_empty"] = True
+            summary["validation_errors"].append("Output is None")
+            return summary
+            
+        if isinstance(result, (list, dict, str)):
+            if not result:
+                summary["is_empty"] = True
+                summary["validation_errors"].append("Output is empty collection/string")
+                
+        if isinstance(result, dict):
+            summary["size"] = len(result)
+            summary["keys"] = list(result.keys())[:10]  # First 10 keys
+            
+            # Check for error indicators
+            if "error" in result or "status" in result:
+                status = result.get("status", "")
+                if status in ["failed", "error"] or "error" in result:
+                    summary["is_malformed"] = True
+                    summary["validation_errors"].append(f"Error indicator in output: {result.get('error', status)}")
+                    
+        elif isinstance(result, list):
+            summary["size"] = len(result)
+            if result:
+                summary["first_item_type"] = type(result[0]).__name__
+                
+        elif isinstance(result, str):
+            summary["size"] = len(result)
+            if len(result) < 10:
+                summary["is_malformed"] = True
+                summary["validation_errors"].append("String output suspiciously short")
+                
+        return summary
+
+    def _count_evidence_for_stage(self, stage_name: str) -> int:
+        """Count evidence entries registered for a specific stage."""
+        if hasattr(self, 'evidence_registry'):
+            return len(self.evidence_registry.get_by_stage(stage_name))
+        return 0
 
     def export_artifacts(
         self, output_dir: Path, pipeline_results: Dict[str, Any] = None
