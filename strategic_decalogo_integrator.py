@@ -921,7 +921,7 @@ class StrategicDecalogoIntegrator:
             logger.info(f"Analyzing dimension {dim_id}...")
 
             # Get questions for this dimension
-            dim_questions = [q for q in all_evidence.keys() if q.startswith(dim_id)]
+            dim_questions = [q for q in all_evidence if q.startswith(dim_id)]
 
             # Integrate evidence for each question
             question_results = {}

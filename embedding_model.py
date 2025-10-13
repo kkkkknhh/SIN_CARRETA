@@ -253,7 +253,7 @@ class AdaptiveCache:
                 scores = {
                     k: self._access_counts[k]
                     / (time.time() - self._access_times.get(k, 0) + 1)
-                    for k in self._cache.keys()
+                    for k in self._cache
                 }
                 worst_key = min(scores.keys(), key=lambda k: scores[k])
                 self._cache.pop(worst_key, None)
@@ -754,7 +754,7 @@ class IndustrialEmbeddingModel:
     def _initialize_model_hierarchy(self, preferred_model: str) -> None:
         """Initialize embedding model with intelligent fallback."""
         models_to_try = [preferred_model] + [
-            k for k in self.MODEL_CONFIGURATIONS.keys() if k != preferred_model
+            k for k in self.MODEL_CONFIGURATIONS if k != preferred_model
         ]
 
         initialization_errors = []

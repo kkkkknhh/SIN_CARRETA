@@ -249,7 +249,7 @@ class PlanSanitizer:
 
         # Track statistics
         self.stats["total_chars_before"] = len(text)
-        self.stats["key_elements_preserved"] = {k: 0 for k in KEY_ELEMENTS.keys()}
+        self.stats["key_elements_preserved"] = {k: 0 for k in KEY_ELEMENTS}
 
         # First, normalize text
         normalized_text = normalize_text(text)

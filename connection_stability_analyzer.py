@@ -614,7 +614,7 @@ class ConnectionStabilityAnalyzer:
         Returns:
             Detailed report dictionary
         """
-        for connection_id in self.connection_metrics.keys():
+        for connection_id in self.connection_metrics:
             if connection_id not in self.verdicts:
                 self.generate_verdict(connection_id)
 
