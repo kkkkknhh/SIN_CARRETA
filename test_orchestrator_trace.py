@@ -10,16 +10,16 @@ import re
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 # Configure structured logging to capture stage traces
 logging.basicConfig(
     level=logging.INFO,
-    format='%(message)s',
+    format="%(message)s",
     handlers=[
-        logging.FileHandler('execution_trace.log', mode='w'),
-        logging.StreamHandler(sys.stdout)
-    ]
+        logging.FileHandler("execution_trace.log", mode="w"),
+        logging.StreamHandler(sys.stdout),
+    ],
 )
 
 
@@ -128,191 +128,195 @@ lo que mejorará la calidad de vida de la población.
 
 La inversión en microempresas generará un efecto multiplicador en la economía local.
 """
-    
-    output_path.write_text(test_content, encoding='utf-8')
+
+    output_path.write_text(test_content, encoding="utf-8")
     return output_path
 
 
 def parse_execution_trace(log_path: Path) -> Dict[str, Any]:
     """Parse execution trace from log file."""
-    traces = {
-        'stages': [],
-        'entries': [],
-        'exits': [],
-        'errors': []
-    }
-    
-    with open(log_path, 'r', encoding='utf-8') as f:
+    traces = {"stages": [], "entries": [], "exits": [], "errors": []}
+
+    with open(log_path, "r", encoding="utf-8") as f:
         for line in f:
-            if 'STAGE_ENTRY:' in line:
-                json_part = line.split('STAGE_ENTRY:', 1)[1].strip()
+            if "STAGE_ENTRY:" in line:
+                json_part = line.split("STAGE_ENTRY:", 1)[1].strip()
                 try:
                     entry = json.loads(json_part)
-                    traces['entries'].append(entry)
+                    traces["entries"].append(entry)
                 except json.JSONDecodeError:
                     pass
-                    
-            elif 'STAGE_EXIT:' in line:
-                json_part = line.split('STAGE_EXIT:', 1)[1].strip()
+
+            elif "STAGE_EXIT:" in line:
+                json_part = line.split("STAGE_EXIT:", 1)[1].strip()
                 try:
                     exit_data = json.loads(json_part)
-                    traces['exits'].append(exit_data)
-                    if exit_data.get('status') == 'success':
-                        traces['stages'].append(exit_data['stage_name'])
+                    traces["exits"].append(exit_data)
+                    if exit_data.get("status") == "success":
+                        traces["stages"].append(exit_data["stage_name"])
                     else:
-                        traces['errors'].append(exit_data)
+                        traces["errors"].append(exit_data)
                 except json.JSONDecodeError:
                     pass
-    
+
     return traces
 
 
 def analyze_stage_execution(traces: Dict[str, Any]) -> Dict[str, Any]:
     """Analyze stage execution to identify issues."""
-    
+
     expected_stages = [
-        'sanitization',
-        'plan_processing', 
-        'document_segmentation',
-        'embedding',
-        'responsibility_detection',
-        'contradiction_detection',
-        'monetary_detection',
-        'feasibility_scoring',
-        'causal_detection',
-        'teoria_cambio',
-        'dag_validation',
-        'evidence_registry_build',
-        'decalogo_load',
-        'decalogo_evaluation',
-        'questionnaire_evaluation',
-        'answers_assembly'
+        "sanitization",
+        "plan_processing",
+        "document_segmentation",
+        "embedding",
+        "responsibility_detection",
+        "contradiction_detection",
+        "monetary_detection",
+        "feasibility_scoring",
+        "causal_detection",
+        "teoria_cambio",
+        "dag_validation",
+        "evidence_registry_build",
+        "decalogo_load",
+        "decalogo_evaluation",
+        "questionnaire_evaluation",
+        "answers_assembly",
     ]
-    
-    executed_stages = set(traces['stages'])
+
+    executed_stages = set(traces["stages"])
     missing_stages = [s for s in expected_stages if s not in executed_stages]
-    
+
     stage_analysis = {}
-    
+
     # Analyze each stage
     for stage_name in expected_stages:
-        exits = [e for e in traces['exits'] if e['stage_name'] == stage_name]
-        
+        exits = [e for e in traces["exits"] if e["stage_name"] == stage_name]
+
         if not exits:
             stage_analysis[stage_name] = {
-                'executed': False,
-                'status': 'NOT_EXECUTED',
-                'reason': 'Stage never reached or bypassed',
-                'evidence_count': 0,
-                'output_valid': False,
-                'issues': ['Stage did not execute']
+                "executed": False,
+                "status": "NOT_EXECUTED",
+                "reason": "Stage never reached or bypassed",
+                "evidence_count": 0,
+                "output_valid": False,
+                "issues": ["Stage did not execute"],
             }
         else:
             exit_data = exits[0]
-            output_summary = exit_data.get('output_summary', {})
-            
+            output_summary = exit_data.get("output_summary", {})
+
             issues = []
-            
+
             # Check for empty output
-            if output_summary.get('is_empty', False):
-                issues.append('Empty output')
-                
-            # Check for malformed output  
-            if output_summary.get('is_malformed', False):
-                issues.append('Malformed output')
-                
+            if output_summary.get("is_empty", False):
+                issues.append("Empty output")
+
+            # Check for malformed output
+            if output_summary.get("is_malformed", False):
+                issues.append("Malformed output")
+
             # Check validation errors
-            validation_errors = output_summary.get('validation_errors', [])
+            validation_errors = output_summary.get("validation_errors", [])
             issues.extend(validation_errors)
-            
+
             # Check evidence registration
-            evidence_count = exit_data.get('evidence_registered', 0)
+            evidence_count = exit_data.get("evidence_registered", 0)
             if evidence_count == 0 and stage_name in [
-                'responsibility_detection',
-                'contradiction_detection', 
-                'monetary_detection',
-                'feasibility_scoring',
-                'causal_detection',
-                'teoria_cambio'
+                "responsibility_detection",
+                "contradiction_detection",
+                "monetary_detection",
+                "feasibility_scoring",
+                "causal_detection",
+                "teoria_cambio",
             ]:
-                issues.append('No evidence registered')
-            
+                issues.append("No evidence registered")
+
             stage_analysis[stage_name] = {
-                'executed': True,
-                'status': exit_data.get('status', 'unknown'),
-                'duration': exit_data.get('duration_seconds', 0),
-                'evidence_count': evidence_count,
-                'output_valid': len(issues) == 0,
-                'output_summary': output_summary,
-                'issues': issues
+                "executed": True,
+                "status": exit_data.get("status", "unknown"),
+                "duration": exit_data.get("duration_seconds", 0),
+                "evidence_count": evidence_count,
+                "output_valid": len(issues) == 0,
+                "output_summary": output_summary,
+                "issues": issues,
             }
-    
+
     return {
-        'expected_stages': expected_stages,
-        'executed_stages': list(executed_stages),
-        'missing_stages': missing_stages,
-        'stage_details': stage_analysis,
-        'total_errors': len(traces['errors']),
-        'error_details': traces['errors']
+        "expected_stages": expected_stages,
+        "executed_stages": list(executed_stages),
+        "missing_stages": missing_stages,
+        "stage_details": stage_analysis,
+        "total_errors": len(traces["errors"]),
+        "error_details": traces["errors"],
     }
 
 
 def identify_dead_code(analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Identify potential dead code in stages 1-12."""
     dead_code_findings = []
-    
+
     stages_1_12 = [
-        'sanitization',
-        'plan_processing',
-        'document_segmentation', 
-        'embedding',
-        'responsibility_detection',
-        'contradiction_detection',
-        'monetary_detection',
-        'feasibility_scoring',
-        'causal_detection',
-        'teoria_cambio',
-        'dag_validation',
-        'evidence_registry_build'
+        "sanitization",
+        "plan_processing",
+        "document_segmentation",
+        "embedding",
+        "responsibility_detection",
+        "contradiction_detection",
+        "monetary_detection",
+        "feasibility_scoring",
+        "causal_detection",
+        "teoria_cambio",
+        "dag_validation",
+        "evidence_registry_build",
     ]
-    
+
     for stage_name in stages_1_12:
-        stage_info = analysis['stage_details'].get(stage_name, {})
-        
+        stage_info = analysis["stage_details"].get(stage_name, {})
+
         # Stage never executed = potential dead code
-        if not stage_info.get('executed', False):
-            dead_code_findings.append({
-                'stage': stage_name,
-                'issue': 'UNREACHABLE_CODE',
-                'description': 'Stage code exists but never executes',
-                'remediation': 'Check conditional logic or remove if obsolete'
-            })
-        
+        if not stage_info.get("executed", False):
+            dead_code_findings.append(
+                {
+                    "stage": stage_name,
+                    "issue": "UNREACHABLE_CODE",
+                    "description": "Stage code exists but never executes",
+                    "remediation": "Check conditional logic or remove if obsolete",
+                }
+            )
+
         # Empty output = potential dead code path
-        elif stage_info.get('output_summary', {}).get('is_empty', False):
-            dead_code_findings.append({
-                'stage': stage_name,
-                'issue': 'DEAD_CODE_PATH',
-                'description': 'Stage executes but produces no output',
-                'remediation': 'Verify implementation or remove unused branches'
-            })
-        
+        elif stage_info.get("output_summary", {}).get("is_empty", False):
+            dead_code_findings.append(
+                {
+                    "stage": stage_name,
+                    "issue": "DEAD_CODE_PATH",
+                    "description": "Stage executes but produces no output",
+                    "remediation": "Verify implementation or remove unused branches",
+                }
+            )
+
         # No evidence when expected = integration missing
-        elif (stage_info.get('evidence_count', 0) == 0 and 
-              'No evidence registered' in stage_info.get('issues', [])):
-            dead_code_findings.append({
-                'stage': stage_name,
-                'issue': 'MISSING_INTEGRATION',
-                'description': 'Stage runs but evidence registration never called',
-                'remediation': 'Add evidence_registry.register() calls'
-            })
-    
+        elif stage_info.get(
+            "evidence_count", 0
+        ) == 0 and "No evidence registered" in stage_info.get("issues", []):
+            dead_code_findings.append(
+                {
+                    "stage": stage_name,
+                    "issue": "MISSING_INTEGRATION",
+                    "description": "Stage runs but evidence registration never called",
+                    "remediation": "Add evidence_registry.register() calls",
+                }
+            )
+
     return dead_code_findings
 
 
-def generate_audit_report(analysis: Dict[str, Any], dead_code: List[Dict[str, Any]]) -> str:
+def generate_audit_report(
+    analysis: Dict[str, Any], dead_code: List[Dict[str, Any]]
+) -> str:
     """Generate structured audit report."""
-    
+
     report_lines = [
         "=" * 80,
         "ORCHESTRATOR EXECUTION TRACE AUDIT REPORT",
@@ -327,79 +331,78 @@ def generate_audit_report(analysis: Dict[str, Any], dead_code: List[Dict[str, An
         f"Dead Code Issues: {len(dead_code)}",
         "",
     ]
-    
+
     # Section 1: Stage-by-Stage Execution Status
-    report_lines.extend([
-        "SECTION 1: STAGE EXECUTION STATUS",
-        "=" * 80,
-        ""
-    ])
-    
-    for i, stage_name in enumerate(analysis['expected_stages'], 1):
-        stage_info = analysis['stage_details'][stage_name]
-        
+    report_lines.extend(["SECTION 1: STAGE EXECUTION STATUS", "=" * 80, ""])
+
+    for i, stage_name in enumerate(analysis["expected_stages"], 1):
+        stage_info = analysis["stage_details"][stage_name]
+
         report_lines.append(f"Stage {i}: {stage_name}")
         report_lines.append("-" * 80)
         report_lines.append(f"  Executed: {'✓' if stage_info['executed'] else '✗'}")
         report_lines.append(f"  Status: {stage_info['status']}")
-        
-        if stage_info['executed']:
+
+        if stage_info["executed"]:
             report_lines.append(f"  Duration: {stage_info['duration']:.3f}s")
-            report_lines.append(f"  Evidence Registered: {stage_info['evidence_count']}")
-            report_lines.append(f"  Output Valid: {'✓' if stage_info['output_valid'] else '✗'}")
-            
-            if stage_info['output_summary']:
-                os = stage_info['output_summary']
+            report_lines.append(
+                f"  Evidence Registered: {stage_info['evidence_count']}"
+            )
+            report_lines.append(
+                f"  Output Valid: {'✓' if stage_info['output_valid'] else '✗'}"
+            )
+
+            if stage_info["output_summary"]:
+                os = stage_info["output_summary"]
                 report_lines.append(f"  Output Type: {os.get('type', 'unknown')}")
                 report_lines.append(f"  Output Size: {os.get('size', 0)}")
-                
-                if os.get('is_empty'):
+
+                if os.get("is_empty"):
                     report_lines.append("  ⚠ WARNING: Empty output")
-                if os.get('is_malformed'):
+                if os.get("is_malformed"):
                     report_lines.append("  ⚠ WARNING: Malformed output")
-            
-            if stage_info['issues']:
+
+            if stage_info["issues"]:
                 report_lines.append("  Issues Found:")
-                for issue in stage_info['issues']:
+                for issue in stage_info["issues"]:
                     report_lines.append(f"    - {issue}")
         else:
             report_lines.append(f"  Reason: {stage_info.get('reason', 'Unknown')}")
-        
+
         report_lines.append("")
-    
+
     # Section 2: Evidence Registration Verification
-    report_lines.extend([
-        "",
-        "SECTION 2: EVIDENCE REGISTRATION VERIFICATION",
-        "=" * 80,
-        ""
-    ])
-    
+    report_lines.extend(
+        ["", "SECTION 2: EVIDENCE REGISTRATION VERIFICATION", "=" * 80, ""]
+    )
+
     evidence_stages = [
-        'responsibility_detection',
-        'contradiction_detection',
-        'monetary_detection', 
-        'feasibility_scoring',
-        'causal_detection',
-        'teoria_cambio'
+        "responsibility_detection",
+        "contradiction_detection",
+        "monetary_detection",
+        "feasibility_scoring",
+        "causal_detection",
+        "teoria_cambio",
     ]
-    
+
     for stage_name in evidence_stages:
-        stage_info = analysis['stage_details'].get(stage_name, {})
-        count = stage_info.get('evidence_count', 0)
+        stage_info = analysis["stage_details"].get(stage_name, {})
+        count = stage_info.get("evidence_count", 0)
         status = "✓ OK" if count > 0 else "✗ MISSING"
         report_lines.append(f"  {stage_name:30s} → {count:3d} entries  {status}")
-    
+
     report_lines.append("")
-    
+
     # Section 3: Dead Code and Missing Integration Points
-    report_lines.extend([
-        "",
-        "SECTION 3: DEAD CODE & MISSING INTEGRATION POINTS (Stages 1-12)",
-        "=" * 80,
-        ""
-    ])
-    
+    report_lines.extend(
+        [
+            "",
+            "SECTION 3: DEAD CODE & MISSING INTEGRATION POINTS (Stages 1-12)",
+            "=" * 80,
+            "",
+        ]
+    )
+
     if not dead_code:
         report_lines.append("  ✓ No dead code or missing integration points detected")
     else:
@@ -409,68 +412,66 @@ def generate_audit_report(analysis: Dict[str, Any], dead_code: List[Dict[str, An
             report_lines.append(f"  Description: {finding['description']}")
             report_lines.append(f"  Remediation: {finding['remediation']}")
             report_lines.append("")
-    
+
     # Section 4: Error Details
-    if analysis['error_details']:
-        report_lines.extend([
-            "",
-            "SECTION 4: ERROR DETAILS",
-            "=" * 80,
-            ""
-        ])
-        
-        for error in analysis['error_details']:
+    if analysis["error_details"]:
+        report_lines.extend(["", "SECTION 4: ERROR DETAILS", "=" * 80, ""])
+
+        for error in analysis["error_details"]:
             report_lines.append(f"Stage: {error['stage_name']}")
             report_lines.append(f"  Error Type: {error.get('error_type', 'Unknown')}")
             report_lines.append(f"  Error Message: {error.get('error', 'No message')}")
             report_lines.append(f"  Duration: {error.get('duration_seconds', 0):.3f}s")
             report_lines.append("")
-    
+
     # Section 5: Recommendations
-    report_lines.extend([
-        "",
-        "SECTION 5: REMEDIATION RECOMMENDATIONS",
-        "=" * 80,
-        ""
-    ])
-    
-    if analysis['missing_stages']:
+    report_lines.extend(["", "SECTION 5: REMEDIATION RECOMMENDATIONS", "=" * 80, ""])
+
+    if analysis["missing_stages"]:
         report_lines.append("Missing Stages:")
-        for stage in analysis['missing_stages']:
-            report_lines.append(f"  - {stage}: Ensure stage is invoked in orchestrator flow")
+        for stage in analysis["missing_stages"]:
+            report_lines.append(
+                f"  - {stage}: Ensure stage is invoked in orchestrator flow"
+            )
         report_lines.append("")
-    
+
     if dead_code:
         report_lines.append("Dead Code Remediation:")
         seen_issues = set()
         for finding in dead_code:
-            key = (finding['issue'], finding['remediation'])
+            key = (finding["issue"], finding["remediation"])
             if key not in seen_issues:
                 report_lines.append(f"  - {finding['issue']}: {finding['remediation']}")
                 seen_issues.add(key)
         report_lines.append("")
-    
+
     # Count issues
     total_issues = (
-        len(analysis['missing_stages']) +
-        len(dead_code) +
-        analysis['total_errors'] +
-        sum(1 for s in analysis['stage_details'].values() if not s.get('output_valid', True))
+        len(analysis["missing_stages"])
+        + len(dead_code)
+        + analysis["total_errors"]
+        + sum(
+            1
+            for s in analysis["stage_details"].values()
+            if not s.get("output_valid", True)
+        )
     )
-    
-    report_lines.extend([
-        "",
-        "AUDIT SUMMARY",
-        "-" * 80,
-        f"Total Issues Identified: {total_issues}",
-        f"  - Missing Stages: {len(analysis['missing_stages'])}",
-        f"  - Dead Code Issues: {len(dead_code)}",
-        f"  - Execution Errors: {analysis['total_errors']}",
-        f"  - Invalid Outputs: {sum(1 for s in analysis['stage_details'].values() if not s.get('output_valid', True))}",
-        "",
-        "=" * 80
-    ])
-    
+
+    report_lines.extend(
+        [
+            "",
+            "AUDIT SUMMARY",
+            "-" * 80,
+            f"Total Issues Identified: {total_issues}",
+            f"  - Missing Stages: {len(analysis['missing_stages'])}",
+            f"  - Dead Code Issues: {len(dead_code)}",
+            f"  - Execution Errors: {analysis['total_errors']}",
+            f"  - Invalid Outputs: {sum(1 for s in analysis['stage_details'].values() if not s.get('output_valid', True))}",
+            "",
+            "=" * 80,
+        ]
+    )
+
     return "\n".join(report_lines)
 
 
@@ -480,94 +481,97 @@ def main():
     print("ORCHESTRATOR TRACE EXECUTION & AUDIT")
     print("=" * 80)
     print()
-    
+
     # Setup paths
     test_pdm_path = Path("test_pdm_trace.txt")
     output_dir = Path("trace_output")
     output_dir.mkdir(exist_ok=True)
-    
+
     # Create test PDM
     print("[1/5] Creating test PDM...")
     create_test_pdm(test_pdm_path)
     print(f"  ✓ Test PDM created: {test_pdm_path}")
     print()
-    
+
     # Run orchestrator
     print("[2/5] Running orchestrator with structured logging...")
     try:
         from miniminimoon_orchestrator import UnifiedEvaluationPipeline
-        
+
         config_dir = Path("config")
         if not config_dir.exists():
             config_dir.mkdir()
             # Create minimal rubric
-            rubric = {
-                "questions": {},
-                "weights": {}
-            }
-            (config_dir / "RUBRIC_SCORING.json").write_text(json.dumps(rubric, indent=2))
-        
+            rubric = {"questions": {}, "weights": {}}
+            (config_dir / "RUBRIC_SCORING.json").write_text(
+                json.dumps(rubric, indent=2)
+            )
+
         pipeline = UnifiedEvaluationPipeline(config_dir=config_dir)
-        
+
         try:
             results = pipeline.evaluate(str(test_pdm_path), output_dir)
             print("  ✓ Orchestrator execution completed")
         except Exception as e:
             print(f"  ⚠ Orchestrator execution encountered errors: {e}")
             print("  Continuing with trace analysis...")
-            
+
     except ImportError as e:
         print(f"  ✗ Failed to import orchestrator: {e}")
         return 1
-    
+
     print()
-    
+
     # Parse execution trace
     print("[3/5] Parsing execution trace...")
     log_path = Path("execution_trace.log")
     if not log_path.exists():
         print(f"  ✗ Trace log not found: {log_path}")
         return 1
-    
+
     traces = parse_execution_trace(log_path)
     print(f"  ✓ Parsed {len(traces['entries'])} stage entries")
     print(f"  ✓ Parsed {len(traces['exits'])} stage exits")
     print()
-    
+
     # Analyze execution
     print("[4/5] Analyzing stage execution...")
     analysis = analyze_stage_execution(traces)
-    print(f"  ✓ Executed: {len(analysis['executed_stages'])}/{len(analysis['expected_stages'])} stages")
+    print(
+        f"  ✓ Executed: {len(analysis['executed_stages'])}/{len(analysis['expected_stages'])} stages"
+    )
     print(f"  ✓ Identified {analysis['total_errors']} errors")
     print()
-    
+
     # Identify dead code
     print("[5/5] Identifying dead code and missing integrations...")
     dead_code = identify_dead_code(analysis)
     print(f"  ✓ Found {len(dead_code)} dead code issues")
     print()
-    
+
     # Generate audit report
     print("Generating audit report...")
     report = generate_audit_report(analysis, dead_code)
-    
+
     # Save reports
     report_path = output_dir / "AUDIT_REPORT.txt"
-    report_path.write_text(report, encoding='utf-8')
-    
+    report_path.write_text(report, encoding="utf-8")
+
     analysis_path = output_dir / "trace_analysis.json"
-    analysis_path.write_text(json.dumps({
-        'analysis': analysis,
-        'dead_code': dead_code
-    }, indent=2, ensure_ascii=False), encoding='utf-8')
-    
+    analysis_path.write_text(
+        json.dumps(
+            {"analysis": analysis, "dead_code": dead_code}, indent=2, ensure_ascii=False
+        ),
+        encoding="utf-8",
+    )
+
     print(f"✓ Audit report saved: {report_path}")
     print(f"✓ Trace analysis saved: {analysis_path}")
     print()
-    
+
     # Print report to console
     print(report)
-    
+
     return 0
 
 
