@@ -817,8 +817,6 @@ class MiniMiniMoonAuditor:
                 "after_load_mb": round(mem_after, 1),
                 "increase_mb": round(mem_increase, 1),
             }
-
-            del large_data
             gc.collect()
 
         except Exception as e:
