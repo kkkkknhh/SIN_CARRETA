@@ -12,7 +12,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import numpy as np
+try:
+    import numpy as np
+
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
 
 from evaluation.reliability_calibration import ReliabilityCalibrator
 
@@ -1451,6 +1456,97 @@ class QuestionnaireEngine:
             ),
         ]
 
+    def _semantic_search_evidence(
+        self,
+        query_text: str,
+        evidence_list: List[Any],
+        top_k: int = 10,
+        use_mmr: bool = True,
+    ) -> List[Any]:
+        """
+        Perform semantic search on evidence using advanced embedding model features.
+
+        Args:
+            query_text: Search query
+            evidence_list: List of evidence items to search
+            top_k: Number of top results to return
+            use_mmr: Whether to apply MMR diversification
+
+        Returns:
+            Reranked evidence list
+        """
+        if not evidence_list or len(evidence_list) == 0:
+            return []
+
+        try:
+            from miniminimoon_orchestrator import EnhancedEmbeddingPool
+
+            model = EnhancedEmbeddingPool.get_model()
+
+            # Encode query
+            query_embedding = model.encode([query_text], normalize_embeddings=True)
+            if hasattr(query_embedding, "__len__") and len(query_embedding) > 0:
+                query_embedding = query_embedding[0]
+
+            # Encode evidence items (or use stored embeddings if available)
+            evidence_embeddings = []
+            evidence_items = []
+
+            for evidence in evidence_list:
+                # Check if evidence has stored embedding
+                if hasattr(evidence, "embedding") and evidence.embedding is not None:
+                    evidence_embeddings.append(evidence.embedding)
+                    evidence_items.append(evidence)
+                else:
+                    # Encode evidence content
+                    evidence_text = (
+                        str(evidence.content)
+                        if hasattr(evidence, "content")
+                        else str(evidence)
+                    )
+                    emb = model.encode([evidence_text], normalize_embeddings=True)
+                    if hasattr(emb, "__len__") and len(emb) > 0:
+                        evidence_embeddings.append(emb[0])
+                        evidence_items.append(evidence)
+
+            if not evidence_embeddings:
+                return evidence_list[:top_k]
+
+            # Convert to numpy array
+            if NUMPY_AVAILABLE:
+                import numpy as np
+
+                evidence_emb_array = np.array(evidence_embeddings)
+                query_emb_array = np.array([query_embedding])
+
+                # Apply MMR if enabled
+                if use_mmr and hasattr(model, "rerank_with_mmr"):
+                    try:
+                        reranked_indices = model.rerank_with_mmr(
+                            query_embedding=query_emb_array[0],
+                            document_embeddings=evidence_emb_array,
+                            k=min(top_k, len(evidence_items)),
+                            algorithm="cosine_mmr",
+                            lambda_param=0.7,
+                            return_scores=False,
+                        )
+                        return [evidence_items[idx] for idx in reranked_indices]
+                    except Exception as e:
+                        logger.warning("MMR reranking failed: %s", e)
+
+                # Fallback to cosine similarity
+                similarities = model.compute_similarity(
+                    query_emb_array, evidence_emb_array, metric="cosine"
+                )
+                top_indices = np.argsort(similarities[0])[::-1][:top_k]
+                return [evidence_items[idx] for idx in top_indices]
+
+            return evidence_list[:top_k]
+
+        except Exception as e:
+            logger.warning("Semantic search failed: %s", e)
+            return evidence_list[:top_k]
+
     def execute_full_evaluation(
         self,
         orchestrator_results: Dict[str, Any],
@@ -2278,21 +2374,21 @@ class QuestionnaireEngine:
         # Apply Bayesian calibration to raw score (Stage 15 QUESTIONNAIRE_EVAL)
         # Normalize raw score to [0, 1] range for calibration
         normalized_raw = raw_score / base_question.max_score
-        
+
         # Get expected reliability from calibrator
         expected_reliability = self.reliability_calibrator.expected_f1
-        
+
         # Apply Bayesian calibration: calibrated = raw × reliability
         calibrated_normalized = normalized_raw * expected_reliability
         calibrated_score = calibrated_normalized * base_question.max_score
-        
+
         # Compute uncertainty metric (width of 95% credible interval for F1)
         # Using precision and recall intervals as proxy for F1 uncertainty
         precision_ci = self.reliability_calibrator.precision_credible_interval(
             level=0.95
         )
         recall_ci = self.reliability_calibrator.recall_credible_interval(level=0.95)
-        
+
         # Uncertainty: average width of precision and recall intervals
         precision_width = precision_ci[1] - precision_ci[0]
         recall_width = recall_ci[1] - recall_ci[0]

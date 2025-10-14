@@ -129,6 +129,143 @@ class EmbeddingModelPool:
         return cls._model_instance
 
 
+class EnhancedEmbeddingPool:
+    """Enhanced embedding pool with full capability exposure."""
+
+    _instance_lock = threading.Lock()
+    _model_instance: Optional[Any] = None
+    _config: Dict[str, Any] = {}
+
+    @classmethod
+    def initialize(
+        cls,
+        model_tier: str = "primary_large",
+        enable_instruction_learning: bool = True,
+        enable_monitoring: bool = True,
+        cache_size: int = 50000,
+    ):
+        """Initialize pool with advanced configuration."""
+        with cls._instance_lock:
+            cls._config = {
+                "preferred_model": model_tier,
+                "enable_instruction_learning": enable_instruction_learning,
+                "performance_monitoring": enable_monitoring,
+                "cache_size": cache_size,
+            }
+
+    @classmethod
+    def get_model(cls) -> Any:
+        if cls._model_instance is not None:
+            return cls._model_instance
+
+        with cls._instance_lock:
+            if cls._model_instance is None:
+                from embedding_model import IndustrialEmbeddingModel
+
+                # Use configuration or defaults
+                config = cls._config if cls._config else {}
+                cls._model_instance = IndustrialEmbeddingModel(
+                    preferred_model=config.get("preferred_model", "primary_large"),
+                    enable_instruction_learning=config.get(
+                        "enable_instruction_learning", True
+                    ),
+                    performance_monitoring=config.get("performance_monitoring", True),
+                    cache_size=config.get("cache_size", 50000),
+                )
+
+        return cls._model_instance
+
+    @classmethod
+    def get_diagnostics(cls) -> Dict[str, Any]:
+        """Get comprehensive diagnostics from model."""
+        model = cls.get_model()
+        if hasattr(model, "get_comprehensive_diagnostics"):
+            return model.get_comprehensive_diagnostics()
+        return {}
+
+    @classmethod
+    def optimize(cls, target_latency_ms: float = 100.0) -> Dict[str, Any]:
+        """Trigger auto-optimization."""
+        model = cls.get_model()
+        if hasattr(model, "optimize_performance"):
+            return model.optimize_performance(target_latency_ms)
+        return {}
+
+
+class EnhancedEmbeddingStage:
+    """Advanced Stage 4 with instruction-aware encoding and quality validation."""
+
+    def __init__(self, model_pool=None):
+        """Initialize enhanced embedding stage."""
+        self.model_pool = model_pool or EnhancedEmbeddingPool
+        self.logger = logging.getLogger(__name__)
+
+    def encode_with_context(
+        self,
+        texts: List[str],
+        instruction: Optional[str] = None,
+        quality_check: bool = True,
+        enable_numeric_analysis: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Encode texts with instruction awareness and comprehensive analysis.
+
+        Returns:
+            Dictionary with embeddings, quality_score, numeric_analysis, and metadata
+        """
+        model = self.model_pool.get_model()
+
+        # Encode with instruction if provided
+        embeddings = model.encode(
+            texts,
+            instruction=instruction,
+            instruction_strength=0.4,
+            enable_caching=True,
+            quality_check=quality_check,
+        )
+
+        result = {
+            "embeddings": embeddings,
+            "text_count": len(texts),
+            "instruction_used": instruction is not None,
+        }
+
+        # Quality assessment
+        if quality_check and hasattr(model, "_assess_embedding_quality"):
+            try:
+                if NUMPY_AVAILABLE:
+                    import numpy as np
+
+                    embeddings_array = np.array(embeddings)
+                    quality_score = model._assess_embedding_quality(embeddings_array)
+                    result["quality_score"] = float(quality_score)
+            except Exception as e:
+                self.logger.warning("Quality check failed: %s", e)
+                result["quality_score"] = 0.5
+
+        # Numeric semantic analysis (sample pairs for performance)
+        if enable_numeric_analysis and len(texts) > 1:
+            try:
+                # Analyze a sample of text pairs
+                sample_size = min(5, len(texts) // 2)
+                if sample_size > 0:
+                    # Create pairs from non-overlapping segments
+                    pairs = []
+                    for i in range(0, min(sample_size * 2, len(texts) - 1), 2):
+                        pairs.append((texts[i], texts[i + 1]))
+
+                    if pairs and hasattr(model, "analyze_numeric_semantics"):
+                        numeric_analysis = model.analyze_numeric_semantics(
+                            pairs, instruction=instruction, detailed_analysis=False
+                        )
+                        result["numeric_analysis"] = numeric_analysis
+                        result["numeric_pairs_analyzed"] = len(pairs)
+            except Exception as e:
+                self.logger.warning("Numeric analysis failed: %s", e)
+
+        return result
+
+
 # ============================================================================
 # DATA STRUCTURES
 # ============================================================================
@@ -145,6 +282,7 @@ class EvidenceEntry:
     confidence: float = 1.0
     timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     metadata: Dict[str, Any] = field(default_factory=dict)
+    embedding: Optional[Any] = None  # Store embedding for semantic search/MMR
 
     def to_hash(self) -> str:
         content_str = json.dumps(
@@ -787,7 +925,9 @@ class CanonicalDeterministicOrchestrator:
         self.plan_sanitizer = PlanSanitizer()
         self.plan_processor = PlanProcessor(self.config_dir)
         self.document_segmenter = DocumentSegmenter()
-        self.embedding_model = EmbeddingModelPool.get_model()
+        # Initialize enhanced embedding pool and stage
+        self.embedding_model = EnhancedEmbeddingPool.get_model()
+        self.enhanced_embedding_stage = EnhancedEmbeddingStage(EnhancedEmbeddingPool)
         self.responsibility_detector = ResponsibilityDetector()
         self.contradiction_detector = ContradictionDetector()
         self.monetary_detector = MonetaryDetector()
@@ -840,28 +980,26 @@ class CanonicalDeterministicOrchestrator:
 
         self.logger.info("✅ Models warmed successfully")
 
-    def _encode_segments_dynamic(self, segment_texts: List[str]) -> List[Any]:
-        """Encode text segments with dynamic batching."""
+    def _encode_segments_dynamic(self, segment_texts: List[str]) -> Dict[str, Any]:
+        """
+        Encode text segments with enhanced features.
+
+        Returns comprehensive result including embeddings, quality, and analysis.
+        """
         if not segment_texts:
-            return []
+            return {"embeddings": [], "quality_score": 0.0, "text_count": 0}
 
-        results: List[Any] = []
-        idx = 0
+        # Use instruction-aware encoding
+        instruction = "Encode municipal development plan segments for semantic analysis and evidence matching"
 
-        while idx < len(segment_texts):
-            batch_size = 64 if (len(segment_texts) - idx) >= 64 else 32
-            batch = segment_texts[idx: idx + batch_size]
+        result = self.enhanced_embedding_stage.encode_with_context(
+            texts=segment_texts,
+            instruction=instruction,
+            quality_check=True,
+            enable_numeric_analysis=True,
+        )
 
-            try:
-                batch_embeddings = self.embedding_model.encode(batch)
-                results.extend(batch_embeddings)
-            except Exception as e:
-                self.logger.error("Embedding batch failed: %s", e)
-                raise
-
-            idx += batch_size
-
-        return results
+        return result
 
     def _parallel_questionnaire_evaluation(self) -> Dict[str, Any]:
         """Execute questionnaire evaluation with parallel question processing."""
@@ -936,7 +1074,7 @@ class CanonicalDeterministicOrchestrator:
         self, sanitized_text: str, segments: List[Any]
     ) -> Dict[str, Any]:
         """Execute feasibility scoring with factibilidad module integration (Stage 8: FEASIBILITY)."""
-        from factibilidad import PatternDetector, FactibilidadScorer
+        from factibilidad import FactibilidadScorer, PatternDetector
 
         self.logger.info("Stage 8: FEASIBILITY - Enhanced pattern-based scoring")
 
@@ -1011,9 +1149,7 @@ class CanonicalDeterministicOrchestrator:
                 "weights": scoring_result["weights"],
             },
             source_segment_ids=[
-                seg.get("id", f"seg_{i}")
-                if isinstance(seg, dict)
-                else f"seg_{i}"
+                seg.get("id", f"seg_{i}") if isinstance(seg, dict) else f"seg_{i}"
                 for i, seg in enumerate(segments)
             ],
             confidence=min(scoring_result["score_final"], 1.0),
@@ -1120,8 +1256,10 @@ class CanonicalDeterministicOrchestrator:
         if isinstance(dag_diagnostics_entry, dict):
             try:
                 dag_str = json.dumps(dag_diagnostics_entry, sort_keys=True, default=str)
-                dag_evidence_id = f"dag_{hashlib.sha1(dag_str.encode()).hexdigest()[:10]}"
-                
+                dag_evidence_id = (
+                    f"dag_{hashlib.sha1(dag_str.encode()).hexdigest()[:10]}"
+                )
+
                 dag_entry = EvidenceEntry(
                     evidence_id=dag_evidence_id,
                     stage=PipelineStage.DAG.value,
@@ -1131,15 +1269,13 @@ class CanonicalDeterministicOrchestrator:
                     metadata={
                         "p_value": dag_diagnostics_entry.get("p_value"),
                         "acyclic": dag_diagnostics_entry.get("acyclic"),
-                    }
+                    },
                 )
-                
+
                 self.evidence_registry.register(dag_entry)
-                
+
             except (TypeError, AttributeError) as e:
-                self.logger.warning(
-                    "Could not register DAG evidence: %s", e
-                )
+                self.logger.warning("Could not register DAG evidence: %s", e)
 
         self.logger.info(
             "Evidence registry built with %s entries",
@@ -1164,6 +1300,7 @@ class CanonicalDeterministicOrchestrator:
                     BUNDLE,
                     ExtractorEvidenciaIndustrialAvanzado,
                 )
+
                 implementation = "full"
             except (ImportError, Exception) as e:
                 self.logger.warning("Full Decatalogo not available: %s. Using mock.", e)
@@ -1171,6 +1308,7 @@ class CanonicalDeterministicOrchestrator:
                     BUNDLE,
                     ExtractorEvidenciaIndustrialAvanzado,
                 )
+
                 implementation = "mock"
 
             self.decatalogo_extractor = ExtractorEvidenciaIndustrialAvanzado(BUNDLE)
@@ -1398,22 +1536,65 @@ class CanonicalDeterministicOrchestrator:
 
         segment_texts = [getattr(s, "text", str(s)) for s in segments]
 
-        # Stage 4: Embeddings (with caching)
+        # Stage 4: Embeddings (with caching and enhanced features)
         cache_key_embeddings = f"{doc_hash}:embeddings"
         embeddings = self.intermediate_cache.get(cache_key_embeddings)
 
         if embeddings:
             self.logger.info("Embeddings cache HIT")
-            self._run_stage(
+            embedding_result = self._run_stage(
                 PipelineStage.EMBEDDING, lambda: embeddings, results["stages_completed"]
             )
         else:
-            embeddings = self._run_stage(
+            embedding_result = self._run_stage(
                 PipelineStage.EMBEDDING,
                 lambda: self._encode_segments_dynamic(segment_texts),
                 results["stages_completed"],
             )
-            self.intermediate_cache.set(cache_key_embeddings, embeddings)
+            self.intermediate_cache.set(cache_key_embeddings, embedding_result)
+
+        # Extract embeddings for downstream use
+        if isinstance(embedding_result, dict):
+            embeddings = embedding_result.get("embeddings", [])
+
+            # Register embedding quality as evidence
+            if "quality_score" in embedding_result:
+                quality_evidence = EvidenceEntry(
+                    evidence_id=f"embedding_quality_{doc_hash[:8]}",
+                    stage="embedding",
+                    content={
+                        "quality_score": embedding_result["quality_score"],
+                        "text_count": embedding_result.get("text_count", 0),
+                        "instruction_used": embedding_result.get(
+                            "instruction_used", False
+                        ),
+                    },
+                    confidence=float(embedding_result["quality_score"]),
+                    metadata={"stage": "embedding", "type": "quality_assessment"},
+                )
+                self.evidence_registry.register(quality_evidence)
+
+            # Register numeric analysis as evidence if available
+            if (
+                "numeric_analysis" in embedding_result
+                and embedding_result["numeric_analysis"]
+            ):
+                numeric_evidence = EvidenceEntry(
+                    evidence_id=f"numeric_analysis_{doc_hash[:8]}",
+                    stage="embedding",
+                    content={
+                        "analysis": embedding_result["numeric_analysis"],
+                        "pairs_analyzed": embedding_result.get(
+                            "numeric_pairs_analyzed", 0
+                        ),
+                    },
+                    confidence=0.8,
+                    metadata={"stage": "embedding", "type": "numeric_semantics"},
+                )
+                self.evidence_registry.register(numeric_evidence)
+        else:
+            # Backward compatibility: if result is not a dict, treat as embeddings
+            embeddings = embedding_result
 
         # Stages 5-11: Detectors and Validators
         responsibilities = self._run_stage(
@@ -1435,6 +1616,46 @@ class CanonicalDeterministicOrchestrator:
             ),
             results["stages_completed"],
         )
+
+        # Enrich monetary results with numeric analysis if available
+        if (
+            isinstance(embedding_result, dict)
+            and "numeric_analysis" in embedding_result
+        ):
+            try:
+                numeric_analysis = embedding_result["numeric_analysis"]
+                # Check for monetary value inconsistencies in numeric analysis
+                if numeric_analysis and len(numeric_analysis) > 0:
+                    inconsistencies_found = 0
+                    for analysis in numeric_analysis:
+                        # Check for high semantic similarity but different numeric values
+                        if (
+                            analysis.get("semantic_similarity", 0) > 0.7
+                            and analysis.get("numeric_divergence_score", 0) > 0.5
+                        ):
+                            inconsistencies_found += 1
+
+                    if inconsistencies_found > 0:
+                        # Register numeric inconsistency evidence
+                        inconsistency_evidence = EvidenceEntry(
+                            evidence_id=f"numeric_inconsistency_{doc_hash[:8]}",
+                            stage="monetary",
+                            content={
+                                "inconsistencies_detected": inconsistencies_found,
+                                "total_analyzed": len(numeric_analysis),
+                                "details": "Numeric values differ despite semantic similarity",
+                            },
+                            confidence=0.75,
+                            metadata={
+                                "stage": "monetary",
+                                "type": "numeric_inconsistency",
+                            },
+                        )
+                        self.evidence_registry.register(inconsistency_evidence)
+            except Exception as e:
+                self.logger.warning(
+                    "Failed to enrich monetary with numeric analysis: %s", e
+                )
 
         feasibility = self._run_stage(
             PipelineStage.FEASIBILITY,
@@ -1536,6 +1757,26 @@ class CanonicalDeterministicOrchestrator:
             "evidence_entries": len(self.evidence_registry._evidence),
         }
 
+        # Add embedding diagnostics
+        try:
+            embedding_diagnostics = EnhancedEmbeddingPool.get_diagnostics()
+            if embedding_diagnostics:
+                results["embedding_diagnostics"] = embedding_diagnostics
+                self.logger.info("Embedding diagnostics collected")
+
+                # Auto-optimize if performance monitoring is enabled
+                optimization_results = EnhancedEmbeddingPool.optimize(
+                    target_latency_ms=100.0
+                )
+                if optimization_results and optimization_results.get("changes_made"):
+                    results["embedding_optimization"] = optimization_results
+                    self.logger.info(
+                        "Embedding model auto-optimized: %s changes",
+                        len(optimization_results["changes_made"]),
+                    )
+        except Exception as e:
+            self.logger.warning("Failed to collect embedding diagnostics: %s", e)
+
         self.logger.info(
             "Pipeline completed in %.1fs", results["runtime_stats"]["duration_seconds"]
         )
@@ -1552,7 +1793,7 @@ class CanonicalDeterministicOrchestrator:
         """Execute a single pipeline stage with error handling and structured logging."""
         stage_name = stage.value
         stage_start_time = time.time()
-        
+
         # ENTRY POINT LOGGING
         entry_log = {
             "event": "stage_entry",
@@ -1566,10 +1807,10 @@ class CanonicalDeterministicOrchestrator:
         try:
             result = func()
             stage_duration = time.time() - stage_start_time
-            
+
             # Analyze output artifacts
             output_summary = self._analyze_output_artifact(result, stage_name)
-            
+
             # EXIT POINT LOGGING (SUCCESS)
             exit_log = {
                 "event": "stage_exit",
@@ -1583,15 +1824,15 @@ class CanonicalDeterministicOrchestrator:
                 "thread_id": threading.get_ident(),
             }
             self.logger.info("STAGE_EXIT: %s", json.dumps(exit_log, sort_keys=True))
-            
+
             if self.enable_validation:
                 self.runtime_tracer.record_stage(stage_name, success=True)
             stages_list.append(stage_name)
             return result
-            
+
         except Exception as e:
             stage_duration = time.time() - stage_start_time
-            
+
             # EXIT POINT LOGGING (FAILURE)
             exit_log = {
                 "event": "stage_exit",
@@ -1606,7 +1847,7 @@ class CanonicalDeterministicOrchestrator:
                 "thread_id": threading.get_ident(),
             }
             self.logger.error("STAGE_EXIT: %s", json.dumps(exit_log, sort_keys=True))
-            
+
             if self.enable_validation:
                 self.runtime_tracer.record_stage(
                     stage_name, success=False, error=str(e)
@@ -1621,46 +1862,48 @@ class CanonicalDeterministicOrchestrator:
             "is_empty": False,
             "is_malformed": False,
             "size": 0,
-            "validation_errors": []
+            "validation_errors": [],
         }
-        
+
         if result is None:
             summary["is_empty"] = True
             summary["validation_errors"].append("Output is None")
             return summary
-            
+
         if isinstance(result, (list, dict, str)):
             if not result:
                 summary["is_empty"] = True
                 summary["validation_errors"].append("Output is empty collection/string")
-                
+
         if isinstance(result, dict):
             summary["size"] = len(result)
             summary["keys"] = list(result.keys())[:10]  # First 10 keys
-            
+
             # Check for error indicators
             if "error" in result or "status" in result:
                 status = result.get("status", "")
                 if status in ["failed", "error"] or "error" in result:
                     summary["is_malformed"] = True
-                    summary["validation_errors"].append(f"Error indicator in output: {result.get('error', status)}")
-                    
+                    summary["validation_errors"].append(
+                        f"Error indicator in output: {result.get('error', status)}"
+                    )
+
         elif isinstance(result, list):
             summary["size"] = len(result)
             if result:
                 summary["first_item_type"] = type(result[0]).__name__
-                
+
         elif isinstance(result, str):
             summary["size"] = len(result)
             if len(result) < 10:
                 summary["is_malformed"] = True
                 summary["validation_errors"].append("String output suspiciously short")
-                
+
         return summary
 
     def _count_evidence_for_stage(self, stage_name: str) -> int:
         """Count evidence entries registered for a specific stage."""
-        if hasattr(self, 'evidence_registry'):
+        if hasattr(self, "evidence_registry"):
             return len(self.evidence_registry.get_by_stage(stage_name))
         return 0
 
